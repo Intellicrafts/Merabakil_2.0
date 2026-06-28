@@ -1,0 +1,74 @@
+{{- range $name, $svc := .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    app: {{ $name }}
+    {{- include "legalos.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas | default 1 }}
+  selector:
+    matchLabels: { app: {{ $name }} }
+  template:
+    metadata:
+      labels: { app: {{ $name }} }
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: {{ include "legalos.image" (dict "root" $ "image" $svc.image) }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          env:
+            - { name: PORT, value: {{ $svc.port | quote }} }
+            - { name: SERVICE_NAME, value: {{ printf "%s-service" $name | quote }} }
+            {{- range $k, $v := $svc.extraEnv }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
+          envFrom:
+            - configMapRef: { name: {{ $.Release.Name }}-config }
+            - secretRef: { name: {{ $.Values.existingSecret }} }
+          readinessProbe:
+            httpGet: { path: /ready, port: {{ $svc.port }} }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: {{ $svc.port }} }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources: {{- toYaml $.Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "legalos.labels" $ | nindent 4 }}
+spec:
+  selector: { app: {{ $name }} }
+  ports:
+    - port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+{{- if $.Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $name }}
+  minReplicas: {{ $.Values.autoscaling.minReplicas }}
+  maxReplicas: {{ $.Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $.Values.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}

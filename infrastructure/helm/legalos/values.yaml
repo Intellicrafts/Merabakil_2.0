@@ -1,0 +1,97 @@
+global:
+  imageRegistry: ghcr.io/legalos
+  imagePullPolicy: IfNotPresent
+  imageTag: latest
+
+# Non-secret configuration mounted as a ConfigMap.
+config:
+  ENVIRONMENT: production
+  LOG_LEVEL: INFO
+  OTEL_SDK_DISABLED: "false"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: legalos
+  REDIS_URL: redis://redis:6379/0
+  QDRANT_URL: http://qdrant:6333
+  QDRANT_COLLECTION: legal_knowledge
+  NEO4J_URI: bolt://neo4j:7687
+  OPENSEARCH_URL: http://opensearch:9200
+  OPENSEARCH_INDEX: legal_documents
+  KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_BUCKET: legalos-documents
+  AUTH_SERVICE_URL: http://auth:8001
+  INGESTION_SERVICE_URL: http://knowledge-ingestion:8002
+  SEARCH_SERVICE_URL: http://search:8003
+  RESEARCH_SERVICE_URL: http://research:8004
+  DOCUMENT_SERVICE_URL: http://document:8005
+  REASONING_SERVICE_URL: http://reasoning:8006
+  DRAFTING_SERVICE_URL: http://drafting:8007
+  CONTRACT_REVIEW_SERVICE_URL: http://contract-review:8008
+  LITIGATION_SERVICE_URL: http://litigation:8009
+  CORPUS_REGISTRY_PATH: /app/data/corpus_registry.yaml
+  LLM_USE_STUB: "false"
+  EMBEDDING_DIM: "1536"
+
+# Secret name to mount (create out-of-band / via External Secrets).
+existingSecret: legalos-secrets
+
+# Per-service definitions; templates iterate over this map.
+services:
+  auth:
+    image: auth
+    port: 8001
+    replicas: 2
+    extraEnv:
+      RUN_MIGRATIONS: "true"
+  knowledge-ingestion:
+    image: knowledge-ingestion
+    port: 8002
+    replicas: 2
+  search:
+    image: search
+    port: 8003
+    replicas: 2
+  research:
+    image: research
+    port: 8004
+    replicas: 2
+  document:
+    image: document
+    port: 8005
+    replicas: 2
+  reasoning:
+    image: reasoning
+    port: 8006
+    replicas: 1
+  drafting:
+    image: drafting
+    port: 8007
+    replicas: 1
+  contract-review:
+    image: contract-review
+    port: 8008
+    replicas: 1
+  litigation:
+    image: litigation
+    port: 8009
+    replicas: 1
+
+frontend:
+  image: frontend
+  port: 3000
+  replicas: 2
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: "1", memory: 1Gi }
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  services:
+    - search
+    - research

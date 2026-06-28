@@ -1,0 +1,327 @@
+# Application deployments + services. Datastores (Postgres, Qdrant, Neo4j,
+# OpenSearch, Kafka, Redis, MinIO) are expected to be provided by managed
+# offerings or their official operators/Helm charts in production.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  namespace: legalos
+  labels: { app: auth }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: auth }
+  template:
+    metadata:
+      labels: { app: auth }
+    spec:
+      containers:
+        - name: auth
+          image: ghcr.io/legalos/auth:latest
+          ports: [{ containerPort: 8001 }]
+          env:
+            - { name: PORT, value: "8001" }
+            - { name: RUN_MIGRATIONS, value: "true" }
+            - { name: SERVICE_NAME, value: "auth-service" }
+          envFrom:
+            - configMapRef: { name: legalos-config }
+            - secretRef: { name: legalos-secrets }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8001 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 8001 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: auth, namespace: legalos }
+spec:
+  selector: { app: auth }
+  ports: [{ port: 8001, targetPort: 8001 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-ingestion
+  namespace: legalos
+  labels: { app: knowledge-ingestion }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: knowledge-ingestion }
+  template:
+    metadata:
+      labels: { app: knowledge-ingestion }
+    spec:
+      containers:
+        - name: knowledge-ingestion
+          image: ghcr.io/legalos/knowledge-ingestion:latest
+          ports: [{ containerPort: 8002 }]
+          env:
+            - { name: PORT, value: "8002" }
+            - { name: SERVICE_NAME, value: "knowledge-ingestion-service" }
+          envFrom:
+            - configMapRef: { name: legalos-config }
+            - secretRef: { name: legalos-secrets }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8002 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: knowledge-ingestion, namespace: legalos }
+spec:
+  selector: { app: knowledge-ingestion }
+  ports: [{ port: 8002, targetPort: 8002 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search
+  namespace: legalos
+  labels: { app: search }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: search }
+  template:
+    metadata:
+      labels: { app: search }
+    spec:
+      containers:
+        - name: search
+          image: ghcr.io/legalos/search:latest
+          ports: [{ containerPort: 8003 }]
+          env:
+            - { name: PORT, value: "8003" }
+            - { name: SERVICE_NAME, value: "search-service" }
+          envFrom:
+            - configMapRef: { name: legalos-config }
+            - secretRef: { name: legalos-secrets }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8003 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: search, namespace: legalos }
+spec:
+  selector: { app: search }
+  ports: [{ port: 8003, targetPort: 8003 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: research
+  namespace: legalos
+  labels: { app: research }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: research }
+  template:
+    metadata:
+      labels: { app: research }
+    spec:
+      containers:
+        - name: research
+          image: ghcr.io/legalos/research:latest
+          ports: [{ containerPort: 8004 }]
+          env:
+            - { name: PORT, value: "8004" }
+            - { name: SERVICE_NAME, value: "research-service" }
+          envFrom:
+            - configMapRef: { name: legalos-config }
+            - secretRef: { name: legalos-secrets }
+          readinessProbe:
+            httpGet: { path: /ready, port: 8004 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: research, namespace: legalos }
+spec:
+  selector: { app: research }
+  ports: [{ port: 8004, targetPort: 8004 }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: search-hpa
+  namespace: legalos
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: search
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: research-hpa
+  namespace: legalos
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: research
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document
+  namespace: legalos
+  labels: { app: document }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: document }
+  template:
+    metadata:
+      labels: { app: document }
+    spec:
+      containers:
+        - name: document
+          image: ghcr.io/legalos/document:latest
+          ports: [{ containerPort: 8005 }]
+          env:
+            - { name: PORT, value: "8005" }
+            - { name: SERVICE_NAME, value: "document-service" }
+          envFrom:
+            - configMapRef: { name: legalos-config }
+            - secretRef: { name: legalos-secrets }
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: document, namespace: legalos }
+spec:
+  selector: { app: document }
+  ports: [{ port: 8005, targetPort: 8005 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contract-review
+  namespace: legalos
+  labels: { app: contract-review }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: contract-review }
+  template:
+    metadata:
+      labels: { app: contract-review }
+    spec:
+      containers:
+        - name: contract-review
+          image: ghcr.io/legalos/contract-review:latest
+          ports: [{ containerPort: 8008 }]
+          env:
+            - { name: PORT, value: "8008" }
+          envFrom:
+            - configMapRef: { name: legalos-config }
+            - secretRef: { name: legalos-secrets }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: contract-review, namespace: legalos }
+spec:
+  selector: { app: contract-review }
+  ports: [{ port: 8008, targetPort: 8008 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litigation
+  namespace: legalos
+  labels: { app: litigation }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: litigation }
+  template:
+    metadata:
+      labels: { app: litigation }
+    spec:
+      containers:
+        - name: litigation
+          image: ghcr.io/legalos/litigation:latest
+          ports: [{ containerPort: 8009 }]
+          env:
+            - { name: PORT, value: "8009" }
+          envFrom:
+            - configMapRef: { name: legalos-config }
+            - secretRef: { name: legalos-secrets }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: litigation, namespace: legalos }
+spec:
+  selector: { app: litigation }
+  ports: [{ port: 8009, targetPort: 8009 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: legalos
+  labels: { app: frontend }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/legalos/frontend:latest
+          ports: [{ containerPort: 3000 }]
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: frontend, namespace: legalos }
+spec:
+  selector: { app: frontend }
+  ports: [{ port: 3000, targetPort: 3000 }]

@@ -1,0 +1,16 @@
+**/.venv
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+.git
+.github
+data/**
+!data/corpus_registry.yaml
+!data/**/.gitkeep
+docs
+*.md
+**/.env

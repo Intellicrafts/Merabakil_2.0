@@ -1,0 +1,8 @@
+apiVersion: v2
+name: legalos
+description: AI Legal Operating System for India - umbrella chart for application services
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: AI Legal OS Team

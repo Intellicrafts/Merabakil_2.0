@@ -1,0 +1,53 @@
+[project]
+name = "legalos-backend"
+version = "0.1.0"
+description = "AI Legal OS backend workspace (Phase 1 + Phase 2 core legal services)"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = [
+    "libs/legalos_common",
+    "orchestrator",
+    "services/auth",
+    "services/knowledge-ingestion",
+    "services/search",
+    "services/research",
+    "services/document",
+    "services/reasoning",
+    "services/drafting",
+    "services/contract-review",
+    "services/litigation",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "ASYNC", "RUF"]
+ignore = [
+    "B008",   # FastAPI Depends() in argument defaults is idiomatic
+    "UP046",  # pydantic Generic[...] base is required for generic models
+    "UP047",  # keep explicit TypeVar generics for clarity/compat
+    "RUF012", # SQLAlchemy/declarative class attrs are not ClassVar-annotated
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["legalos_common", "legalos_orchestrator", "app"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+warn_unused_ignores = false
+disallow_untyped_defs = false
+check_untyped_defs = true
+namespace_packages = true
+explicit_package_bases = true
+
+[tool.pytest.ini_options]
+addopts = "-q --import-mode=importlib"
+asyncio_mode = "auto"
+consider_namespace_packages = true
+testpaths = ["services", "libs", "orchestrator"]

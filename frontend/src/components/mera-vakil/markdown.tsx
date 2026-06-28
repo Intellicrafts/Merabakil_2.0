@@ -1,0 +1,86 @@
+"use client";
+
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+import { CodeBlock } from "@/components/mera-vakil/code-block";
+import { cn } from "@/lib/utils";
+
+interface MarkdownProps {
+  content: string;
+  className?: string;
+  onCitationClick?: (marker: string) => void;
+}
+
+export function Markdown({ content, className, onCitationClick }: MarkdownProps) {
+  return (
+    <div className={cn("prose-mera-vakil text-sm leading-relaxed", className)}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+          ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5">{children}</ol>,
+          li: ({ children }) => <li className="text-foreground/90">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+          h1: ({ children }) => <h1 className="mb-2 text-lg font-semibold">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-2 text-base font-semibold">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 text-sm font-semibold">{children}</h3>,
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              className="font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {children}
+            </a>
+          ),
+          code: ({ className: codeClass, children, ...props }) => {
+            const match = /language-(\w+)/.exec(codeClass ?? "");
+            const text = String(children).replace(/\n$/, "");
+            const isBlock = match || text.includes("\n");
+            if (isBlock) {
+              return <CodeBlock language={match?.[1]}>{text}</CodeBlock>;
+            }
+            return (
+              <code
+                className="rounded-md bg-black/[0.05] px-1.5 py-0.5 font-mono text-xs dark:bg-white/10"
+                {...props}
+              >
+                {children}
+              </code>
+            );
+          },
+          pre: ({ children }) => <>{children}</>,
+          blockquote: ({ children }) => (
+            <blockquote className="my-3 border-l-2 border-slate-300/70 pl-4 italic text-muted-foreground dark:border-slate-600/50">
+              {children}
+            </blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="my-3 overflow-x-auto rounded-xl glass-inset">
+              <table className="w-full text-left text-xs">{children}</table>
+            </div>
+          ),
+          th: ({ children }) => (
+            <th className="border-b border-white/20 px-3 py-2 font-medium">{children}</th>
+          ),
+          td: ({ children }) => <td className="border-b border-white/10 px-3 py-2">{children}</td>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+      {onCitationClick &&
+        content.match(/\[\d+\]/g)?.map((marker, i) => (
+          <button
+            key={`${marker}-${i}`}
+            type="button"
+            className="sr-only"
+            onClick={() => onCitationClick(marker)}
+            aria-hidden
+          />
+        ))}
+    </div>
+  );
+}

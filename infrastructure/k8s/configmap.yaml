@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: legalos-config
+  namespace: legalos
+data:
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  OTEL_SDK_DISABLED: "false"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "legalos"
+  REDIS_URL: "redis://redis:6379/0"
+  QDRANT_URL: "http://qdrant:6333"
+  QDRANT_COLLECTION: "legal_knowledge"
+  NEO4J_URI: "bolt://neo4j:7687"
+  OPENSEARCH_URL: "http://opensearch:9200"
+  OPENSEARCH_INDEX: "legal_documents"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  S3_ENDPOINT_URL: "http://minio:9000"
+  S3_REGION: "ap-south-1"
+  S3_BUCKET: "legalos-documents"
+  AUTH_SERVICE_URL: "http://auth:8001"
+  INGESTION_SERVICE_URL: "http://knowledge-ingestion:8002"
+  SEARCH_SERVICE_URL: "http://search:8003"
+  RESEARCH_SERVICE_URL: "http://research:8004"
+  LLM_USE_STUB: "false"
+  EMBEDDING_DIM: "1536"

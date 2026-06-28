@@ -1,0 +1,371 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 25% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 222 60% 28%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 215 28% 93%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 215 28% 93%;
+    --muted-foreground: 215 16% 42%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --ring: 222 60% 28%;
+    --radius: 0.6rem;
+    --accent: 215 35% 90%;
+    --accent-foreground: 222 47% 11%;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 47% 10%;
+    --card-foreground: 210 40% 96%;
+    --primary: 210 85% 62%;
+    --primary-foreground: 222 47% 9%;
+    --secondary: 217 33% 15%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 62%;
+    --destructive: 0 63% 49%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 210 85% 62%;
+    --accent: 217 33% 18%;
+    --accent-foreground: 210 40% 96%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image: radial-gradient(
+      ellipse 80% 50% at 50% -20%,
+      hsl(var(--primary) / 0.08),
+      transparent
+    );
+  }
+
+  /* Mera Vakil refined silver / white backdrop */
+  .mera-vakil-root {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    font-size: 15px;
+    background: linear-gradient(
+      135deg,
+      hsl(220 16% 97%) 0%,
+      hsl(0 0% 99%) 35%,
+      hsl(220 14% 95%) 70%,
+      hsl(210 12% 96%) 100%
+    );
+    color: hsl(220 18% 14%);
+  }
+
+  .dark .mera-vakil-root {
+    background: linear-gradient(
+      135deg,
+      hsl(220 14% 8%) 0%,
+      hsl(0 0% 6%) 35%,
+      hsl(220 12% 9%) 70%,
+      hsl(220 10% 7%) 100%
+    );
+    color: hsl(210 16% 90%);
+  }
+
+  html.mera-vakil-locked,
+  html.mera-vakil-locked body {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply rounded-2xl border border-black/[0.06] bg-white/60 shadow-[0_8px_28px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+  }
+
+  .dark .glass {
+    @apply border-white/10 bg-white/[0.04] shadow-[0_8px_28px_rgba(0,0,0,0.45)];
+  }
+
+  .glass-strong {
+    @apply rounded-2xl border border-black/[0.07] bg-white/75 shadow-[0_12px_36px_rgba(15,23,42,0.10)] backdrop-blur-2xl;
+  }
+
+  .dark .glass-strong {
+    @apply border-white/15 bg-white/[0.08] shadow-[0_12px_36px_rgba(0,0,0,0.5)];
+  }
+
+  .glass-inset {
+    @apply rounded-xl border border-black/[0.05] bg-black/[0.02] shadow-inner backdrop-blur-md;
+  }
+
+  .dark .glass-inset {
+    @apply border-white/10 bg-white/5;
+  }
+
+  .shimmer-bg {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  .orb-glow {
+    animation: orb-pulse 2.5s ease-in-out infinite;
+  }
+
+  .mascot-float {
+    animation: float 4s ease-in-out infinite;
+  }
+
+  .wave-animate {
+    animation: wave 3s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shimmer-bg,
+    .orb-glow,
+    .mascot-float,
+    .wave-animate {
+      animation: none;
+    }
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes orb-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 16px rgba(71, 85, 105, 0.28), 0 0 32px rgba(15, 23, 42, 0.14);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(71, 85, 105, 0.4), 0 0 48px rgba(15, 23, 42, 0.22);
+    transform: scale(1.025);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes wave {
+  0%,
+  100% {
+    transform: translateX(0) scaleY(1);
+  }
+  50% {
+    transform: translateX(-2%) scaleY(1.05);
+  }
+}
+
+@layer utilities {
+  /* Hide scrollbars everywhere while keeping content scrollable */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
+@layer components {
+  /* Borderless frosted side panels that blend into the page (no visible edges, incl. dark) */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.28);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+  .dark .glass-panel {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  /* Animated metallic silver gradient text */
+  .gradient-text {
+    background-image: linear-gradient(
+      100deg,
+      #475569,
+      #1e293b,
+      #94a3b8,
+      #334155,
+      #475569
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gradient-pan 6s linear infinite;
+  }
+  .dark .gradient-text {
+    background-image: linear-gradient(
+      100deg,
+      #e2e8f0,
+      #94a3b8,
+      #f8fafc,
+      #cbd5e1,
+      #e2e8f0
+    );
+    background-size: 200% auto;
+  }
+
+  /* Flowing silver aurora blob behind hero/mascot for a living, premium feel */
+  .aurora {
+    background:
+      radial-gradient(40% 40% at 30% 30%, rgba(148, 163, 184, 0.4), transparent 70%),
+      radial-gradient(40% 40% at 70% 40%, rgba(100, 116, 139, 0.32), transparent 70%),
+      radial-gradient(45% 45% at 50% 75%, rgba(203, 213, 225, 0.45), transparent 70%);
+    filter: blur(36px);
+    animation: aurora 14s ease-in-out infinite;
+  }
+  .dark .aurora {
+    background:
+      radial-gradient(40% 40% at 30% 30%, rgba(148, 163, 184, 0.22), transparent 70%),
+      radial-gradient(40% 40% at 70% 40%, rgba(100, 116, 139, 0.2), transparent 70%),
+      radial-gradient(45% 45% at 50% 75%, rgba(71, 85, 105, 0.28), transparent 70%);
+    opacity: 0.7;
+  }
+
+  .icon-breathe {
+    animation: breathe 3.4s ease-in-out infinite;
+  }
+
+  /* Refined thinking spinner: a rotating silver conic-gradient ring */
+  .spinner-ring {
+    border-radius: 9999px;
+    background: conic-gradient(
+      from 0deg,
+      rgba(100, 116, 139, 0) 0%,
+      rgba(100, 116, 139, 0.15) 12%,
+      #64748b 38%,
+      #334155 58%,
+      #94a3b8 78%,
+      rgba(148, 163, 184, 0) 100%
+    );
+    -webkit-mask: radial-gradient(
+      farthest-side,
+      transparent calc(100% - 2.5px),
+      #000 calc(100% - 2.5px)
+    );
+    mask: radial-gradient(
+      farthest-side,
+      transparent calc(100% - 2.5px),
+      #000 calc(100% - 2.5px)
+    );
+    animation: spin 0.95s linear infinite;
+  }
+
+  /* Soft glow that breathes behind the spinner core */
+  .spinner-glow {
+    animation: spinner-glow 1.8s ease-in-out infinite;
+  }
+
+  .spark-twinkle {
+    animation: spark-twinkle 2s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gradient-text,
+    .aurora,
+    .icon-breathe,
+    .spinner-ring,
+    .spinner-glow,
+    .spark-twinkle {
+      animation: none;
+    }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spinner-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes spark-twinkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.18) rotate(45deg);
+    opacity: 1;
+  }
+}
+
+@keyframes gradient-pan {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate3d(3%, -3%, 0) scale(1.08) rotate(6deg);
+  }
+  66% {
+    transform: translate3d(-3%, 2%, 0) scale(0.96) rotate(-5deg);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}

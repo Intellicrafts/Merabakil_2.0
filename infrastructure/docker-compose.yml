@@ -1,0 +1,268 @@
+name: ai-legal-os
+
+x-backend-build: &backend-build
+  context: ..
+  dockerfile: infrastructure/docker/backend.Dockerfile
+
+x-service-defaults: &service-defaults
+  env_file: ../.env
+  restart: unless-stopped
+
+services:
+  # ---------------------------------------------------------------- infra ---
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-legalos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-legalos}
+      POSTGRES_DB: ${POSTGRES_DB:-legalos}
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-legalos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.11.3
+    ports: ["6333:6333"]
+    volumes: ["qdrantdata:/qdrant/storage"]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-legalos-neo4j}
+      NEO4J_server_memory_pagecache_size: 256M
+    ports: ["7474:7474", "7687:7687"]
+    volumes: ["neo4jdata:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  opensearch:
+    image: opensearchproject/opensearch:2.16.0
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+    ports: ["9200:9200"]
+    volumes: ["opensearchdata:/usr/share/opensearch/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  kafka:
+    image: soldevelo/kafka:3.7
+    environment:
+      KAFKA_CFG_NODE_ID: "0"
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports: ["9092:9092"]
+    volumes: ["kafkadata:/bitnami/kafka"]
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2024-09-22T00-33-43Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["miniodata:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ------------------------------------------------------------- services ---
+  auth:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/auth
+    environment:
+      PORT: "8001"
+      RUN_MIGRATIONS: "true"
+    ports: ["8001:8001"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  knowledge-ingestion:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/knowledge-ingestion
+        WITH_OCR: "true"
+    environment:
+      PORT: "8002"
+      CORPUS_REGISTRY_PATH: /app/data/corpus_registry.yaml
+    ports: ["8002:8002"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+      neo4j: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  knowledge-ingestion-worker:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/knowledge-ingestion
+        WITH_OCR: "true"
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      kafka: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+      minio: { condition: service_healthy }
+
+  search:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/search
+    environment:
+      PORT: "8003"
+      REDIS_URL: redis://redis:6379/1
+    ports: ["8003:8003"]
+    depends_on:
+      redis: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+
+  research:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/research
+        INSTALL_ORCHESTRATOR: "true"
+    environment:
+      PORT: "8004"
+      CONTRACT_REVIEW_SERVICE_URL: http://contract-review:8008
+      LITIGATION_SERVICE_URL: http://litigation:8009
+    ports: ["8004:8004"]
+    depends_on:
+      search: { condition: service_started }
+      contract-review: { condition: service_started }
+      litigation: { condition: service_started }
+
+  document:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/document
+    environment:
+      PORT: "8005"
+      INGESTION_SERVICE_URL: http://knowledge-ingestion:8002
+    ports: ["8005:8005"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  reasoning:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/reasoning
+    environment:
+      PORT: "8006"
+    ports: ["8006:8006"]
+
+  drafting:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/drafting
+    environment:
+      PORT: "8007"
+    ports: ["8007:8007"]
+
+  contract-review:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/contract-review
+    environment:
+      PORT: "8008"
+    ports: ["8008:8008"]
+
+  litigation:
+    <<: *service-defaults
+    build:
+      <<: *backend-build
+      args:
+        SERVICE_PATH: services/litigation
+    environment:
+      PORT: "8009"
+    ports: ["8009:8009"]
+
+  frontend:
+    <<: *service-defaults
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/frontend.Dockerfile
+    environment:
+      NEXT_PUBLIC_AUTH_API_URL: http://localhost:8001
+      NEXT_PUBLIC_INGESTION_API_URL: http://localhost:8002
+      NEXT_PUBLIC_DOCUMENT_API_URL: http://localhost:8005
+      NEXT_PUBLIC_RESEARCH_API_URL: http://localhost:8004
+      NEXT_PUBLIC_SEARCH_API_URL: http://localhost:8003
+    ports: ["3000:3000"]
+    depends_on:
+      auth: { condition: service_started }
+      research: { condition: service_started }
+
+volumes:
+  pgdata:
+  qdrantdata:
+  neo4jdata:
+  opensearchdata:
+  kafkadata:
+  miniodata:

@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "otel-collector"
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  - job_name: "legalos-services"
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "auth:8001"
+          - "knowledge-ingestion:8002"
+          - "search:8003"
+          - "research:8004"
+        labels:
+          part_of: ai-legal-os

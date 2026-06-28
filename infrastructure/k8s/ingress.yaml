@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: legalos-ingress
+  namespace: legalos
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: ["app.legalos.example", "api.legalos.example"]
+      secretName: legalos-tls
+  rules:
+    - host: app.legalos.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: frontend, port: { number: 3000 } }
+    - host: api.legalos.example
+      http:
+        paths:
+          - path: /api/v1/auth
+            pathType: Prefix
+            backend:
+              service: { name: auth, port: { number: 8001 } }
+          - path: /api/v1/users
+            pathType: Prefix
+            backend:
+              service: { name: auth, port: { number: 8001 } }
+          - path: /api/v1/knowledge
+            pathType: Prefix
+            backend:
+              service: { name: knowledge-ingestion, port: { number: 8002 } }
+          - path: /api/v1/search
+            pathType: Prefix
+            backend:
+              service: { name: search, port: { number: 8003 } }
+          - path: /api/v1/research
+            pathType: Prefix
+            backend:
+              service: { name: research, port: { number: 8004 } }
