@@ -4,11 +4,12 @@ import type { HearingTimelineStep } from "@/lib/courtroom/types";
 import { cn } from "@/lib/utils";
 
 const STEPS: { id: HearingTimelineStep; label: string }[] = [
-  { id: "opening", label: "Opening" },
-  { id: "examination", label: "Examination" },
+  { id: "opening", label: "Matter called" },
+  { id: "examination", label: "Arguments" },
   { id: "objections", label: "Objections" },
   { id: "closing", label: "Closing" },
-  { id: "deliberation", label: "Deliberation" },
+  { id: "verdict", label: "Oral order" },
+  { id: "deliberation", label: "Written order" },
 ];
 
 interface HearingTimelineProps {

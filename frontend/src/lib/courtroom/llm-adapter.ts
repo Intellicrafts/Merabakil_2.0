@@ -10,6 +10,7 @@ import {
 import {
   buildJudgmentPrompt,
   buildTurnPrompt,
+  buildVerdictPrompt,
   parseHearingTurn,
   parseJudgmentJson,
 } from "@/lib/courtroom/hearing-prompts";
@@ -128,6 +129,8 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
   let forceJudgeNext = false;
   let closingPhase = false;
   let closingsDone = 0;
+  let verdictDelivered = false;
+  let oralVerdictText = "";
   let tickTimer: ReturnType<typeof setInterval> | null = null;
   let abortController: AbortController | null = null;
   let generating = false;
@@ -231,13 +234,14 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
   };
 
   const pickRole = (): Exclude<SpeakerRole, "clerk"> => {
-    if (forceJudgeNext) {
-      forceJudgeNext = false;
-      return "judge";
-    }
+    // Closings are sacrosanct — do not insert intervenor turns mid-closing
     if (closingPhase) {
       if (closingsDone === 0) return "petitioner";
       if (closingsDone === 1) return "respondent";
+      return "judge";
+    }
+    if (forceJudgeNext) {
+      forceJudgeNext = false;
       return "judge";
     }
     if (turnIndex > 0 && turnIndex % 5 === 0) return "judge";
@@ -248,7 +252,9 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
   };
 
   const finishHearing = async () => {
-    if (scriptAbort()) return;
+    // May be called while still in hearing (after oral verdict) or mid-transition
+    if (disposed || !config) return;
+    if (state.phase !== "hearing" && state.phase !== "deliberation") return;
     awaitingSpeech = false;
     setThinking(false);
     agenda = forceResolvePending(agenda);
@@ -259,59 +265,109 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       activeSpeaker: null,
       judgeState: "deliberating",
       timelineStep: "deliberation",
-      judgeNote: "Preparing simulated judgment from the hearing record",
+      judgeNote: "Reducing oral order into a simulated written judgment",
     };
     emit({ type: "phaseChange", phase: "deliberation" });
     emit({ type: "speakerChange", role: null });
     emit({
       type: "judgeState",
       state: "deliberating",
-      note: "Preparing simulated judgment from the hearing record",
+      note: "Reducing oral order into a simulated written judgment",
     });
 
     const report = await buildJudgmentReport();
     if (disposed || !config) return;
-    state = { ...state, judgment: report };
+    state = {
+      ...state,
+      judgment: report,
+      phase: "judgment",
+      judgeState: "ruling",
+      activeSpeaker: "judge",
+      judgeNote: "Simulated judgment pronounced",
+      timelineStep: "verdict",
+    };
     emit({ type: "judgmentReady", report });
+    emit({ type: "judgeState", state: "ruling", note: "Simulated judgment pronounced" });
+    emit({ type: "phaseChange", phase: "judgment" });
+    emit({ type: "speakerChange", role: "judge" });
   };
 
   const scriptAbort = () => disposed || !config || state.phase !== "hearing";
+
+  const fallbackVerdict = (): HearingTurn => {
+    const open = uncoveredPoints(agenda)[0];
+    const text = open
+      ? `We have heard learned counsel for both sides. On the decisive issue touching ${open.label}, and confined to the simulation record, this Court partly allows the prayer with liberty to the parties to strengthen the documentary proof. Ordered accordingly.`
+      : `We have heard learned counsel for both sides. On the pleadings and submissions recorded in this simulation, the petition is disposed of with directions that parties fortify evidence on contested points. Ordered accordingly.`;
+    return {
+      speaker: "judge",
+      text,
+      textHi: toHindiCompanion(text),
+      addressesPointIds: open ? [open.id] : [],
+      timelineStep: "verdict",
+      judgeState: "ruling",
+      judgeNote: "Operative order pronounced",
+      metricsDelta: { proceduralCompliance: 0.92 },
+    };
+  };
 
   const generateTurn = async () => {
     if (generating || scriptAbort() || state.isPaused) return;
     if (awaitingSpeech && speechGated) return;
 
-    if (shouldClose() && !closingPhase) {
-      closingPhase = true;
-      closingsDone = 0;
-    }
-    if (closingPhase && closingsDone >= 2) {
+    // After oral verdict is on the transcript, reduce it to written judgment
+    if (verdictDelivered) {
       await finishHearing();
       return;
     }
 
+    if (shouldClose() && !closingPhase) {
+      closingPhase = true;
+      closingsDone = 0;
+    }
+
+    // Closings done → mandatory Judge oral verdict (never skip)
+    const needVerdict = closingPhase && closingsDone >= 2;
+
     generating = true;
     setThinking(true);
-    const role = pickRole();
+    const role: Exclude<SpeakerRole, "clerk"> = needVerdict ? "judge" : pickRole();
     nextRole = role;
-    state = { ...state, activeSpeaker: role };
+    state = {
+      ...state,
+      activeSpeaker: role,
+      ...(needVerdict
+        ? { timelineStep: "verdict" as const, judgeState: "ruling" as const }
+        : {}),
+    };
     emit({ type: "speakerChange", role });
+    if (needVerdict) {
+      emit({ type: "timelineStep", step: "verdict" });
+      emit({ type: "judgeState", state: "ruling", note: "Pronouncing oral order" });
+    }
 
     abortController?.abort();
     abortController = new AbortController();
     let turn: HearingTurn;
 
     try {
-      const prompt = buildTurnPrompt({
-        config: config!,
-        role,
-        agenda,
-        transcript: state.transcript,
-        agents: config!.agents,
-        turnIndex,
-        forceClosing: closingPhase,
-        intervene: role === "judge",
-      });
+      const prompt = needVerdict
+        ? buildVerdictPrompt({
+            config: config!,
+            agenda,
+            transcript: state.transcript,
+            agents: config!.agents,
+          })
+        : buildTurnPrompt({
+            config: config!,
+            role,
+            agenda,
+            transcript: state.transcript,
+            agents: config!.agents,
+            turnIndex,
+            forceClosing: closingPhase && !needVerdict,
+            intervene: role === "judge",
+          });
       let raw = "";
       const result = await streamResearch(
         prompt,
@@ -323,8 +379,14 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       const text = raw || result.answer || "";
       turn = parseHearingTurn(text, role);
       turn.speaker = role;
+      if (needVerdict) {
+        turn.timelineStep = "verdict";
+        turn.judgeState = "ruling";
+      }
     } catch {
-      turn = fallbackTurn(role, config!, agenda, closingPhase);
+      turn = needVerdict
+        ? fallbackVerdict()
+        : fallbackTurn(role, config!, agenda, closingPhase);
     }
 
     if (scriptAbort() || state.isPaused) {
@@ -335,13 +397,16 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
 
     setThinking(false);
     applyTurn(turn);
+    if (needVerdict) {
+      verdictDelivered = true;
+      oralVerdictText = turn.text;
+    }
     generating = false;
 
     if (!speechGated) {
-      // brief beat then continue
       setTimeout(() => {
         if (!state.isPaused && state.phase === "hearing") void generateTurn();
-      }, 1600);
+      }, needVerdict ? 2200 : 1600);
     }
   };
 
@@ -349,9 +414,10 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
     const pct = coveragePercent(agenda);
     const base: JudgmentReport = {
       matterTitle: config!.matterTitle,
+      issuesFramed: agenda.slice(0, 5).map((a) => a.label),
       findingsOfFact: agenda.slice(0, 5).map((a) => `${a.label} (${a.status})`),
       legalReasoning:
-        "On the simulated hearing record, both sides advanced competing theories. The Court models how an AI-assisted bench would structure findings for case-strength analysis.",
+        "On the simulated Indian hearing record, both sides were heard. The Court structures issues, findings, and an operative portion for case-strength analysis only.",
       confidence: state.metrics,
       authorities: state.authorities,
       nextSteps: [
@@ -359,13 +425,23 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
         "Prepare focused written submissions on uncovered weaknesses.",
         "Consider settlement leverage revealed by the adversarial exchange.",
       ],
-      disposition: "Simulated — hearing concluded; pleadings to be strengthened",
+      disposition:
+        oralVerdictText ||
+        "Simulated — petition disposed of on the hearing record with liberty to strengthen pleadings and evidence.",
+      oralVerdict: oralVerdictText || undefined,
       generatedAt: new Date().toISOString(),
       intakeSummary: config!.intake?.summary,
       agentSummaries: config!.agents?.map(
         (a) => `${a.displayName}: ${a.strategy.slice(0, 2).join("; ")}`,
       ),
-      timelineSteps: ["opening", "examination", "objections", "closing", "deliberation"],
+      timelineSteps: [
+        "opening",
+        "examination",
+        "objections",
+        "closing",
+        "verdict",
+        "deliberation",
+      ],
       coveragePercent: pct,
       coverageSummary: `${pct}% of agenda points were raised or contested during the hearing.`,
     };
@@ -379,6 +455,7 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
           agenda,
           transcript: state.transcript,
           coveragePercent: pct,
+          oralVerdict: oralVerdictText || undefined,
         }),
         undefined,
         [],
@@ -388,12 +465,15 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       const parsed = parseJudgmentJson(raw || result.answer || "");
       return {
         ...base,
+        issuesFramed: parsed.issuesFramed ?? base.issuesFramed,
         findingsOfFact: parsed.findingsOfFact ?? base.findingsOfFact,
         findingsOfFactHi: parsed.findingsOfFactHi,
         legalReasoning: parsed.legalReasoning ?? base.legalReasoning,
         legalReasoningHi: parsed.legalReasoningHi,
         disposition: parsed.disposition ?? base.disposition,
         dispositionHi: parsed.dispositionHi,
+        oralVerdict: parsed.oralVerdict ?? base.oralVerdict,
+        oralVerdictHi: parsed.oralVerdictHi,
         nextSteps: parsed.nextSteps ?? base.nextSteps,
         nextStepsHi: parsed.nextStepsHi,
         strongestPetitioner: parsed.strongestPetitioner,
@@ -430,6 +510,8 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       forceJudgeNext = false;
       closingPhase = false;
       closingsDone = 0;
+      verdictDelivered = false;
+      oralVerdictText = "";
       awaitingSpeech = false;
       generating = false;
       // Prefer caller's Listening Mode; do not force-reset speechGated here
@@ -447,7 +529,7 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       emitCoverage();
       startTick();
 
-      const openText = `Matter called: ${sessionConfig.matterTitle}. AI Courtroom Simulation — not a real court. Parties may proceed.`;
+      const openText = `Court Master: Matter called — ${sessionConfig.matterTitle}. Appearance of counsel. AI Courtroom Simulation under Indian procedure idioms — not a real court. Parties may proceed.`;
       addTranscript("clerk", openText, toHindiCompanion(openText));
       if (speechGated) {
         awaitingSpeech = true;
@@ -476,7 +558,16 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
     endArguments() {
       if (state.phase !== "hearing") return;
       abortController?.abort();
+      generating = false;
+      setThinking(false);
+      // Close the bar: skip remaining closings → oral verdict → written order
+      closingPhase = true;
+      closingsDone = Math.max(closingsDone, 2);
       awaitingSpeech = false;
+      if (!verdictDelivered) {
+        void generateTurn();
+        return;
+      }
       void finishHearing();
     },
 
@@ -524,15 +615,19 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
     },
 
     revealJudgment() {
-      if (state.phase !== "deliberation" || !state.judgment) return;
+      // Judgment phase is auto-entered after oral verdict + written order.
+      // Keep this for UI that still calls it (idempotent).
+      if (!state.judgment) return;
+      if (state.phase === "judgment") return;
       state = {
         ...state,
         phase: "judgment",
         judgeState: "ruling",
         activeSpeaker: "judge",
-        judgeNote: "Delivering simulated judgment",
+        judgeNote: "Simulated judgment pronounced",
+        timelineStep: "verdict",
       };
-      emit({ type: "judgeState", state: "ruling", note: "Delivering simulated judgment" });
+      emit({ type: "judgeState", state: "ruling", note: "Simulated judgment pronounced" });
       emit({ type: "phaseChange", phase: "judgment" });
       emit({ type: "speakerChange", role: "judge" });
     },
