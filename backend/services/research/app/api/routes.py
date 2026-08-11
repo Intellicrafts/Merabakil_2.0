@@ -10,7 +10,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
-from app.api.schemas import ResearchRequest, ResearchResponse, TtsRequest
+from app.api.schemas import (
+    CourtroomActionsRequest,
+    CourtroomActionsResponse,
+    ResearchRequest,
+    ResearchResponse,
+    TtsRequest,
+)
+from app.application.courtroom_actions import build_courtroom_actions
 from app.infrastructure.container import get_container
 from legalos_common.api.errors import ValidationFailedError
 from legalos_common.clients.llm import ChatMessage
@@ -210,6 +217,19 @@ async def _tts_byte_stream(text: str, *, voice: str) -> AsyncIterator[bytes]:
     for sentence in chunks:
         async for pcm in container.tts.stream_speech(sentence, voice=voice):
             yield _frame_pcm(pcm)
+
+
+@router.post(
+    "/courtroom/actions",
+    response_model=CourtroomActionsResponse,
+    summary="Propose post-hearing counsel actions after an AI Courtroom simulation",
+)
+async def courtroom_actions(
+    body: CourtroomActionsRequest,
+    _: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+) -> CourtroomActionsResponse:
+    container = get_container()
+    return await build_courtroom_actions(container.llm, body)
 
 
 @router.post(

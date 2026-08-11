@@ -48,3 +48,98 @@ class TtsRequest(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
     rewrite_for_speech: bool = True
     language: str = Field(default="en-IN", description="Indian regional speech locale code")
+
+
+# ---- Post-hearing courtroom action plan ----
+
+class CourtroomAgendaItemIn(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=240)
+    status: str = Field(default="pending", max_length=32)
+
+
+class CourtroomActionsRequest(BaseModel):
+    matter_title: str = Field(min_length=1, max_length=400)
+    matter_type: str = Field(default="Civil", max_length=64)
+    petitioner_name: str = Field(default="Petitioner Advocate", max_length=200)
+    respondent_name: str = Field(default="Respondent Advocate", max_length=200)
+    oral_verdict: str | None = Field(default=None, max_length=4000)
+    disposition: str | None = Field(default=None, max_length=2000)
+    issues_framed: list[str] = Field(default_factory=list, max_length=12)
+    weaknesses_exposed: list[str] = Field(default_factory=list, max_length=12)
+    coverage_summary: str | None = Field(default=None, max_length=2000)
+    agenda: list[CourtroomAgendaItemIn] = Field(default_factory=list, max_length=16)
+    transcript_excerpt: str | None = Field(default=None, max_length=8000)
+
+
+class CourtroomActionCta(BaseModel):
+    kind: str = Field(description="research | mera_vakil | copy")
+    query: str | None = None
+
+
+class CourtroomProposedAction(BaseModel):
+    id: str
+    title: str
+    description: str
+    side: str
+    priority: str
+    timeframe: str
+    category: str
+    rationale: str = ""
+    related_issue_ids: list[str] = Field(default_factory=list, alias="relatedIssueIds")
+    cta: CourtroomActionCta | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class CourtroomResearchAngle(BaseModel):
+    title: str
+    query: str
+
+
+class CourtroomMandatoryFact(BaseModel):
+    """Fact that must be proved / established on the record."""
+
+    id: str
+    fact: str
+    why_mandatory: str = Field(default="", alias="whyMandatory")
+    how_to_prove: str = Field(default="", alias="howToProve")
+    side: str = "petitioner"
+    related_issue_ids: list[str] = Field(default_factory=list, alias="relatedIssueIds")
+
+    model_config = {"populate_by_name": True}
+
+
+class CourtroomOpponentFactDefense(BaseModel):
+    """How to defend / rebut a fact advanced by the opposite side."""
+
+    id: str
+    opponent_fact: str = Field(alias="opponentFact")
+    defense_strategy: str = Field(alias="defenseStrategy")
+    evidence_needed: str = Field(default="", alias="evidenceNeeded")
+    side: str = "petitioner"
+    related_issue_ids: list[str] = Field(default_factory=list, alias="relatedIssueIds")
+
+    model_config = {"populate_by_name": True}
+
+
+class CourtroomActionsResponse(BaseModel):
+    headline: str
+    summary: str
+    forum_hint: str | None = Field(default=None, alias="forumHint")
+    limitation_flags: list[str] = Field(default_factory=list, alias="limitationFlags")
+    actions: list[CourtroomProposedAction]
+    mandatory_facts: list[CourtroomMandatoryFact] = Field(
+        default_factory=list, alias="mandatoryFacts"
+    )
+    opponent_fact_defenses: list[CourtroomOpponentFactDefense] = Field(
+        default_factory=list, alias="opponentFactDefenses"
+    )
+    documents_to_gather: list[str] = Field(default_factory=list, alias="documentsToGather")
+    research_angles: list[CourtroomResearchAngle] = Field(
+        default_factory=list, alias="researchAngles"
+    )
+    settlement_levers: list[str] = Field(default_factory=list, alias="settlementLevers")
+    disclaimer: str
+
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
