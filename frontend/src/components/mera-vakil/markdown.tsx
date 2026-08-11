@@ -19,12 +19,16 @@ export function Markdown({ content, className, onCitationClick }: MarkdownProps)
         remarkPlugins={[remarkGfm]}
         components={{
           p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-          ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5">{children}</ul>,
-          ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5">{children}</ol>,
+          ul: ({ children }) => <ul className="mb-3 list-disc space-y-1.5 pl-5">{children}</ul>,
+          ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1.5 pl-5">{children}</ol>,
           li: ({ children }) => <li className="text-foreground/90">{children}</li>,
-          strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-          h1: ({ children }) => <h1 className="mb-2 text-lg font-semibold">{children}</h1>,
-          h2: ({ children }) => <h2 className="mb-2 text-base font-semibold">{children}</h2>,
+          strong: ({ children }) => (
+            <strong className="font-semibold text-foreground">{children}</strong>
+          ),
+          h1: ({ children }) => (
+            <h1 className="mb-3 text-lg font-semibold tracking-tight">{children}</h1>
+          ),
+          h2: ({ children }) => <h2 className="mv-section-heading">{children}</h2>,
           h3: ({ children }) => <h3 className="mb-2 text-sm font-semibold">{children}</h3>,
           a: ({ href, children }) => (
             <a
@@ -54,9 +58,7 @@ export function Markdown({ content, className, onCitationClick }: MarkdownProps)
           },
           pre: ({ children }) => <>{children}</>,
           blockquote: ({ children }) => (
-            <blockquote className="my-3 border-l-2 border-slate-300/70 pl-4 italic text-muted-foreground dark:border-slate-600/50">
-              {children}
-            </blockquote>
+            <blockquote className="mv-blockquote">{children}</blockquote>
           ),
           table: ({ children }) => (
             <div className="my-3 overflow-x-auto rounded-xl glass-inset">

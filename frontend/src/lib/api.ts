@@ -5,6 +5,7 @@ import type {
   IngestionJob,
   IngestionResult,
   KnowledgeDocument,
+  KnowledgeGraph,
   Page,
   ResearchResponse,
   UploadDocumentResponse,
@@ -113,13 +114,51 @@ export function getStoredUser(): AuthUser | null {
   return raw ? JSON.parse(raw) : null;
 }
 
+export function updateStoredUser(patch: Partial<AuthUser>): AuthUser | null {
+  const stored = getStoredUser();
+  if (!stored) return null;
+  const updated = { ...stored, ...patch };
+  window.localStorage.setItem(USER_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+/** Refresh JWT from DB and merge latest roles/permissions into cached user. */
+export async function syncStoredUser(): Promise<AuthUser | null> {
+  const stored = getStoredUser();
+  if (!stored) return null;
+  try {
+    await refreshAccessToken();
+    const me = await apiFetch<Pick<AuthUser, "roles" | "permissions">>(
+      `${AUTH_URL}/api/v1/users/me`,
+      { headers: authHeaders() },
+    );
+    return updateStoredUser({ roles: me.roles, permissions: me.permissions });
+  } catch {
+    return stored;
+  }
+}
+
 async function parseError(res: Response): Promise<never> {
   let message = `Request failed (${res.status})`;
   try {
     const body = await res.json();
-    message = body.message || body.detail || message;
+    if (typeof body.message === "string") {
+      message = body.message;
+    } else if (typeof body.detail === "string") {
+      message = body.detail;
+    } else if (Array.isArray(body.detail)) {
+      message = body.detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join("; ") || message;
+    }
   } catch {
     /* ignore */
+  }
+  if (res.status === 401) {
+    message = "Invalid email or password.";
+  } else if (res.status === 409) {
+    message =
+      message.includes("already exists")
+        ? "An account with this email already exists. Please sign in instead."
+        : message;
   }
   throw new Error(message);
 }
@@ -140,11 +179,18 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export async function login(email: string, password: string): Promise<AuthResponse> {
-  const res = await fetch(`${AUTH_URL}/api/v1/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${AUTH_URL}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach auth service at ${AUTH_URL}. Start the backend with: make native`,
+    );
+  }
   if (!res.ok) return parseError(res);
   return res.json();
 }
@@ -155,13 +201,41 @@ export async function register(
   password: string,
   role: string,
 ): Promise<AuthResponse> {
-  const res = await fetch(`${AUTH_URL}/api/v1/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, full_name, password, role }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${AUTH_URL}/api/v1/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, full_name, password, role }),
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach auth service at ${AUTH_URL}. Start the backend with: make native`,
+    );
+  }
   if (!res.ok) return parseError(res);
   return res.json();
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const res = await fetch(`${AUTH_URL}/api/v1/auth/password-reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) return parseError(res);
+}
+
+export async function confirmPasswordReset(
+  token: string,
+  newPassword: string,
+): Promise<void> {
+  const res = await fetch(`${AUTH_URL}/api/v1/auth/password-reset/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+  if (!res.ok) return parseError(res);
 }
 
 export async function listUsers(page = 1, size = 20): Promise<Page<AuthUser>> {
@@ -196,6 +270,12 @@ export async function listIngestionJobs(page = 1, size = 20): Promise<Page<Inges
 
 export async function getJob(jobId: string): Promise<IngestionJob> {
   return apiFetch(`${INGESTION_URL}/api/v1/knowledge/jobs/${jobId}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function getKnowledgeGraph(limit = 200): Promise<KnowledgeGraph> {
+  return apiFetch(`${INGESTION_URL}/api/v1/knowledge/graph?limit=${limit}`, {
     headers: authHeaders(),
   });
 }
@@ -265,6 +345,94 @@ export async function runResearch(
   });
 }
 
+export interface ResearchStreamHandlers {
+  onStatus?: (stage: string, message: string) => void;
+  onToken?: (text: string) => void;
+}
+
+function parseSseBlock(block: string): { event: string; data: string } | null {
+  let event = "message";
+  let data = "";
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    if (line.startsWith("data:")) data += line.slice(5).trim();
+  }
+  return data ? { event, data } : null;
+}
+
+export async function streamResearch(
+  query: string,
+  jurisdiction: string | undefined,
+  history: ConversationTurn[],
+  handlers: ResearchStreamHandlers,
+  options?: { documentId?: string; signal?: AbortSignal },
+): Promise<ResearchResponse> {
+  const path = options?.documentId
+    ? `/api/v1/research/document/${options.documentId}/stream`
+    : "/api/v1/research/stream";
+
+  const res = await authorizedFetch(`${RESEARCH_URL}${path}`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ query, jurisdiction: jurisdiction || null, history }),
+    signal: options?.signal,
+  });
+
+  if (!res.ok) return parseError(res);
+  if (!res.body) throw new Error("No stream returned from research service");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: ResearchResponse | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
+
+    for (const block of blocks) {
+      const parsed = parseSseBlock(block);
+      if (!parsed) continue;
+      if (parsed.event === "status") {
+        const payload = JSON.parse(parsed.data) as { stage: string; message: string };
+        handlers.onStatus?.(payload.stage, payload.message);
+      } else if (parsed.event === "token") {
+        const payload = JSON.parse(parsed.data) as { text: string };
+        handlers.onToken?.(payload.text);
+      } else if (parsed.event === "error") {
+        const payload = JSON.parse(parsed.data) as { message?: string };
+        if (!result) {
+          throw new Error(
+            payload.message ??
+              "Research service encountered an error while generating the answer.",
+          );
+        }
+      } else if (parsed.event === "done") {
+        const payload = JSON.parse(parsed.data) as ResearchResponse;
+        result = {
+          ...payload,
+          web_sources: payload.web_sources ?? [],
+          web_images: payload.web_images ?? [],
+          suggestions: payload.suggestions ?? [],
+          disclaimer:
+            payload.disclaimer ??
+            "This response is generated by an AI system for informational purposes only and does not constitute legal advice.",
+        };
+      }
+    }
+  }
+
+  if (!result) {
+    throw new Error(
+      "Research stream ended before a complete answer was returned. Check that the research service is running and your LLM API key is valid.",
+    );
+  }
+  return result;
+}
+
 export async function runDocumentResearch(
   documentId: string,
   query: string,
@@ -290,13 +458,17 @@ export interface ReadAloudStream {
 
 export async function streamReadAloud(
   text: string,
-  signal?: AbortSignal,
+  options?: { signal?: AbortSignal; language?: string },
 ): Promise<ReadAloudStream> {
   const res = await authorizedFetch(`${RESEARCH_URL}/api/v1/research/tts/stream`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ text, rewrite_for_speech: true }),
-    signal,
+    body: JSON.stringify({
+      text,
+      rewrite_for_speech: true,
+      language: options?.language ?? "en-IN",
+    }),
+    signal: options?.signal,
   });
   if (!res.ok) return parseError(res);
   if (!res.body) throw new Error("No audio stream returned");

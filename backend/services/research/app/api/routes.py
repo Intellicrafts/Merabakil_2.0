@@ -22,6 +22,7 @@ from legalos_common.security.rbac import (
     bearer_scheme,
     require_permissions,
 )
+from legalos_common.speech.locales import get_speech_locale
 from legalos_common.speech.prepare import prepare_speech_chunks, prepare_speech_text
 from legalos_orchestrator.schemas import ConversationMessage, OrchestratorState, ResearchScope
 
@@ -108,22 +109,87 @@ async def research_document(
     )
 
 
-async def _maybe_rewrite_for_speech(text: str, *, rewrite: bool) -> str:
-    if not rewrite or len(text) <= 800:
+@router.post(
+    "/stream",
+    summary="Stream grounded legal research (SSE tokens + final metadata)",
+)
+async def research_stream(
+    body: ResearchRequest,
+    _: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> StreamingResponse:
+    state = _build_state(body, credentials=credentials)
+    injection = detect_prompt_injection(state.query)
+    if injection.is_suspicious:
+        raise ValidationFailedError(
+            "The query was rejected by prompt-injection guardrails.",
+            details=[{"matched_patterns": injection.matched_patterns}],
+        )
+
+    container = get_container()
+
+    async def generator() -> AsyncIterator[str]:
+        async for chunk in container.orchestrator.run_state_streaming(state):
+            yield chunk
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post(
+    "/document/{document_id}/stream",
+    summary="Stream research scoped to a single uploaded document",
+)
+async def research_document_stream(
+    document_id: uuid.UUID,
+    body: ResearchRequest,
+    _: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> StreamingResponse:
+    state = _build_state(body, credentials=credentials, document_id=str(document_id))
+    injection = detect_prompt_injection(state.query)
+    if injection.is_suspicious:
+        raise ValidationFailedError(
+            "The query was rejected by prompt-injection guardrails.",
+            details=[{"matched_patterns": injection.matched_patterns}],
+        )
+
+    container = get_container()
+
+    async def generator() -> AsyncIterator[str]:
+        async for chunk in container.orchestrator.run_state_streaming(state):
+            yield chunk
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+async def _maybe_rewrite_for_speech(text: str, *, rewrite: bool, language: str) -> str:
+    locale = get_speech_locale(language)
+    if not rewrite:
+        return text
+    if len(text) <= 800 and locale.code == "en-IN":
         return text
     container = get_container()
     if isinstance(container.tts, StubTTSClient):
         return text
     script = await container.llm.complete(
         [
-            ChatMessage(
-                role="system",
-                content=(
-                    "Rewrite the following legal answer for natural spoken delivery. "
-                    "Use a calm, conversational human tone. Remove citations, markdown, "
-                    "and disclaimers. Keep key legal points. Output plain speech text only."
-                ),
-            ),
+            ChatMessage(role="system", content=locale.rewrite_prompt),
             ChatMessage(role="user", content=text),
         ],
         temperature=0.3,
@@ -135,14 +201,14 @@ def _frame_pcm(chunk: bytes) -> bytes:
     return struct.pack("<I", len(chunk)) + chunk
 
 
-async def _tts_byte_stream(text: str) -> AsyncIterator[bytes]:
+async def _tts_byte_stream(text: str, *, voice: str) -> AsyncIterator[bytes]:
     container = get_container()
     if isinstance(container.tts, StubTTSClient):
         raise RuntimeError("TTS unavailable in stub mode")
 
     chunks = prepare_speech_chunks(text)
     for sentence in chunks:
-        async for pcm in container.tts.stream_speech(sentence):
+        async for pcm in container.tts.stream_speech(sentence, voice=voice):
             yield _frame_pcm(pcm)
 
 
@@ -162,10 +228,13 @@ async def tts_stream(
     if isinstance(container.tts, StubTTSClient):
         raise HTTPException(status_code=503, detail="TTS unavailable in stub mode")
 
-    speak_text = await _maybe_rewrite_for_speech(prepared, rewrite=body.rewrite_for_speech)
+    locale = get_speech_locale(body.language)
+    speak_text = await _maybe_rewrite_for_speech(
+        prepared, rewrite=body.rewrite_for_speech, language=body.language
+    )
 
     async def generator() -> AsyncIterator[bytes]:
-        async for framed in _tts_byte_stream(speak_text):
+        async for framed in _tts_byte_stream(speak_text, voice=locale.voice):
             yield framed
 
     return StreamingResponse(
@@ -175,6 +244,7 @@ async def tts_stream(
             "X-Audio-Sample-Rate": str(container.tts.sample_rate),
             "X-Audio-Format": "pcm_s16le",
             "X-Audio-Channels": "1",
+            "X-Speech-Locale": locale.code,
             "Cache-Control": "no-store",
         },
     )

@@ -11,15 +11,22 @@ const STATUS_MESSAGES = [
   "Preparing your answer…",
 ];
 
-export function ThinkingLoader() {
+interface ThinkingLoaderProps {
+  message?: string;
+}
+
+export function ThinkingLoader({ message }: ThinkingLoaderProps) {
   const [msgIndex, setMsgIndex] = useState(0);
 
   useEffect(() => {
+    if (message) return undefined;
     const interval = setInterval(() => {
       setMsgIndex((i) => (i + 1) % STATUS_MESSAGES.length);
     }, 2200);
     return () => clearInterval(interval);
-  }, []);
+  }, [message]);
+
+  const label = message ?? STATUS_MESSAGES[msgIndex];
 
   return (
     <div
@@ -28,7 +35,6 @@ export function ThinkingLoader() {
       aria-live="polite"
       aria-label="Mera Vakil is thinking"
     >
-      {/* Gemini-style spinner: rotating conic ring + glowing sparkle core */}
       <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
         <div className="spinner-glow absolute inset-0 rounded-full bg-gradient-to-br from-slate-500/40 to-slate-700/40 blur-md" />
         <div className="spinner-ring absolute inset-0" />
@@ -37,9 +43,7 @@ export function ThinkingLoader() {
         </div>
       </div>
 
-      <span className="gradient-text text-sm font-medium tracking-tight">
-        {STATUS_MESSAGES[msgIndex]}
-      </span>
+      <span className="gradient-text text-sm font-medium tracking-tight">{label}</span>
     </div>
   );
 }

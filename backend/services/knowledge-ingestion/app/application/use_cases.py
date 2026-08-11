@@ -9,6 +9,7 @@ from app.application.ports import (
     EventPublisherPort,
     IndexChunk,
     KnowledgeIndexPort,
+    StructuredChunkInput,
 )
 from app.config import IngestionSettings
 from app.infrastructure.repositories import DocumentRepository
@@ -157,5 +158,93 @@ class IngestDocumentUseCase:
             chunk_count=len(chunks),
             page_count=page_count,
             citations=meta.citations,
+            status="indexed",
+        )
+
+    async def execute_structured(
+        self,
+        *,
+        title: str,
+        doc_type: str,
+        jurisdiction: str | None,
+        structured_chunks: list[StructuredChunkInput],
+        source_uri: str | None = None,
+        storage_key: str | None = None,
+        owner_id: uuid.UUID | None = None,
+        page_count: int | None = None,
+        citations: list[str] | None = None,
+        content_type: str | None = None,
+    ) -> IngestionResult:
+        if not structured_chunks:
+            raise ValueError("No structured chunks provided")
+
+        doc = await self._documents.create(
+            title=title,
+            doc_type=doc_type,
+            jurisdiction=jurisdiction,
+            source_uri=source_uri,
+            storage_key=storage_key,
+            content_type=content_type,
+            owner_id=owner_id,
+        )
+        document_id = str(doc.id)
+
+        texts = [c.content for c in structured_chunks]
+        batch_size = self._settings.embedding_batch_size
+        embeddings: list[list[float]] = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            embeddings.extend(await self._embedder.embed(batch))
+
+        index_chunks = [
+            IndexChunk(
+                chunk_id=f"{document_id}:{idx}",
+                document_id=document_id,
+                content=chunk.content,
+                embedding=emb,
+                title=chunk.title or title,
+                doc_type=doc_type,
+                jurisdiction=jurisdiction,
+                citation=chunk.citation,
+                section=chunk.section,
+                metadata={"chunk_index": idx, **chunk.metadata},
+            )
+            for idx, (chunk, emb) in enumerate(zip(structured_chunks, embeddings, strict=True))
+        ]
+        await self._index.index_chunks(index_chunks)
+        await self._index.register_document(
+            document_id=document_id,
+            title=title,
+            doc_type=doc_type,
+            jurisdiction=jurisdiction,
+        )
+        resolved_citations = citations or []
+        await self._index.link_citations(document_id=document_id, citations=resolved_citations)
+
+        metadata_payload = {
+            "structured_ingestion": True,
+            "chunk_count": len(structured_chunks),
+        }
+        await self._documents.mark_indexed(
+            doc, chunk_count=len(structured_chunks), page_count=page_count, metadata=metadata_payload
+        )
+        await self._events.document_ingested(
+            document_id=document_id, chunk_count=len(structured_chunks), doc_type=doc_type, title=title
+        )
+
+        logger.info(
+            "structured_document_ingested",
+            document_id=document_id,
+            chunks=len(structured_chunks),
+            doc_type=doc_type,
+        )
+        return IngestionResult(
+            document_id=document_id,
+            title=title,
+            doc_type=doc_type,
+            jurisdiction=jurisdiction,
+            chunk_count=len(structured_chunks),
+            page_count=page_count,
+            citations=resolved_citations,
             status="indexed",
         )

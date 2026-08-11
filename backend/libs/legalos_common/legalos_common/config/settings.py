@@ -85,7 +85,7 @@ class LLMSettings(BaseSettings):
     llm_provider: str = "openai_compatible"
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
-    llm_model: str = "gpt-4o-mini"
+    llm_model: str = "gemini-3.1-pro-preview"
     embedding_base_url: str = "https://api.openai.com/v1"
     embedding_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"

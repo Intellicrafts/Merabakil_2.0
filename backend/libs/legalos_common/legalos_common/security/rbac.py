@@ -35,6 +35,8 @@ class Permission(StrEnum):
     # Cases
     CASE_READ = "case:read"
     CASE_WRITE = "case:write"
+    # Courtroom simulation
+    COURTROOM_SIMULATE = "courtroom:simulate"
     # Documents
     DOCUMENT_READ = "document:read"
     DOCUMENT_WRITE = "document:write"

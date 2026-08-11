@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Moon, PanelLeft, PanelRight, Sun, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Moon, PanelRight, Sun, X } from "lucide-react";
 
-import { ChatSidebar } from "@/components/mera-vakil/chat-sidebar";
+import { BackButton } from "@/components/layout/back-button";
 import { ContextPanel } from "@/components/mera-vakil/context-panel";
 import { EmptyState } from "@/components/mera-vakil/empty-state";
 import { InputDock } from "@/components/mera-vakil/input-dock";
@@ -14,7 +13,8 @@ import { PremiumModal } from "@/components/mera-vakil/premium-modal";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
-import { runDocumentResearch, runResearch, uploadUserDocument, getUserDocument } from "@/lib/api";
+import { streamResearch, uploadUserDocument, getUserDocument } from "@/lib/api";
+import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
 import {
   createAssistantMessage,
   createConversation,
@@ -30,24 +30,26 @@ import {
 import type { ResearchResponse } from "@/lib/types";
 
 const THEME_KEY = "legalos.theme";
-const TYPEWRITER_CHARS_PER_TICK = 4;
-const TYPEWRITER_INTERVAL_MS = 16;
+const CONTEXT_PANEL_KEY = "mera-vakil.context-panel-open";
 
 export default function MeraVakilPage() {
   const { toast } = useToast();
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<ChatConversation | null>(null);
   const [input, setInput] = useState("");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [dark, setDark] = useState(false);
-  const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<string | undefined>();
+  const [speechLocale, setSpeechLocale] = useState("en-IN");
   const [isUploading, setIsUploading] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const readAloud = useReadAloud();
+  const abortRef = useRef<AbortController | null>(null);
+  const assistantMsgIdRef = useRef<string | null>(null);
+  const withUserRef = useRef<ChatConversation | null>(null);
+  const readAloud = useReadAloud(speechLocale);
 
   useEffect(() => {
     setConversations(loadConversations());
@@ -55,75 +57,39 @@ export default function MeraVakilPage() {
     const prefersDark = stored === "dark";
     setDark(prefersDark);
     document.documentElement.classList.toggle("dark", prefersDark);
+    setSpeechLocale(loadSpeechLocale());
+    const panelStored = localStorage.getItem(CONTEXT_PANEL_KEY);
+    if (panelStored !== null) {
+      setRightPanelOpen(panelStored === "true");
+    }
   }, []);
+
+  function setRightPanelOpenPersisted(open: boolean) {
+    setRightPanelOpen(open);
+    localStorage.setItem(CONTEXT_PANEL_KEY, String(open));
+  }
 
   const documentId = activeConversation?.documentId ?? null;
   const jurisdiction = activeConversation?.jurisdiction ?? "";
 
-  const mutation = useMutation<
-    ResearchResponse,
-    Error,
-    { query: string; history: ReturnType<typeof toResearchHistory> }
-  >({
-    mutationFn: async ({ query, history }) => {
-      if (documentId) {
-        return runDocumentResearch(documentId, query, jurisdiction || undefined, history);
-      }
-      return runResearch(query, jurisdiction || undefined, history);
-    },
-    onError: (err) => {
-      toast({ title: "Research failed", description: err.message, variant: "destructive" });
-    },
-  });
+  const [isResearching, setIsResearching] = useState(false);
 
   const latestResearch =
     activeConversation?.messages
       .filter((m) => m.role === "assistant" && m.research)
       .at(-1)?.research ?? null;
 
-  const startTypewriter = useCallback(
-    (conv: ChatConversation, assistantMsg: ChatMessage) => {
-      if (typewriterRef.current) clearInterval(typewriterRef.current);
-      setTypingMessageId(assistantMsg.id);
-
-      const total = assistantMsg.content.length;
-      let revealed = 0;
-
-      typewriterRef.current = setInterval(() => {
-        revealed = Math.min(revealed + TYPEWRITER_CHARS_PER_TICK, total);
-        setActiveConversation((prev) => {
-          if (!prev) return prev;
-          const updated: ChatConversation = {
-            ...prev,
-            messages: prev.messages.map((m) =>
-              m.id === assistantMsg.id ? { ...m, revealedChars: revealed } : m,
-            ),
-          };
-          if (revealed >= total) {
-            if (typewriterRef.current) clearInterval(typewriterRef.current);
-            typewriterRef.current = null;
-            setTypingMessageId(null);
-            upsertConversation(updated);
-            setConversations(loadConversations());
-          }
-          return updated;
-        });
-      }, TYPEWRITER_INTERVAL_MS);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (typewriterRef.current) clearInterval(typewriterRef.current);
-    };
-  }, []);
+  function handleSpeechLocaleChange(code: string) {
+    setSpeechLocale(code);
+    saveSpeechLocale(code);
+  }
 
   function handleNewChat() {
     const conv = createConversation({ documentId, jurisdiction: jurisdiction || null });
     setActiveConversation(conv);
     setInput("");
-    setTypingMessageId(null);
+    setStreamingMessageId(null);
+    setPendingStatus(undefined);
     setEditingMessageId(null);
   }
 
@@ -132,7 +98,8 @@ export default function MeraVakilPage() {
     if (conv) {
       setActiveConversation(conv);
       setInput("");
-      setTypingMessageId(null);
+      setStreamingMessageId(null);
+      setPendingStatus(undefined);
       setEditingMessageId(null);
     }
   }
@@ -177,7 +144,7 @@ export default function MeraVakilPage() {
   }
 
   async function handleFileUpload(file: File) {
-    if (isUploading || mutation.isPending) return;
+    if (isUploading || isResearching) return;
     setIsUploading(true);
     try {
       const uploaded = await uploadUserDocument(file, {
@@ -213,12 +180,52 @@ export default function MeraVakilPage() {
     }
   }
 
+  function handleStopGeneration() {
+    abortRef.current?.abort();
+
+    const assistantId = assistantMsgIdRef.current;
+    const baseConv = withUserRef.current;
+
+    let stoppedConv: ChatConversation | null = null;
+
+    setActiveConversation((prev) => {
+      if (!prev || !assistantId) {
+        stoppedConv = baseConv ?? prev;
+        return stoppedConv;
+      }
+      const assistant = prev.messages.find((m) => m.id === assistantId);
+      if (!assistant?.content?.trim()) {
+        stoppedConv = baseConv ?? prev;
+        return stoppedConv;
+      }
+      stoppedConv = {
+        ...(baseConv ?? prev),
+        messages: [...(baseConv?.messages ?? []), assistant],
+      };
+      return stoppedConv;
+    });
+
+    if (stoppedConv) {
+      upsertConversation(stoppedConv);
+      setConversations(loadConversations());
+    }
+
+    setIsResearching(false);
+    setStreamingMessageId(null);
+    setPendingStatus(undefined);
+    abortRef.current = null;
+    assistantMsgIdRef.current = null;
+    withUserRef.current = null;
+
+    toast({ title: "Response stopped", description: "Generation was cancelled." });
+  }
+
   async function sendMessage(
     queryText?: string,
     options?: { editMessageId?: string },
   ) {
     const query = (queryText ?? input).trim();
-    if (query.length < 3 || mutation.isPending) return;
+    if (query.length < 3 || isResearching) return;
 
     let conv = activeConversation;
     if (!conv) {
@@ -248,24 +255,83 @@ export default function MeraVakilPage() {
     setConversations(loadConversations());
     setInput("");
     setEditingMessageId(null);
+    abortRef.current?.abort();
+    setStreamingMessageId(null);
+    setPendingStatus("Understanding your question…");
+    setIsResearching(true);
 
-    if (typewriterRef.current) {
-      clearInterval(typewriterRef.current);
-      typewriterRef.current = null;
-    }
-    setTypingMessageId(null);
+    const assistantMsgId = crypto.randomUUID?.() ?? `asst-${Date.now()}`;
+    assistantMsgIdRef.current = assistantMsgId;
+    withUserRef.current = withUser;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let assistantAdded = false;
 
     try {
-      const result = await mutation.mutateAsync({ query, history: priorHistory });
-      const assistantMsg = createAssistantMessage(result);
-      const withAssistant: ChatConversation = {
+      const result = await streamResearch(
+        query,
+        jurisdiction || undefined,
+        priorHistory,
+        {
+          onStatus: (_stage, message) => setPendingStatus(message),
+          onToken: (token) => {
+            setPendingStatus(undefined);
+            if (!assistantAdded) {
+              assistantAdded = true;
+              const assistantMsg: ChatMessage = {
+                id: assistantMsgId,
+                role: "assistant",
+                content: token,
+                createdAt: new Date().toISOString(),
+              };
+              setStreamingMessageId(assistantMsgId);
+              setActiveConversation({
+                ...withUser,
+                messages: [...withUser.messages, assistantMsg],
+              });
+              return;
+            }
+            setActiveConversation((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === assistantMsgId ? { ...m, content: m.content + token } : m,
+                ),
+              };
+            });
+          },
+        },
+        { documentId: documentId ?? undefined, signal: controller.signal },
+      );
+
+      const finalized = createAssistantMessage(result);
+      const completedConv: ChatConversation = {
         ...withUser,
-        messages: [...withUser.messages, assistantMsg],
+        messages: [
+          ...withUser.messages,
+          { ...finalized, id: assistantMsgId, content: result.answer },
+        ],
       };
-      setActiveConversation(withAssistant);
-      startTypewriter(withAssistant, assistantMsg);
-    } catch {
-      // error handled by mutation onError
+      setActiveConversation(completedConv);
+      upsertConversation(completedConv);
+      setConversations(loadConversations());
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      toast({
+        title: "Research failed",
+        description: err instanceof Error ? err.message : "Could not complete research",
+        variant: "destructive",
+      });
+      setActiveConversation(withUser);
+    } finally {
+      setIsResearching(false);
+      setStreamingMessageId(null);
+      setPendingStatus(undefined);
+      abortRef.current = null;
+      assistantMsgIdRef.current = null;
+      withUserRef.current = null;
     }
   }
 
@@ -292,36 +358,39 @@ export default function MeraVakilPage() {
     <>
       <PremiumModal open={premiumOpen} onClose={() => setPremiumOpen(false)} />
 
-      {mobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Conversation history">
+      {mobilePanelOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Session panel">
           <button
             type="button"
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={() => setMobileSidebarOpen(false)}
-            aria-label="Close history"
+            onClick={() => setMobilePanelOpen(false)}
+            aria-label="Close panel"
           />
-          <div className="absolute left-0 top-0 h-full w-72 max-w-[85vw]">
-            <ChatSidebar
+          <div className="absolute right-0 top-0 h-full w-[300px] max-w-[88vw]">
+            <ContextPanel
               conversations={conversations}
               activeId={activeConversation?.id ?? null}
-              collapsed={false}
-              onToggleCollapse={() => setMobileSidebarOpen(false)}
               onNewChat={() => {
                 handleNewChat();
-                setMobileSidebarOpen(false);
+                setMobilePanelOpen(false);
               }}
-              onSelect={(id) => {
+              onSelectConversation={(id) => {
                 handleSelectConversation(id);
-                setMobileSidebarOpen(false);
+                setMobilePanelOpen(false);
               }}
-              onDelete={handleDeleteConversation}
+              onDeleteConversation={handleDeleteConversation}
+              speechLocale={speechLocale}
+              onSpeechLocaleChange={handleSpeechLocaleChange}
+              latestResearch={latestResearch}
+              isSpeaking={readAloud.state.isSpeaking}
+              onClose={() => setMobilePanelOpen(false)}
             />
           </div>
           <button
             type="button"
-            className="absolute right-4 top-4 rounded-full glass p-2"
-            onClick={() => setMobileSidebarOpen(false)}
-            aria-label="Close sidebar"
+            className="absolute left-4 top-4 rounded-full glass p-2"
+            onClick={() => setMobilePanelOpen(false)}
+            aria-label="Close panel"
           >
             <X className="h-5 w-5" />
           </button>
@@ -329,32 +398,13 @@ export default function MeraVakilPage() {
       )}
 
       <MeraVakilShell
-      leftCollapsed={sidebarCollapsed}
       rightCollapsed={!rightPanelOpen}
-      left={
-        <ChatSidebar
-          conversations={conversations}
-          activeId={activeConversation?.id ?? null}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
-          onNewChat={handleNewChat}
-          onSelect={handleSelectConversation}
-          onDelete={handleDeleteConversation}
-        />
-      }
+      onOpenRightPanel={() => setRightPanelOpenPersisted(true)}
       center={
         <div className="flex h-full min-h-0 flex-col">
-          <header className="flex shrink-0 items-center justify-end px-4 py-2.5 md:px-6">
+          <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 md:px-6">
+            <BackButton />
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMobileSidebarOpen(true)}
-                aria-label="Open conversation history"
-                className="rounded-full lg:hidden"
-              >
-                <PanelLeft className="h-4 w-4" />
-              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -367,16 +417,22 @@ export default function MeraVakilPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setRightPanelOpen((o) => !o)}
-                aria-label={rightPanelOpen ? "Hide context panel" : "Show context panel"}
-                className="rounded-full xl:hidden"
+                onClick={() => {
+                  if (window.matchMedia("(min-width: 1024px)").matches) {
+                    setRightPanelOpenPersisted(!rightPanelOpen);
+                  } else {
+                    setMobilePanelOpen(true);
+                  }
+                }}
+                aria-label={rightPanelOpen ? "Hide session panel" : "Show session panel"}
+                className="rounded-full"
               >
                 <PanelRight className="h-4 w-4" />
               </Button>
             </div>
           </header>
 
-          {!hasMessages && !mutation.isPending ? (
+          {!hasMessages && !isResearching ? (
             <EmptyState
               onQuickAction={(prompt) => sendMessage(prompt)}
               onOpenPremium={() => setPremiumOpen(true)}
@@ -384,8 +440,10 @@ export default function MeraVakilPage() {
           ) : (
             <MessageList
               messages={activeConversation?.messages ?? []}
-              isPending={mutation.isPending}
-              typingMessageId={typingMessageId}
+              isPending={isResearching && Boolean(pendingStatus)}
+              pendingMessage={pendingStatus}
+              streamingMessageId={streamingMessageId}
+              isGenerating={isResearching}
               editingMessageId={editingMessageId}
               onCitationClick={handleCitationClick}
               onSuggestionSelect={(prompt) => sendMessage(prompt)}
@@ -404,7 +462,9 @@ export default function MeraVakilPage() {
             onChange={setInput}
             onSubmit={() => sendMessage()}
             disabled={false}
-            isPending={mutation.isPending}
+            isPending={isResearching}
+            isGenerating={isResearching}
+            onStop={handleStopGeneration}
             isUploading={isUploading}
             onFileSelect={handleFileUpload}
           />
@@ -412,12 +472,16 @@ export default function MeraVakilPage() {
       }
       right={
         <ContextPanel
-          documentId={documentId}
-          jurisdiction={jurisdiction}
-          onDocumentChange={handleDocumentChange}
-          onJurisdictionChange={handleJurisdictionChange}
+          conversations={conversations}
+          activeId={activeConversation?.id ?? null}
+          onNewChat={handleNewChat}
+          onSelectConversation={handleSelectConversation}
+          onDeleteConversation={handleDeleteConversation}
+          speechLocale={speechLocale}
+          onSpeechLocaleChange={handleSpeechLocaleChange}
           latestResearch={latestResearch}
           isSpeaking={readAloud.state.isSpeaking}
+          onClose={() => setRightPanelOpenPersisted(false)}
         />
       }
     />

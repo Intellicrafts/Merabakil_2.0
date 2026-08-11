@@ -107,3 +107,44 @@ async def test_ingest_rejects_empty_document() -> None:
     )
     with pytest.raises(ValueError, match="No extractable text"):
         await use_case.execute(raw=b"   ", title="Empty", doc_type="unknown")
+
+
+@pytest.mark.asyncio
+async def test_structured_ingest_preserves_chunk_boundaries() -> None:
+    from app.application.ports import StructuredChunkInput
+
+    settings = get_settings()
+    index = FakeIndex()
+    events = FakeEvents()
+    use_case = IngestDocumentUseCase(
+        documents=FakeDocumentRepository(),
+        embedder=StubEmbeddingClient(settings.llm.embedding_dim),
+        index=index,
+        events=events,
+        settings=settings,
+    )
+    structured = [
+        StructuredChunkInput(
+            content="Article 19 — freedom of speech and expression.",
+            title="Article 19",
+            section="19",
+            citation="Constitution of India",
+            metadata={"article_number": "19"},
+        ),
+        StructuredChunkInput(
+            content="Article 21 — protection of life and personal liberty.",
+            title="Article 21",
+            section="21",
+            metadata={"article_number": "21"},
+        ),
+    ]
+    result = await use_case.execute_structured(
+        title="Constitution sample",
+        doc_type="constitution",
+        jurisdiction="india",
+        structured_chunks=structured,
+        citations=["Constitution of India"],
+    )
+    assert result.chunk_count == 2
+    assert len(index.chunks) == 2
+    assert index.chunks[0].metadata.get("article_number") == "19"

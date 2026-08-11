@@ -7,6 +7,15 @@ from typing import Any, Protocol
 
 
 @dataclass(slots=True)
+class StructuredChunkInput:
+    content: str
+    title: str | None = None
+    section: str | None = None
+    citation: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class IndexChunk:
     chunk_id: str
     document_id: str

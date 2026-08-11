@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { streamReadAloud } from "@/lib/api";
+import { getSpeechLocale } from "@/lib/indian-locales";
 import { prepareSpeechText } from "@/lib/speech-text";
 
 export type ReadAloudStatus = "idle" | "loading" | "playing" | "paused";
@@ -36,7 +37,7 @@ function pcmToAudioBuffer(
   return buffer;
 }
 
-export function useReadAloud(): ReadAloudControls {
+export function useReadAloud(speechLocale = "en-IN"): ReadAloudControls {
   const [status, setStatus] = useState<ReadAloudStatus>("idle");
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
 
@@ -116,11 +117,15 @@ export function useReadAloud(): ReadAloudControls {
           return;
         }
         usingSpeechRef.current = true;
+        const locale = getSpeechLocale(speechLocale);
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1;
+        utterance.lang = locale.bcp47;
+        utterance.rate = 1.02;
         utterance.pitch = 1;
         const voices = window.speechSynthesis.getVoices();
         const preferred =
+          voices.find((v) => v.lang === locale.bcp47) ??
+          voices.find((v) => v.lang.startsWith(locale.bcp47.split("-")[0])) ??
           voices.find((v) => /en(-|_)(IN|GB|US)/i.test(v.lang) && !v.localService) ??
           voices.find((v) => v.lang.startsWith("en"));
         if (preferred) utterance.voice = preferred;
@@ -146,7 +151,7 @@ export function useReadAloud(): ReadAloudControls {
         setActiveMessageId(messageId);
         window.speechSynthesis.speak(utterance);
       }),
-    [],
+    [speechLocale],
   );
 
   const parseFramedStream = useCallback(
@@ -198,7 +203,10 @@ export function useReadAloud(): ReadAloudControls {
       abortRef.current = controller;
 
       try {
-        const { reader, sampleRate } = await streamReadAloud(text, controller.signal);
+        const { reader, sampleRate } = await streamReadAloud(text, {
+          signal: controller.signal,
+          language: speechLocale,
+        });
         if (session !== sessionRef.current) return;
         const ctx = await ensureContext();
         setStatus("playing");
@@ -216,7 +224,7 @@ export function useReadAloud(): ReadAloudControls {
         }
       }
     },
-    [cleanupAudio, ensureContext, parseFramedStream, playWithSpeechSynthesis, stop],
+    [cleanupAudio, ensureContext, parseFramedStream, playWithSpeechSynthesis, speechLocale, stop],
   );
 
   const pause = useCallback(() => {

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <linearGradient id="khg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#64748b" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="kmetal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="kaccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#475569"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="24" fill="url(#khg)"/>
+  <!-- Stacked corpus shelves -->
+  <rect x="48" y="48" width="120" height="28" rx="6" fill="url(#kmetal)" fill-opacity="0.2" stroke="url(#kaccent)" stroke-width="1.5"/>
+  <rect x="56" y="84" width="120" height="28" rx="6" fill="url(#kmetal)" fill-opacity="0.25" stroke="url(#kaccent)" stroke-width="1.5"/>
+  <rect x="64" y="120" width="120" height="28" rx="6" fill="url(#kmetal)" fill-opacity="0.3" stroke="url(#kaccent)" stroke-width="1.5"/>
+  <path d="M72 62h72M80 98h72M88 134h64" stroke="#e2e8f0" stroke-opacity="0.4" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Index node -->
+  <circle cx="230" cy="100" r="36" stroke="url(#kaccent)" stroke-width="2.5" fill="url(#kmetal)" fill-opacity="0.12"/>
+  <circle cx="230" cy="100" r="12" fill="url(#kaccent)" fill-opacity="0.55"/>
+  <path d="M198 78l18 12M262 78l-18 12M198 122l18-12M262 122l-18-12" stroke="#e2e8f0" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round"/>
+  <path d="M210 160h40" stroke="#e2e8f0" stroke-opacity="0.3" stroke-width="3" stroke-linecap="round"/>
+</svg>

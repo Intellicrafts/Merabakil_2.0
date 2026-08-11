@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" fill="none">
+  <defs>
+    <linearGradient id="pbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e3a5f" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#64748b" stop-opacity="0.06"/>
+    </linearGradient>
+    <linearGradient id="pink" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#475569"/>
+    </linearGradient>
+  </defs>
+  <rect width="360" height="220" rx="20" fill="url(#pbg)"/>
+  <rect x="40" y="32" width="180" height="156" rx="12" fill="#fff" fill-opacity="0.5" stroke="url(#pink)" stroke-width="1.5"/>
+  <rect x="56" y="48" width="88" height="10" rx="5" fill="url(#pink)" fill-opacity="0.5"/>
+  <rect x="56" y="70" width="148" height="6" rx="3" fill="#64748b" fill-opacity="0.25"/>
+  <rect x="56" y="86" width="136" height="6" rx="3" fill="#64748b" fill-opacity="0.2"/>
+  <rect x="56" y="102" width="142" height="6" rx="3" fill="#64748b" fill-opacity="0.2"/>
+  <rect x="56" y="128" width="64" height="28" rx="6" fill="url(#pink)" fill-opacity="0.18" stroke="url(#pink)" stroke-width="1"/>
+  <path d="M68 142h40" stroke="url(#pink)" stroke-width="2" stroke-linecap="round"/>
+  <rect x="236" y="48" width="84" height="124" rx="10" fill="#fff" fill-opacity="0.42" stroke="url(#pink)" stroke-width="1.5"/>
+  <circle cx="278" cy="88" r="16" stroke="url(#pink)" stroke-width="2"/>
+  <path d="M252 128h52M252 144h40M252 160h46" stroke="#64748b" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round"/>
+</svg>

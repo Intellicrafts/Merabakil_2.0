@@ -43,15 +43,24 @@ interface EmptyStateProps {
 
 export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
   const [premiumDismissed, setPremiumDismissed] = useState(false);
+  const [bannerVisible, setBannerVisible] = useState(true);
+  const [bannerFading, setBannerFading] = useState(false);
 
   useEffect(() => {
     setPremiumDismissed(localStorage.getItem(PREMIUM_DISMISS_KEY) === "true");
   }, []);
 
-  function dismissPremiumBanner() {
-    setPremiumDismissed(true);
-    localStorage.setItem(PREMIUM_DISMISS_KEY, "true");
+  function dismissPremiumBanner(e: React.MouseEvent) {
+    e.stopPropagation();
+    setBannerFading(true);
+    setTimeout(() => {
+      setPremiumDismissed(true);
+      setBannerVisible(false);
+      localStorage.setItem(PREMIUM_DISMISS_KEY, "true");
+    }, 200);
   }
+
+  const showBanner = !premiumDismissed && bannerVisible;
 
   return (
     <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-6 py-10">
@@ -93,40 +102,47 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
         })}
       </div>
 
-      {!premiumDismissed && (
-        <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-black/[0.05] bg-white/55 p-3 shadow-[0_3px_18px_rgba(15,23,42,0.05)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04]">
-          <button
-            type="button"
-            onClick={dismissPremiumBanner}
-            className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
-            aria-label="Dismiss premium banner"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+      {showBanner && (
+        <div
+          className={cn(
+            "relative w-full max-w-xl overflow-hidden rounded-xl border border-black/[0.05] bg-white/55 shadow-[0_3px_18px_rgba(15,23,42,0.05)] backdrop-blur-md transition-all duration-200 dark:border-white/10 dark:bg-white/[0.04]",
+            bannerFading && "scale-[0.98] opacity-0",
+          )}
+        >
           <Crown
             className="pointer-events-none absolute -right-3 top-1/2 h-20 w-20 -translate-y-1/2 opacity-[0.07] dark:opacity-[0.12]"
             aria-hidden
           />
-          <div className="relative flex flex-col items-start justify-between gap-2.5 pr-8 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-sm dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
+          <div className="relative flex items-center justify-between gap-3 p-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-sm dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
                 <Crown className="h-3.5 w-3.5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[13px] font-semibold">Premium Plan</p>
                 <p className="text-[11px] text-muted-foreground">
                   Unlimited queries · Priority research · Advanced drafting
                 </p>
               </div>
             </div>
-            <Button
-              size="sm"
-              className="h-7 shrink-0 rounded-full bg-gradient-to-r from-slate-800 to-slate-900 px-3.5 text-xs font-medium text-white shadow-sm transition-all hover:from-slate-700 hover:to-slate-800 hover:shadow-md dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
-              aria-label="View premium plan"
-              onClick={onOpenPremium}
-            >
-              Upgrade
-            </Button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                size="sm"
+                className="h-7 shrink-0 rounded-full bg-gradient-to-r from-slate-800 to-slate-900 px-3.5 text-xs font-medium text-white shadow-sm transition-all hover:from-slate-700 hover:to-slate-800 hover:shadow-md dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
+                aria-label="View premium plan"
+                onClick={onOpenPremium}
+              >
+                Upgrade
+              </Button>
+              <button
+                type="button"
+                onClick={dismissPremiumBanner}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-black/[0.06] hover:text-foreground dark:hover:bg-white/10"
+                aria-label="Dismiss premium banner"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

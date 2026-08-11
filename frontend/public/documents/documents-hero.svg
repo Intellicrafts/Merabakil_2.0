@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <linearGradient id="dhg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#64748b" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="dmetal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="daccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="24" fill="url(#dhg)"/>
+  <rect x="72" y="36" width="110" height="136" rx="10" fill="url(#dmetal)" fill-opacity="0.18" stroke="url(#daccent)" stroke-width="2"/>
+  <path d="M148 36v28h28" stroke="url(#daccent)" stroke-width="2" fill="url(#dmetal)" fill-opacity="0.12"/>
+  <path d="M90 78h74M90 96h58M90 114h66M90 132h42" stroke="#e2e8f0" stroke-opacity="0.45" stroke-width="3.5" stroke-linecap="round"/>
+  <rect x="152" y="54" width="96" height="112" rx="10" fill="url(#dmetal)" fill-opacity="0.22" stroke="url(#daccent)" stroke-width="2"/>
+  <circle cx="200" cy="96" r="18" stroke="url(#daccent)" stroke-width="2.5" fill="none"/>
+  <path d="M190 96h20M200 86v20" stroke="#e2e8f0" stroke-opacity="0.55" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M176 140h48M176 152h36" stroke="#e2e8f0" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round"/>
+</svg>

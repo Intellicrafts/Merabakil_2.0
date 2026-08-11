@@ -45,9 +45,15 @@ def extract_text(
     enable_ocr: bool = False,
 ) -> tuple[str, int]:
     """Return (text, page_count). page_count is 1 for non-paginated formats."""
-    is_pdf = (content_type or "").lower() == "application/pdf" or (
-        filename or ""
-    ).lower().endswith(".pdf")
+    name = (filename or "").lower()
+    ctype = (content_type or "").lower()
+
+    if name.endswith(".json") or ctype == "application/json":
+        return data.decode("utf-8", errors="ignore"), 1
+    if name.endswith(".csv") or ctype == "text/csv":
+        return data.decode("utf-8", errors="ignore"), 1
+
+    is_pdf = ctype == "application/pdf" or name.endswith(".pdf")
     if is_pdf:
         return _extract_pdf(data, enable_ocr=enable_ocr)
     # Fallback: best-effort UTF-8 / latin-1 decode for text-like inputs.

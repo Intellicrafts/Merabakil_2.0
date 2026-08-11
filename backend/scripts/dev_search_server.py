@@ -1,40 +1,57 @@
 #!/usr/bin/env python3
-"""Search service — dev mode (in-memory corpus, no Qdrant/OpenSearch)."""
+"""Search service — native mode with raw-data corpus + real Gemini embeddings."""
 from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_ROOT / "backend" / "scripts"))
+from dev_bootstrap import bootstrap_dev_env  # noqa: E402
+
+bootstrap_dev_env(_ROOT)
+
 sys.path[:0] = [
-    os.path.join(_ROOT, "backend", "libs", "legalos_common"),
-    os.path.join(_ROOT, "backend", "services", "search"),
-    os.path.join(_ROOT, "backend", "scripts"),
+    str(_ROOT / "backend" / "libs" / "legalos_common"),
+    str(_ROOT / "backend" / "services" / "search"),
+    str(_ROOT / "backend" / "services" / "knowledge-ingestion"),
+    str(_ROOT / "backend" / "scripts"),
 ]
 
-os.environ.setdefault("LLM_USE_STUB", "true")
-os.environ.setdefault("OTEL_SDK_DISABLED", "true")
-os.environ.setdefault("JWT_SECRET_KEY", "dev-local-secret")
-os.environ.setdefault(
-    "FIELD_ENCRYPTION_KEY",
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-)
-
 from fastapi import Depends, FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from app.api.schemas import SearchRequest, SearchResponse  # noqa: E402
 from app.application.use_cases import HybridSearchUseCase, SearchMode  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.domain.rerank import LexicalReranker  # noqa: E402
-from legalos_common.api import build_health_router, register_exception_handlers  # noqa: E402
-from legalos_common.clients.llm import StubEmbeddingClient  # noqa: E402
-from legalos_common.security.rbac import Permission, require_permissions  # noqa: E402
 from dev_corpus import CORPUS, MemKeywordStore, MemVectorStore  # noqa: E402
+from dev_corpus_loader import load_raw_data_corpus  # noqa: E402
+from legalos_common.api import build_health_router, register_exception_handlers  # noqa: E402
+from legalos_common.clients.llm import StubEmbeddingClient, build_embedding_client  # noqa: E402
+from legalos_common.security.rbac import Permission, require_permissions  # noqa: E402
 
 settings = get_settings()
-embedder = StubEmbeddingClient(settings.llm.embedding_dim)
-vector = MemVectorStore(embedder, CORPUS)
-keyword = MemKeywordStore(CORPUS)
+
+print("Loading raw-data/ corpus...", flush=True)
+try:
+    _CORPUS = load_raw_data_corpus(include_pdfs=True)
+    print(f"Loaded {len(_CORPUS)} chunks from raw-data/", flush=True)
+except Exception as exc:
+    print(f"raw-data load failed ({exc}), using built-in sample corpus", flush=True)
+    _CORPUS = CORPUS
+
+_use_stub = settings.llm.llm_use_stub or settings.llm.embedding_use_stub
+_embed_dim = settings.llm.embedding_dim
+embedder = StubEmbeddingClient(_embed_dim) if _use_stub else build_embedding_client(settings.llm)
+if _use_stub:
+    print("WARNING: embedding stub active — set EMBEDDING_USE_STUB=false for real vectors", flush=True)
+else:
+    print(f"Using live embeddings: {settings.llm.embedding_model}", flush=True)
+
+vector = MemVectorStore(embedder, _CORPUS)
+keyword = MemKeywordStore(_CORPUS)
 search_uc = HybridSearchUseCase(
     embedder=embedder,
     vector_store=vector,
@@ -43,14 +60,49 @@ search_uc = HybridSearchUseCase(
     settings=settings,
 )
 
-app = FastAPI(title="AI Legal OS - Search (dev)", version="0.1.0-dev")
+app = FastAPI(title="AI Legal OS - Search (native)", version="0.1.0-native")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 register_exception_handlers(app)
 app.include_router(build_health_router(settings.service_name))
 
 
+def _switch_to_stub_embeddings(reason: str) -> None:
+    """Keep the native stack up when the live embedding provider is unavailable."""
+    global embedder, vector, search_uc
+    print(f"WARNING: live embeddings failed ({reason})", flush=True)
+    print("WARNING: falling back to offline stub embeddings so search can start", flush=True)
+    print(
+        "WARNING: fix Google Cloud billing / API key, or set EMBEDDING_USE_STUB=true in .env",
+        flush=True,
+    )
+    embedder = StubEmbeddingClient(_embed_dim)
+    vector = MemVectorStore(embedder, _CORPUS)
+    search_uc = HybridSearchUseCase(
+        embedder=embedder,
+        vector_store=vector,
+        keyword_store=keyword,
+        reranker=LexicalReranker(),
+        settings=settings,
+    )
+
+
 @app.on_event("startup")
 async def _warm_index() -> None:
-    await vector.warm()
+    print(f"Embedding {len(_CORPUS)} chunks (this may take a few minutes)...", flush=True)
+    try:
+        await vector.warm()
+    except Exception as exc:
+        if _use_stub:
+            raise
+        _switch_to_stub_embeddings(str(exc)[:300])
+        await vector.warm()
+    print("Search index ready.", flush=True)
 
 
 @app.post("/api/v1/search", response_model=SearchResponse)
@@ -67,5 +119,5 @@ async def search(
 if __name__ == "__main__":
     import uvicorn
 
-    print("Search (dev) http://localhost:8003/docs")
+    print("Search (native) http://localhost:8003/docs")
     uvicorn.run(app, host="0.0.0.0", port=8003, log_level="info")

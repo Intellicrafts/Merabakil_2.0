@@ -23,6 +23,10 @@ class RetrieverPort(Protocol):
 class LLMPort(Protocol):
     async def complete(self, messages: list[ChatMessage], *, temperature: float = 0.1) -> str: ...
 
+    def stream_complete(
+        self, messages: list[ChatMessage], *, temperature: float = 0.1
+    ): ...
+
 
 class SpecialistPort(Protocol):
     async def analyze(

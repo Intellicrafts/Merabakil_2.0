@@ -11,7 +11,9 @@ import type { ChatMessage } from "@/lib/conversations";
 interface MessageListProps {
   messages: ChatMessage[];
   isPending: boolean;
-  typingMessageId: string | null;
+  pendingMessage?: string;
+  streamingMessageId: string | null;
+  isGenerating?: boolean;
   editingMessageId: string | null;
   onCitationClick?: (marker: string) => void;
   onSuggestionSelect?: (prompt: string) => void;
@@ -27,7 +29,9 @@ interface MessageListProps {
 export function MessageList({
   messages,
   isPending,
-  typingMessageId,
+  pendingMessage,
+  streamingMessageId,
+  isGenerating,
   editingMessageId,
   onCitationClick,
   onSuggestionSelect,
@@ -45,14 +49,21 @@ export function MessageList({
   useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [messages, isPending, typingMessageId]);
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: isGenerating ? "auto" : "smooth",
+    });
+  }, [messages, isPending, streamingMessageId, isGenerating]);
 
   const showSuggestions =
     !isPending &&
-    !typingMessageId &&
+    !streamingMessageId &&
     lastAssistant?.research?.suggestions &&
     lastAssistant.research.suggestions.length > 0;
+
+  const visibleMessages = messages.filter(
+    (m) => !(m.role === "assistant" && !m.content && m.id !== streamingMessageId),
+  );
 
   return (
     <div
@@ -60,11 +71,11 @@ export function MessageList({
       className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-8 md:px-6"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
-        {messages.map((msg) => (
+        {visibleMessages.map((msg) => (
           <MessageBubble
             key={msg.id}
             message={msg}
-            isTyping={msg.id === typingMessageId}
+            isTyping={msg.id === streamingMessageId}
             isEditing={msg.id === editingMessageId}
             isPending={isPending}
             onCitationClick={onCitationClick}
@@ -77,12 +88,12 @@ export function MessageList({
             onReadAloudStop={onReadAloudStop}
           />
         ))}
-        {isPending && <ThinkingLoader />}
+        {isPending && <ThinkingLoader message={pendingMessage} />}
         {showSuggestions && lastAssistant?.research && (
           <FollowUpSuggestions
             suggestions={lastAssistant.research.suggestions}
             onSelect={(prompt) => onSuggestionSelect?.(prompt)}
-            disabled={isPending}
+            disabled={isPending || Boolean(streamingMessageId)}
           />
         )}
       </div>

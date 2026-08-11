@@ -58,18 +58,38 @@ class MemVectorStore:
         self._corpus = corpus
         self._vecs: dict[str, list[float]] = {}
 
+    @staticmethod
+    def _term_filters(filters) -> dict[str, str]:  # noqa: ANN001
+        if filters is None:
+            return {}
+        if hasattr(filters, "to_term_filters"):
+            return filters.to_term_filters()
+        if isinstance(filters, dict):
+            return {k: v for k, v in filters.items() if isinstance(v, str)}
+        return {}
+
     async def warm(self) -> None:
         texts = [d["content"] for d in self._corpus]
-        for doc, vec in zip(self._corpus, await self._embedder.embed(texts), strict=True):
+        batch_size = 32
+        all_vecs: list[list[float]] = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            all_vecs.extend(await self._embedder.embed(batch))
+            if i and i % 320 == 0:
+                print(f"  embedded {min(i + batch_size, len(texts))}/{len(texts)} chunks...", flush=True)
+        for doc, vec in zip(self._corpus, all_vecs, strict=True):
             self._vecs[doc["id"]] = vec
 
     async def search(self, vector, *, limit, filters):  # noqa: ANN001
+        term = self._term_filters(filters)
         out = []
         for doc in self._corpus:
-            if filters:
-                if filters.get("doc_type") and doc.get("doc_type") != filters["doc_type"]:
+            if term:
+                if term.get("doc_type") and doc.get("doc_type") != term["doc_type"]:
                     continue
-                if filters.get("jurisdiction") and doc.get("jurisdiction") != filters["jurisdiction"]:
+                if term.get("jurisdiction") and doc.get("jurisdiction") != term["jurisdiction"]:
+                    continue
+                if term.get("document_id") and doc.get("document_id") != term["document_id"]:
                     continue
             vec = self._vecs[doc["id"]]
             score = sum(a * b for a, b in zip(vector, vec, strict=True))
@@ -83,13 +103,16 @@ class MemKeywordStore:
         self._corpus = corpus
 
     async def search(self, query, *, size, filters):  # noqa: ANN001
+        term = MemVectorStore._term_filters(filters)
         q = query.lower()
         hits = []
         for doc in self._corpus:
-            if filters:
-                if filters.get("doc_type") and doc.get("doc_type") != filters["doc_type"]:
+            if term:
+                if term.get("doc_type") and doc.get("doc_type") != term["doc_type"]:
                     continue
-                if filters.get("jurisdiction") and doc.get("jurisdiction") != filters["jurisdiction"]:
+                if term.get("jurisdiction") and doc.get("jurisdiction") != term["jurisdiction"]:
+                    continue
+                if term.get("document_id") and doc.get("document_id") != term["document_id"]:
                     continue
             text = f"{doc.get('title', '')} {doc['content']}".lower()
             score = sum(1 for w in q.split() if w in text)

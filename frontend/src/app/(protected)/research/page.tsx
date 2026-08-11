@@ -1,35 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { BookOpen, Clock, Search, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ConfidenceMeter } from "@/components/confidence-meter";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { ResearchAnswerPanel } from "@/components/research/research-answer-panel";
+import { ResearchEmptyState } from "@/components/research/research-empty-state";
+import { ResearchHero } from "@/components/research/research-hero";
+import { ResearchLivePipeline } from "@/components/research/research-live-pipeline";
+import { ResearchQueryDock } from "@/components/research/research-query-dock";
+import { ResearchSourcesPanel } from "@/components/research/research-sources-panel";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
-import { runResearch } from "@/lib/api";
+import { streamResearch } from "@/lib/api";
+import { loadResearchHistory, saveResearchHistory } from "@/lib/research-history";
 import type { ResearchResponse } from "@/lib/types";
-
-const HISTORY_KEY = "legalos.research.history";
-const MAX_HISTORY = 8;
-
-function loadHistory(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(query: string) {
-  const prev = loadHistory().filter((q) => q !== query);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify([query, ...prev].slice(0, MAX_HISTORY)));
-}
 
 export default function ResearchPage() {
   const [query, setQuery] = useState(
@@ -37,248 +19,143 @@ export default function ResearchPage() {
   );
   const [jurisdiction, setJurisdiction] = useState("");
   const [history, setHistory] = useState<string[]>([]);
+  const [result, setResult] = useState<ResearchResponse | null>(null);
+  const [streamedAnswer, setStreamedAnswer] = useState("");
+  const [activeStage, setActiveStage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    setHistory(loadHistory());
+    setHistory(loadResearchHistory());
   }, []);
 
-  const mutation = useMutation<ResearchResponse, Error>({
-    mutationFn: () => runResearch(query, jurisdiction || undefined),
-    onSuccess: (data) => {
-      saveHistory(data.query);
-      setHistory(loadHistory());
-    },
-  });
+  const stopResearch = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsStreaming(false);
+    setStatusMessage(null);
+  }, []);
 
-  const result = mutation.data;
+  const run = useCallback(async () => {
+    const q = query.trim();
+    if (q.length < 3) return;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setError(null);
+    setResult(null);
+    setStreamedAnswer("");
+    setActiveStage("intent");
+    setStatusMessage("Understanding your question…");
+    setIsStreaming(true);
+
+    try {
+      const data = await streamResearch(
+        q,
+        jurisdiction.trim() || undefined,
+        [],
+        {
+          onStatus: (stage, message) => {
+            setActiveStage(stage);
+            setStatusMessage(message);
+          },
+          onToken: (token) => {
+            setStatusMessage("Drafting your answer…");
+            setActiveStage("answer");
+            setStreamedAnswer((prev) => prev + token);
+          },
+        },
+        { signal: controller.signal },
+      );
+
+      setResult(data);
+      setStreamedAnswer(data.answer);
+      setHistory(saveResearchHistory(data.query));
+      setActiveStage(null);
+      setStatusMessage(null);
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setError(err instanceof Error ? err.message : "Research failed");
+      setActiveStage(null);
+      setStatusMessage(null);
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+      setIsStreaming(false);
+    }
+  }, [query, jurisdiction]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const showEmpty = !result && !isStreaming && !streamedAnswer;
+  const showSkeleton = isStreaming && !streamedAnswer && !result;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Research Console</h1>
-        <p className="text-sm text-muted-foreground">
-          Grounded legal answers with citations, confidence scoring, and specialist analysis.
-        </p>
-      </div>
+    <div className="mx-auto w-full max-w-[1120px] space-y-5 pb-8 md:space-y-6">
+      <ResearchHero />
 
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-        <div className="space-y-4">
-          <Card className="h-fit">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Search className="h-4 w-4" /> Ask a legal question
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Describe your legal question or matter..."
-                rows={5}
-              />
-              <Input
-                value={jurisdiction}
-                onChange={(e) => setJurisdiction(e.target.value)}
-                placeholder="Jurisdiction (optional), e.g. Maharashtra"
-              />
-              <Button
-                className="w-full"
-                disabled={mutation.isPending || query.trim().length < 3}
-                onClick={() => mutation.mutate()}
-              >
-                <Sparkles className="h-4 w-4" />
-                {mutation.isPending ? "Researching..." : "Run research"}
-              </Button>
-              {mutation.isError && (
-                <p className="text-sm text-destructive">{mutation.error.message}</p>
-              )}
-            </CardContent>
-          </Card>
+      <div className="grid gap-5 lg:grid-cols-[340px_1fr] lg:items-start">
+        <ResearchQueryDock
+          query={query}
+          jurisdiction={jurisdiction}
+          history={history}
+          isStreaming={isStreaming}
+          error={error}
+          onQueryChange={setQuery}
+          onJurisdictionChange={setJurisdiction}
+          onRun={run}
+          onStop={stopResearch}
+          onPickHistory={(item) => setQuery(item)}
+        />
 
-          {history.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                  <Clock className="h-4 w-4" /> Recent queries
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1">
-                {history.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() => setQuery(item)}
-                  >
-                    {item.length > 80 ? `${item.slice(0, 80)}…` : item}
-                  </button>
-                ))}
-              </CardContent>
-            </Card>
+        <div className="space-y-4 min-w-0">
+          {(isStreaming || activeStage) && (
+            <ResearchLivePipeline
+              activeStage={activeStage}
+              statusMessage={statusMessage}
+              streaming={isStreaming}
+            />
           )}
-        </div>
 
-        <div className="space-y-6">
-          {mutation.isPending && (
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <Skeleton className="h-5 w-32" />
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                  <div className="grid gap-3 pt-2 sm:grid-cols-2">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <Skeleton className="h-5 w-40" />
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Skeleton className="h-20 w-full" />
-                  <Skeleton className="h-20 w-full" />
-                </CardContent>
-              </Card>
+          {showEmpty && (
+            <ResearchEmptyState
+              disabled={isStreaming}
+              onPickPrompt={(prompt) => setQuery(prompt)}
+            />
+          )}
+
+          {showSkeleton && (
+            <div className="space-y-3 rounded-2xl border border-black/[0.06] bg-white/50 p-5 dark:border-white/[0.08] dark:bg-white/[0.03]">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <div className="grid gap-3 pt-2 sm:grid-cols-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
             </div>
           )}
 
-          {!result && !mutation.isPending && (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center gap-2 py-20 text-center text-muted-foreground">
-                <BookOpen className="h-10 w-10 opacity-60" />
-                <p className="max-w-md text-sm">
-                  Ask a question to get a grounded answer with citations, confidence metrics, and
-                  specialist insights.
-                </p>
-              </CardContent>
-            </Card>
+          {(result || streamedAnswer) && (
+            <ResearchAnswerPanel
+              result={result}
+              streamedAnswer={streamedAnswer}
+              isStreaming={isStreaming}
+              onPickSuggestion={(text) => setQuery(text)}
+            />
           )}
 
-          {result && !mutation.isPending && (
-            <>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between gap-2">
-                  <CardTitle className="text-base">Assessment</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">{result.intent.replace(/_/g, " ")}</Badge>
-                    <Badge variant="outline">
-                      {result.jurisdiction.level}
-                      {result.jurisdiction.region ? ` · ${result.jurisdiction.region}` : ""}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{result.answer}</p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <ConfidenceMeter label="Overall confidence" value={result.confidence.overall} />
-                    <ConfidenceMeter
-                      label="Retrieval strength"
-                      value={result.confidence.retrieval_strength}
-                    />
-                    <ConfidenceMeter
-                      label="Source agreement"
-                      value={result.confidence.source_agreement}
-                    />
-                    <ConfidenceMeter label="Coverage" value={result.confidence.coverage} />
-                  </div>
-                  <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-                    {result.disclaimer}
-                  </p>
-                </CardContent>
-              </Card>
-
-              {result.citations.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      Inline citations ({result.citations.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {result.citations.map((cite) => (
-                      <div
-                        key={`${cite.marker}-${cite.document_id}`}
-                        className="flex items-start gap-3 rounded-md border p-3 text-sm"
-                      >
-                        <Badge variant="outline" className="shrink-0">
-                          {cite.marker}
-                        </Badge>
-                        <div className="min-w-0">
-                          <p className="font-medium">{cite.title ?? cite.document_id}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {[cite.citation, cite.section && `Section ${cite.section}`]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">
-                    Sources &amp; citations ({result.sources.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {result.sources.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No supporting sources retrieved.</p>
-                  )}
-                  {result.sources.map((source, idx) => (
-                    <div key={source.chunk_id} className="rounded-md border p-3">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium">
-                          [{idx + 1}] {source.title ?? source.document_id}
-                        </span>
-                        <Badge variant="outline">{source.retrieval}</Badge>
-                      </div>
-                      <div className="mb-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        {source.citation && <span>{source.citation}</span>}
-                        {source.section && <span>Section {source.section}</span>}
-                        {source.doc_type && <span>{source.doc_type}</span>}
-                        <span>score {source.score.toFixed(3)}</span>
-                      </div>
-                      <p className="line-clamp-3 text-xs text-muted-foreground">{source.content}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {Object.keys(result.specialist_payload).length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Specialist analysis</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-                      {JSON.stringify(result.specialist_payload, null, 2)}
-                    </pre>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Agent trace</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {result.trace.map((step, idx) => (
-                    <Badge key={`${step}-${idx}`} variant="secondary">
-                      {step}
-                    </Badge>
-                  ))}
-                </CardContent>
-              </Card>
-            </>
-          )}
+          {result && !isStreaming && <ResearchSourcesPanel result={result} />}
         </div>
       </div>
     </div>

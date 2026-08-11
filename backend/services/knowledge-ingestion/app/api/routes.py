@@ -15,9 +15,12 @@ from app.api.schemas import (
     DocumentSummary,
     IngestionJobResponse,
     IngestionResultResponse,
+    IngestStructuredRequest,
     IngestTextRequest,
+    KnowledgeGraphResponse,
 )
 from app.application.use_cases import IngestDocumentUseCase, IngestionResult
+from app.application.ports import StructuredChunkInput
 from app.infrastructure.container import get_container
 from app.infrastructure.db import get_session
 from app.infrastructure.repositories import DocumentRepository
@@ -34,6 +37,24 @@ ASYNC_THRESHOLD = 2_097_152
 
 def _to_response(result: IngestionResult) -> IngestionResultResponse:
     return IngestionResultResponse(**asdict(result))
+
+
+@router.get(
+    "/graph",
+    response_model=KnowledgeGraphResponse,
+    summary="Fetch knowledge graph (documents, citations, references)",
+)
+async def get_knowledge_graph(
+    limit: int = 200,
+    _: CurrentUser = Depends(require_permissions(Permission.KNOWLEDGE_INGEST.value)),
+) -> KnowledgeGraphResponse:
+    container = get_container()
+    capped = max(1, min(limit, 500))
+    try:
+        payload = await container.neo4j.fetch_knowledge_graph(limit=capped)
+    except Exception as exc:  # noqa: BLE001 — Neo4j may be down
+        raise ValidationFailedError(f"Knowledge graph unavailable: {exc}") from exc
+    return KnowledgeGraphResponse(**payload)
 
 
 @router.get(
@@ -81,6 +102,41 @@ async def ingest_text(
         doc_type=body.doc_type,
         jurisdiction=body.jurisdiction,
         content_type="text/plain",
+        owner_id=uuid.UUID(user.user_id),
+    )
+    return _to_response(result)
+
+
+@router.post(
+    "/documents/structured",
+    response_model=IngestionResultResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ingest pre-chunked structured legal documents (CSV/JSON parsers)",
+)
+async def ingest_structured(
+    body: IngestStructuredRequest,
+    user: CurrentUser = Depends(require_permissions(Permission.KNOWLEDGE_INGEST.value)),
+    use_case: IngestDocumentUseCase = Depends(build_ingest_use_case),
+) -> IngestionResultResponse:
+    structured = [
+        StructuredChunkInput(
+            content=c.content,
+            title=c.title,
+            section=c.section,
+            citation=c.citation,
+            metadata=c.metadata,
+        )
+        for c in body.chunks
+    ]
+    result = await use_case.execute_structured(
+        title=body.title,
+        doc_type=body.doc_type,
+        jurisdiction=body.jurisdiction,
+        structured_chunks=structured,
+        source_uri=body.source_file,
+        content_type=body.content_type,
+        page_count=body.page_count,
+        citations=body.citations,
         owner_id=uuid.UUID(user.user_id),
     )
     return _to_response(result)

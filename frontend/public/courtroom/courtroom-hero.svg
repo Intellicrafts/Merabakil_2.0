@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none">
+  <defs>
+    <linearGradient id="chbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#292524" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#78716c" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="cwood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d6d3d1"/>
+      <stop offset="100%" stop-color="#a8a29e"/>
+    </linearGradient>
+    <linearGradient id="cmetal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e7e5e4"/>
+      <stop offset="100%" stop-color="#78716c"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="24" fill="url(#chbg)"/>
+  <rect x="56" y="118" width="208" height="14" rx="4" fill="url(#cwood)" fill-opacity="0.55" stroke="url(#cmetal)" stroke-width="1.5"/>
+  <rect x="88" y="72" width="144" height="52" rx="8" fill="url(#cwood)" fill-opacity="0.35" stroke="url(#cmetal)" stroke-width="2"/>
+  <path d="M160 36v36M132 52h56" stroke="url(#cmetal)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M132 52c0 14-11 26-24 28 13 2 24 14 24 28" stroke="url(#cmetal)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <path d="M188 52c0 14 11 26 24 28-13 2-24 14-24 28" stroke="url(#cmetal)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <circle cx="160" cy="34" r="6" fill="url(#cmetal)"/>
+  <rect x="72" y="148" width="48" height="28" rx="6" fill="url(#cwood)" fill-opacity="0.25" stroke="url(#cmetal)" stroke-width="1"/>
+  <rect x="200" y="148" width="48" height="28" rx="6" fill="url(#cwood)" fill-opacity="0.25" stroke="url(#cmetal)" stroke-width="1"/>
+</svg>

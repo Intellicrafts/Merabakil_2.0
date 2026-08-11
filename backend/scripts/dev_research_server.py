@@ -1,34 +1,37 @@
 #!/usr/bin/env python3
-"""Research service — dev mode (calls Search at localhost:8003)."""
+"""Research service — native mode with real Gemini LLM + TTS."""
 from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_ROOT / "backend" / "scripts"))
+from dev_bootstrap import bootstrap_dev_env  # noqa: E402
+
+bootstrap_dev_env(_ROOT)
+
 sys.path[:0] = [
-    os.path.join(_ROOT, "backend", "libs", "legalos_common"),
-    os.path.join(_ROOT, "backend", "orchestrator"),
-    os.path.join(_ROOT, "backend", "services", "research"),
+    str(_ROOT / "backend" / "libs" / "legalos_common"),
+    str(_ROOT / "backend" / "orchestrator"),
+    str(_ROOT / "backend" / "services" / "research"),
 ]
 
-os.environ.setdefault("LLM_USE_STUB", "true")
-os.environ.setdefault("OTEL_SDK_DISABLED", "true")
-os.environ.setdefault("JWT_SECRET_KEY", "dev-local-secret")
-os.environ.setdefault("SEARCH_SERVICE_URL", "http://localhost:8003")
-os.environ.setdefault(
-    "FIELD_ENCRYPTION_KEY",
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-)
-
-from app.infrastructure.container import init_container  # noqa: E402
 from app.config import get_settings  # noqa: E402
+from app.infrastructure.container import init_container  # noqa: E402
 from app.main import app  # noqa: E402
 
-init_container(get_settings())
+settings = get_settings()
+init_container(settings)
 
 if __name__ == "__main__":
     import uvicorn
 
-    print("Research (dev) http://localhost:8004/docs")
+    stub = settings.llm.llm_use_stub
+    print(f"Research (native) http://localhost:8004/docs — LLM stub={stub}")
+    if stub:
+        print("NOTE: LLM_USE_STUB=true — offline deterministic answers only")
+    else:
+        print("NOTE: Gemini primary with automatic offline fallback if the API is unavailable")
     uvicorn.run(app, host="0.0.0.0", port=8004, log_level="info")

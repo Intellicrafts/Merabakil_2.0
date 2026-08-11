@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
+from legalos_common.rag.confidence import score_confidence
+from legalos_common.rag.context import assemble_context
 from legalos_common.rag.schemas import ConfidenceBreakdown
 from legalos_orchestrator.agents import (
     ComplianceAgent,
@@ -20,6 +24,7 @@ from legalos_orchestrator.agents import (
     ResearchAgent,
     WebSearchAgent,
 )
+from legalos_orchestrator.conversation import is_conversational
 from legalos_orchestrator.ports import LLMPort, RetrieverPort, SpecialistPort
 from legalos_orchestrator.schemas import (
     Intent,
@@ -36,6 +41,15 @@ _INTENT_TO_SPECIALIST: dict[Intent, str] = {
     Intent.LAWYER_MATCHING: "lawyer_matching",
     Intent.EVIDENCE_ANALYSIS: "evidence",
 }
+
+
+def _sse(event: str, data: Any) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+def _merge_agent_update(state: OrchestratorState, update: dict) -> OrchestratorState:
+    trace = [*state.trace, *update.pop("trace", [])]
+    return state.model_copy(update={**update, "trace": trace})
 
 
 def _route_by_intent(state: OrchestratorState) -> str:
@@ -127,6 +141,8 @@ class LegalOrchestrator:
         contract_review: SpecialistPort | None = None,
         litigation: SpecialistPort | None = None,
     ) -> None:
+        self._retriever = retriever
+        self._llm = llm
         self._app = _build_graph(
             retriever=retriever,
             llm=llm,
@@ -138,6 +154,69 @@ class LegalOrchestrator:
         raw = await self._app.ainvoke(state)
         final = raw if isinstance(raw, OrchestratorState) else OrchestratorState(**raw)
         return _state_to_result(final)
+
+    async def run_state_streaming(self, state: OrchestratorState) -> AsyncIterator[str]:
+        """Run retrieval pipeline, then stream the reasoning answer as SSE payloads."""
+        intent_agent = IntentAgent()
+        jurisdiction_agent = JurisdictionAgent()
+        research_agent = ResearchAgent(self._retriever)
+        web_agent = WebSearchAgent()
+        reasoning_agent = ReasoningAgent(self._llm)
+
+        current = state
+
+        yield _sse("status", {"stage": "intent", "message": "Understanding your question…"})
+        current = _merge_agent_update(current, await intent_agent(current))
+
+        yield _sse("status", {"stage": "jurisdiction", "message": "Checking jurisdiction…"})
+        current = _merge_agent_update(current, await jurisdiction_agent(current))
+
+        yield _sse("status", {"stage": "research", "message": "Searching legal sources…"})
+        current = _merge_agent_update(current, await research_agent(current))
+
+        yield _sse("status", {"stage": "web", "message": "Enriching with web context…"})
+        current = _merge_agent_update(current, await web_agent(current))
+
+        yield _sse("status", {"stage": "answer", "message": "Drafting your answer…"})
+
+        answer_parts: list[str] = []
+        try:
+            async for token in reasoning_agent.stream_answer(current):
+                answer_parts.append(token)
+                yield _sse("token", {"text": token})
+        except Exception as exc:
+            if not answer_parts:
+                fallback = (
+                    "The language model is temporarily unavailable. "
+                    "Please retry shortly, or set LLM_USE_STUB=true in .env for offline demo answers."
+                )
+                answer_parts.append(fallback)
+                yield _sse("token", {"text": fallback})
+                yield _sse("error", {"message": str(exc)})
+
+        answer = "".join(answer_parts)
+        if is_conversational(current.query):
+            citations: list = []
+            confidence = score_confidence([])
+        else:
+            _, citations = assemble_context(current.sources)
+            confidence = score_confidence(current.sources)
+
+        try:
+            suggestions = await reasoning_agent._generate_suggestions(current, answer)
+        except Exception:
+            suggestions = []
+
+        current = _merge_agent_update(
+            current,
+            {
+                "answer": answer,
+                "citations": citations,
+                "confidence": confidence,
+                "suggestions": suggestions,
+            },
+        )
+        yield _sse("done", _state_to_result(current).model_dump(mode="json"))
 
     async def run(
         self, query: str, *, jurisdiction_hint: str | None = None, user_token: str | None = None

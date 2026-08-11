@@ -11,6 +11,8 @@ interface InputDockProps {
   onSubmit: () => void;
   disabled?: boolean;
   isPending?: boolean;
+  isGenerating?: boolean;
+  onStop?: () => void;
   isUploading?: boolean;
   onFileSelect?: (file: File) => void;
 }
@@ -20,12 +22,27 @@ const MAX_ROWS = 6;
 const LINE_HEIGHT = 24;
 const ACCEPTED_TYPES = ".pdf,.doc,.docx,.txt,.csv,.md";
 
+function StopButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="orb-glow mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-slate-900 shadow-md ring-1 ring-black/[0.08] transition-all duration-200 hover:scale-105 active:scale-95 dark:bg-slate-100 dark:text-slate-900"
+      aria-label="Stop generating"
+    >
+      <span className="block h-3 w-3 rounded-[2px] bg-slate-900 dark:bg-slate-900" />
+    </button>
+  );
+}
+
 export function InputDock({
   value,
   onChange,
   onSubmit,
   disabled,
   isPending,
+  isGenerating,
+  onStop,
   isUploading,
   onFileSelect,
 }: InputDockProps) {
@@ -54,15 +71,16 @@ export function InputDock({
     }
   }
 
-  const busy = disabled || isPending || isUploading;
-  const canSend = !busy && value.trim().length >= 3;
+  const busy = disabled || isUploading;
+  const canSend = !busy && !isPending && value.trim().length >= 3;
 
   return (
     <div className="shrink-0 px-4 pb-6 pt-2 md:px-6">
       <div
         className={cn(
           "mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-black/[0.07] bg-white/70 px-2.5 py-2 shadow-[0_6px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-300 ease-in-out dark:border-white/10 dark:bg-white/5",
-          focused && "border-slate-400/60 shadow-[0_8px_30px_rgba(15,23,42,0.14)] dark:border-slate-400/40",
+          focused &&
+            "border-slate-400/60 shadow-[0_8px_30px_rgba(15,23,42,0.14)] dark:border-slate-400/40",
         )}
       >
         <input
@@ -81,7 +99,7 @@ export function InputDock({
           className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground disabled:opacity-50 dark:hover:bg-white/10"
           onClick={() => fileInputRef.current?.click()}
           aria-label="Attach document"
-          disabled={busy}
+          disabled={busy || isGenerating}
         >
           {isUploading ? (
             <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
@@ -99,23 +117,27 @@ export function InputDock({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="Ask Mera Vakil anything — general or legal…"
-          disabled={busy}
+          disabled={disabled || isUploading}
           className="max-h-[150px] min-h-[36px] flex-1 resize-none bg-transparent py-1.5 text-[13.5px] leading-6 placeholder:text-muted-foreground focus:outline-none"
           aria-label="Chat message input"
         />
 
-        <button
-          type="button"
-          className={cn(
-            "orb-glow mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md transition-all duration-300 ease-in-out dark:from-slate-100 dark:to-slate-300 dark:text-slate-900",
-            canSend ? "hover:scale-105 active:scale-95" : "opacity-50 cursor-not-allowed",
-          )}
-          onClick={onSubmit}
-          disabled={!canSend}
-          aria-label={isPending ? "Sending message" : "Send message"}
-        >
-          <Send className="h-4 w-4" />
-        </button>
+        {isGenerating && onStop ? (
+          <StopButton onClick={onStop} />
+        ) : (
+          <button
+            type="button"
+            className={cn(
+              "orb-glow mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md transition-all duration-300 ease-in-out dark:from-slate-100 dark:to-slate-300 dark:text-slate-900",
+              canSend ? "hover:scale-105 active:scale-95" : "cursor-not-allowed opacity-50",
+            )}
+            onClick={onSubmit}
+            disabled={!canSend}
+            aria-label="Send message"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        )}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
         Enter to send · Shift+Enter for new line · Attach PDF, DOCX, TXT, CSV

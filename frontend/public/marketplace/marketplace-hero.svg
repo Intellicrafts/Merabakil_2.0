@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="55%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="50%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <radialGradient id="orb" cx="70%" cy="30%" r="50%">
+      <stop offset="0%" stop-color="#f8fafc" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#94a3b8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="480" height="280" rx="28" fill="url(#bg)"/>
+  <circle cx="360" cy="80" r="120" fill="url(#orb)"/>
+  <g transform="translate(50 48)">
+    <rect x="0" y="40" width="88" height="64" rx="14" stroke="url(#metal)" stroke-width="3" fill="#f8fafc" fill-opacity="0.08"/>
+    <path d="M22 40v-12a22 22 0 0 1 44 0v12" stroke="url(#metal)" stroke-width="3" fill="none"/>
+    <circle cx="140" cy="56" r="28" stroke="url(#metal)" stroke-width="3" fill="#f8fafc" fill-opacity="0.06"/>
+    <path d="M140 42v16l12 8" stroke="url(#metal)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M200 36h90M200 56h70M200 76h50" stroke="#e2e8f0" stroke-opacity="0.35" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(280 150)">
+    <rect width="150" height="88" rx="20" fill="#f8fafc" fill-opacity="0.1" stroke="url(#metal)" stroke-width="2"/>
+    <circle cx="36" cy="44" r="16" fill="#f8fafc" fill-opacity="0.85"/>
+    <path d="M28 70h100M28 58h72" stroke="#e2e8f0" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

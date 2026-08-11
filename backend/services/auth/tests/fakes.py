@@ -35,10 +35,37 @@ class FakeUser:
         return sorted(codes)
 
 
+from legalos_common.security.rbac import Permission
+
+
 _ROLE_CATALOG = {
-    "citizen": ["research:read", "search:read"],
-    "advocate": ["research:read", "search:read", "knowledge:ingest", "case:read", "case:write"],
-    "admin": ["user:manage", "role:manage", "research:read", "search:read"],
+    "citizen": ["research:read", "search:read", "case:read"],
+    "advocate": [
+        "research:read",
+        "search:read",
+        "knowledge:ingest",
+        "case:read",
+        "case:write",
+        "document:read",
+        "document:write",
+    ],
+    "law_firm": [
+        "research:read",
+        "search:read",
+        "knowledge:ingest",
+        "case:read",
+        "case:write",
+        "document:read",
+        "document:write",
+    ],
+    "enterprise": [
+        "research:read",
+        "search:read",
+        "document:read",
+        "document:write",
+        "audit:read",
+    ],
+    "admin": [p.value for p in Permission],
 }
 
 

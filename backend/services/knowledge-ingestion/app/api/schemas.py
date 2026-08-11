@@ -12,6 +12,25 @@ class IngestTextRequest(BaseModel):
     jurisdiction: str | None = None
 
 
+class StructuredChunkRequest(BaseModel):
+    content: str = Field(min_length=1)
+    title: str | None = None
+    section: str | None = None
+    citation: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class IngestStructuredRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    doc_type: str = Field(min_length=1, max_length=120)
+    jurisdiction: str | None = None
+    content_type: str | None = None
+    source_file: str | None = None
+    page_count: int | None = None
+    citations: list[str] = Field(default_factory=list)
+    chunks: list[StructuredChunkRequest] = Field(min_length=1)
+
+
 class IngestionResultResponse(BaseModel):
     document_id: str
     title: str
@@ -54,3 +73,32 @@ class IngestionJobResponse(BaseModel):
     error: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class KnowledgeGraphNode(BaseModel):
+    id: str
+    label: str
+    type: str
+    doc_type: str | None = None
+    jurisdiction: str | None = None
+    document_id: str | None = None
+    key: str | None = None
+
+
+class KnowledgeGraphEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    type: str = "CITES"
+
+
+class KnowledgeGraphStats(BaseModel):
+    documents: int = 0
+    references: int = 0
+    citations: int = 0
+
+
+class KnowledgeGraphResponse(BaseModel):
+    nodes: list[KnowledgeGraphNode]
+    edges: list[KnowledgeGraphEdge]
+    stats: KnowledgeGraphStats

@@ -2,23 +2,23 @@
 """Auth service — dev mode (in-memory users, no Postgres)."""
 from __future__ import annotations
 
+import json
 import os
 import sys
 import uuid
+from datetime import UTC, datetime
+from pathlib import Path
 
-_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_ROOT / "backend" / "scripts"))
+from dev_bootstrap import bootstrap_dev_env  # noqa: E402
+
+bootstrap_dev_env(_ROOT)
+
 sys.path[:0] = [
-    os.path.join(_ROOT, "backend", "libs", "legalos_common"),
-    os.path.join(_ROOT, "backend", "services", "auth"),
+    str(_ROOT / "backend" / "libs" / "legalos_common"),
+    str(_ROOT / "backend" / "services" / "auth"),
 ]
-
-os.environ.setdefault("LLM_USE_STUB", "true")
-os.environ.setdefault("OTEL_SDK_DISABLED", "true")
-os.environ.setdefault("JWT_SECRET_KEY", "dev-local-secret")
-os.environ.setdefault(
-    "FIELD_ENCRYPTION_KEY",
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-)
 
 from app.api.deps import enforce_rate_limit, get_auth_service  # noqa: E402
 from app.application.use_cases import AuthService  # noqa: E402
@@ -34,24 +34,124 @@ from tests.fakes import (  # noqa: E402
     FakeUserRepository,
 )
 
+ADMIN_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
+STATE_FILE = _ROOT / "data" / ".dev-auth-state.json"
+
 _users = FakeUserRepository()
 _refresh = FakeRefreshTokenRepository()
 _resets = FakePasswordResetRepository()
 
-admin = FakeUser(
-    id=uuid.uuid4(),
-    email="admin@legalos.in",
-    full_name="Platform Administrator",
-    hashed_password=hash_password("ChangeMe!2026"),
-    is_active=True,
-    is_verified=True,
-    roles_data=[FakeRole(name=Role.ADMIN.value, permissions=[p.value for p in Permission])],
-)
-_users.store[admin.id] = admin
+
+def _admin_user() -> FakeUser:
+    return FakeUser(
+        id=ADMIN_ID,
+        email="admin@legalos.in",
+        full_name="Platform Administrator",
+        hashed_password=hash_password("ChangeMe!2026"),
+        is_active=True,
+        is_verified=True,
+        roles_data=[FakeRole(name=Role.ADMIN.value, permissions=[p.value for p in Permission])],
+    )
+
+
+def _save_state() -> None:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    users_payload = []
+    for user in _users.store.values():
+        users_payload.append(
+            {
+                "id": str(user.id),
+                "email": user.email,
+                "full_name": user.full_name,
+                "hashed_password": user.hashed_password,
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+                "roles_data": [
+                    {"name": r.name, "permissions": r.permissions} for r in user.roles_data
+                ],
+            }
+        )
+    refresh_payload = {
+        jti: {
+            "user_id": str(tok["user_id"]),
+            "expires_at": tok["expires_at"].isoformat(),
+            "revoked": tok["revoked"],
+        }
+        for jti, tok in _refresh.tokens.items()
+    }
+    STATE_FILE.write_text(
+        json.dumps({"users": users_payload, "refresh_tokens": refresh_payload}, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _load_state() -> None:
+    if not STATE_FILE.is_file():
+        _users.store[ADMIN_ID] = _admin_user()
+        return
+    try:
+        raw = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        _users.store[ADMIN_ID] = _admin_user()
+        return
+
+    for entry in raw.get("users", []):
+        user = FakeUser(
+            id=uuid.UUID(entry["id"]),
+            email=entry["email"],
+            full_name=entry["full_name"],
+            hashed_password=entry["hashed_password"],
+            is_active=entry.get("is_active", True),
+            is_verified=entry.get("is_verified", False),
+            roles_data=[
+                FakeRole(name=r["name"], permissions=r.get("permissions", []))
+                for r in entry.get("roles_data", [])
+            ],
+        )
+        _users.store[user.id] = user
+
+    if ADMIN_ID not in _users.store:
+        _users.store[ADMIN_ID] = _admin_user()
+
+    for jti, tok in raw.get("refresh_tokens", {}).items():
+        _refresh.tokens[jti] = {
+            "user_id": uuid.UUID(tok["user_id"]),
+            "expires_at": datetime.fromisoformat(tok["expires_at"]),
+            "revoked": tok.get("revoked", False),
+        }
+
+
+class PersistingAuthService(AuthService):
+    async def register(
+        self,
+        *,
+        email: str,
+        full_name: str,
+        password: str,
+        role: str,
+    ):
+        result = await super().register(
+            email=email, full_name=full_name, password=password, role=role
+        )
+        _save_state()
+        return result
+
+    async def authenticate(self, *, email: str, password: str):
+        result = await super().authenticate(email=email, password=password)
+        _save_state()
+        return result
+
+    async def refresh(self, *, refresh_token: str):
+        result = await super().refresh(refresh_token=refresh_token)
+        _save_state()
+        return result
+
+
+_load_state()
 
 
 def _svc() -> AuthService:
-    return AuthService(
+    return PersistingAuthService(
         users=_users,
         refresh_tokens=_refresh,
         password_resets=_resets,

@@ -5,46 +5,33 @@ interface VoiceVisualizerProps {
 export function VoiceVisualizer({ isActive = false }: VoiceVisualizerProps) {
   return (
     <div
-      className="relative h-24 overflow-hidden rounded-2xl bg-white/40 dark:bg-white/5"
+      className="relative h-24 overflow-hidden rounded-2xl border border-black/[0.05] bg-gradient-to-br from-white/70 to-slate-100/50 dark:border-white/[0.06] dark:from-white/[0.06] dark:to-white/[0.02]"
       aria-hidden={!isActive}
       aria-live={isActive ? "polite" : undefined}
     >
-      <svg
-        viewBox="0 0 400 80"
-        className={isActive ? "wave-animate h-full w-full" : "h-full w-full opacity-60"}
-        preserveAspectRatio="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <linearGradient id="wave1" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#94A3B8" stopOpacity="0.6" />
-            <stop offset="50%" stopColor="#64748B" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#475569" stopOpacity="0.6" />
-          </linearGradient>
-          <linearGradient id="wave2" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#CBD5E1" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#E2E8F0" stopOpacity="0.5" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M0,50 Q50,20 100,50 T200,50 T300,50 T400,50 L400,80 L0,80 Z"
-          fill="url(#wave1)"
-        />
-        <path
-          d="M0,60 Q60,35 120,55 T240,45 T360,58 T400,55 L400,80 L0,80 Z"
-          fill="url(#wave2)"
-          style={{ animationDelay: "0.5s" }}
-        />
-        <path
-          d="M0,65 Q40,55 80,62 T160,58 T240,65 T320,55 T400,62 L400,80 L0,80 Z"
-          fill="url(#wave1)"
-          opacity="0.5"
-          style={{ animationDelay: "1s" }}
-        />
-      </svg>
+      <div className="pointer-events-none absolute inset-0 flex items-end justify-center gap-1 px-6 pb-5">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <span
+            key={i}
+            className={
+              isActive
+                ? "mv-voice-bar w-1 origin-bottom rounded-full bg-gradient-to-t from-slate-500 to-slate-300 dark:from-slate-400 dark:to-slate-200"
+                : "h-2 w-1 rounded-full bg-slate-300/60 dark:bg-white/15"
+            }
+            style={
+              isActive
+                ? {
+                    animation: `mv-voice-bar 0.9s ease-in-out ${i * 0.07}s infinite`,
+                    height: `${10 + (i % 4) * 6}px`,
+                  }
+                : undefined
+            }
+          />
+        ))}
+      </div>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="rounded-full bg-white/50 px-3 py-1 text-xs font-medium text-slate-600 backdrop-blur-sm dark:bg-black/30 dark:text-slate-300">
-          {isActive ? "Speaking…" : "Read aloud"}
+        <span className="rounded-full border border-black/[0.06] bg-white/70 px-3 py-1 text-[11px] font-medium text-slate-600 backdrop-blur-sm dark:border-white/10 dark:bg-black/30 dark:text-slate-300">
+          {isActive ? "Speaking…" : "Read aloud ready"}
         </span>
       </div>
     </div>

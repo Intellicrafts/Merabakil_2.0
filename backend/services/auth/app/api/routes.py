@@ -128,13 +128,20 @@ async def confirm_password_reset(
 
 
 @users_router.get("/me", response_model=UserResponse, summary="Current user profile")
-async def me(current: CurrentUser = Depends(get_current_user)) -> UserResponse:
+async def me(
+    current: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> UserResponse:
+    repo = SqlAlchemyUserRepository(session)
+    user = await repo.get_by_id(uuid.UUID(current.user_id))
+    if user is None:
+        raise NotFoundError("User not found")
     return UserResponse(
-        user_id=current.user_id,
-        email="",
-        full_name="",
-        roles=current.roles,
-        permissions=current.permissions,
+        user_id=str(user.id),
+        email=user.email,
+        full_name=user.full_name,
+        roles=user.role_names,
+        permissions=user.permission_codes,
     )
 
 

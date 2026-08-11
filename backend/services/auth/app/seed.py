@@ -30,6 +30,7 @@ ROLE_PERMISSIONS: dict[Role, list[Permission]] = {
         Permission.KNOWLEDGE_INGEST,
         Permission.CASE_READ,
         Permission.CASE_WRITE,
+        Permission.COURTROOM_SIMULATE,
         Permission.DOCUMENT_READ,
         Permission.DOCUMENT_WRITE,
     ],
@@ -39,18 +40,21 @@ ROLE_PERMISSIONS: dict[Role, list[Permission]] = {
         Permission.KNOWLEDGE_INGEST,
         Permission.CASE_READ,
         Permission.CASE_WRITE,
+        Permission.COURTROOM_SIMULATE,
         Permission.DOCUMENT_READ,
         Permission.DOCUMENT_WRITE,
     ],
     Role.ENTERPRISE: [
         Permission.RESEARCH_READ,
         Permission.SEARCH_READ,
+        Permission.COURTROOM_SIMULATE,
         Permission.DOCUMENT_READ,
         Permission.DOCUMENT_WRITE,
     ],
     Role.CITIZEN: [
         Permission.RESEARCH_READ,
         Permission.SEARCH_READ,
+        Permission.CASE_READ,
     ],
 }
 

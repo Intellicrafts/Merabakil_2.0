@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-COMPOSE := docker compose -f infrastructure/docker-compose.yml --env-file .env
+COMPOSE := bash scripts/docker-compose.sh
 
 .PHONY: help
 help: ## Show this help
@@ -38,6 +38,15 @@ seed: ## Seed roles, permissions and an admin user
 migrate: ## Run Alembic migrations for the auth service
 	$(COMPOSE) exec auth alembic upgrade head
 
+.PHONY: stop-native
+stop-native: ## Stop native dev stack processes
+	bash scripts/stop_native.sh
+
+.PHONY: native
+native: env ## Run native stack with raw-data + Gemini (no Docker)
+	bash scripts/stop_native.sh 2>/dev/null || true
+	. .venv/bin/activate && python backend/scripts/run_native_stack.py
+
 .PHONY: dev
 dev: env ## Run locally without Docker (Auth + Search + Research)
 	. .venv/bin/activate && python backend/scripts/dev_stack.py
@@ -46,6 +55,30 @@ dev: env ## Run locally without Docker (Auth + Search + Research)
 dev-frontend: ## Run Next.js frontend (requires backend dev stack)
 	cd frontend && cp -n .env.local.example .env.local 2>/dev/null; \
 	PATH="$$HOME/.local/node/bin:$$PATH" npm install && PATH="$$HOME/.local/node/bin:$$PATH" npm run dev
+
+.PHONY: bulk-ingest
+bulk-ingest: ## Ingest raw-data/ corpus into Qdrant + OpenSearch
+	. .venv/bin/activate && python data-platform/workers/bulk_ingest_raw_data.py
+
+.PHONY: eval-rag
+eval-rag: ## Run RAG benchmark evaluation (requires TOKEN or running stack)
+	. .venv/bin/activate && python backend/scripts/eval_rag.py
+
+.PHONY: setup-docker
+setup-docker: ## Fix Docker socket permissions (requires sudo once)
+	bash scripts/setup_docker.sh
+
+.PHONY: health
+health: ## Check health of all core services
+	bash scripts/health_check.sh
+
+.PHONY: post-setup
+post-setup: ## Seed + bulk ingest + eval (stack must be running)
+	bash scripts/post_docker_setup.sh
+
+.PHONY: production
+production: ## Full bootstrap: up + seed + ingest + eval
+	bash scripts/run_production_stack.sh
 
 .PHONY: sync-readmes
 sync-readmes: ## Regenerate data/*/README.md from corpus_registry.yaml

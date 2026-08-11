@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" fill="none">
+  <defs>
+    <linearGradient id="bbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#334155" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#94a3b8" stop-opacity="0.06"/>
+    </linearGradient>
+    <linearGradient id="bink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+  </defs>
+  <rect width="360" height="220" rx="20" fill="url(#bbg)"/>
+  <rect x="52" y="36" width="148" height="148" rx="12" fill="#fff" fill-opacity="0.48" stroke="url(#bink)" stroke-width="1.5"/>
+  <path d="M72 58h56" stroke="url(#bink)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M72 78h108M72 94h98M72 110h104M72 126h80" stroke="#64748b" stroke-opacity="0.3" stroke-width="3" stroke-linecap="round"/>
+  <rect x="72" y="148" width="48" height="18" rx="4" fill="url(#bink)" fill-opacity="0.25"/>
+  <rect x="220" y="56" width="100" height="120" rx="12" fill="#fff" fill-opacity="0.4" stroke="url(#bink)" stroke-width="1.5"/>
+  <path d="M236 84c12-16 36-16 48 0M242 100c8-10 28-10 36 0" stroke="url(#bink)" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="270" cy="128" r="14" stroke="url(#bink)" stroke-width="2"/>
+  <path d="M270 120v16M262 128h16" stroke="url(#bink)" stroke-width="2" stroke-linecap="round"/>
+</svg>

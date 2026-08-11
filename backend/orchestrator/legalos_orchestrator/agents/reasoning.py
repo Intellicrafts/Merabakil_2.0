@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 from legalos_common.clients.llm import ChatMessage
 from legalos_common.rag.confidence import score_confidence
 from legalos_common.rag.context import assemble_context
@@ -80,6 +82,41 @@ class ReasoningAgent(Agent):
     def __init__(self, llm: LLMPort) -> None:
         self._llm = llm
 
+    async def _build_messages(self, state: OrchestratorState) -> tuple[list[ChatMessage], float]:
+        if is_conversational(state.query):
+            return build_chat_messages(_GENERAL_SYSTEM_PROMPT, state.history, state.query), 0.5
+
+        context, _ = assemble_context(state.sources)
+        web_context = _format_web_context(state)
+
+        if state.web_sources or state.web_images:
+            prompt = _WEB_SUPPLEMENT_PROMPT.format(
+                corpus=context or "No corpus context available.",
+                web=web_context,
+            )
+            return build_chat_messages(prompt, state.history, state.query), 0.2
+        if state.sources:
+            return (
+                build_chat_messages(
+                    _GROUNDED_SYSTEM_PROMPT.format(context=context),
+                    state.history,
+                    state.query,
+                ),
+                0.1,
+            )
+        return build_chat_messages(_GENERAL_SYSTEM_PROMPT, state.history, state.query), 0.4
+
+    async def stream_answer(self, state: OrchestratorState) -> AsyncIterator[str]:
+        if is_conversational(state.query):
+            messages, temperature = await self._build_messages(state)
+            async for token in self._llm.stream_complete(messages, temperature=temperature):
+                yield token
+            return
+
+        messages, temperature = await self._build_messages(state)
+        async for token in self._llm.stream_complete(messages, temperature=temperature):
+            yield token
+
     async def _generate_suggestions(self, state: OrchestratorState, answer: str) -> list[str]:
         if is_conversational(state.query):
             return [
@@ -88,25 +125,31 @@ class ReasoningAgent(Agent):
                 "What makes a contract valid in India?",
             ]
 
-        raw = await self._llm.complete(
-            [
-                ChatMessage(role="system", content=_SUGGESTIONS_PROMPT),
-                ChatMessage(
-                    role="user",
-                    content=f"User question: {state.query}\n\nAssistant answer:\n{answer[:1200]}",
-                ),
-            ],
-            temperature=0.5,
-        )
+        try:
+            raw = await self._llm.complete(
+                [
+                    ChatMessage(role="system", content=_SUGGESTIONS_PROMPT),
+                    ChatMessage(
+                        role="user",
+                        content=f"User question: {state.query}\n\nAssistant answer:\n{answer[:1200]}",
+                    ),
+                ],
+                temperature=0.5,
+            )
+        except Exception:
+            return [
+                "What are the key statutes that apply here?",
+                "What remedies are available under Indian law?",
+                "What documents should I gather next?",
+            ]
+
         suggestions = [line.strip("•- ").strip() for line in raw.splitlines() if line.strip()]
         return [s for s in suggestions if len(s) > 8][:3]
 
     async def run(self, state: OrchestratorState) -> dict:
         if is_conversational(state.query):
-            answer = await self._llm.complete(
-                build_chat_messages(_GENERAL_SYSTEM_PROMPT, state.history, state.query),
-                temperature=0.5,
-            )
+            messages, temperature = await self._build_messages(state)
+            answer = await self._llm.complete(messages, temperature=temperature)
             return {
                 "answer": answer,
                 "sources": [],
@@ -119,31 +162,8 @@ class ReasoningAgent(Agent):
 
         context, citations = assemble_context(state.sources)
         confidence = score_confidence(state.sources)
-        web_context = _format_web_context(state)
-
-        if state.web_sources or state.web_images:
-            prompt = _WEB_SUPPLEMENT_PROMPT.format(
-                corpus=context or "No corpus context available.",
-                web=web_context,
-            )
-            answer = await self._llm.complete(
-                build_chat_messages(prompt, state.history, state.query),
-                temperature=0.2,
-            )
-        elif state.sources:
-            answer = await self._llm.complete(
-                build_chat_messages(
-                    _GROUNDED_SYSTEM_PROMPT.format(context=context),
-                    state.history,
-                    state.query,
-                ),
-                temperature=0.1,
-            )
-        else:
-            answer = await self._llm.complete(
-                build_chat_messages(_GENERAL_SYSTEM_PROMPT, state.history, state.query),
-                temperature=0.4,
-            )
+        messages, temperature = await self._build_messages(state)
+        answer = await self._llm.complete(messages, temperature=temperature)
 
         return {
             "answer": answer,

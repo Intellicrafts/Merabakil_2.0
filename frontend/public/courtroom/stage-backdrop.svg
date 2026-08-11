@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" fill="none">
+  <defs>
+    <linearGradient id="sb-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1c1917" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#44403c" stop-opacity="0.02"/>
+    </linearGradient>
+    <linearGradient id="sb-wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a8a29e"/>
+      <stop offset="100%" stop-color="#57534e"/>
+    </linearGradient>
+    <linearGradient id="sb-glow" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#d6d3d1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#78716c" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="320" fill="url(#sb-sky)"/>
+  <ellipse cx="400" cy="280" rx="360" ry="40" fill="#292524" fill-opacity="0.08"/>
+  <rect x="120" y="200" width="560" height="24" rx="6" fill="url(#sb-wood)" fill-opacity="0.35"/>
+  <rect x="200" y="120" width="400" height="88" rx="12" fill="url(#sb-wood)" fill-opacity="0.2" stroke="#78716c" stroke-opacity="0.3" stroke-width="2"/>
+  <rect x="280" y="60" width="240" height="64" rx="8" fill="url(#sb-wood)" fill-opacity="0.15" stroke="#a8a29e" stroke-opacity="0.25" stroke-width="1.5"/>
+  <path d="M400 40v24M360 52h80" stroke="#d6d3d1" stroke-opacity="0.5" stroke-width="3" stroke-linecap="round"/>
+  <ellipse cx="400" cy="180" rx="200" ry="60" fill="url(#sb-glow)"/>
+</svg>

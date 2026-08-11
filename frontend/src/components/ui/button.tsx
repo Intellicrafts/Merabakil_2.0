@@ -25,12 +25,34 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {}
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => (
-    <button ref={ref} className={cn(buttonVariants({ variant, size, className }))} {...props} />
-  ),
+  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
+    const classes = cn(buttonVariants({ variant, size, className }));
+
+    if (asChild) {
+      const child = React.Children.only(children);
+      if (!React.isValidElement(child)) {
+        throw new Error("Button with asChild expects a single valid element child");
+      }
+      return React.cloneElement(
+        child as React.ReactElement<{ className?: string; ref?: React.Ref<unknown> }>,
+        {
+          className: cn(classes, (child.props as { className?: string }).className),
+          ref,
+        },
+      );
+    }
+
+    return (
+      <button ref={ref} className={classes} {...props}>
+        {children}
+      </button>
+    );
+  },
 );
 Button.displayName = "Button";
 

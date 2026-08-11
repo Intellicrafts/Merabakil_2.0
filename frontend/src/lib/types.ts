@@ -84,6 +84,35 @@ export type UploadDocumentResponse =
   | { kind: "result"; data: IngestionResult }
   | { kind: "job"; data: IngestionJob };
 
+export interface KnowledgeGraphNode {
+  id: string;
+  label: string;
+  type: "Document" | "Reference" | string;
+  doc_type?: string | null;
+  jurisdiction?: string | null;
+  document_id?: string | null;
+  key?: string | null;
+}
+
+export interface KnowledgeGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+}
+
+export interface KnowledgeGraphStats {
+  documents: number;
+  references: number;
+  citations: number;
+}
+
+export interface KnowledgeGraph {
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
+  stats: KnowledgeGraphStats;
+}
+
 export interface RetrievedSource {
   chunk_id: string;
   document_id: string;
@@ -151,4 +180,57 @@ export interface ResearchResponse {
   trace: string[];
   specialist_payload: Record<string, unknown>;
   disclaimer: string;
+}
+
+export interface LawyerProfile {
+  id: string;
+  full_name: string;
+  bar_council_id: string;
+  practice_areas: string[];
+  city: string;
+  jurisdictions: string[];
+  languages: string[];
+  years_experience: number;
+  rating: number;
+  review_count: number;
+  verified: boolean;
+  hourly_rate_inr: number | null;
+  bio: string;
+}
+
+export type AppointmentStatus = "requested" | "confirmed" | "completed" | "cancelled";
+
+export interface ConsultationBooking {
+  id: string;
+  lawyer_id: string;
+  lawyer_name: string;
+  date: string;
+  time_slot: string;
+  matter_summary: string;
+  status: AppointmentStatus;
+  created_at: string;
+}
+
+export type CaseStatus = "open" | "in_progress" | "closed";
+
+export interface CaseTimelineEvent {
+  id: string;
+  label: string;
+  description: string;
+  at: string;
+}
+
+export interface LegalCase {
+  id: string;
+  title: string;
+  description: string;
+  case_number: string;
+  court: string;
+  jurisdiction: string;
+  practice_area: string;
+  status: CaseStatus;
+  created_at: string;
+  updated_at: string;
+  timeline: CaseTimelineEvent[];
+  linked_appointment_id?: string | null;
 }

@@ -47,3 +47,4 @@ class ResearchResponse(BaseModel):
 class TtsRequest(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
     rewrite_for_speech: bool = True
+    language: str = Field(default="en-IN", description="Indian regional speech locale code")

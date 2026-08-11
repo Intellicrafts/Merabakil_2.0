@@ -16,11 +16,12 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
     const token = getToken();
     const stored = getStoredUser();
     if (!token || !stored) {
-      router.replace("/login");
+      const next = encodeURIComponent(`${pathname}${window.location.search}`);
+      router.replace(`/login?next=${next}`);
       return;
     }
     if (!canAccessRoute(pathname, stored)) {
-      router.replace("/research");
+      router.replace("/dashboard");
       return;
     }
     setReady(true);
