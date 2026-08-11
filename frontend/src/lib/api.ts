@@ -12,6 +12,13 @@ import type {
   UserDocument,
   AuthUser,
 } from "@/lib/types";
+import type {
+  CourtroomActionsRequestPayload,
+  MandatoryFact,
+  OpponentFactDefense,
+  ProposedAction,
+  ProposedActionPlan,
+} from "@/lib/courtroom/types";
 
 export const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API_URL ?? "http://localhost:8001";
 export const INGESTION_URL =
@@ -477,5 +484,115 @@ export async function streamReadAloud(
   return {
     reader: res.body.getReader(),
     sampleRate: Number.isFinite(sampleRate) ? sampleRate : 24000,
+  };
+}
+
+function mapProposedAction(raw: Record<string, unknown>): ProposedAction {
+  const ctaRaw = raw.cta as Record<string, unknown> | null | undefined;
+  return {
+    id: String(raw.id ?? ""),
+    title: String(raw.title ?? ""),
+    description: String(raw.description ?? ""),
+    side: (raw.side as ProposedAction["side"]) || "both",
+    priority: (raw.priority as ProposedAction["priority"]) || "medium",
+    timeframe: (raw.timeframe as ProposedAction["timeframe"]) || "7d",
+    category: (raw.category as ProposedAction["category"]) || "procedure",
+    rationale: String(raw.rationale ?? ""),
+    relatedIssueIds: (raw.relatedIssueIds as string[] | undefined) ??
+      (raw.related_issue_ids as string[] | undefined) ??
+      [],
+    cta: ctaRaw
+      ? {
+          kind:
+            ctaRaw.kind === "research" || ctaRaw.kind === "mera_vakil" || ctaRaw.kind === "copy"
+              ? ctaRaw.kind
+              : "copy",
+          query: ctaRaw.query != null ? String(ctaRaw.query) : undefined,
+        }
+      : null,
+  };
+}
+
+function mapMandatoryFact(raw: Record<string, unknown>): MandatoryFact {
+  return {
+    id: String(raw.id ?? ""),
+    fact: String(raw.fact ?? ""),
+    whyMandatory: String(raw.whyMandatory ?? raw.why_mandatory ?? ""),
+    howToProve: String(raw.howToProve ?? raw.how_to_prove ?? ""),
+    side: (raw.side as MandatoryFact["side"]) || "petitioner",
+    relatedIssueIds:
+      (raw.relatedIssueIds as string[] | undefined) ??
+      (raw.related_issue_ids as string[] | undefined) ??
+      [],
+  };
+}
+
+function mapOpponentDefense(raw: Record<string, unknown>): OpponentFactDefense {
+  return {
+    id: String(raw.id ?? ""),
+    opponentFact: String(raw.opponentFact ?? raw.opponent_fact ?? ""),
+    defenseStrategy: String(raw.defenseStrategy ?? raw.defense_strategy ?? ""),
+    evidenceNeeded: String(raw.evidenceNeeded ?? raw.evidence_needed ?? ""),
+    side: (raw.side as OpponentFactDefense["side"]) || "petitioner",
+    relatedIssueIds:
+      (raw.relatedIssueIds as string[] | undefined) ??
+      (raw.related_issue_ids as string[] | undefined) ??
+      [],
+  };
+}
+
+export async function proposeCourtroomActions(
+  payload: CourtroomActionsRequestPayload,
+): Promise<ProposedActionPlan> {
+  const data = await apiFetch(`${RESEARCH_URL}/api/v1/research/courtroom/actions`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const raw = data as Record<string, unknown>;
+  const actionsRaw = (raw.actions as Record<string, unknown>[] | undefined) ?? [];
+  const anglesRaw =
+    (raw.researchAngles as { title?: string; query?: string }[] | undefined) ??
+    (raw.research_angles as { title?: string; query?: string }[] | undefined) ??
+    [];
+  const mandatoryRaw =
+    (raw.mandatoryFacts as Record<string, unknown>[] | undefined) ??
+    (raw.mandatory_facts as Record<string, unknown>[] | undefined) ??
+    [];
+  const defenseRaw =
+    (raw.opponentFactDefenses as Record<string, unknown>[] | undefined) ??
+    (raw.opponent_fact_defenses as Record<string, unknown>[] | undefined) ??
+    [];
+
+  return {
+    headline: String(raw.headline ?? "Post-hearing action plan"),
+    summary: String(raw.summary ?? ""),
+    forumHint: (raw.forumHint as string | null | undefined) ??
+      (raw.forum_hint as string | null | undefined) ??
+      null,
+    limitationFlags:
+      (raw.limitationFlags as string[] | undefined) ??
+      (raw.limitation_flags as string[] | undefined) ??
+      [],
+    actions: actionsRaw.map(mapProposedAction),
+    mandatoryFacts: mandatoryRaw.map(mapMandatoryFact).filter((f) => f.fact.trim()),
+    opponentFactDefenses: defenseRaw
+      .map(mapOpponentDefense)
+      .filter((d) => d.opponentFact.trim()),
+    documentsToGather:
+      (raw.documentsToGather as string[] | undefined) ??
+      (raw.documents_to_gather as string[] | undefined) ??
+      [],
+    researchAngles: anglesRaw
+      .filter((a) => a.title && a.query)
+      .map((a) => ({ title: String(a.title), query: String(a.query) })),
+    settlementLevers:
+      (raw.settlementLevers as string[] | undefined) ??
+      (raw.settlement_levers as string[] | undefined) ??
+      [],
+    disclaimer: String(
+      raw.disclaimer ??
+        "AI courtroom simulation output — not legal advice.",
+    ),
   };
 }

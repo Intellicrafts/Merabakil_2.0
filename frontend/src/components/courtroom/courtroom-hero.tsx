@@ -10,9 +10,12 @@ interface CourtroomHeroProps {
   phase: CourtroomPhase;
   matterTitle?: string;
   elapsedSeconds?: number;
+  /** True when viewing a locally saved completed run. */
+  reviewingSaved?: boolean;
 }
 
-function formatPhase(phase: CourtroomPhase): string {
+function formatPhase(phase: CourtroomPhase, reviewingSaved?: boolean): string {
+  if (reviewingSaved) return "Reviewing saved run";
   const map: Record<CourtroomPhase, string> = {
     setup: "Prepare case",
     processing: "Processing intake",
@@ -24,7 +27,12 @@ function formatPhase(phase: CourtroomPhase): string {
   return map[phase];
 }
 
-export function CourtroomHero({ phase, matterTitle, elapsedSeconds = 0 }: CourtroomHeroProps) {
+export function CourtroomHero({
+  phase,
+  matterTitle,
+  elapsedSeconds = 0,
+  reviewingSaved = false,
+}: CourtroomHeroProps) {
   const mins = Math.floor(elapsedSeconds / 60);
   const secs = elapsedSeconds % 60;
 
@@ -50,14 +58,24 @@ export function CourtroomHero({ phase, matterTitle, elapsedSeconds = 0 }: Courtr
             AI Courtroom Simulation
           </h1>
           <p className="text-[13px] leading-relaxed text-muted-foreground sm:text-[14px]">
-            {matterTitle || "Configure your matter and begin a procedural hearing with Judge and Advocate AI."}
+            {reviewingSaved
+              ? matterTitle
+                ? `Reviewing saved judgment — ${matterTitle}`
+                : "Reviewing a simulation saved on this device."
+              : matterTitle ||
+                "Configure your matter and begin a procedural hearing with Judge and Advocate AI."}
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.06] bg-white/70 px-2.5 py-1 text-[11px] text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04]">
               <Gavel className="h-3 w-3" strokeWidth={1.75} />
-              {formatPhase(phase)}
+              {formatPhase(phase, reviewingSaved)}
             </span>
-            {phase !== "setup" && phase !== "processing" && (
+            {reviewingSaved && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-700/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-900/85 dark:border-amber-200/20 dark:text-amber-100/85">
+                Local archive
+              </span>
+            )}
+            {!reviewingSaved && phase !== "setup" && phase !== "processing" && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.06] bg-white/70 px-2.5 py-1 text-[11px] tabular-nums text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04]">
                 <Scale className="h-3 w-3" strokeWidth={1.75} />
                 {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}

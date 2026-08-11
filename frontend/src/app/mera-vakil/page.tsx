@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
 import { streamResearch, uploadUserDocument, getUserDocument } from "@/lib/api";
+import { consumeMeraVakilPrefill } from "@/lib/courtroom/session-store";
 import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
 import {
   createAssistantMessage,
@@ -62,6 +63,8 @@ export default function MeraVakilPage() {
     if (panelStored !== null) {
       setRightPanelOpen(panelStored === "true");
     }
+    const prefill = consumeMeraVakilPrefill();
+    if (prefill) setInput(prefill);
   }, []);
 
   function setRightPanelOpenPersisted(open: boolean) {

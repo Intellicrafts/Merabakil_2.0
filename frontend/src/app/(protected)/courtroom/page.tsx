@@ -20,6 +20,7 @@ import {
   downloadJudgmentJson,
   downloadJudgmentReport,
 } from "@/components/courtroom/judgment-screen";
+import { PastSimulationsPanel } from "@/components/courtroom/past-simulations-panel";
 import { CoverageTracker } from "@/components/courtroom/coverage-tracker";
 import { HearingChat } from "@/components/courtroom/hearing-chat";
 import { HearingStage } from "@/components/courtroom/hearing-stage";
@@ -30,19 +31,34 @@ import {
   useHearingLinePipeline,
   useHearingTranscriptWatcher,
 } from "@/hooks/use-hearing-line-pipeline";
+import { proposeCourtroomActions } from "@/lib/api";
 import { createEmptyIntakeBundle, hasMinimumIntake } from "@/lib/courtroom/case-bundle";
 import { getDemoPreset } from "@/lib/courtroom/demo-sessions";
 import { processCaseIntake } from "@/lib/courtroom/intake-processor";
 import { createLlmCourtroomAdapter } from "@/lib/courtroom/llm-adapter";
 import { refineAgentsWithLlm } from "@/lib/courtroom/llm-courtroom";
+import {
+  buildActionsPayload,
+  buildCourtroomRunRecord,
+  deleteCourtroomRun,
+  listCourtroomRuns,
+  loadActionChecklist,
+  saveActionChecklist,
+  upsertCourtroomRun,
+} from "@/lib/courtroom/session-store";
+import { buildActionPlanMarkdown } from "@/components/courtroom/action-plan-panel";
 import type {
+  ActionPlanStatus,
   AgentPersona,
   CaseIntakeBundle,
   CourtroomEvent,
   CourtroomPhase,
+  CourtroomRunRecord,
   CourtroomSessionConfig,
   CourtroomState,
+  JudgmentReport,
   ProcessingStep,
+  ProposedActionPlan,
   TranscriptEntry,
   TranscriptLanguage,
 } from "@/lib/courtroom/types";
@@ -78,6 +94,14 @@ export default function CourtroomPage() {
   const [displayLanguage, setDisplayLanguage] = useState<TranscriptLanguage>("en");
   const [listeningMode, setListeningMode] = useState(true);
   const [judgmentRevealed, setJudgmentRevealed] = useState(false);
+  const [actionPlanStatus, setActionPlanStatus] = useState<ActionPlanStatus>("idle");
+  const [actionPlan, setActionPlan] = useState<ProposedActionPlan | null>(null);
+  const [checkedActionIds, setCheckedActionIds] = useState<string[]>([]);
+  const [pastRuns, setPastRuns] = useState<CourtroomRunRecord[]>([]);
+  const [reviewingRunId, setReviewingRunId] = useState<string | null>(null);
+  const [reviewingSavedAt, setReviewingSavedAt] = useState<string | null>(null);
+  const actionsAbortRef = useRef<AbortController | null>(null);
+  const runIdRef = useRef<string | null>(null);
   const [speakingEntryId, setSpeakingEntryId] = useState<string | null>(null);
   const [typingEntryId, setTypingEntryId] = useState<string | null>(null);
   const [typingCharCount, setTypingCharCount] = useState(0);
@@ -213,10 +237,139 @@ export default function CourtroomPage() {
   }, [courtroomSpeech.activeEntryId]);
 
   useEffect(() => {
+    setPastRuns(listCourtroomRuns());
+  }, []);
+
+  useEffect(() => {
+    if (state.phase === "judgment" && state.judgment) {
+      setJudgmentRevealed(true);
+    }
+  }, [state.phase, state.judgment]);
+
+  const persistCurrentRun = useCallback(
+    (overrides?: {
+      judgment?: JudgmentReport;
+      actionPlan?: ProposedActionPlan | null;
+      checkedActionIds?: string[];
+    }) => {
+      const id = runIdRef.current;
+      const judgment = overrides?.judgment ?? state.judgment;
+      if (!id || !judgment) return;
+      const record = buildCourtroomRunRecord({
+        id,
+        config,
+        exhibits: state.exhibits.length ? state.exhibits : config.exhibits,
+        intake: intakeBundle,
+        agents,
+        judgment,
+        actionPlan: overrides?.actionPlan !== undefined ? overrides.actionPlan : actionPlan,
+        checkedActionIds: overrides?.checkedActionIds ?? checkedActionIds,
+        transcript: transcriptRef.current,
+        agenda: state.agenda,
+      });
+      setPastRuns(upsertCourtroomRun(record));
+    },
+    [
+      config,
+      state.exhibits,
+      state.judgment,
+      state.agenda,
+      intakeBundle,
+      agents,
+      actionPlan,
+      checkedActionIds,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      runIdRef.current &&
+      state.judgment &&
+      (state.phase === "judgment" || state.phase === "deliberation")
+    ) {
+      persistCurrentRun({ judgment: state.judgment });
+    }
+  }, [state.judgment, state.phase, persistCurrentRun]);
+
+  const fetchActionPlan = useCallback(
+    async (judgment: NonNullable<CourtroomState["judgment"]>) => {
+      actionsAbortRef.current?.abort();
+      const controller = new AbortController();
+      actionsAbortRef.current = controller;
+      setActionPlanStatus("loading");
+      try {
+        const transcriptText = transcriptRef.current
+          .map((t) => `${t.speaker}: ${t.text}`)
+          .join("\n");
+        const payload = buildActionsPayload({
+          config,
+          judgment,
+          agenda: state.agenda,
+          transcriptText,
+        });
+        const plan = await proposeCourtroomActions(payload);
+        if (controller.signal.aborted) return;
+        setActionPlan(plan);
+        setActionPlanStatus("ready");
+        const checked = loadActionChecklist();
+        setCheckedActionIds(checked);
+        persistCurrentRun({
+          judgment,
+          actionPlan: plan,
+          checkedActionIds: checked,
+        });
+      } catch {
+        if (controller.signal.aborted) return;
+        setActionPlanStatus("error");
+        setActionPlan(null);
+        persistCurrentRun({ judgment, actionPlan: null });
+      }
+    },
+    [config, state.agenda, persistCurrentRun],
+  );
+
+  useEffect(() => {
+    if (state.phase === "judgment" && state.judgment && actionPlanStatus === "idle") {
+      void fetchActionPlan(state.judgment);
+    }
+  }, [state.phase, state.judgment, actionPlanStatus, fetchActionPlan]);
+
+  useEffect(() => {
     if (state.isPaused && phase === "hearing") {
       setMobileTab("transcript");
     }
   }, [state.isPaused, phase]);
+
+  const handleToggleActionChecked = useCallback(
+    (id: string) => {
+      setCheckedActionIds((prev) => {
+        const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+        saveActionChecklist(next);
+        return next;
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!runIdRef.current || !state.judgment) return;
+    if (actionPlanStatus !== "ready" && actionPlanStatus !== "error") return;
+    persistCurrentRun({ checkedActionIds });
+  }, [checkedActionIds, actionPlanStatus, persistCurrentRun, state.judgment]);
+
+  const handleRetryActions = useCallback(() => {
+    if (!state.judgment) return;
+    void fetchActionPlan(state.judgment);
+  }, [fetchActionPlan, state.judgment]);
+
+  const handleCopyActionPlan = useCallback(async () => {
+    if (!actionPlan) return;
+    try {
+      await navigator.clipboard.writeText(buildActionPlanMarkdown(actionPlan));
+    } catch {
+      /* ignore */
+    }
+  }, [actionPlan]);
 
   const handlePause = useCallback(() => {
     adapterRef.current.pause();
@@ -287,13 +440,97 @@ export default function CourtroomPage() {
     setDisplayLanguage("en");
     setListeningMode(true);
     setJudgmentRevealed(false);
+    actionsAbortRef.current?.abort();
+    setActionPlanStatus("idle");
+    setActionPlan(null);
+    setCheckedActionIds([]);
+    runIdRef.current = null;
+    setReviewingRunId(null);
+    setReviewingSavedAt(null);
     setSpeakingEntryId(null);
     setTypingEntryId(null);
     setTypingCharCount(0);
     setCompletedLineIds(new Set());
     pdfFilesRef.current.clear();
     setMobileTab("transcript");
+    setPastRuns(listCourtroomRuns());
   }, [applyEvent, resetLinePipeline]);
+
+  const openPastRun = useCallback(
+    (run: CourtroomRunRecord) => {
+      courtroomSpeechRef.current.stop();
+      resetLinePipeline();
+      adapterRef.current.dispose();
+      adapterRef.current = createLlmCourtroomAdapter();
+      adapterRef.current.setSpeechGated(true);
+      adapterRef.current.subscribe(applyEvent);
+      runIdRef.current = run.id;
+      setReviewingRunId(run.id);
+      setReviewingSavedAt(run.savedAt);
+      setConfig({
+        ...DEFAULT_CONFIG,
+        matterTitle: run.config.matterTitle,
+        matterType: run.config.matterType,
+        petitionerName: run.config.petitionerName,
+        respondentName: run.config.respondentName,
+        presetId: run.config.presetId,
+        exhibits: run.exhibits,
+        intake: run.intake ?? undefined,
+        agents: run.agents,
+      });
+      setIntakeBundle(run.intake ?? createEmptyIntakeBundle());
+      setAgents(run.agents);
+      setPrepPhase("setup");
+      setPrepareOpen(false);
+      setActionPlan(run.actionPlan);
+      setActionPlanStatus(run.actionPlan ? "ready" : "idle");
+      setCheckedActionIds(run.checkedActionIds ?? []);
+      setJudgmentRevealed(true);
+      setSpeakingEntryId(null);
+      setTypingEntryId(null);
+      setTypingCharCount(0);
+      setCompletedLineIds(new Set());
+      setState({
+        phase: "judgment",
+        activeSpeaker: null,
+        judgeState: "ruling",
+        timelineStep: "verdict",
+        transcript: run.transcript ?? [],
+        exhibits: run.exhibits ?? [],
+        authorities: run.judgment.authorities ?? [],
+        objections: [],
+        metrics: run.judgment.confidence,
+        elapsedSeconds: 0,
+        isPaused: true,
+        judgment: run.judgment,
+        agenda: run.agenda,
+      });
+    },
+    [applyEvent, resetLinePipeline],
+  );
+
+  useEffect(() => {
+    if (!reviewingRunId || !state.judgment) return;
+    const t = window.setTimeout(() => {
+      document.getElementById("courtroom-judgment")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [reviewingRunId, state.judgment]);
+
+  const handleDeletePastRun = useCallback((id: string) => {
+    deleteCourtroomRun(id);
+    setPastRuns(listCourtroomRuns());
+    if (runIdRef.current === id) {
+      runIdRef.current = null;
+    }
+    if (reviewingRunId === id) {
+      setReviewingRunId(null);
+      setReviewingSavedAt(null);
+    }
+  }, [reviewingRunId]);
 
   const buildAgents = useCallback(async () => {
     if (!config.matterTitle.trim() || !hasMinimumIntake(intakeBundle) || buildingAgents) return;
@@ -330,6 +567,12 @@ export default function CourtroomPage() {
     setTypingEntryId(null);
     setTypingCharCount(0);
     setJudgmentRevealed(false);
+    setActionPlanStatus("idle");
+    setActionPlan(null);
+    setCheckedActionIds([]);
+    runIdRef.current = crypto.randomUUID();
+    setReviewingRunId(null);
+    setReviewingSavedAt(null);
     void courtroomSpeechRef.current.unlock();
     const sessionConfig: CourtroomSessionConfig = {
       ...config,
@@ -368,12 +611,15 @@ export default function CourtroomPage() {
     document.getElementById("deliberation-transcript")?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
+  const isReviewMode = Boolean(reviewingRunId);
+
   return (
     <div className="mx-auto w-full max-w-[1200px] space-y-5 pb-24 md:space-y-6">
       <CourtroomHero
         phase={phase}
         matterTitle={config.matterTitle || undefined}
         elapsedSeconds={state.elapsedSeconds}
+        reviewingSaved={isReviewMode}
       />
 
       {(phase === "setup" || phase === "processing" || phase === "agentsReady") && (
@@ -393,7 +639,16 @@ export default function CourtroomPage() {
             disabled={buildingAgents || prepPhase === "processing"}
           />
 
-          {phase === "setup" && <CourtroomEmptyState />}
+          {phase === "setup" && (
+            <>
+              <CourtroomEmptyState hasPastRuns={pastRuns.length > 0} />
+              <PastSimulationsPanel
+                runs={pastRuns}
+                onOpen={openPastRun}
+                onDelete={handleDeletePastRun}
+              />
+            </>
+          )}
 
           {phase === "processing" && (
             <>
@@ -563,10 +818,18 @@ export default function CourtroomPage() {
       {showJudgment && state.judgment && (
         <JudgmentScreen
           report={state.judgment}
-          onDownload={() => downloadJudgmentReport(state.judgment!)}
+          onDownload={() => downloadJudgmentReport(state.judgment!, actionPlan)}
           onDownloadJson={() => downloadJudgmentJson(state.judgment!)}
           onNewSession={resetSession}
           showBilingual={displayLanguage !== "en"}
+          actionPlanStatus={actionPlanStatus}
+          actionPlan={actionPlan}
+          checkedActionIds={checkedActionIds}
+          onToggleActionChecked={handleToggleActionChecked}
+          onRetryActions={handleRetryActions}
+          onCopyActionPlan={handleCopyActionPlan}
+          isReviewMode={isReviewMode}
+          savedAt={reviewingSavedAt}
         />
       )}
     </div>

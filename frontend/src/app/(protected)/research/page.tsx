@@ -10,6 +10,7 @@ import { ResearchQueryDock } from "@/components/research/research-query-dock";
 import { ResearchSourcesPanel } from "@/components/research/research-sources-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { streamResearch } from "@/lib/api";
+import { consumeResearchPrefill } from "@/lib/courtroom/session-store";
 import { loadResearchHistory, saveResearchHistory } from "@/lib/research-history";
 import type { ResearchResponse } from "@/lib/types";
 
@@ -29,6 +30,10 @@ export default function ResearchPage() {
 
   useEffect(() => {
     setHistory(loadResearchHistory());
+    const params = new URLSearchParams(window.location.search);
+    const qParam = params.get("q");
+    const prefill = qParam?.trim() || consumeResearchPrefill();
+    if (prefill) setQuery(prefill);
   }, []);
 
   const stopResearch = useCallback(() => {
