@@ -28,4 +28,5 @@ class Document(Base, UUIDMixin, TimestampMixin):
     chunk_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
     visibility: Mapped[str] = mapped_column(String(20), default="corpus", nullable=False)
+    content_hash: Mapped[str | None] = mapped_column(String(64))
     doc_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB, default=dict)

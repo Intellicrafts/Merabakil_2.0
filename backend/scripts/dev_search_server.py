@@ -26,7 +26,7 @@ from app.api.schemas import SearchRequest, SearchResponse  # noqa: E402
 from app.application.use_cases import HybridSearchUseCase, SearchMode  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.domain.rerank import LexicalReranker  # noqa: E402
-from dev_corpus import CORPUS, MemKeywordStore, MemVectorStore  # noqa: E402
+from dev_corpus import CORPUS, MemHybridStore, MemKeywordStore, MemVectorStore  # noqa: E402
 from dev_corpus_loader import load_raw_data_corpus  # noqa: E402
 from legalos_common.api import build_health_router, register_exception_handlers  # noqa: E402
 from legalos_common.clients.llm import StubEmbeddingClient, build_embedding_client  # noqa: E402
@@ -52,10 +52,10 @@ else:
 
 vector = MemVectorStore(embedder, _CORPUS)
 keyword = MemKeywordStore(_CORPUS)
+hybrid = MemHybridStore(vector, keyword)
 search_uc = HybridSearchUseCase(
     embedder=embedder,
-    vector_store=vector,
-    keyword_store=keyword,
+    hybrid_store=hybrid,
     reranker=LexicalReranker(),
     settings=settings,
 )
@@ -74,7 +74,7 @@ app.include_router(build_health_router(settings.service_name))
 
 def _switch_to_stub_embeddings(reason: str) -> None:
     """Keep the native stack up when the live embedding provider is unavailable."""
-    global embedder, vector, search_uc
+    global embedder, vector, hybrid, search_uc
     print(f"WARNING: live embeddings failed ({reason})", flush=True)
     print("WARNING: falling back to offline stub embeddings so search can start", flush=True)
     print(
@@ -83,10 +83,10 @@ def _switch_to_stub_embeddings(reason: str) -> None:
     )
     embedder = StubEmbeddingClient(_embed_dim)
     vector = MemVectorStore(embedder, _CORPUS)
+    hybrid = MemHybridStore(vector, keyword)
     search_uc = HybridSearchUseCase(
         embedder=embedder,
-        vector_store=vector,
-        keyword_store=keyword,
+        hybrid_store=hybrid,
         reranker=LexicalReranker(),
         settings=settings,
     )
@@ -94,14 +94,18 @@ def _switch_to_stub_embeddings(reason: str) -> None:
 
 @app.on_event("startup")
 async def _warm_index() -> None:
-    print(f"Embedding {len(_CORPUS)} chunks (this may take a few minutes)...", flush=True)
+    model = "stub" if _use_stub else settings.llm.embedding_model
+    print(
+        f"Checking embedding cache for {len(_CORPUS)} chunks (model={model})...",
+        flush=True,
+    )
     try:
-        await vector.warm()
+        await vector.warm(embedding_model=model)
     except Exception as exc:
         if _use_stub:
             raise
         _switch_to_stub_embeddings(str(exc)[:300])
-        await vector.warm()
+        await vector.warm(embedding_model="stub")
     print("Search index ready.", flush=True)
 
 

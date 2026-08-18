@@ -113,7 +113,10 @@ export function useCourtroomSpeech(speechLocale: "en-IN" | "hi-IN"): CourtroomSp
         throw new Error("Speech synthesis unavailable");
       }
       const voices = await loadVoices();
-      const locale = getSpeechLocale(speechLocale);
+      // Use the requested locale only if the text is in the matching script;
+      // otherwise fall back to English so the browser doesn't mispronounce.
+      const isDevanagari = /[ऀ-ॿ]/.test(text);
+      const locale = isDevanagari ? getSpeechLocale(speechLocale) : getSpeechLocale("en-IN");
 
       await new Promise<void>((resolve, reject) => {
         const utterance = new SpeechSynthesisUtterance(text);
@@ -158,6 +161,7 @@ export function useCourtroomSpeech(speechLocale: "en-IN" | "hi-IN"): CourtroomSp
       const { reader, sampleRate } = await streamReadAloud(text, {
         signal: controller.signal,
         language: speechLocale,
+        rewriteForSpeech: false,  // courtroom transcript already in the right language
       });
       if (session !== sessionRef.current) return;
 

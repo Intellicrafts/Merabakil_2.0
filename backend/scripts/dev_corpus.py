@@ -1,6 +1,7 @@
 """Shared in-memory legal corpus for native dev servers."""
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 CORPUS: list[dict[str, Any]] = [
@@ -68,17 +69,48 @@ class MemVectorStore:
             return {k: v for k, v in filters.items() if isinstance(v, str)}
         return {}
 
-    async def warm(self) -> None:
-        texts = [d["content"] for d in self._corpus]
-        batch_size = 32
-        all_vecs: list[list[float]] = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-            all_vecs.extend(await self._embedder.embed(batch))
-            if i and i % 320 == 0:
-                print(f"  embedded {min(i + batch_size, len(texts))}/{len(texts)} chunks...", flush=True)
-        for doc, vec in zip(self._corpus, all_vecs, strict=True):
-            self._vecs[doc["id"]] = vec
+    async def warm(
+        self,
+        *,
+        source_filter: list[str] | None = None,
+        force_sources: set[str] | None = None,
+        embedding_model: str = "",
+    ) -> None:
+        """Warm vectors from disk cache; embed only missing/changed chunks."""
+        import sys
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[2]
+        data_platform = str(root / "data-platform")
+        if data_platform not in sys.path:
+            sys.path.insert(0, data_platform)
+
+        from embedding.corpus_cache import warm_corpus_vectors
+
+        vectors, embedded, cached = await warm_corpus_vectors(
+            self._corpus,
+            self._embedder,
+            embedding_model=embedding_model,
+            source_filter=source_filter,
+            force_sources=force_sources,
+        )
+        self._vecs = vectors
+        # Ensure every corpus entry has a vector (fallback embed if cache incomplete)
+        missing = [d for d in self._corpus if d["id"] not in self._vecs]
+        if missing:
+            texts = [d["content"] for d in missing]
+            batch_size = 32
+            all_vecs: list[list[float]] = []
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i : i + batch_size]
+                all_vecs.extend(await self._embedder.embed(batch))
+            for doc, vec in zip(missing, all_vecs, strict=True):
+                self._vecs[doc["id"]] = vec
+            embedded += len(missing)
+        print(
+            f"  embedding cache: embedded={embedded} cached={cached} total={len(self._corpus)}",
+            flush=True,
+        )
 
     async def search(self, vector, *, limit, filters):  # noqa: ANN001
         term = self._term_filters(filters)
@@ -120,3 +152,34 @@ class MemKeywordStore:
                 hits.append({"id": doc["id"], "score": float(score), "payload": doc})
         hits.sort(key=lambda h: h["score"], reverse=True)
         return hits[:size]
+
+
+class MemHybridStore:
+    """In-memory HybridSearchPort — fuses MemVectorStore + MemKeywordStore with RRF."""
+
+    _RRF_K = 60
+
+    def __init__(self, vector: MemVectorStore, keyword: MemKeywordStore) -> None:
+        self._vector = vector
+        self._keyword = keyword
+
+    async def search(
+        self, query: str, vector: list[float], *, limit: int, filters: Any
+    ) -> list[dict[str, Any]]:
+        vec_hits, kw_hits = await asyncio.gather(
+            self._vector.search(vector, limit=limit * 3, filters=filters),
+            self._keyword.search(query, size=limit * 3, filters=filters),
+        )
+        scores: dict[str, float] = {}
+        payloads: dict[str, Any] = {}
+
+        for rank, h in enumerate(vec_hits, 1):
+            scores[h["id"]] = scores.get(h["id"], 0.0) + 1.0 / (self._RRF_K + rank)
+            payloads[h["id"]] = h.get("payload", {})
+
+        for rank, h in enumerate(kw_hits, 1):
+            scores[h["id"]] = scores.get(h["id"], 0.0) + 1.0 / (self._RRF_K + rank)
+            payloads.setdefault(h["id"], h.get("payload", {}))
+
+        ordered = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
+        return [{"id": doc_id, "score": score, "payload": payloads[doc_id]} for doc_id, score in ordered]

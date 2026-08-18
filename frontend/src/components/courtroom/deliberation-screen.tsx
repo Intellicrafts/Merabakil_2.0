@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Scale, ScrollText } from "lucide-react";
 
 import { CourtroomBench } from "@/components/courtroom/courtroom-bench";
@@ -28,6 +29,8 @@ export function DeliberationScreen({
   onViewJudgment,
   onReviewTranscript,
 }: DeliberationScreenProps) {
+  const [viewMode, setViewMode] = useState<"chat" | "order_sheet">("order_sheet");
+
   return (
     <div className="space-y-4">
       <CourtroomBench
@@ -79,6 +82,8 @@ export function DeliberationScreen({
           entries={state.transcript}
           language={displayLanguage}
           readOnly
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
       </div>
     </div>

@@ -1,52 +1,68 @@
-import { streamResearch } from "@/lib/api";
+import { runCourtroomAgentTurn, streamResearch } from "@/lib/api";
+import type { CourtroomAgentTurnResponse } from "@/lib/api";
 import type { CourtroomSimulationAdapter } from "@/lib/courtroom/adapter";
+import {
+  authoritiesQuality,
+  deriveHearingMetrics,
+} from "@/lib/courtroom/confidence";
 import {
   buildCoverageAgenda,
   coveragePercent,
-  forceResolvePending,
   markAgendaPoints,
+  notCoveredPoints,
   uncoveredPoints,
 } from "@/lib/courtroom/hearing-agenda";
 import {
   buildJudgmentPrompt,
-  buildTurnPrompt,
-  buildVerdictPrompt,
-  parseHearingTurn,
   parseJudgmentJson,
 } from "@/lib/courtroom/hearing-prompts";
 import { getDemoPreset } from "@/lib/courtroom/demo-sessions";
 import { toHindiCompanion } from "@/lib/courtroom/bilingual";
 import type {
+  AuthoritySourceKind,
   CourtroomEvent,
   CourtroomListener,
   CourtroomSessionConfig,
   CourtroomState,
+  Exhibit,
+  ExhibitStatus,
   HearingAgendaItem,
-  HearingMetrics,
+  HearingTimelineStep,
   HearingTurn,
   JudgmentReport,
+  LegalAuthority,
   ObjectionType,
   SpeakerRole,
   TranscriptEntry,
 } from "@/lib/courtroom/types";
 
-const MAX_TURNS = 24;
-const COVERAGE_TARGET = 90;
+const MAX_TURNS = 28;
+const UNGATED_DELAY_MS = 400;
+
+type HearingPhase =
+  | "appearance"
+  | "issues_framed"
+  | "evidence_marking"
+  | "submissions"
+  | "reply"
+  | "closing"
+  | "verdict"
+  | "deliberation";
 
 function initialState(): CourtroomState {
   return {
     phase: "setup",
     activeSpeaker: null,
     judgeState: "listening",
-    timelineStep: "opening",
+    timelineStep: "appearance",
     transcript: [],
     exhibits: [],
     authorities: [],
     objections: [],
     metrics: {
-      argumentStrength: 0.45,
-      evidenceSupport: 0.4,
-      proceduralCompliance: 0.85,
+      argumentStrength: 0.35,
+      evidenceSupport: 0.3,
+      proceduralCompliance: 0.7,
     },
     elapsedSeconds: 0,
     isPaused: false,
@@ -63,41 +79,78 @@ function speakerName(config: CourtroomSessionConfig, role: SpeakerRole): string 
   return config.respondentName;
 }
 
+function intakeDocumentIds(config: CourtroomSessionConfig): string[] {
+  return (config.intake?.artifacts ?? [])
+    .map((a) => a.documentId)
+    .filter((id): id is string => Boolean(id));
+}
+
+function mapVerifiedSource(
+  src: {
+    id: string;
+    title: string;
+    citation: string;
+    snippet?: string;
+    sourceKind: AuthoritySourceKind;
+    url?: string | null;
+    documentId?: string | null;
+    verified: boolean;
+  },
+  marker: string,
+  citedBy?: SpeakerRole,
+): LegalAuthority {
+  return {
+    id: src.id,
+    marker,
+    title: src.title,
+    citation: src.citation || src.title,
+    citedBy,
+    verified: src.verified !== false,
+    sourceKind: src.sourceKind,
+    url: src.url ?? undefined,
+    snippet: src.snippet,
+    documentId: src.documentId ?? undefined,
+  };
+}
+
 function fallbackTurn(
   role: SpeakerRole,
   config: CourtroomSessionConfig,
   agenda: HearingAgendaItem[],
-  forceClosing: boolean,
+  phase: HearingPhase,
 ): HearingTurn {
   const open = uncoveredPoints(agenda)[0];
   const pointIds = open ? [open.id] : [];
   if (role === "judge") {
+    if (phase === "issues_framed") {
+      const text = `Issues are framed for consideration: ${agenda
+        .slice(0, 4)
+        .map((a) => a.label)
+        .join("; ") || "as arising from the pleadings"}. Counsel shall confine arguments to these issues and the prayer.`;
+      return {
+        speaker: "judge",
+        text,
+        textHi: toHindiCompanion(text),
+        addressesPointIds: agenda.slice(0, 3).map((a) => a.id),
+        timelineStep: "issues_framed",
+        judgeState: "questioning",
+        judgeNote: "Issues framed",
+      };
+    }
     return {
       speaker: "judge",
       text: open
         ? `Counsel, confine yourselves to the record. Address specifically: ${open.label}`
-        : "The Court has noted the submissions. Proceed to closing if ready.",
-      textHi: open
-        ? `अधिवक्तागण, रिकॉर्ड तक सीमित रहें। विशेष रूप से संबोधित करें: ${open.label}`
-        : "न्यायालय ने निवेदन नोट किए। समापन तर्क प्रस्तुत करें।",
+        : "The Court has noted the submissions. Proceed.",
+      textHi: toHindiCompanion(
+        open
+          ? `अधिवक्तागण, रिकॉर्ड तक सीमित रहें। विशेष रूप से संबोधित करें: ${open.label}`
+          : "न्यायालय ने निवेदन नोट किए।",
+      ),
       addressesPointIds: pointIds,
-      suggestJudgeIntervene: false,
-      timelineStep: forceClosing ? "closing" : "examination",
+      timelineStep: phase,
       judgeState: "questioning",
       judgeNote: "Testing the record",
-    };
-  }
-  if (forceClosing) {
-    const text =
-      role === "petitioner"
-        ? `In closing, on the pleaded ${config.matterType} case, we pray for the relief sought and ask that the Court weigh the documentary record in our favour.`
-        : `In closing, the petition fails on the record. No case for the relief claimed is made out.`;
-    return {
-      speaker: role,
-      text,
-      textHi: toHindiCompanion(text),
-      addressesPointIds: pointIds,
-      timelineStep: "closing",
     };
   }
   const text =
@@ -109,11 +162,7 @@ function fallbackTurn(
     text,
     textHi: toHindiCompanion(text),
     addressesPointIds: pointIds,
-    timelineStep: "examination",
-    metricsDelta: {
-      argumentStrength: role === "petitioner" ? 0.58 : 0.52,
-      evidenceSupport: 0.5,
-    },
+    timelineStep: phase === "reply" ? "reply" : "submissions",
   };
 }
 
@@ -125,16 +174,31 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
   let turnIndex = 0;
   let speechGated = true;
   let awaitingSpeech = false;
-  let nextRole: SpeakerRole = "petitioner";
-  let forceJudgeNext = false;
-  let closingPhase = false;
+  let hearingPhase: HearingPhase = "appearance";
   let closingsDone = 0;
+  let counselTurns = 0;
+  let judgeTurns = 0;
+  let issuesFramed = false;
   let verdictDelivered = false;
   let oralVerdictText = "";
   let tickTimer: ReturnType<typeof setInterval> | null = null;
   let abortController: AbortController | null = null;
   let generating = false;
   let disposed = false;
+  let lastSpeaker: SpeakerRole | null = null;
+  let prefetchPromise: Promise<CourtroomAgentTurnResponse> | null = null;
+  let prefetchController: AbortController | null = null;
+  let compressedCase = "";
+  let extractedFacts: {
+    id: string;
+    text: string;
+    side?: string;
+    status?: string;
+    source?: string;
+  }[] = [];
+  let runningMemory = "";
+  let scratchpads: Record<string, string> = {};
+  let transcriptTurns: { role: string; text: string }[] = [];
 
   const emit = (event: CourtroomEvent) => {
     listeners.forEach((l) => l(event));
@@ -145,15 +209,27 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
     emit({ type: "thinking", active });
   };
 
-  const updateMetrics = (partial?: Partial<HearingMetrics>) => {
-    if (!partial) return;
-    state = { ...state, metrics: { ...state.metrics, ...partial } };
-    emit({ type: "metricsUpdate", metrics: state.metrics });
+  const refreshDerivedMetrics = () => {
+    const { metrics, methodology } = deriveHearingMetrics({
+      agenda,
+      authorities: state.authorities,
+      exhibits: state.exhibits,
+      objections: state.objections,
+    });
+    state = { ...state, metrics, confidenceMethodology: methodology };
+    emit({ type: "metricsUpdate", metrics, methodology });
   };
 
   const emitCoverage = () => {
     state = { ...state, agenda: [...agenda] };
     emit({ type: "coverageUpdate", agenda: [...agenda] });
+  };
+
+  const setPhaseLabel = (phase: HearingPhase) => {
+    hearingPhase = phase;
+    const step = phase as HearingTimelineStep;
+    state = { ...state, timelineStep: step };
+    emit({ type: "timelineStep", step });
   };
 
   const addTranscript = (role: SpeakerRole, text: string, textHi?: string) => {
@@ -169,14 +245,39 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
     state = { ...state, transcript: [...state.transcript, entry], activeSpeaker: role };
     emit({ type: "speakerChange", role });
     emit({ type: "transcript", entry });
+    lastSpeaker = role;
   };
 
-  const applyTurn = (turn: HearingTurn) => {
+  const applyExhibitActions = (actions?: { exhibitId: string; status: ExhibitStatus }[]) => {
+    if (!actions?.length) return;
+    let exhibits = [...state.exhibits];
+    for (const action of actions) {
+      const idx = exhibits.findIndex((e) => e.id === action.exhibitId);
+      if (idx < 0) continue;
+      const updated = { ...exhibits[idx], status: action.status };
+      exhibits = [...exhibits.slice(0, idx), updated, ...exhibits.slice(idx + 1)];
+      emit({ type: "exhibitUpdate", exhibit: updated });
+    }
+    state = { ...state, exhibits };
+  };
+
+  const applyTurn = (turn: HearingTurn, opts?: { isVerdict?: boolean }) => {
     if (!config) return;
-    const role = turn.speaker === "clerk" ? nextRole : turn.speaker;
+    const role = turn.speaker === "clerk" ? "petitioner" : turn.speaker;
     if (turn.timelineStep) {
       state = { ...state, timelineStep: turn.timelineStep };
       emit({ type: "timelineStep", step: turn.timelineStep });
+      if (
+        turn.timelineStep === "issues_framed" ||
+        turn.timelineStep === "submissions" ||
+        turn.timelineStep === "reply" ||
+        turn.timelineStep === "closing" ||
+        turn.timelineStep === "verdict" ||
+        turn.timelineStep === "evidence_marking" ||
+        turn.timelineStep === "appearance"
+      ) {
+        hearingPhase = turn.timelineStep as HearingPhase;
+      }
     }
     if (role === "judge" && (turn.judgeState || turn.judgeNote)) {
       state = {
@@ -190,75 +291,205 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
         note: turn.judgeNote,
       });
     }
-    updateMetrics(turn.metricsDelta);
+
     agenda = markAgendaPoints(agenda, turn.addressesPointIds, role);
     emitCoverage();
 
-    if (turn.cites?.length) {
-      turn.cites.forEach((cite, i) => {
-        const authority = {
-          id: `live-${Date.now()}-${i}`,
-          marker: `L${state.authorities.length + 1}`,
-          title: cite,
-          citation: cite,
-          citedBy: role === "clerk" ? undefined : role,
-        };
-        if (!state.authorities.some((a) => a.title === cite)) {
-          state = { ...state, authorities: [...state.authorities, authority] };
-          emit({ type: "authorityCited", authority });
-        }
+    if (turn.verifiedSources?.length) {
+      const citeIds = new Set(turn.verifiedCiteIds ?? turn.verifiedSources.map((s) => s.id));
+      turn.verifiedSources.forEach((src) => {
+        if (!citeIds.has(src.id) && turn.verifiedCiteIds?.length) return;
+        if (state.authorities.some((a) => a.id === src.id || a.title === src.title)) return;
+        const authority = mapVerifiedSource(
+          {
+            id: src.id,
+            title: src.title,
+            citation: src.citation,
+            snippet: src.snippet,
+            sourceKind: src.sourceKind ?? "corpus",
+            url: src.url,
+            documentId: src.documentId,
+            verified: src.verified !== false,
+          },
+          `V${state.authorities.filter((a) => a.verified).length + 1}`,
+          role === "clerk" ? undefined : role,
+        );
+        state = { ...state, authorities: [...state.authorities, authority] };
+        emit({ type: "authorityCited", authority });
       });
     }
 
+    applyExhibitActions(turn.exhibitActions);
+    refreshDerivedMetrics();
     addTranscript(role, turn.text, turn.textHi);
     turnIndex += 1;
-
-    if (role === "petitioner" || role === "respondent") {
-      nextRole = role === "petitioner" ? "respondent" : "petitioner";
-    }
-    if (turn.suggestJudgeIntervene && role !== "judge") {
-      forceJudgeNext = true;
-    }
-    if (closingPhase && (role === "petitioner" || role === "respondent")) {
+    if (role === "judge") judgeTurns += 1;
+    else if (role === "petitioner" || role === "respondent") counselTurns += 1;
+    if (hearingPhase === "closing" && (role === "petitioner" || role === "respondent")) {
       closingsDone += 1;
     }
-
-    if (speechGated) {
-      awaitingSpeech = true;
+    if (opts?.isVerdict || turn.timelineStep === "verdict") {
+      verdictDelivered = true;
+      oralVerdictText = turn.text;
     }
+    if (speechGated) awaitingSpeech = true;
   };
 
-  const shouldClose = () => {
-    if (turnIndex >= MAX_TURNS) return true;
-    return coveragePercent(agenda) >= COVERAGE_TARGET && turnIndex >= 6;
+  const buildAgentPayload = (opts?: {
+    forceEnd?: boolean;
+    forceSpeaker?: "judge" | "petitioner" | "respondent" | null;
+  }) => {
+    const personaCues: Record<string, string> = {};
+    const strategyCues: Record<string, string> = {};
+    config!.agents?.forEach((a) => {
+      const key =
+        a.role === "judge" ? "judge" : a.role === "petitioner_advocate" ? "petitioner" : "respondent";
+      personaCues[key] = a.tone;
+      strategyCues[key] = a.strategy.slice(0, 3).join("; ");
+    });
+    return {
+      matter_title: config!.matterTitle,
+      matter_type: config!.matterType,
+      petitioner_name: config!.petitionerName,
+      respondent_name: config!.respondentName,
+      case_summary: config!.intake?.summary,
+      facts: config!.intake?.facts,
+      issues: config!.intake?.issues,
+      relief_sought: config!.intake?.reliefSought,
+      agenda: agenda.map((a) => ({ id: a.id, label: a.label, status: a.status })),
+      exhibits: state.exhibits.map((e) => ({
+        id: e.id,
+        title: e.title,
+        status: e.status,
+      })),
+      authorities: state.authorities.map((a) => ({
+        id: a.id,
+        title: a.title,
+        citation: a.citation,
+        snippet: a.snippet,
+        sourceKind: a.sourceKind,
+        url: a.url,
+        documentId: a.documentId,
+        verified: a.verified,
+      })),
+      transcript_excerpt: state.transcript
+        .slice(-10)
+        .map((t) => `${t.speaker} (${t.role}): ${t.text}`)
+        .join("\n"),
+      transcriptTurns:
+        transcriptTurns.length > 0
+          ? transcriptTurns.slice(-12)
+          : state.transcript.slice(-12).map((t) => ({
+              role: t.role,
+              text: t.text,
+            })),
+      document_ids: intakeDocumentIds(config!),
+      personaCues,
+      strategyCues,
+      compressedCase: compressedCase || null,
+      extractedFacts,
+      runningMemory: runningMemory || null,
+      scratchpads,
+      turnIndex,
+      counselTurns,
+      judgeTurns,
+      closingsDone,
+      issuesFramed,
+      verdictReady: verdictDelivered,
+      lastSpeaker: lastSpeaker === "clerk" ? null : lastSpeaker,
+      derivedPhase: hearingPhase,
+      forceEnd: opts?.forceEnd ?? false,
+      forceSpeaker: opts?.forceSpeaker ?? null,
+    };
   };
 
-  const pickRole = (): Exclude<SpeakerRole, "clerk"> => {
-    // Closings are sacrosanct — do not insert intervenor turns mid-closing
-    if (closingPhase) {
-      if (closingsDone === 0) return "petitioner";
-      if (closingsDone === 1) return "respondent";
-      return "judge";
+  const agentResponseToTurn = (api: CourtroomAgentTurnResponse): HearingTurn => {
+    const role = api.speaker;
+    const verifiedSources: LegalAuthority[] = api.verifiedSources.map((s, i) =>
+      mapVerifiedSource(s, `V${i + 1}`, role),
+    );
+    return {
+      speaker: role,
+      text: api.text,
+      textHi: api.textHi ?? undefined,
+      addressesPointIds: api.addressesPointIds,
+      verifiedCiteIds: api.citeSourceIds,
+      verifiedSources,
+      exhibitActions: api.exhibitActions,
+      timelineStep: (api.timelineStep as HearingTimelineStep) || hearingPhase,
+      judgeState: api.judgeState ?? undefined,
+      judgeNote: api.judgeNote ?? undefined,
+    };
+  };
+
+  const syncBlackboard = (api: CourtroomAgentTurnResponse) => {
+    const bb = api.blackboard;
+    if (!bb) return;
+    if (bb.agenda?.length) {
+      agenda = bb.agenda.map((a) => ({
+        id: a.id,
+        label: a.label,
+        source: (agenda.find((x) => x.id === a.id)?.source ?? "matter") as HearingAgendaItem["source"],
+        status: a.status as HearingAgendaItem["status"],
+      }));
+      emitCoverage();
     }
-    if (forceJudgeNext) {
-      forceJudgeNext = false;
-      return "judge";
+    if (bb.exhibits?.length) {
+      const nextEx: Exhibit[] = bb.exhibits.map((e) => {
+        const prev = state.exhibits.find((x) => x.id === e.id);
+        return {
+          id: e.id,
+          title: e.title,
+          type: prev?.type ?? "Document",
+          status: e.status as ExhibitStatus,
+          source: prev?.source,
+        };
+      });
+      state = { ...state, exhibits: nextEx };
+      nextEx.forEach((ex) => emit({ type: "exhibitUpdate", exhibit: ex }));
     }
-    if (turnIndex > 0 && turnIndex % 5 === 0) return "judge";
-    if (uncoveredPoints(agenda).length > 0 && turnIndex > 2 && turnIndex % 4 === 3) {
-      return "judge";
+    counselTurns = bb.counselTurns;
+    judgeTurns = bb.judgeTurns;
+    closingsDone = bb.closingsDone;
+    issuesFramed = bb.issuesFramed;
+    if (bb.derivedPhase) {
+      setPhaseLabel(bb.derivedPhase as HearingPhase);
     }
-    return nextRole === "respondent" ? "respondent" : "petitioner";
+    if (bb.compressedCase) compressedCase = bb.compressedCase;
+    if (bb.extractedFacts?.length) extractedFacts = bb.extractedFacts;
+    if (bb.runningMemory != null) runningMemory = bb.runningMemory || "";
+    if (bb.scratchpads) scratchpads = { ...bb.scratchpads };
+    if (bb.transcriptTurns?.length) transcriptTurns = bb.transcriptTurns;
+  };
+
+  const cancelPrefetch = () => {
+    prefetchController?.abort();
+    prefetchController = null;
+    prefetchPromise = null;
+  };
+
+  const startPrefetch = () => {
+    if (!config || disposed || state.phase !== "hearing" || verdictDelivered) return;
+    cancelPrefetch();
+    prefetchController = new AbortController();
+    const ctrl = prefetchController;
+    prefetchPromise = runCourtroomAgentTurn(buildAgentPayload(), {
+      signal: ctrl.signal,
+    }).catch(() => {
+      prefetchPromise = null;
+      return Promise.reject(new Error("prefetch aborted"));
+    }) as Promise<CourtroomAgentTurnResponse>;
   };
 
   const finishHearing = async () => {
-    // May be called while still in hearing (after oral verdict) or mid-transition
     if (disposed || !config) return;
     if (state.phase !== "hearing" && state.phase !== "deliberation") return;
     awaitingSpeech = false;
+    cancelPrefetch();
     setThinking(false);
-    agenda = forceResolvePending(agenda);
     emitCoverage();
+    refreshDerivedMetrics();
+    setPhaseLabel("deliberation");
     state = {
       ...state,
       phase: "deliberation",
@@ -294,99 +525,41 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
 
   const scriptAbort = () => disposed || !config || state.phase !== "hearing";
 
-  const fallbackVerdict = (): HearingTurn => {
-    const open = uncoveredPoints(agenda)[0];
-    const text = open
-      ? `We have heard learned counsel for both sides. On the decisive issue touching ${open.label}, and confined to the simulation record, this Court partly allows the prayer with liberty to the parties to strengthen the documentary proof. Ordered accordingly.`
-      : `We have heard learned counsel for both sides. On the pleadings and submissions recorded in this simulation, the petition is disposed of with directions that parties fortify evidence on contested points. Ordered accordingly.`;
-    return {
-      speaker: "judge",
-      text,
-      textHi: toHindiCompanion(text),
-      addressesPointIds: open ? [open.id] : [],
-      timelineStep: "verdict",
-      judgeState: "ruling",
-      judgeNote: "Operative order pronounced",
-      metricsDelta: { proceduralCompliance: 0.92 },
-    };
-  };
-
   const generateTurn = async () => {
     if (generating || scriptAbort() || state.isPaused) return;
     if (awaitingSpeech && speechGated) return;
 
-    // After oral verdict is on the transcript, reduce it to written judgment
     if (verdictDelivered) {
       await finishHearing();
       return;
     }
 
-    if (shouldClose() && !closingPhase) {
-      closingPhase = true;
-      closingsDone = 0;
-    }
-
-    // Closings done → mandatory Judge oral verdict (never skip)
-    const needVerdict = closingPhase && closingsDone >= 2;
-
     generating = true;
     setThinking(true);
-    const role: Exclude<SpeakerRole, "clerk"> = needVerdict ? "judge" : pickRole();
-    nextRole = role;
-    state = {
-      ...state,
-      activeSpeaker: role,
-      ...(needVerdict
-        ? { timelineStep: "verdict" as const, judgeState: "ruling" as const }
-        : {}),
-    };
-    emit({ type: "speakerChange", role });
-    if (needVerdict) {
-      emit({ type: "timelineStep", step: "verdict" });
-      emit({ type: "judgeState", state: "ruling", note: "Pronouncing oral order" });
-    }
-
     abortController?.abort();
     abortController = new AbortController();
-    let turn: HearingTurn;
 
+    let api: CourtroomAgentTurnResponse | null = null;
     try {
-      const prompt = needVerdict
-        ? buildVerdictPrompt({
-            config: config!,
-            agenda,
-            transcript: state.transcript,
-            agents: config!.agents,
-          })
-        : buildTurnPrompt({
-            config: config!,
-            role,
-            agenda,
-            transcript: state.transcript,
-            agents: config!.agents,
-            turnIndex,
-            forceClosing: closingPhase && !needVerdict,
-            intervene: role === "judge",
-          });
-      let raw = "";
-      const result = await streamResearch(
-        prompt,
-        undefined,
-        [],
-        { onToken: (t) => { raw += t; } },
-        { signal: abortController.signal },
-      );
-      const text = raw || result.answer || "";
-      turn = parseHearingTurn(text, role);
-      turn.speaker = role;
-      if (needVerdict) {
-        turn.timelineStep = "verdict";
-        turn.judgeState = "ruling";
+      if (prefetchPromise) {
+        try {
+          api = await prefetchPromise;
+        } catch {
+          api = null;
+        }
+        prefetchPromise = null;
+      }
+      if (!api) {
+        api = await runCourtroomAgentTurn(
+          buildAgentPayload({
+            forceEnd: turnIndex >= MAX_TURNS,
+            forceSpeaker: turnIndex >= MAX_TURNS ? "judge" : null,
+          }),
+          { signal: abortController.signal },
+        );
       }
     } catch {
-      turn = needVerdict
-        ? fallbackVerdict()
-        : fallbackTurn(role, config!, agenda, closingPhase);
+      api = null;
     }
 
     if (scriptAbort() || state.isPaused) {
@@ -395,36 +568,64 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       return;
     }
 
-    setThinking(false);
-    applyTurn(turn);
-    if (needVerdict) {
-      verdictDelivered = true;
-      oralVerdictText = turn.text;
+    let turn: HearingTurn;
+    let isVerdict = false;
+    if (api?.text) {
+      syncBlackboard(api);
+      turn = agentResponseToTurn(api);
+      isVerdict = Boolean(api.isVerdict) || api.timelineStep === "verdict";
+      if (!issuesFramed && api.blackboard?.issuesFramed) issuesFramed = true;
+    } else {
+      const role = lastSpeaker === "petitioner" ? "respondent" : "petitioner";
+      turn = fallbackTurn(role, config!, agenda, hearingPhase);
     }
+
+    state = { ...state, activeSpeaker: turn.speaker };
+    emit({ type: "speakerChange", role: turn.speaker });
+    setThinking(false);
+    applyTurn(turn, { isVerdict });
     generating = false;
 
     if (!speechGated) {
       setTimeout(() => {
         if (!state.isPaused && state.phase === "hearing") void generateTurn();
-      }, needVerdict ? 2200 : 1600);
+      }, UNGATED_DELAY_MS);
+    } else if (!verdictDelivered) {
+      startPrefetch();
     }
   };
 
   const buildJudgmentReport = async (): Promise<JudgmentReport> => {
     const pct = coveragePercent(agenda);
+    const uncovered = notCoveredPoints(agenda);
+    const quality = authoritiesQuality(state.authorities);
+    const { metrics, methodology } = deriveHearingMetrics({
+      agenda,
+      authorities: state.authorities,
+      exhibits: state.exhibits,
+      objections: state.objections,
+    });
+    const coverageSummary =
+      uncovered.length === 0
+        ? `${pct}% of agenda points were contested or resolved during the hearing.`
+        : `${pct}% contested/resolved. Issues not fully argued: ${uncovered
+            .map((u) => u.label)
+            .join("; ")}.`;
+
     const base: JudgmentReport = {
       matterTitle: config!.matterTitle,
       issuesFramed: agenda.slice(0, 5).map((a) => a.label),
       findingsOfFact: agenda.slice(0, 5).map((a) => `${a.label} (${a.status})`),
       legalReasoning:
-        "On the simulated Indian hearing record, both sides were heard. The Court structures issues, findings, and an operative portion for case-strength analysis only.",
-      confidence: state.metrics,
+        "On the simulated Indian hearing record, both sides were heard via agentic counsel and bench. The Court structures issues, findings, and an operative portion for case-strength analysis only.",
+      confidence: metrics,
+      confidenceMethodology: methodology,
       authorities: state.authorities,
+      authoritiesQuality: quality,
       nextSteps: [
+        ...uncovered.slice(0, 3).map((u) => `Argue and prove: ${u.label}`),
         "Shore up documentary proof on contested agenda points.",
-        "Prepare focused written submissions on uncovered weaknesses.",
-        "Consider settlement leverage revealed by the adversarial exchange.",
-      ],
+      ].slice(0, 5),
       disposition:
         oralVerdictText ||
         "Simulated — petition disposed of on the hearing record with liberty to strengthen pleadings and evidence.",
@@ -435,18 +636,23 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
         (a) => `${a.displayName}: ${a.strategy.slice(0, 2).join("; ")}`,
       ),
       timelineSteps: [
-        "opening",
-        "examination",
-        "objections",
+        "appearance",
+        "issues_framed",
+        "evidence_marking",
+        "submissions",
+        "reply",
         "closing",
         "verdict",
         "deliberation",
       ],
       coveragePercent: pct,
-      coverageSummary: `${pct}% of agenda points were raised or contested during the hearing.`,
+      coverageSummary,
+      notCovered: uncovered.map((u) => u.label),
+      weaknessesExposed: uncovered.map((u) => u.label).slice(0, 5),
     };
 
     try {
+      abortController?.abort();
       abortController = new AbortController();
       let raw = "";
       const result = await streamResearch(
@@ -456,6 +662,7 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
           transcript: state.transcript,
           coveragePercent: pct,
           oralVerdict: oralVerdictText || undefined,
+          notCovered: uncovered.map((u) => u.label),
         }),
         undefined,
         [],
@@ -478,9 +685,14 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
         nextStepsHi: parsed.nextStepsHi,
         strongestPetitioner: parsed.strongestPetitioner,
         strongestRespondent: parsed.strongestRespondent,
-        weaknessesExposed: parsed.weaknessesExposed,
+        weaknessesExposed: parsed.weaknessesExposed ?? base.weaknessesExposed,
         coverageSummary: parsed.coverageSummary ?? base.coverageSummary,
         coveragePercent: pct,
+        notCovered: base.notCovered,
+        confidence: metrics,
+        confidenceMethodology: methodology,
+        authoritiesQuality: quality,
+        authorities: state.authorities,
       };
     } catch {
       return base;
@@ -496,6 +708,18 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
     }, 1000);
   };
 
+  const objectionLabel = (type: ObjectionType): string => {
+    const map: Record<ObjectionType, string> = {
+      relevance: "relevance",
+      leading: "leading question",
+      no_foundation: "want of foundation",
+      beyond_pleadings: "beyond pleadings",
+      hearsay: "hearsay",
+      procedure: "procedure",
+    };
+    return map[type] ?? type;
+  };
+
   return {
     getState: () => state,
 
@@ -503,38 +727,59 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       disposed = false;
       if (tickTimer) clearInterval(tickTimer);
       abortController?.abort();
+      cancelPrefetch();
       config = sessionConfig;
       agenda = buildCoverageAgenda(sessionConfig, sessionConfig.intake);
       turnIndex = 0;
-      nextRole = "petitioner";
-      forceJudgeNext = false;
-      closingPhase = false;
+      hearingPhase = "issues_framed";
       closingsDone = 0;
+      counselTurns = 0;
+      judgeTurns = 0;
       verdictDelivered = false;
       oralVerdictText = "";
       awaitingSpeech = false;
       generating = false;
-      // Prefer caller's Listening Mode; do not force-reset speechGated here
+      issuesFramed = false;
+      lastSpeaker = null;
+      compressedCase = "";
+      extractedFacts = [];
+      runningMemory = "";
+      scratchpads = {};
+      transcriptTurns = [];
       const preset = sessionConfig.presetId ? getDemoPreset(sessionConfig.presetId) : undefined;
+      const exhibits = sessionConfig.exhibits.map((e) => ({
+        ...e,
+        status: e.status === "admitted" ? ("pending" as const) : e.status,
+      }));
       state = {
         ...initialState(),
         phase: "hearing",
-        exhibits: [...sessionConfig.exhibits],
-        authorities: preset ? [...preset.authorities] : [],
-        judgeNote: "Court is in session",
+        exhibits,
+        authorities: preset
+          ? preset.authorities.map((a) => ({
+              ...a,
+              verified: a.verified ?? false,
+              sourceKind: a.sourceKind ?? "freeform",
+            }))
+          : [],
+        judgeNote: "Court is in session — agentic hearing",
         agenda: [...agenda],
+        timelineStep: "appearance",
       };
       preset?.authorities.forEach((a) => emit({ type: "authorityCited", authority: a }));
       emit({ type: "phaseChange", phase: "hearing" });
       emitCoverage();
+      refreshDerivedMetrics();
       startTick();
 
-      const openText = `Court Master: Matter called — ${sessionConfig.matterTitle}. Appearance of counsel. AI Courtroom Simulation under Indian procedure idioms — not a real court. Parties may proceed.`;
+      const openText = `Court Master: Matter called — ${sessionConfig.matterTitle}. Appearance of counsel for both sides. Agentic AI Courtroom Simulation — not a real court.`;
       addTranscript("clerk", openText, toHindiCompanion(openText));
+      setPhaseLabel("issues_framed");
       if (speechGated) {
         awaitingSpeech = true;
+        startPrefetch();
       } else {
-        setTimeout(() => void generateTurn(), 800);
+        setTimeout(() => void generateTurn(), 400);
       }
     },
 
@@ -542,6 +787,7 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       if (state.isPaused || state.phase !== "hearing") return;
       state = { ...state, isPaused: true };
       abortController?.abort();
+      cancelPrefetch();
       setThinking(false);
       emit({ type: "paused", paused: true });
     },
@@ -558,14 +804,30 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
     endArguments() {
       if (state.phase !== "hearing") return;
       abortController?.abort();
+      cancelPrefetch();
       generating = false;
       setThinking(false);
-      // Close the bar: skip remaining closings → oral verdict → written order
-      closingPhase = true;
-      closingsDone = Math.max(closingsDone, 2);
       awaitingSpeech = false;
       if (!verdictDelivered) {
-        void generateTurn();
+        void (async () => {
+          generating = true;
+          setThinking(true);
+          try {
+            const api = await runCourtroomAgentTurn(
+              buildAgentPayload({ forceEnd: true, forceSpeaker: "judge" }),
+            );
+            syncBlackboard(api);
+            const turn = agentResponseToTurn(api);
+            setThinking(false);
+            applyTurn(turn, { isVerdict: true });
+            generating = false;
+            await finishHearing();
+          } catch {
+            generating = false;
+            setThinking(false);
+            void finishHearing();
+          }
+        })();
         return;
       }
       void finishHearing();
@@ -575,11 +837,18 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       if (state.phase !== "hearing" || generating) return;
       const by: SpeakerRole =
         state.activeSpeaker === "respondent" ? "petitioner" : "respondent";
-      const ruling = type === "hearsay" ? "overruled" : "sustained";
+      const sustainPrefer: ObjectionType[] = [
+        "no_foundation",
+        "beyond_pleadings",
+        "leading",
+        "relevance",
+      ];
+      const ruling = sustainPrefer.includes(type) ? "sustained" : "overruled";
+      const label = objectionLabel(type);
       const noteEn =
         ruling === "sustained"
-          ? `Objection as to ${type} is sustained. Counsel shall confine to the record.`
-          : `Objection as to ${type} is overruled. Weight will be assessed in deliberation.`;
+          ? `Objection as to ${label} is sustained. Counsel shall confine to the pleadings and the marked record.`
+          : `Objection as to ${label} is overruled. The Court will assess weight at the appropriate stage.`;
       const event = {
         id: `obj-${Date.now()}`,
         by,
@@ -592,10 +861,9 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       emit({ type: "objectionRuling", event });
       emit({ type: "judgeState", state: "ruling", note: noteEn });
       addTranscript("judge", noteEn, toHindiCompanion(noteEn));
-      forceJudgeNext = false;
-      nextRole = by === "petitioner" ? "respondent" : "petitioner";
+      refreshDerivedMetrics();
       if (speechGated) awaitingSpeech = true;
-      else setTimeout(() => void generateTurn(), 1200);
+      else setTimeout(() => void generateTurn(), 400);
     },
 
     setSpeechGated(enabled: boolean) {
@@ -610,13 +878,10 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
       if (!awaitingSpeech) return;
       awaitingSpeech = false;
       if (state.isPaused || state.phase !== "hearing") return;
-      // After clerk opening, start advocate turns
       void generateTurn();
     },
 
     revealJudgment() {
-      // Judgment phase is auto-entered after oral verdict + written order.
-      // Keep this for UI that still calls it (idempotent).
       if (!state.judgment) return;
       if (state.phase === "judgment") return;
       state = {
@@ -644,6 +909,7 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
     dispose() {
       disposed = true;
       abortController?.abort();
+      cancelPrefetch();
       if (tickTimer) clearInterval(tickTimer);
       listeners.clear();
       state = initialState();

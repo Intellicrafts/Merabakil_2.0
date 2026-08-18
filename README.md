@@ -209,6 +209,9 @@ After adding new files:
 ```bash
 make bulk-ingest          # incremental ingest
 make bulk-ingest -- --force   # full re-index
+# See docs/ingest.md for single-file reindex, native cache, and API
+make embed-corpus         # warm native embedding cache
+make embed-corpus SOURCE="Indian_constitution/Indian_constitution.json"
 ```
 
 **What uses real AI vs UI samples:**

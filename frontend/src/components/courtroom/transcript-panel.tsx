@@ -19,6 +19,9 @@ interface TranscriptPanelProps {
   typingCharCount?: number;
   readOnly?: boolean;
   className?: string;
+  /** clerk-style numbered order sheet alongside chat bubbles */
+  viewMode?: "chat" | "order_sheet";
+  onViewModeChange?: (mode: "chat" | "order_sheet") => void;
 }
 
 const ROLE_BADGE: Record<string, string> = {
@@ -66,6 +69,8 @@ export function TranscriptPanel({
   typingCharCount = 0,
   readOnly = false,
   className,
+  viewMode = "chat",
+  onViewModeChange,
 }: TranscriptPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const readAloudEn = useReadAloud("en-IN");
@@ -106,10 +111,39 @@ export function TranscriptPanel({
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              {readOnly ? "Hearing transcript" : "Live arguments"}
+              {viewMode === "order_sheet"
+                ? "Order sheet"
+                : readOnly
+                  ? "Hearing transcript"
+                  : "Live arguments"}
             </h2>
-            <p className="text-[10px] text-muted-foreground">{entries.length} lines on record</p>
+            <p className="text-[10px] text-muted-foreground">{entries.length} entries on record</p>
           </div>
+          {onViewModeChange && (
+            <div className="flex rounded-lg border border-black/[0.06] p-0.5 text-[10px] dark:border-white/10">
+              <button
+                type="button"
+                onClick={() => onViewModeChange("chat")}
+                className={cn(
+                  "rounded-md px-2 py-1 font-semibold",
+                  viewMode === "chat" && "bg-stone-800 text-stone-50 dark:bg-stone-200 dark:text-stone-900",
+                )}
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewModeChange("order_sheet")}
+                className={cn(
+                  "rounded-md px-2 py-1 font-semibold",
+                  viewMode === "order_sheet" &&
+                    "bg-stone-800 text-stone-50 dark:bg-stone-200 dark:text-stone-900",
+                )}
+              >
+                Order sheet
+              </button>
+            </div>
+          )}
           {isPaused && (
             <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-200">
               Paused — review conversation
@@ -133,6 +167,28 @@ export function TranscriptPanel({
             </p>
           </div>
         )}
+        {viewMode === "order_sheet" ? (
+          <ol className="space-y-0 border-l border-stone-300/50 pl-3 dark:border-white/15">
+            {entries.map((entry, index) => {
+              const { primary } = formatTranscriptLine(entry, language);
+              return (
+                <li key={entry.id} className="relative pb-3">
+                  <span className="absolute -left-[19px] top-0 flex h-5 w-5 items-center justify-center rounded-full border border-stone-300/60 bg-white text-[9px] font-bold tabular-nums dark:border-white/20 dark:bg-stone-900">
+                    {index + 1}
+                  </span>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {entry.speaker} · {entry.role}
+                    <span className="ml-2 font-normal tabular-nums normal-case tracking-normal">
+                      {String(Math.floor(entry.timestamp / 60)).padStart(2, "0")}:
+                      {String(entry.timestamp % 60).padStart(2, "0")}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 text-[12px] leading-relaxed text-foreground/90">{primary}</p>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
         <ul className="space-y-2.5">
           {entries.map((entry, index) => {
             const { primary, secondary } = formatTranscriptLine(entry, language);
@@ -210,6 +266,7 @@ export function TranscriptPanel({
             );
           })}
         </ul>
+        )}
       </div>
     </section>
   );

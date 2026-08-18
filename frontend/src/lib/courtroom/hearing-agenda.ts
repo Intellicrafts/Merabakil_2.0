@@ -72,6 +72,15 @@ export function markAgendaPoints(
   });
 }
 
+export function notCoveredPoints(agenda: HearingAgendaItem[]): HearingAgendaItem[] {
+  return agenda.filter((a) => a.status === "pending" || a.status === "raised");
+}
+
+export function coveredPoints(agenda: HearingAgendaItem[]): HearingAgendaItem[] {
+  return agenda.filter((a) => a.status === "contested" || a.status === "resolved");
+}
+
+/** @deprecated Do not use for coverage reporting — kept only for mock demos. */
 export function forceResolvePending(agenda: HearingAgendaItem[]): HearingAgendaItem[] {
   return agenda.map((a) =>
     a.status === "pending" || a.status === "raised" ? { ...a, status: "contested" } : a,

@@ -29,6 +29,8 @@ class IngestStructuredRequest(BaseModel):
     page_count: int | None = None
     citations: list[str] = Field(default_factory=list)
     chunks: list[StructuredChunkRequest] = Field(min_length=1)
+    content_hash: str | None = None
+    force: bool = False
 
 
 class IngestionResultResponse(BaseModel):
@@ -40,6 +42,7 @@ class IngestionResultResponse(BaseModel):
     page_count: int | None
     citations: list[str]
     status: str
+    chunks_embedded: int = 0
 
 
 class DocumentSummary(BaseModel):
@@ -49,6 +52,14 @@ class DocumentSummary(BaseModel):
     jurisdiction: str | None
     chunk_count: int
     status: str
+    source_uri: str | None = None
+    content_hash: str | None = None
+    indexed_at: datetime | None = None
+
+
+class ReindexSourceRequest(BaseModel):
+    source_uri: str = Field(min_length=1)
+    force: bool = True
 
 
 class CategoryResponse(BaseModel):

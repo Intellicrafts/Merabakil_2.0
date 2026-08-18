@@ -8,7 +8,7 @@ import {
 } from "@/components/courtroom/action-plan-panel";
 import { ValidationMeters } from "@/components/courtroom/validation-meters";
 import { CitationsPanel } from "@/components/courtroom/citations-panel";
-import { buildJudgmentPdf, downloadPdf } from "@/lib/courtroom/pdf-report";
+import { buildJudgmentPdf } from "@/lib/courtroom/pdf-report";
 import type {
   ActionPlanStatus,
   JudgmentReport,
@@ -97,7 +97,7 @@ export function JudgmentScreen({
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Simulated Indian court order
+              Simulated Indian court order · starting brief
             </p>
             <h2 className="mt-0.5 text-[1.2rem] font-semibold tracking-tight sm:text-[1.35rem]">
               {report.matterTitle}
@@ -151,7 +151,13 @@ export function JudgmentScreen({
             checkedIds={checkedActionIds}
             onToggleChecked={onToggleActionChecked}
             onRetry={onRetryActions}
-            onDownload={actionPlan ? () => downloadActionPlan(actionPlan) : undefined}
+            onDownload={
+              actionPlan
+                ? () => {
+                    void downloadActionPlan(actionPlan);
+                  }
+                : undefined
+            }
             onCopyAll={onCopyActionPlan}
           />
         )}
@@ -190,6 +196,31 @@ export function JudgmentScreen({
             Coverage summary{typeof report.coveragePercent === "number" ? ` · ${report.coveragePercent}%` : ""}
           </h3>
           <p className="mt-2 text-[13px] leading-relaxed text-foreground/90">{report.coverageSummary}</p>
+          {report.notCovered && report.notCovered.length > 0 && (
+            <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-900/80 dark:text-amber-200/80">
+                Issues not fully argued
+              </p>
+              <ul className="mt-1.5 list-inside list-disc space-y-1 text-[12px]">
+                {report.notCovered.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
+      {report.authoritiesQuality && (
+        <section className="rounded-xl border border-black/[0.05] bg-white/60 p-4 dark:border-white/[0.06] dark:bg-white/[0.03]">
+          <h3 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Authorities quality
+          </h3>
+          <p className="mt-2 text-[13px] text-foreground/90">
+            {report.authoritiesQuality.verifiedCount} verified ·{" "}
+            {report.authoritiesQuality.unverifiedCount} unverified
+          </p>
+          <p className="mt-1 text-[12px] text-muted-foreground">{report.authoritiesQuality.caveat}</p>
         </section>
       )}
 
@@ -305,7 +336,10 @@ export function JudgmentScreen({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <ValidationMeters metrics={report.confidence} />
+        <ValidationMeters
+          metrics={report.confidence}
+          methodology={report.confidenceMethodology}
+        />
         <CitationsPanel authorities={report.authorities} />
       </div>
 
@@ -362,6 +396,15 @@ export function buildJudgmentMarkdown(
     report.coverageSummary
       ? `## Coverage (${report.coveragePercent ?? "—"}%)\n${report.coverageSummary}\n`
       : "",
+    report.notCovered?.length
+      ? `## Issues Not Fully Argued\n${report.notCovered.map((s) => `- ${s}`).join("\n")}\n`
+      : "",
+    report.authoritiesQuality
+      ? `## Authorities Quality\nVerified: ${report.authoritiesQuality.verifiedCount}; Unverified: ${report.authoritiesQuality.unverifiedCount}\n${report.authoritiesQuality.caveat}\n`
+      : "",
+    report.confidenceMethodology
+      ? `## How Confidence Was Scored\n${report.confidenceMethodology.summary}\n`
+      : "",
     report.strongestPetitioner?.length
       ? `## Strongest Petitioner Points\n${report.strongestPetitioner.map((s) => `- ${s}`).join("\n")}\n`
       : "",
@@ -383,9 +426,15 @@ export function buildJudgmentMarkdown(
     `- Argument strength: ${Math.round(report.confidence.argumentStrength * 100)}%`,
     `- Evidence support: ${Math.round(report.confidence.evidenceSupport * 100)}%`,
     `- Procedural compliance: ${Math.round(report.confidence.proceduralCompliance * 100)}%`,
+    report.confidenceMethodology
+      ? `- Methodology: ${report.confidenceMethodology.summary}`
+      : "",
     "",
     "## Cited Authorities",
-    ...report.authorities.map((a) => `- [${a.marker}] ${a.title} — ${a.citation}`),
+    ...report.authorities.map(
+      (a) =>
+        `- [${a.marker}] ${a.title} — ${a.citation} (${a.verified ? "Verified" : "Unverified"}${a.sourceKind ? `, ${a.sourceKind}` : ""})`,
+    ),
     "",
     "## Recommended Next Steps",
     ...report.nextSteps.map((s, i) => `${i + 1}. ${s}`),
@@ -409,12 +458,11 @@ export function buildJudgmentMarkdown(
   return lines.join("\n");
 }
 
-export function downloadJudgmentReport(
+export async function downloadJudgmentReport(
   report: JudgmentReport,
   actionPlan?: ProposedActionPlan | null,
 ) {
-  const doc = buildJudgmentPdf(report, actionPlan);
-  downloadPdf(doc, `courtroom-judgment-${Date.now()}.pdf`);
+  await buildJudgmentPdf(report, actionPlan);
 }
 
 export function downloadJudgmentJson(report: JudgmentReport) {

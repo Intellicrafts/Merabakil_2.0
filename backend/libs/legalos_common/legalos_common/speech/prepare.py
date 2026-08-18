@@ -90,7 +90,8 @@ def prepare_speech_chunks(markdown: str) -> list[str]:
     if not text:
         return []
 
-    sentences = re.split(r"(?<=[.!?])\s+", text)
+    # ।  = Devanagari danda (Hindi/Marathi sentence terminator)
+    sentences = re.split(r"(?<=[.!?।])\s+", text)
     chunks: list[str] = []
     current = ""
 

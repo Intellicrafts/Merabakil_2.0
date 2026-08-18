@@ -1,18 +1,40 @@
 "use client";
 
+import { ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { CodeBlock } from "@/components/mera-vakil/code-block";
+import type { WebSearchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface MarkdownProps {
   content: string;
   className?: string;
   onCitationClick?: (marker: string) => void;
+  webSources?: WebSearchResult[];
 }
 
-export function Markdown({ content, className, onCitationClick }: MarkdownProps) {
+function preprocessCitations(
+  content: string,
+  webSources: WebSearchResult[],
+  hasClickHandler: boolean,
+): string {
+  // [WEB-N] → real markdown link using the source URL
+  let result = content.replace(/\[WEB-(\d+)\]/g, (_, num) => {
+    const src = webSources[parseInt(num) - 1];
+    return src?.url ? `[WEB-${num}](${src.url})` : `[WEB-${num}]`;
+  });
+  // [KB-N] → pseudo-link intercepted by the <a> renderer to trigger onCitationClick
+  if (hasClickHandler) {
+    result = result.replace(/\[KB-(\d+)\]/g, (_, num) => `[KB-${num}](#citation:KB-${num})`);
+  }
+  return result;
+}
+
+export function Markdown({ content, className, onCitationClick, webSources = [] }: MarkdownProps) {
+  const processed = preprocessCitations(content, webSources, !!onCitationClick);
+
   return (
     <div className={cn("prose-mera-vakil text-sm leading-relaxed", className)}>
       <ReactMarkdown
@@ -30,16 +52,33 @@ export function Markdown({ content, className, onCitationClick }: MarkdownProps)
           ),
           h2: ({ children }) => <h2 className="mv-section-heading">{children}</h2>,
           h3: ({ children }) => <h3 className="mb-2 text-sm font-semibold">{children}</h3>,
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              className="font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            // [KB-N] pseudo-links → scroll to KB source card
+            if (href?.startsWith("#citation:")) {
+              const marker = `[${href.replace("#citation:", "")}]`;
+              return (
+                <button
+                  type="button"
+                  onClick={() => onCitationClick?.(marker)}
+                  className="inline-flex cursor-pointer items-center rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  {children}
+                </button>
+              );
+            }
+            // [WEB-N] links and any other external hrefs
+            return (
+              <a
+                href={href}
+                className="inline-flex items-center gap-0.5 font-medium text-blue-600 underline underline-offset-2 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {children}
+                <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+              </a>
+            );
+          },
           code: ({ className: codeClass, children, ...props }) => {
             const match = /language-(\w+)/.exec(codeClass ?? "");
             const text = String(children).replace(/\n$/, "");
@@ -71,18 +110,8 @@ export function Markdown({ content, className, onCitationClick }: MarkdownProps)
           td: ({ children }) => <td className="border-b border-white/10 px-3 py-2">{children}</td>,
         }}
       >
-        {content}
+        {processed}
       </ReactMarkdown>
-      {onCitationClick &&
-        content.match(/\[\d+\]/g)?.map((marker, i) => (
-          <button
-            key={`${marker}-${i}`}
-            type="button"
-            className="sr-only"
-            onClick={() => onCitationClick(marker)}
-            aria-hidden
-          />
-        ))}
     </div>
   );
 }

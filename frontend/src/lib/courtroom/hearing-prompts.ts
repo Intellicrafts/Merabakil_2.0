@@ -42,7 +42,9 @@ function caseRecordBlock(config: CourtroomSessionConfig): string {
     intake?.issues && `Issues for consideration: ${intake.issues.slice(0, 500)}`,
     intake?.reliefSought && `Prayer / relief: ${intake.reliefSought}`,
     config.exhibits.length
-      ? `Documents / exhibits marked: ${config.exhibits.map((e) => e.title).join("; ")}`
+      ? `Documents / exhibits (cite only marked/admitted): ${config.exhibits
+          .map((e) => `${e.title} [${e.status}]`)
+          .join("; ")}`
       : "Documents: as pleaded on the simulation record only",
   ]
     .filter(Boolean)
@@ -124,7 +126,7 @@ Respond with ONLY valid JSON (no markdown, no ## headings, no code fences):
   "addressesPointIds": ["pt-1"],
   "cites": ["optional short citation or exhibit name from record"],
   "suggestJudgeIntervene": false,
-  "timelineStep": "opening|examination|objections|closing|verdict|deliberation",
+  "timelineStep": "appearance|issues_framed|evidence_marking|submissions|reply|closing|verdict|deliberation",
   "metricsDelta": { "argumentStrength": 0.55, "evidenceSupport": 0.5, "proceduralCompliance": 0.85 },
   "judgeState": "listening|questioning|ruling|deliberating",
   "judgeNote": "optional short note if judge"
@@ -193,8 +195,9 @@ export function buildJudgmentPrompt(opts: {
   transcript: TranscriptEntry[];
   coveragePercent: number;
   oralVerdict?: string;
+  notCovered?: string[];
 }): string {
-  const { config, agenda, transcript, coveragePercent: pct, oralVerdict } = opts;
+  const { config, agenda, transcript, coveragePercent: pct, oralVerdict, notCovered } = opts;
   const lines = transcript
     .filter((t) => t.role !== "clerk")
     .map((t) => `${t.speaker}: ${t.text}`)
@@ -203,6 +206,7 @@ export function buildJudgmentPrompt(opts: {
   return `You are drafting a SIMULATED written order / judgment for an Indian court hearing (educational; not binding).
 Matter: ${config.matterTitle} (${config.matterType} — ${matterForumHint(config.matterType)})
 Agenda coverage during hearing: ${pct}%
+Issues NOT fully argued (must surface honestly): ${(notCovered || []).join("; ") || "(none)"}
 ${oralVerdict ? `Oral pronouncement already made in open court:\n${oralVerdict}\n` : ""}
 
 Structure the written order in Indian style:
@@ -211,6 +215,7 @@ Structure the written order in Indian style:
 - Legal reasoning / ratio (brief)
 - Operative portion (must align with the oral verdict if given)
 - Practical next steps for counsel to strengthen the real case
+- Explicitly list issues that were not fully argued
 
 Agenda:
 ${agenda.map((a) => `- [${a.id}] ${a.status}: ${a.label}`).join("\n")}
@@ -234,7 +239,7 @@ Return ONLY JSON (no markdown fences):
   "strongestPetitioner": ["..."],
   "strongestRespondent": ["..."],
   "weaknessesExposed": ["..."],
-  "coverageSummary": "one paragraph on what was argued and what remains"
+  "coverageSummary": "one paragraph on what was argued and what remains uncovered"
 }`;
 }
 
@@ -273,7 +278,7 @@ export function parseHearingTurn(raw: string, fallbackRole: SpeakerRole): Hearin
       text,
       addressesPointIds: [],
       suggestJudgeIntervene: false,
-      timelineStep: fallbackRole === "judge" ? "verdict" : "examination",
+      timelineStep: fallbackRole === "judge" ? "verdict" : "submissions",
       judgeState: fallbackRole === "judge" ? "ruling" : undefined,
     };
   }

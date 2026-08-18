@@ -15,6 +15,8 @@ class ResearchRequest(BaseModel):
     document_ids: list[str] | None = None
     doc_type: str | None = None
     history: list[ConversationMessage] = Field(default_factory=list, max_length=40)
+    session_id: str | None = None
+    user_id: str | None = None
 
     def search_filters(self) -> SearchFilters:
         return SearchFilters(
@@ -70,6 +72,11 @@ class CourtroomActionsRequest(BaseModel):
     coverage_summary: str | None = Field(default=None, max_length=2000)
     agenda: list[CourtroomAgendaItemIn] = Field(default_factory=list, max_length=16)
     transcript_excerpt: str | None = Field(default=None, max_length=8000)
+    not_covered: list[str] = Field(default_factory=list, alias="notCovered", max_length=16)
+    verified_cite_count: int | None = Field(default=None, alias="verifiedCiteCount")
+    unverified_cite_count: int | None = Field(default=None, alias="unverifiedCiteCount")
+
+    model_config = {"populate_by_name": True}
 
 
 class CourtroomActionCta(BaseModel):
@@ -140,6 +147,200 @@ class CourtroomActionsResponse(BaseModel):
         default_factory=list, alias="researchAngles"
     )
     settlement_levers: list[str] = Field(default_factory=list, alias="settlementLevers")
+    disclaimer: str
+
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
+
+
+# ---- Grounded courtroom hearing turn ----
+
+class CourtroomTurnAgendaItem(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=240)
+    status: str = Field(default="pending", max_length=32)
+
+
+class CourtroomTurnExhibit(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=240)
+    status: str = Field(default="pending", max_length=32)
+
+
+class CourtroomTurnRequest(BaseModel):
+    speaker: str = Field(pattern="^(judge|petitioner|respondent)$")
+    matter_title: str = Field(min_length=1, max_length=400)
+    matter_type: str = Field(default="Civil", max_length=64)
+    petitioner_name: str = Field(default="Petitioner Advocate", max_length=200)
+    respondent_name: str = Field(default="Respondent Advocate", max_length=200)
+    hearing_phase: str | None = Field(default="submissions", max_length=64)
+    force_closing: bool = False
+    intervene: bool = False
+    case_summary: str | None = Field(default=None, max_length=2000)
+    facts: str | None = Field(default=None, max_length=4000)
+    issues: str | None = Field(default=None, max_length=2000)
+    relief_sought: str | None = Field(default=None, max_length=1000)
+    agenda: list[CourtroomTurnAgendaItem] = Field(default_factory=list, max_length=16)
+    focus_point_ids: list[str] = Field(default_factory=list, max_length=8)
+    exhibits: list[CourtroomTurnExhibit] = Field(default_factory=list, max_length=20)
+    transcript_excerpt: str | None = Field(default=None, max_length=8000)
+    document_ids: list[str] = Field(default_factory=list, max_length=12)
+    jurisdiction: str | None = Field(default=None, max_length=120)
+    allow_web: bool = True
+    persona_cue: str | None = Field(default=None, max_length=400)
+    strategy_cue: str | None = Field(default=None, max_length=600)
+
+
+class CourtroomVerifiedSource(BaseModel):
+    id: str
+    title: str
+    citation: str = ""
+    snippet: str = ""
+    source_kind: str = Field(alias="sourceKind")  # corpus | document | web
+    url: str | None = None
+    document_id: str | None = Field(default=None, alias="documentId")
+    verified: bool = True
+
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
+
+
+class CourtroomExhibitAction(BaseModel):
+    exhibit_id: str = Field(alias="exhibitId")
+    status: str  # pending | marked | admitted | rejected
+
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
+
+
+class CourtroomTurnResponse(BaseModel):
+    speaker: str
+    text: str
+    text_hi: str | None = Field(default=None, alias="textHi")
+    addresses_point_ids: list[str] = Field(
+        default_factory=list, alias="addressesPointIds"
+    )
+    cite_source_ids: list[str] = Field(default_factory=list, alias="citeSourceIds")
+    exhibit_actions: list[CourtroomExhibitAction] = Field(
+        default_factory=list, alias="exhibitActions"
+    )
+    suggest_judge_intervene: bool = Field(default=False, alias="suggestJudgeIntervene")
+    timeline_step: str | None = Field(default=None, alias="timelineStep")
+    judge_state: str | None = Field(default=None, alias="judgeState")
+    judge_note: str | None = Field(default=None, alias="judgeNote")
+    verified_sources: list[CourtroomVerifiedSource] = Field(
+        default_factory=list, alias="verifiedSources"
+    )
+    disclaimer: str
+
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
+
+
+# ---- Agentic courtroom turn (CourtMaster + role agents) ----
+
+class CourtroomExtractedFact(BaseModel):
+    id: str
+    text: str
+    side: str = "neutral"
+    status: str = "asserted"
+    source: str = "intake"
+
+
+class CourtroomTranscriptTurn(BaseModel):
+    role: str
+    text: str
+
+
+class CourtroomAgentTurnRequest(BaseModel):
+    matter_title: str = Field(min_length=1, max_length=400)
+    matter_type: str = Field(default="Civil", max_length=64)
+    petitioner_name: str = Field(default="Petitioner Advocate", max_length=200)
+    respondent_name: str = Field(default="Respondent Advocate", max_length=200)
+    case_summary: str | None = Field(default=None, max_length=2000)
+    facts: str | None = Field(default=None, max_length=4000)
+    issues: str | None = Field(default=None, max_length=2000)
+    relief_sought: str | None = Field(default=None, max_length=1000)
+    agenda: list[CourtroomTurnAgendaItem] = Field(default_factory=list, max_length=16)
+    exhibits: list[CourtroomTurnExhibit] = Field(default_factory=list, max_length=20)
+    authorities: list[CourtroomVerifiedSource] = Field(default_factory=list, max_length=40)
+    transcript_excerpt: str | None = Field(default=None, max_length=8000)
+    transcript_turns: list[CourtroomTranscriptTurn] = Field(
+        default_factory=list, alias="transcriptTurns", max_length=20
+    )
+    document_ids: list[str] = Field(default_factory=list, max_length=12)
+    jurisdiction: str | None = Field(default=None, max_length=120)
+    persona_cues: dict[str, str] = Field(default_factory=dict, alias="personaCues")
+    strategy_cues: dict[str, str] = Field(default_factory=dict, alias="strategyCues")
+    compressed_case: str | None = Field(default=None, alias="compressedCase", max_length=4000)
+    extracted_facts: list[CourtroomExtractedFact] = Field(
+        default_factory=list, alias="extractedFacts", max_length=16
+    )
+    running_memory: str | None = Field(default=None, alias="runningMemory", max_length=2000)
+    scratchpads: dict[str, str] = Field(default_factory=dict)
+    turn_index: int = Field(default=0, alias="turnIndex")
+    counsel_turns: int = Field(default=0, alias="counselTurns")
+    judge_turns: int = Field(default=0, alias="judgeTurns")
+    closings_done: int = Field(default=0, alias="closingsDone")
+    issues_framed: bool = Field(default=False, alias="issuesFramed")
+    verdict_ready: bool = Field(default=False, alias="verdictReady")
+    last_speaker: str | None = Field(default=None, alias="lastSpeaker")
+    derived_phase: str | None = Field(default=None, alias="derivedPhase")
+    force_end: bool = Field(default=False, alias="forceEnd")
+    force_speaker: str | None = Field(default=None, alias="forceSpeaker")
+
+    model_config = {"populate_by_name": True}
+
+
+class CourtroomToolTraceItem(BaseModel):
+    tool: str
+    args: dict = Field(default_factory=dict)
+    result: dict = Field(default_factory=dict)
+
+
+class CourtroomBlackboardEcho(BaseModel):
+    turn_index: int = Field(alias="turnIndex")
+    counsel_turns: int = Field(alias="counselTurns")
+    judge_turns: int = Field(alias="judgeTurns")
+    closings_done: int = Field(alias="closingsDone")
+    issues_framed: bool = Field(alias="issuesFramed")
+    verdict_ready: bool = Field(alias="verdictReady")
+    last_speaker: str | None = Field(default=None, alias="lastSpeaker")
+    derived_phase: str = Field(alias="derivedPhase")
+    agenda: list[CourtroomTurnAgendaItem] = Field(default_factory=list)
+    exhibits: list[CourtroomTurnExhibit] = Field(default_factory=list)
+    authorities: list[CourtroomVerifiedSource] = Field(default_factory=list)
+    compressed_case: str | None = Field(default=None, alias="compressedCase")
+    extracted_facts: list[CourtroomExtractedFact] = Field(
+        default_factory=list, alias="extractedFacts"
+    )
+    running_memory: str | None = Field(default=None, alias="runningMemory")
+    scratchpads: dict[str, str] = Field(default_factory=dict)
+    transcript_turns: list[CourtroomTranscriptTurn] = Field(
+        default_factory=list, alias="transcriptTurns"
+    )
+
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
+
+
+class CourtroomAgentTurnResponse(BaseModel):
+    speaker: str
+    text: str
+    text_hi: str | None = Field(default=None, alias="textHi")
+    addresses_point_ids: list[str] = Field(
+        default_factory=list, alias="addressesPointIds"
+    )
+    cite_source_ids: list[str] = Field(default_factory=list, alias="citeSourceIds")
+    exhibit_actions: list[CourtroomExhibitAction] = Field(
+        default_factory=list, alias="exhibitActions"
+    )
+    timeline_step: str | None = Field(default=None, alias="timelineStep")
+    judge_state: str | None = Field(default=None, alias="judgeState")
+    judge_note: str | None = Field(default=None, alias="judgeNote")
+    is_verdict: bool = Field(default=False, alias="isVerdict")
+    tool_trace: list[CourtroomToolTraceItem] = Field(
+        default_factory=list, alias="toolTrace"
+    )
+    verified_sources: list[CourtroomVerifiedSource] = Field(
+        default_factory=list, alias="verifiedSources"
+    )
+    blackboard: CourtroomBlackboardEcho | None = None
     disclaimer: str
 
     model_config = {"populate_by_name": True, "serialize_by_alias": True}

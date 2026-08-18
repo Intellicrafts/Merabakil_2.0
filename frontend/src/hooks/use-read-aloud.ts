@@ -6,6 +6,24 @@ import { streamReadAloud } from "@/lib/api";
 import { getSpeechLocale } from "@/lib/indian-locales";
 import { prepareSpeechText } from "@/lib/speech-text";
 
+function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window)) { resolve([]); return; }
+    const existing = window.speechSynthesis.getVoices();
+    if (existing.length > 0) { resolve(existing); return; }
+    const onVoices = () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", onVoices);
+      resolve(window.speechSynthesis.getVoices());
+    };
+    window.speechSynthesis.addEventListener("voiceschanged", onVoices);
+    window.speechSynthesis.getVoices();
+    setTimeout(() => {
+      window.speechSynthesis.removeEventListener("voiceschanged", onVoices);
+      resolve(window.speechSynthesis.getVoices());
+    }, 500);
+  });
+}
+
 export type ReadAloudStatus = "idle" | "loading" | "playing" | "paused";
 
 export interface ReadAloudState {
@@ -110,24 +128,27 @@ export function useReadAloud(speechLocale = "en-IN"): ReadAloudControls {
   }, []);
 
   const playWithSpeechSynthesis = useCallback(
-    (messageId: string, text: string, session: number) =>
-      new Promise<void>((resolve, reject) => {
-        if (!("speechSynthesis" in window)) {
-          reject(new Error("Speech synthesis not supported"));
-          return;
-        }
-        usingSpeechRef.current = true;
-        const locale = getSpeechLocale(speechLocale);
+    async (messageId: string, text: string, session: number) => {
+      if (!("speechSynthesis" in window)) {
+        throw new Error("Speech synthesis not supported");
+      }
+      usingSpeechRef.current = true;
+      // If the text is not Devanagari/Hindi, use English locale — the text content
+      // is always in English (markdown-stripped) unless the backend already rewrote it.
+      const isDevanagari = /[ऀ-ॿ]/.test(text);
+      const locale = isDevanagari ? getSpeechLocale(speechLocale) : getSpeechLocale("en-IN");
+      const voices = await loadVoices();
+      const preferred =
+        voices.find((v) => v.lang === locale.bcp47) ??
+        voices.find((v) => v.lang.startsWith(locale.bcp47.split("-")[0])) ??
+        voices.find((v) => /en(-|_)(IN|GB|US)/i.test(v.lang)) ??
+        voices.find((v) => v.lang.startsWith("en"));
+
+      await new Promise<void>((resolve, reject) => {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = locale.bcp47;
         utterance.rate = 1.02;
         utterance.pitch = 1;
-        const voices = window.speechSynthesis.getVoices();
-        const preferred =
-          voices.find((v) => v.lang === locale.bcp47) ??
-          voices.find((v) => v.lang.startsWith(locale.bcp47.split("-")[0])) ??
-          voices.find((v) => /en(-|_)(IN|GB|US)/i.test(v.lang) && !v.localService) ??
-          voices.find((v) => v.lang.startsWith("en"));
         if (preferred) utterance.voice = preferred;
 
         utterance.onend = () => {
@@ -150,7 +171,8 @@ export function useReadAloud(speechLocale = "en-IN"): ReadAloudControls {
         setStatus("playing");
         setActiveMessageId(messageId);
         window.speechSynthesis.speak(utterance);
-      }),
+      });
+    },
     [speechLocale],
   );
 
@@ -160,8 +182,9 @@ export function useReadAloud(speechLocale = "en-IN"): ReadAloudControls {
       ctx: AudioContext,
       sampleRate: number,
       session: number,
-    ) => {
+    ): Promise<number> => {
       let pending = new Uint8Array(0);
+      let framesScheduled = 0;
 
       const appendAndDrain = () => {
         while (pending.length >= 4) {
@@ -172,6 +195,7 @@ export function useReadAloud(speechLocale = "en-IN"): ReadAloudControls {
           pending = pending.slice(4 + frameLen);
           const buffer = pcmToAudioBuffer(ctx, pcm, sampleRate);
           scheduleBuffer(ctx, buffer, session);
+          framesScheduled += 1;
         }
       };
 
@@ -186,6 +210,7 @@ export function useReadAloud(speechLocale = "en-IN"): ReadAloudControls {
         appendAndDrain();
       }
       appendAndDrain();
+      return framesScheduled;
     },
     [scheduleBuffer],
   );
@@ -195,6 +220,16 @@ export function useReadAloud(speechLocale = "en-IN"): ReadAloudControls {
       stop();
       const text = prepareSpeechText(markdown);
       if (!text) return;
+
+      // Unlock AudioContext synchronously within the user-gesture call stack.
+      // Safari drops the gesture context on the first await, so resume() must
+      // be initiated here — before the network request — or audio never plays.
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+      }
+      if (audioContextRef.current.state === "suspended") {
+        void audioContextRef.current.resume();
+      }
 
       const session = sessionRef.current;
       setStatus("loading");
@@ -206,11 +241,15 @@ export function useReadAloud(speechLocale = "en-IN"): ReadAloudControls {
         const { reader, sampleRate } = await streamReadAloud(text, {
           signal: controller.signal,
           language: speechLocale,
+          // prepareSpeechText already strips markdown — only non-English needs the
+          // LLM rewrite (to translate the English answer into the target language).
+          rewriteForSpeech: !speechLocale.startsWith("en"),
         });
         if (session !== sessionRef.current) return;
         const ctx = await ensureContext();
         setStatus("playing");
-        await parseFramedStream(reader, ctx, sampleRate, session);
+        const frames = await parseFramedStream(reader, ctx, sampleRate, session);
+        if (frames === 0) throw new Error("No audio frames received");
       } catch {
         if (session !== sessionRef.current) return;
         cleanupAudio();

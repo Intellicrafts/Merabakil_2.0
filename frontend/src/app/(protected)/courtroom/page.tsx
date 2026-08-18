@@ -113,6 +113,7 @@ export default function CourtroomPage() {
   const isPausedRef = useRef(false);
   isPausedRef.current = state.isPaused;
   const [mobileTab, setMobileTab] = useState<MobileTab>("transcript");
+  const [transcriptViewMode, setTranscriptViewMode] = useState<"chat" | "order_sheet">("chat");
 
   const courtroomSpeech = useCourtroomSpeech(speechLocaleForLanguage(displayLanguage));
   const courtroomSpeechRef = useRef(courtroomSpeech);
@@ -188,6 +189,7 @@ export default function CourtroomPage() {
           break;
         case "metricsUpdate":
           next.metrics = event.metrics;
+          if (event.methodology) next.confidenceMethodology = event.methodology;
           break;
         case "authorityCited":
           if (!prev.authorities.some((a) => a.id === event.authority.id)) {
@@ -618,6 +620,9 @@ export default function CourtroomPage() {
       <CourtroomHero
         phase={phase}
         matterTitle={config.matterTitle || undefined}
+        matterType={config.matterType}
+        petitionerName={config.petitionerName}
+        respondentName={config.respondentName}
         elapsedSeconds={state.elapsedSeconds}
         reviewingSaved={isReviewMode}
       />
@@ -665,7 +670,14 @@ export default function CourtroomPage() {
           )}
 
           {phase === "agentsReady" && agents.length > 0 && (
-            <AgentForgePanel agents={agents} intakeSummary={intakeBundle.summary} />
+            <>
+              {intakeBundle.indexingWarning && (
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-[12px] text-amber-950/90 dark:text-amber-100/85">
+                  {intakeBundle.indexingWarning}
+                </div>
+              )}
+              <AgentForgePanel agents={agents} intakeSummary={intakeBundle.summary} />
+            </>
           )}
 
           <div className="flex justify-center">
@@ -717,6 +729,8 @@ export default function CourtroomPage() {
             judgeNote={state.judgeNote}
             agents={agents}
             isThinking={state.isThinking}
+            matterTitle={config.matterTitle}
+            matterType={config.matterType}
           />
 
           <CoverageTracker agenda={state.agenda ?? []} />
@@ -731,11 +745,16 @@ export default function CourtroomPage() {
               typingEntryId={listeningMode ? typingEntryId : null}
               typingCharCount={typingCharCount}
               isThinking={state.isThinking}
+              viewMode={transcriptViewMode}
+              onViewModeChange={setTranscriptViewMode}
             />
             <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
               <EvidencePanel exhibits={state.exhibits} />
               <CitationsPanel authorities={state.authorities} />
-              <ValidationMeters metrics={state.metrics} />
+              <ValidationMeters
+                metrics={state.metrics}
+                methodology={state.confidenceMethodology}
+              />
             </div>
           </div>
 
@@ -768,11 +787,18 @@ export default function CourtroomPage() {
                 typingCharCount={typingCharCount}
                 isThinking={state.isThinking}
                 className="max-h-[min(48vh,480px)]"
+                viewMode={transcriptViewMode}
+                onViewModeChange={setTranscriptViewMode}
               />
             )}
             {mobileTab === "exhibits" && <EvidencePanel exhibits={state.exhibits} />}
             {mobileTab === "authorities" && <CitationsPanel authorities={state.authorities} />}
-            {mobileTab === "metrics" && <ValidationMeters metrics={state.metrics} />}
+            {mobileTab === "metrics" && (
+              <ValidationMeters
+                metrics={state.metrics}
+                methodology={state.confidenceMethodology}
+              />
+            )}
           </div>
 
           <div className="shrink-0">
@@ -818,7 +844,9 @@ export default function CourtroomPage() {
       {showJudgment && state.judgment && (
         <JudgmentScreen
           report={state.judgment}
-          onDownload={() => downloadJudgmentReport(state.judgment!, actionPlan)}
+          onDownload={() => {
+            void downloadJudgmentReport(state.judgment!, actionPlan);
+          }}
           onDownloadJson={() => downloadJudgmentJson(state.judgment!)}
           onNewSession={resetSession}
           showBilingual={displayLanguage !== "en"}

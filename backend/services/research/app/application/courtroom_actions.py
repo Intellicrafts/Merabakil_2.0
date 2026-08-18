@@ -75,6 +75,8 @@ Respond ONLY with valid JSON matching this schema:
 
 Rules:
 - Max 10 general actions. ALSO always include 3–6 mandatoryFacts and 3–6 opponentFactDefenses.
+- When "Issues NOT fully argued" are listed, prioritize actions that close those gaps.
+- Prefer concrete filing / proof / research steps a counsel can execute without re-watching the hearing.
 - mandatoryFacts = facts that are essential / must be established for the case to succeed
   (burden of proof, ingredients of cause of action / offence / writ ground).
 - opponentFactDefenses = for each strong opposing fact from the hearing, explain HOW to defend
@@ -168,7 +170,8 @@ def fallback_action_plan(body: CourtroomActionsRequest) -> dict[str, Any]:
     """Deterministic matter-type templates when LLM fails."""
     mt = (body.matter_type or "Civil").strip()
     title = body.matter_title or "the matter"
-    weakness = (body.weaknesses_exposed or ["evidentiary gaps on contested issues"])[0]
+    gap = (body.not_covered or body.weaknesses_exposed or ["evidentiary gaps on contested issues"])[0]
+    weakness = gap
     contested = [a for a in body.agenda if a.status in {"pending", "raised", "contested"}]
     issue_ids = [a.id for a in contested[:3]]
     mandatory = _fallback_mandatory_facts(body)
@@ -560,6 +563,13 @@ def _user_payload(body: CourtroomActionsRequest) -> str:
     ) or "(none)"
     weaknesses = "\n".join(f"- {w}" for w in (body.weaknesses_exposed or [])[:8]) or "(none listed)"
     issues = "\n".join(f"- {i}" for i in (body.issues_framed or [])[:8]) or "(none)"
+    not_covered = "\n".join(f"- {n}" for n in (body.not_covered or [])[:12]) or "(none listed)"
+    cite_note = ""
+    if body.verified_cite_count is not None or body.unverified_cite_count is not None:
+        cite_note = (
+            f"Authorities quality: verified={body.verified_cite_count or 0}, "
+            f"unverified={body.unverified_cite_count or 0}\n"
+        )
     return (
         f"Matter: {body.matter_title}\n"
         f"Type: {body.matter_type}\n"
@@ -568,6 +578,8 @@ def _user_payload(body: CourtroomActionsRequest) -> str:
         f"Oral verdict:\n{body.oral_verdict or '(not captured)'}\n"
         f"Disposition / operative portion:\n{body.disposition or '(not captured)'}\n"
         f"Coverage: {body.coverage_summary or '(n/a)'}\n"
+        f"Issues NOT fully argued (honest gaps — prioritize these):\n{not_covered}\n"
+        f"{cite_note}"
         f"Issues framed:\n{issues}\n"
         f"Weaknesses exposed:\n{weaknesses}\n"
         f"Agenda:\n{agenda_lines}\n"

@@ -7,7 +7,6 @@ from app.infrastructure.events import KafkaEventPublisher, NullEventPublisher
 from app.infrastructure.indexer import MultiStoreIndexer
 from legalos_common.clients import (
     Neo4jClient,
-    OpenSearchClient,
     QdrantVectorClient,
     S3Storage,
     build_embedding_client,
@@ -15,6 +14,7 @@ from legalos_common.clients import (
 from legalos_common.clients.llm import EmbeddingClient
 from legalos_common.logging import get_logger
 from legalos_common.messaging import KafkaEventProducer
+from legalos_common.search.sparse_encoder import SparseEncoder
 from app.infrastructure.job_store import IngestionJobStore
 
 logger = get_logger(__name__)
@@ -29,23 +29,22 @@ class Container:
             settings.qdrant.qdrant_collection,
             settings.llm.embedding_dim,
         )
-        self.opensearch = OpenSearchClient(
-            settings.opensearch.opensearch_url, settings.opensearch.opensearch_index
-        )
         self.neo4j = Neo4jClient(
             settings.neo4j.neo4j_uri, settings.neo4j.neo4j_user, settings.neo4j.neo4j_password
         )
         self.s3 = S3Storage(settings.s3)
+        self.sparse = SparseEncoder()
         self.indexer = MultiStoreIndexer(
-            qdrant=self.qdrant, opensearch=self.opensearch, neo4j=self.neo4j
+            qdrant=self.qdrant, sparse=self.sparse, neo4j=self.neo4j
         )
         self._producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
         self.events: KafkaEventPublisher | NullEventPublisher = NullEventPublisher()
         self.jobs = IngestionJobStore(settings.redis_url)
 
     async def startup(self) -> None:
+        self.sparse.load()
         await self.qdrant.ensure_collection()
-        await self.opensearch.ensure_index()
+        await self.qdrant.ensure_parents_collection()
         await self.s3.ensure_bucket()
         try:
             await self._producer.start()
@@ -60,7 +59,6 @@ class Container:
 
     async def shutdown(self) -> None:
         await self.qdrant.close()
-        await self.opensearch.close()
         await self.neo4j.close()
         await self._producer.stop()
         await self.jobs.close()

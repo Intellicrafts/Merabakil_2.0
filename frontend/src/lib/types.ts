@@ -44,6 +44,21 @@ export interface KnowledgeDocument {
   jurisdiction: string | null;
   chunk_count: number;
   status: string;
+  source_uri?: string | null;
+  content_hash?: string | null;
+  indexed_at?: string | null;
+}
+
+export interface IngestionResult {
+  document_id: string;
+  title: string;
+  doc_type: string;
+  jurisdiction: string | null;
+  chunk_count: number;
+  page_count: number | null;
+  citations: string[];
+  status: string;
+  chunks_embedded?: number;
 }
 
 export interface UserDocument {
@@ -67,17 +82,6 @@ export interface IngestionJob {
   error: string | null;
   created_at?: string | null;
   updated_at?: string | null;
-}
-
-export interface IngestionResult {
-  document_id: string;
-  title: string;
-  doc_type: string;
-  jurisdiction: string | null;
-  chunk_count: number;
-  page_count: number | null;
-  citations: string[];
-  status: string;
 }
 
 export type UploadDocumentResponse =

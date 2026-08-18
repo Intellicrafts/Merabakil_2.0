@@ -10,15 +10,29 @@ export type SpeakerRole = "judge" | "petitioner" | "respondent" | "clerk";
 
 export type JudgeState = "listening" | "questioning" | "deliberating" | "ruling";
 
+/** Indian hearing phase machine (order-sheet friendly). */
 export type HearingTimelineStep =
-  | "opening"
-  | "examination"
-  | "objections"
+  | "appearance"
+  | "issues_framed"
+  | "evidence_marking"
+  | "submissions"
+  | "reply"
   | "closing"
   | "verdict"
-  | "deliberation";
+  | "deliberation"
+  /** @deprecated legacy aliases kept for saved runs */
+  | "opening"
+  | "examination"
+  | "objections";
 
-export type ObjectionType = "relevance" | "hearsay" | "procedure";
+/** Indian Evidence Act / pleading-oriented objections. */
+export type ObjectionType =
+  | "relevance"
+  | "leading"
+  | "no_foundation"
+  | "beyond_pleadings"
+  | "hearsay"
+  | "procedure";
 
 export type ObjectionRuling = "sustained" | "overruled" | "pending";
 
@@ -45,6 +59,8 @@ export interface CaseIntakeBundle {
   artifacts: CaseIntakeArtifact[];
   summary: string;
   processedAt?: string;
+  /** True when PDF uploads were not fully indexed before hearing. */
+  indexingWarning?: string;
 }
 
 export type AgentRole = "judge" | "petitioner_advocate" | "respondent_advocate";
@@ -69,13 +85,17 @@ export interface TranscriptEntry {
   timestamp: number;
 }
 
+export type ExhibitStatus = "pending" | "marked" | "admitted" | "rejected";
+
 export interface Exhibit {
   id: string;
   title: string;
   type: string;
-  status: "admitted" | "pending" | "marked";
+  status: ExhibitStatus;
   source?: string;
 }
+
+export type AuthoritySourceKind = "corpus" | "document" | "web" | "freeform";
 
 export interface LegalAuthority {
   id: string;
@@ -83,6 +103,11 @@ export interface LegalAuthority {
   title: string;
   citation: string;
   citedBy?: SpeakerRole;
+  verified?: boolean;
+  sourceKind?: AuthoritySourceKind;
+  url?: string;
+  snippet?: string;
+  documentId?: string;
 }
 
 export interface ObjectionEvent {
@@ -100,6 +125,14 @@ export interface HearingMetrics {
   proceduralCompliance: number;
 }
 
+export interface ConfidenceMethodology {
+  summary: string;
+  agendaContestedPct: number;
+  citesVerifiedPct: number;
+  exhibitsAdmittedPct: number;
+  objectionSustainRate: number;
+}
+
 export type AgendaPointStatus = "pending" | "raised" | "contested" | "resolved";
 
 export interface HearingAgendaItem {
@@ -109,17 +142,32 @@ export interface HearingAgendaItem {
   status: AgendaPointStatus;
 }
 
+export interface ExhibitAction {
+  exhibitId: string;
+  status: ExhibitStatus;
+}
+
 export interface HearingTurn {
   speaker: SpeakerRole;
   text: string;
   textHi?: string;
   addressesPointIds?: string[];
+  /** Freeform cite strings (legacy / fallback). Prefer verifiedCiteIds. */
   cites?: string[];
+  verifiedCiteIds?: string[];
+  verifiedSources?: LegalAuthority[];
+  exhibitActions?: ExhibitAction[];
   suggestJudgeIntervene?: boolean;
   timelineStep?: HearingTimelineStep;
   metricsDelta?: Partial<HearingMetrics>;
   judgeState?: JudgeState;
   judgeNote?: string;
+}
+
+export interface AuthoritiesQuality {
+  verifiedCount: number;
+  unverifiedCount: number;
+  caveat: string;
 }
 
 export interface JudgmentReport {
@@ -131,7 +179,9 @@ export interface JudgmentReport {
   legalReasoning: string;
   legalReasoningHi?: string;
   confidence: HearingMetrics;
+  confidenceMethodology?: ConfidenceMethodology;
   authorities: LegalAuthority[];
+  authoritiesQuality?: AuthoritiesQuality;
   nextSteps: string[];
   nextStepsHi?: string[];
   /** Operative portion / final order (what the Court holds). */
@@ -146,6 +196,8 @@ export interface JudgmentReport {
   timelineSteps?: HearingTimelineStep[];
   coverageSummary?: string;
   coveragePercent?: number;
+  /** Agenda labels that were never contested/resolved. */
+  notCovered?: string[];
   strongestPetitioner?: string[];
   strongestRespondent?: string[];
   weaknessesExposed?: string[];
@@ -235,6 +287,9 @@ export interface CourtroomActionsRequestPayload {
   coverage_summary?: string | null;
   agenda?: { id: string; label: string; status: string }[];
   transcript_excerpt?: string | null;
+  notCovered?: string[];
+  verifiedCiteCount?: number;
+  unverifiedCiteCount?: number;
 }
 
 export interface CourtroomSessionSnapshot {
@@ -289,6 +344,7 @@ export interface CourtroomState {
   authorities: LegalAuthority[];
   objections: ObjectionEvent[];
   metrics: HearingMetrics;
+  confidenceMethodology?: ConfidenceMethodology;
   judgeNote?: string;
   elapsedSeconds: number;
   isPaused: boolean;
@@ -304,7 +360,7 @@ export type CourtroomEvent =
   | { type: "timelineStep"; step: HearingTimelineStep }
   | { type: "judgeState"; state: JudgeState; note?: string }
   | { type: "objectionRuling"; event: ObjectionEvent }
-  | { type: "metricsUpdate"; metrics: HearingMetrics }
+  | { type: "metricsUpdate"; metrics: HearingMetrics; methodology?: ConfidenceMethodology }
   | { type: "authorityCited"; authority: LegalAuthority }
   | { type: "exhibitUpdate"; exhibit: Exhibit }
   | { type: "phaseChange"; phase: CourtroomPhase }
@@ -316,3 +372,29 @@ export type CourtroomEvent =
 export type CourtroomListener = (event: CourtroomEvent) => void;
 
 export type ProcessingStep = "extracting" | "profiling" | "ready";
+
+export interface CourtroomVerifiedSourceDto {
+  id: string;
+  title: string;
+  citation: string;
+  snippet?: string;
+  sourceKind: AuthoritySourceKind;
+  url?: string | null;
+  documentId?: string | null;
+  verified: boolean;
+}
+
+export interface CourtroomTurnResponse {
+  speaker: SpeakerRole;
+  text: string;
+  textHi?: string | null;
+  addressesPointIds?: string[];
+  citeSourceIds?: string[];
+  exhibitActions?: ExhibitAction[];
+  suggestJudgeIntervene?: boolean;
+  timelineStep?: HearingTimelineStep | null;
+  judgeState?: JudgeState | null;
+  judgeNote?: string | null;
+  verifiedSources: CourtroomVerifiedSourceDto[];
+  disclaimer: string;
+}

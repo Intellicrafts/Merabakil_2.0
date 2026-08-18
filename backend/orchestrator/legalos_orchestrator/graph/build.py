@@ -1,31 +1,26 @@
-"""Assemble the LangGraph orchestration flow."""
+"""LegalOrchestrator — thin facade over the tool-calling AgentGraph."""
 
 from __future__ import annotations
 
 import json
+import logging
+import re
 from collections.abc import AsyncIterator
 from typing import Any
 
-from langgraph.graph import END, START, StateGraph
+from langchain_core.messages import HumanMessage, SystemMessage
 
+from legalos_common.config.settings import LLMSettings
 from legalos_common.rag.confidence import score_confidence
-from legalos_common.rag.context import assemble_context
-from legalos_common.rag.schemas import ConfidenceBreakdown
-from legalos_orchestrator.agents import (
-    ComplianceAgent,
-    ContractReviewAgent,
-    DraftingAgent,
-    EvidenceAgent,
-    IntentAgent,
-    JurisdictionAgent,
-    LawyerMatchingAgent,
-    LitigationAgent,
-    ReasoningAgent,
-    ResearchAgent,
-    WebSearchAgent,
-)
-from legalos_orchestrator.conversation import is_conversational
-from legalos_orchestrator.ports import LLMPort, RetrieverPort, SpecialistPort
+from legalos_common.rag.guardrails import OutputGuardrail
+from legalos_orchestrator.agent.citation_merger import merge_citations
+from legalos_orchestrator.agent.graph import AgentGraph, build_system_message
+from legalos_orchestrator.agent.state import LegalAgentState
+from legalos_orchestrator.agent.tools.kb_tool import build_kb_tool
+from legalos_orchestrator.agent.tools.web_tool import build_web_tool
+from legalos_orchestrator.agent.router import QueryRoute
+from legalos_orchestrator.conversation import expand_retrieval_query, is_conversational
+from legalos_orchestrator.ports import LLMPort, RetrieverPort, SpecialistPort  # LLMPort kept for container compat
 from legalos_orchestrator.schemas import (
     Intent,
     JurisdictionResult,
@@ -33,190 +28,278 @@ from legalos_orchestrator.schemas import (
     OrchestratorState,
 )
 
-_INTENT_TO_SPECIALIST: dict[Intent, str] = {
-    Intent.CONTRACT_REVIEW: "contract_review",
-    Intent.DRAFTING: "drafting",
-    Intent.LITIGATION: "litigation",
-    Intent.COMPLIANCE: "compliance",
-    Intent.LAWYER_MATCHING: "lawyer_matching",
-    Intent.EVIDENCE_ANALYSIS: "evidence",
-}
+logger = logging.getLogger(__name__)
+
+_CONVERSATIONAL_SUGGESTIONS = [
+    "What can you help me with in Indian law?",
+    "Explain Article 21 of the Constitution",
+    "What makes a contract valid in India?",
+]
+
+_FALLBACK_SUGGESTIONS = [
+    "What are the key statutes that apply here?",
+    "What remedies are available under Indian law?",
+    "What documents should I gather next?",
+]
+
+# Follow-up templates cycled through when KB sources don't provide enough specificity.
+_FOLLOW_UP_TEMPLATES = [
+    "What remedies and relief are available under Indian law for {topic}?",
+    "What are the procedural steps and timeline involved in {topic}?",
+    "What are recent Supreme Court judgments on {topic}?",
+    "What are the exceptions and limitations related to {topic}?",
+    "What key documents and evidence are needed for {topic}?",
+]
+
+_QUESTION_PREFIX = re.compile(
+    r"^\s*(?:what|how|when|where|who|why|can|could|should|is|are|does|do|will|would)"
+    r"(?:\s+(?:is|are|does|can|the|a|an|i|we|my|one))?\s+",
+    re.IGNORECASE,
+)
+
+
+def _extract_topic(query: str) -> str:
+    """Strip question boilerplate to get the core legal topic."""
+    cleaned = _QUESTION_PREFIX.sub("", query).strip().rstrip("?")
+    return (cleaned[0].upper() + cleaned[1:]) if cleaned else query.rstrip("?")
+
+
+def _suggest(query: str, kb_results: list, web_results: list) -> list[str]:
+    """Build 3 follow-up suggestions from retrieved sources — no LLM call."""
+    if is_conversational(query):
+        return _CONVERSATIONAL_SUGGESTIONS
+
+    suggestions: list[str] = []
+
+    # Prefer source-specific suggestions — they give the user a clear next step.
+    seen_titles: set[str] = set()
+    for src in kb_results[:5]:
+        if len(suggestions) >= 2:
+            break
+        title = getattr(src, "title", None) or getattr(src, "document_id", None)
+        if not title or title in seen_titles:
+            continue
+        seen_titles.add(title)
+        section = getattr(src, "section", None)
+        if section:
+            suggestions.append(f"What does {section} of {title} specifically provide?")
+        else:
+            suggestions.append(f"What are the key provisions of {title}?")
+
+    # Fill remaining slots with query-derived templates.
+    topic = _extract_topic(query)
+    for tmpl in _FOLLOW_UP_TEMPLATES:
+        if len(suggestions) >= 3:
+            break
+        candidate = tmpl.format(topic=topic)
+        if candidate not in suggestions:
+            suggestions.append(candidate)
+
+    return suggestions[:3] or _FALLBACK_SUGGESTIONS
+
+_CONVERSATIONAL_SYSTEM_PROMPT = (
+    "You are Mera Vakil, an expert AI legal counsel for India, created by the Bakilat team. "
+    "'Mera Vakil' means 'My Advocate' in Hindi. "
+    "Respond warmly and briefly to this greeting or casual message — 2-3 sentences max. "
+    "You may mention that you can help with Indian law. "
+    "End with: *This information is for educational purposes only and is not a substitute for licensed legal advice.*"
+)
 
 
 def _sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
-def _merge_agent_update(state: OrchestratorState, update: dict) -> OrchestratorState:
-    trace = [*state.trace, *update.pop("trace", [])]
-    return state.model_copy(update={**update, "trace": trace})
+def _build_agent_state(state: OrchestratorState) -> LegalAgentState:
+    """Convert OrchestratorState into a LegalAgentState ready for the agent graph."""
+    from langchain_core.messages import AIMessage
+
+    system_content = build_system_message(state.user_facts or None)
+    system_msg = SystemMessage(content=system_content)
+
+    history_msgs = []
+    for turn in state.history:
+        if turn.role == "user":
+            history_msgs.append(HumanMessage(content=turn.content))
+        else:
+            history_msgs.append(AIMessage(content=turn.content))
+
+    query = expand_retrieval_query(state.query, state.history)
+    user_msg = HumanMessage(content=query)
+
+    return LegalAgentState(
+        messages=[system_msg, *history_msgs, user_msg],
+        session_id=state.session_id,
+        user_id=state.user_id,
+        search_filters=state.search_filters if not state.search_filters.is_empty() else None,
+        user_token=state.user_token,
+        top_k=8,
+        iterations=0,
+        kb_results=[],
+        web_results=[],
+    )
 
 
-def _route_by_intent(state: OrchestratorState) -> str:
-    if state.intent is None:
-        return END
-    return _INTENT_TO_SPECIALIST.get(state.intent.intent, END)
-
-
-def _state_to_result(state: OrchestratorState) -> OrchestratorResult:
-    specialist_payload: dict[str, Any] = {}
-    notes = state.metadata.get("specialist_notes", [])
-    if notes:
-        specialist_payload["notes"] = notes
-    if state.metadata.get("specialist_result"):
-        specialist_payload["result"] = state.metadata["specialist_result"]
-
+def _build_result(
+    state: OrchestratorState,
+    answer: str,
+    kb_results: list,
+    web_sources: list,
+    citations: list,
+    suggestions: list,
+) -> OrchestratorResult:
     return OrchestratorResult(
         query=state.query,
-        intent=state.intent.intent if state.intent else Intent.LEGAL_RESEARCH,
-        jurisdiction=state.jurisdiction or JurisdictionResult(),
-        answer=state.answer,
-        sources=state.sources,
-        web_sources=state.web_sources,
-        web_images=state.web_images,
-        suggestions=state.suggestions,
-        citations=state.citations,
-        confidence=state.confidence
-        or ConfidenceBreakdown(
-            retrieval_strength=0.0, source_agreement=0.0, coverage=0.0, overall=0.0
-        ),
-        trace=state.trace,
-        specialist_payload=specialist_payload,
+        intent=Intent.LEGAL_RESEARCH,
+        jurisdiction=JurisdictionResult(),
+        answer=answer,
+        sources=kb_results,
+        web_sources=web_sources,
+        web_images=[],
+        suggestions=suggestions,
+        citations=citations,
+        confidence=score_confidence(kb_results),
+        trace=[],
+        specialist_payload={},
     )
-
-
-def _build_graph(
-    *,
-    retriever: RetrieverPort,
-    llm: LLMPort,
-    contract_review: SpecialistPort | None = None,
-    litigation: SpecialistPort | None = None,
-):
-    graph = StateGraph(OrchestratorState)
-
-    graph.add_node("intent", IntentAgent())
-    graph.add_node("jurisdiction", JurisdictionAgent())
-    graph.add_node("research", ResearchAgent(retriever))
-    graph.add_node("web_search", WebSearchAgent())
-    graph.add_node("reasoning", ReasoningAgent(llm))
-    graph.add_node("contract_review", ContractReviewAgent(contract_review))
-    graph.add_node("drafting", DraftingAgent())
-    graph.add_node("litigation", LitigationAgent(litigation))
-    graph.add_node("compliance", ComplianceAgent())
-    graph.add_node("lawyer_matching", LawyerMatchingAgent())
-    graph.add_node("evidence", EvidenceAgent())
-
-    graph.add_edge(START, "intent")
-    graph.add_edge("intent", "jurisdiction")
-    graph.add_edge("jurisdiction", "research")
-    graph.add_edge("research", "web_search")
-    graph.add_edge("web_search", "reasoning")
-    graph.add_conditional_edges(
-        "reasoning",
-        _route_by_intent,
-        {
-            "contract_review": "contract_review",
-            "drafting": "drafting",
-            "litigation": "litigation",
-            "compliance": "compliance",
-            "lawyer_matching": "lawyer_matching",
-            "evidence": "evidence",
-            END: END,
-        },
-    )
-    for specialist in _INTENT_TO_SPECIALIST.values():
-        graph.add_edge(specialist, END)
-
-    return graph.compile()
 
 
 class LegalOrchestrator:
-    """High-level facade over the compiled LangGraph application."""
+    """Facade over the tool-calling AgentGraph."""
 
     def __init__(
         self,
         *,
         retriever: RetrieverPort,
-        llm: LLMPort,
+        llm_settings: LLMSettings,
+        llm: LLMPort | None = None,
         contract_review: SpecialistPort | None = None,
         litigation: SpecialistPort | None = None,
     ) -> None:
-        self._retriever = retriever
-        self._llm = llm
-        self._app = _build_graph(
-            retriever=retriever,
-            llm=llm,
-            contract_review=contract_review,
-            litigation=litigation,
+        kb_tool = build_kb_tool(retriever)
+        web_tool = build_web_tool(tavily_api_key=llm_settings.tavily_api_key)
+        self._agent_graph = AgentGraph(
+            kb_tool=kb_tool,
+            web_tool=web_tool,
+            llm_model=llm_settings.llm_model,
+            llm_api_key=llm_settings.llm_api_key,
+            llm_base_url=llm_settings.llm_base_url,
         )
 
-    async def run_state(self, state: OrchestratorState) -> OrchestratorResult:
-        raw = await self._app.ainvoke(state)
-        final = raw if isinstance(raw, OrchestratorState) else OrchestratorState(**raw)
-        return _state_to_result(final)
+    async def _stream_conversational(self, state: OrchestratorState) -> AsyncIterator[str]:
+        """Fast path — direct LLM stream with no tools and no LangGraph overhead."""
+        from langchain_core.messages import HumanMessage, SystemMessage
 
-    async def run_state_streaming(self, state: OrchestratorState) -> AsyncIterator[str]:
-        """Run retrieval pipeline, then stream the reasoning answer as SSE payloads."""
-        intent_agent = IntentAgent()
-        jurisdiction_agent = JurisdictionAgent()
-        research_agent = ResearchAgent(self._retriever)
-        web_agent = WebSearchAgent()
-        reasoning_agent = ReasoningAgent(self._llm)
+        yield _sse("status", {"stage": "thinking", "message": "Responding…"})
 
-        current = state
-
-        yield _sse("status", {"stage": "intent", "message": "Understanding your question…"})
-        current = _merge_agent_update(current, await intent_agent(current))
-
-        yield _sse("status", {"stage": "jurisdiction", "message": "Checking jurisdiction…"})
-        current = _merge_agent_update(current, await jurisdiction_agent(current))
-
-        yield _sse("status", {"stage": "research", "message": "Searching legal sources…"})
-        current = _merge_agent_update(current, await research_agent(current))
-
-        yield _sse("status", {"stage": "web", "message": "Enriching with web context…"})
-        current = _merge_agent_update(current, await web_agent(current))
-
-        yield _sse("status", {"stage": "answer", "message": "Drafting your answer…"})
-
+        messages = [
+            SystemMessage(content=_CONVERSATIONAL_SYSTEM_PROMPT),
+            HumanMessage(content=state.query),
+        ]
         answer_parts: list[str] = []
         try:
-            async for token in reasoning_agent.stream_answer(current):
-                answer_parts.append(token)
-                yield _sse("token", {"text": token})
+            async for chunk in self._agent_graph.astream_direct(messages):
+                token = chunk.content if isinstance(chunk.content, str) else ""
+                if token:
+                    answer_parts.append(token)
+                    yield _sse("token", {"text": token})
         except Exception as exc:
+            logger.error("conversational_stream_error error=%s", exc)
+            fallback = "I'm here to help with Indian law. What legal question can I assist you with?"
+            answer_parts.append(fallback)
+            yield _sse("token", {"text": fallback})
+
+        answer = "".join(answer_parts)
+        result = _build_result(state, answer, [], [], [], _CONVERSATIONAL_SUGGESTIONS)
+        yield _sse("done", result.model_dump(mode="json"))
+
+    async def run_state_streaming(self, state: OrchestratorState) -> AsyncIterator[str]:
+        if state.route == QueryRoute.CONVERSATIONAL:
+            async for chunk in self._stream_conversational(state):
+                yield chunk
+            return
+
+        initial = _build_agent_state(state)
+
+        yield _sse("status", {"stage": "thinking", "message": "Analysing your question…"})
+
+        answer_parts: list[str] = []
+        kb_results: list = []
+        web_results: list = []
+
+        try:
+            async for event in self._agent_graph.astream_events(initial):
+                kind = event.get("event", "")
+                name = event.get("name", "")
+
+                if kind == "on_tool_start":
+                    if "knowledge_base" in name:
+                        yield _sse("status", {"stage": "research", "message": "Searching legal sources…"})
+                    elif "web" in name:
+                        yield _sse("status", {"stage": "web", "message": "Checking recent developments…"})
+
+                elif kind == "on_chat_model_stream":
+                    chunk = event.get("data", {}).get("chunk")
+                    if chunk is not None:
+                        token = ""
+                        if hasattr(chunk, "content") and isinstance(chunk.content, str):
+                            token = chunk.content
+                        elif hasattr(chunk, "content") and isinstance(chunk.content, list):
+                            for block in chunk.content:
+                                if isinstance(block, dict) and block.get("type") == "text":
+                                    token += block.get("text", "")
+                        if token and not getattr(chunk, "tool_call_chunks", None):
+                            answer_parts.append(token)
+                            yield _sse("token", {"text": token})
+
+                elif kind == "on_chain_end" and name == "LangGraph":
+                    output = event.get("data", {}).get("output", {})
+                    kb_results = output.get("kb_results", [])
+                    web_results = output.get("web_results", [])
+
+        except Exception as exc:
+            logger.error("Agent graph error: %s", exc)
             if not answer_parts:
-                fallback = (
-                    "The language model is temporarily unavailable. "
-                    "Please retry shortly, or set LLM_USE_STUB=true in .env for offline demo answers."
-                )
+                fallback = "The AI service is temporarily unavailable. Please retry shortly."
                 answer_parts.append(fallback)
                 yield _sse("token", {"text": fallback})
                 yield _sse("error", {"message": str(exc)})
 
-        answer = "".join(answer_parts)
-        if is_conversational(current.query):
-            citations: list = []
-            confidence = score_confidence([])
-        else:
-            _, citations = assemble_context(current.sources)
-            confidence = score_confidence(current.sources)
+        raw_answer = "".join(answer_parts)
 
-        try:
-            suggestions = await reasoning_agent._generate_suggestions(current, answer)
-        except Exception:
-            suggestions = []
+        citations, cited_web = merge_citations(raw_answer, kb_results, web_results)
 
-        current = _merge_agent_update(
-            current,
-            {
-                "answer": answer,
-                "citations": citations,
-                "confidence": confidence,
-                "suggestions": suggestions,
-            },
-        )
-        yield _sse("done", _state_to_result(current).model_dump(mode="json"))
+        guardrail_result = OutputGuardrail().validate(raw_answer, max_valid_citations=len(citations))
+        answer = guardrail_result.answer
+
+        suggestions = _suggest(state.query, kb_results, web_results)
+        result = _build_result(state, answer, kb_results, cited_web, citations, suggestions)
+        serialised = result.model_dump(mode="json")
+        # citations fires first so the UI can render sources before the done event.
+        yield _sse("citations", serialised)
+        yield _sse("done", serialised)
+
+    async def run_state(self, state: OrchestratorState) -> OrchestratorResult:
+        from langchain_core.messages import AIMessage
+
+        initial = _build_agent_state(state)
+        final_state = await self._agent_graph.run(initial)
+
+        answer = ""
+        for msg in reversed(final_state.get("messages", [])):
+            if isinstance(msg, AIMessage) and not msg.tool_calls:
+                answer = msg.content if isinstance(msg.content, str) else ""
+                break
+
+        kb_results = final_state.get("kb_results", [])
+        web_results = final_state.get("web_results", [])
+        citations, cited_web = merge_citations(answer, kb_results, web_results)
+
+        guardrail_result = OutputGuardrail().validate(answer, max_valid_citations=len(citations))
+        answer = guardrail_result.answer
+
+        suggestions = _suggest(state.query, kb_results, web_results)
+        return _build_result(state, answer, kb_results, cited_web, citations, suggestions)
 
     async def run(
         self, query: str, *, jurisdiction_hint: str | None = None, user_token: str | None = None
@@ -231,12 +314,14 @@ class LegalOrchestrator:
 def build_orchestrator(
     *,
     retriever: RetrieverPort,
+    llm_settings: LLMSettings,
     llm: LLMPort,
     contract_review: SpecialistPort | None = None,
     litigation: SpecialistPort | None = None,
 ) -> LegalOrchestrator:
     return LegalOrchestrator(
         retriever=retriever,
+        llm_settings=llm_settings,
         llm=llm,
         contract_review=contract_review,
         litigation=litigation,

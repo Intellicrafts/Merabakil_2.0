@@ -36,7 +36,7 @@ function initialState(): CourtroomState {
     phase: "setup",
     activeSpeaker: null,
     judgeState: "listening",
-    timelineStep: "opening",
+    timelineStep: "appearance",
     transcript: [],
     exhibits: [],
     authorities: [],
@@ -125,7 +125,7 @@ function buildScript(config: CourtroomSessionConfig): ScriptBeat[] {
         speaker: p,
         text: "Exhibit P-2 contradicts that position — the medical examination was ignored.",
         textHi: "प्रदर्श संख्या P-2 इस स्थिति का खंडन करता है — चिकित्सा परीक्षण को अनदेखा किया गया।",
-        timeline: "examination",
+        timeline: "submissions",
       },
       {
         delayMs: 3000,
@@ -236,7 +236,7 @@ function buildScript(config: CourtroomSessionConfig): ScriptBeat[] {
       speaker: p,
       text: "Both. Section 73 damages and specific performance under the Specific Relief Act.",
       textHi: "दोनों। धारा 73 के अंतर्गत हर्जाना और विशिष्ट राहत अधिनियम के तहत विशिष्ट निष्पादन।",
-      timeline: "examination",
+      timeline: "submissions",
     },
     {
       delayMs: 3000,
@@ -629,17 +629,26 @@ export function createMockCourtroomAdapter(): CourtroomSimulationAdapter {
       if (state.phase !== "hearing" || objectionPending) return;
       objectionPending = true;
       const by: SpeakerRole = state.activeSpeaker === "respondent" ? "petitioner" : "respondent";
-      const ruling = type === "procedure" ? "sustained" : type === "hearsay" ? "overruled" : "sustained";
+      const ruling =
+        type === "hearsay"
+          ? "overruled"
+          : type === "procedure" ||
+              type === "no_foundation" ||
+              type === "beyond_pleadings" ||
+              type === "leading" ||
+              type === "relevance"
+            ? "sustained"
+            : "sustained";
       const noteEn = ruling === "sustained" ? "The objection is sustained." : "The objection is overruled.";
       const noteHi = ruling === "sustained" ? "आपत्ति स्वीकार की जाती है।" : "आपत्ति खारिज की जाती है।";
       const event = {
         id: `obj-${Date.now()}`,
         by,
         type,
-        ruling,
+        ruling: ruling as "sustained" | "overruled",
         timestamp: state.elapsedSeconds,
         note: noteEn,
-      } as const;
+      };
       state = { ...state, objections: [...state.objections, event] };
       emit({ type: "objectionRuling", event });
       const metricsDelta =

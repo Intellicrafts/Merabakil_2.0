@@ -305,8 +305,31 @@ export default function MeraVakilPage() {
               };
             });
           },
+          onCitations: (citationsResult) => {
+            // Attach citations immediately — don't wait for suggestions (done event).
+            setActiveConversation((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === assistantMsgId
+                    ? {
+                        ...m,
+                        content: citationsResult.answer,
+                        research: {
+                          ...citationsResult,
+                          web_sources: citationsResult.web_sources ?? [],
+                          web_images: citationsResult.web_images ?? [],
+                          suggestions: [],
+                        },
+                      }
+                    : m,
+                ),
+              };
+            });
+          },
         },
-        { documentId: documentId ?? undefined, signal: controller.signal },
+        { documentId: documentId ?? undefined, signal: controller.signal, sessionId: activeConversation?.id },
       );
 
       const finalized = createAssistantMessage(result);
@@ -350,7 +373,7 @@ export default function MeraVakilPage() {
   }
 
   function handleCitationClick(marker: string) {
-    const num = marker.replace(/[[\]]/g, "");
+    const num = marker.replace(/[[\]]/g, "").replace(/^(KB|WEB)-/, "");
     const el = document.getElementById(`source-${num}`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }

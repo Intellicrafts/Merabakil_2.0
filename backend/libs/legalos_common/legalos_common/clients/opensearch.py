@@ -53,6 +53,13 @@ class OpenSearchClient:
         if actions:
             await self._client.bulk(body=actions, refresh=True)
 
+    async def delete_by_document_id(self, document_id: str) -> None:
+        await self._client.delete_by_query(
+            index=self._index,
+            body={"query": {"term": {"document_id": document_id}}},
+            refresh=True,
+        )
+
     async def search(
         self,
         query: str,

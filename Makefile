@@ -57,8 +57,12 @@ dev-frontend: ## Run Next.js frontend (requires backend dev stack)
 	PATH="$$HOME/.local/node/bin:$$PATH" npm install && PATH="$$HOME/.local/node/bin:$$PATH" npm run dev
 
 .PHONY: bulk-ingest
-bulk-ingest: ## Ingest raw-data/ corpus into Qdrant + OpenSearch
+bulk-ingest: ## Incremental ingest of raw-data/ into Qdrant + OpenSearch
 	. .venv/bin/activate && python data-platform/workers/bulk_ingest_raw_data.py
+
+.PHONY: embed-corpus
+embed-corpus: ## Warm native embedding cache (SOURCE=path for one file)
+	. .venv/bin/activate && python backend/scripts/embed_corpus.py $(if $(SOURCE),--source "$(SOURCE)",)
 
 .PHONY: eval-rag
 eval-rag: ## Run RAG benchmark evaluation (requires TOKEN or running stack)

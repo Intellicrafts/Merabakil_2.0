@@ -5,6 +5,9 @@ import { cn } from "@/lib/utils";
 
 const OBJECTION_TYPES: { id: ObjectionType; label: string }[] = [
   { id: "relevance", label: "Relevance" },
+  { id: "leading", label: "Leading" },
+  { id: "no_foundation", label: "No foundation" },
+  { id: "beyond_pleadings", label: "Beyond pleadings" },
   { id: "hearsay", label: "Hearsay" },
   { id: "procedure", label: "Procedure" },
 ];
@@ -29,13 +32,13 @@ export function ObjectionBar({ objections, disabled, onRaise }: ObjectionBarProp
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Objections
+            Objections · Evidence Act / pleadings
           </p>
           {latest && (
             <p className="mt-0.5 text-[12px] text-muted-foreground">
               Latest: <span className="font-semibold capitalize text-foreground">{latest.ruling}</span>
               {" · "}
-              {latest.type}
+              {latest.type.replace(/_/g, " ")}
             </p>
           )}
         </div>

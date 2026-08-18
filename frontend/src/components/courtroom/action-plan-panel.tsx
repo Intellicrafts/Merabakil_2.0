@@ -22,7 +22,7 @@ import type {
   ProposedAction,
   ProposedActionPlan,
 } from "@/lib/courtroom/types";
-import { buildActionPlanPdf, downloadPdf } from "@/lib/courtroom/pdf-report";
+import { buildActionPlanPdf } from "@/lib/courtroom/pdf-report";
 import { setMeraVakilPrefill, setResearchPrefill } from "@/lib/courtroom/session-store";
 import { cn } from "@/lib/utils";
 
@@ -129,11 +129,14 @@ export function ActionPlanPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            What to do next
+            Starting brief · what to file / prove next
           </p>
           <h3 className="mt-0.5 text-[1.05rem] font-semibold tracking-tight sm:text-[1.15rem]">
             {plan?.headline ?? "Counsel action plan"}
           </h3>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Simulation checklist for case strength — not a court order or legal advice.
+          </p>
           {status === "loading" && (
             <p className="mt-1 flex items-center gap-2 text-[12px] text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -537,7 +540,6 @@ export function buildActionPlanMarkdown(plan: ProposedActionPlan): string {
   return lines.join("\n");
 }
 
-export function downloadActionPlan(plan: ProposedActionPlan) {
-  const doc = buildActionPlanPdf(plan);
-  downloadPdf(doc, `courtroom-action-plan-${Date.now()}.pdf`);
+export async function downloadActionPlan(plan: ProposedActionPlan) {
+  await buildActionPlanPdf(plan);
 }

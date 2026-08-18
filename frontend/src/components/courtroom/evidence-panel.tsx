@@ -43,11 +43,13 @@ export function EvidencePanel({ exhibits }: EvidencePanelProps) {
                     ex.status === "admitted"
                       ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
                       : ex.status === "marked"
-                        ? "border-stone-400/30 bg-stone-100 text-stone-700 dark:border-white/15 dark:bg-white/10"
-                        : "border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-300",
+                        ? "border-sky-500/25 bg-sky-500/10 text-sky-900 dark:text-sky-200"
+                        : ex.status === "rejected"
+                          ? "border-rose-500/25 bg-rose-500/10 text-rose-900 dark:text-rose-300"
+                          : "border-amber-500/25 bg-amber-500/10 text-amber-900 dark:text-amber-300",
                   )}
                 >
-                  {ex.status}
+                  {ex.status === "marked" ? "marked for identification" : ex.status}
                 </span>
               </div>
             </li>

@@ -64,7 +64,7 @@ def main() -> None:
     _wait_url("http://localhost:8001/health", timeout_sec=30, label="Auth")
 
     procs.append(_start([PY, os.path.join(SCRIPTS, "dev_search_server.py")]))
-    print("  Waiting for search index (embedding ~1250 chunks, 3-5 min)...", flush=True)
+    print("  Waiting for search index (embedding cache; first run may take a few minutes)...", flush=True)
     if not _wait_url("http://localhost:8003/health", timeout_sec=360, label="Search"):
         print("  Search failed to start — check logs", flush=True)
         _shutdown()

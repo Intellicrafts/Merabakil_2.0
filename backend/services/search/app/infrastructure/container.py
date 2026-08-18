@@ -3,10 +3,11 @@ from __future__ import annotations
 from app.application.use_cases import HybridSearchUseCase
 from app.config import SearchSettings
 from app.domain.rerank import LexicalReranker
-from app.infrastructure.adapters import OpenSearchAdapter, QdrantSearchAdapter
+from app.infrastructure.adapters import QdrantHybridAdapter
 from app.infrastructure.cache import SearchResultCache
-from legalos_common.clients import OpenSearchClient, QdrantVectorClient, build_embedding_client
+from legalos_common.clients import QdrantVectorClient, build_embedding_client
 from legalos_common.clients.llm import EmbeddingClient
+from legalos_common.search.sparse_encoder import SparseEncoder
 
 
 class Container:
@@ -18,13 +19,10 @@ class Container:
             settings.qdrant.qdrant_collection,
             settings.llm.embedding_dim,
         )
-        self.opensearch = OpenSearchClient(
-            settings.opensearch.opensearch_url, settings.opensearch.opensearch_index
-        )
+        self.sparse = SparseEncoder()
         self.use_case = HybridSearchUseCase(
             embedder=self.embedder,
-            vector_store=QdrantSearchAdapter(self.qdrant),
-            keyword_store=OpenSearchAdapter(self.opensearch),
+            hybrid_store=QdrantHybridAdapter(self.qdrant, self.sparse),
             reranker=LexicalReranker(),
             settings=settings,
         )
@@ -35,14 +33,14 @@ class Container:
         )
 
     async def startup(self) -> None:
+        self.sparse.load()
         await self.qdrant.ensure_collection()
-        await self.opensearch.ensure_index()
+        await self.qdrant.ensure_parents_collection()
         if self.cache:
             await self.cache.clear_all()
 
     async def shutdown(self) -> None:
         await self.qdrant.close()
-        await self.opensearch.close()
         if self.cache:
             await self.cache.close()
 

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 
 import httpx
 
 from legalos_common.config import LLMSettings
+
+logger = logging.getLogger(__name__)
 
 _GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 _SAMPLE_RATE = 24_000
@@ -64,6 +67,13 @@ class GeminiTTSClient(TTSClient):
                 params={"key": self._settings.llm_api_key},
                 json=self._request_body(text, voice),
             )
+            if resp.status_code != 200:
+                logger.warning(
+                    "gemini_tts_sync_error status=%s model=%s body=%s",
+                    resp.status_code,
+                    self._model(),
+                    resp.text[:200],
+                )
             resp.raise_for_status()
             data = resp.json()
         return self._extract_pcm(data)
@@ -84,13 +94,10 @@ class GeminiTTSClient(TTSClient):
 
     async def stream_speech(self, text: str, *, voice: str | None = None) -> AsyncIterator[bytes]:
         selected_voice = self._voice(voice)
-        if "3.1" not in self._model():
-            pcm = await self._synthesize_chunk(text, selected_voice)
-            if pcm:
-                yield pcm
-            return
+        model = self._model()
 
-        url = f"{_GEMINI_API_BASE}/models/{self._model()}:streamGenerateContent"
+        # Try streaming endpoint first (works for all Gemini TTS models).
+        url = f"{_GEMINI_API_BASE}/models/{model}:streamGenerateContent"
         params = {"key": self._settings.llm_api_key, "alt": "sse"}
         body = self._request_body(text, selected_voice)
         yielded = False
@@ -98,7 +105,13 @@ class GeminiTTSClient(TTSClient):
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 async with client.stream("POST", url, params=params, json=body) as resp:
-                    resp.raise_for_status()
+                    if resp.status_code != 200:
+                        logger.warning(
+                            "gemini_tts_stream_error status=%s model=%s",
+                            resp.status_code,
+                            model,
+                        )
+                        resp.raise_for_status()
                     async for line in resp.aiter_lines():
                         if not line.startswith("data:"):
                             continue
@@ -116,10 +129,13 @@ class GeminiTTSClient(TTSClient):
                                 yield pcm
                         except ValueError:
                             continue
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as exc:
+            logger.warning("gemini_tts_stream_http_error model=%s error=%s", model, exc)
             yielded = False
 
         if not yielded:
+            # Fallback: non-streaming generateContent (works for most standard models).
+            logger.debug("gemini_tts_fallback_to_sync model=%s", model)
             pcm = await self._synthesize_chunk(text, selected_voice)
             if pcm:
                 yield pcm

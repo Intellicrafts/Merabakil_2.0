@@ -9,6 +9,10 @@ import { cn } from "@/lib/utils";
 interface CourtroomHeroProps {
   phase: CourtroomPhase;
   matterTitle?: string;
+  matterType?: string;
+  petitionerName?: string;
+  respondentName?: string;
+  listingPurpose?: string;
   elapsedSeconds?: number;
   /** True when viewing a locally saved completed run. */
   reviewingSaved?: boolean;
@@ -30,11 +34,22 @@ function formatPhase(phase: CourtroomPhase, reviewingSaved?: boolean): string {
 export function CourtroomHero({
   phase,
   matterTitle,
+  matterType,
+  petitionerName,
+  respondentName,
+  listingPurpose = "AI Courtroom Simulation — case-strength analysis",
   elapsedSeconds = 0,
   reviewingSaved = false,
 }: CourtroomHeroProps) {
   const mins = Math.floor(elapsedSeconds / 60);
   const secs = elapsedSeconds % 60;
+  const showCauseList =
+    Boolean(matterTitle) &&
+    (phase === "hearing" ||
+      phase === "deliberation" ||
+      phase === "judgment" ||
+      phase === "agentsReady" ||
+      reviewingSaved);
 
   return (
     <header
@@ -49,22 +64,35 @@ export function CourtroomHero({
       <div className="pointer-events-none absolute -right-12 -top-16 h-44 w-44 rounded-full bg-amber-900/10 blur-3xl cs-hero-glow dark:bg-amber-200/5" />
 
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="max-w-xl space-y-2">
+        <div className="max-w-2xl space-y-2">
           <div className="cs-simulation-banner inline-flex items-center gap-2 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-900/80 dark:text-amber-200/80">
             <ShieldAlert className="h-3 w-3" strokeWidth={1.75} />
-            AI Simulation — not a real court
+            Simulation — not a real court · not legal advice
           </div>
           <h1 className="text-[1.35rem] font-semibold leading-tight tracking-tight sm:text-[1.65rem]">
             AI Courtroom Simulation
           </h1>
-          <p className="text-[13px] leading-relaxed text-muted-foreground sm:text-[14px]">
-            {reviewingSaved
-              ? matterTitle
-                ? `Reviewing saved judgment — ${matterTitle}`
-                : "Reviewing a simulation saved on this device."
-              : matterTitle ||
-                "Configure your matter and begin a procedural hearing with Judge and Advocate AI."}
-          </p>
+
+          {showCauseList ? (
+            <div className="mt-2 rounded-xl border border-stone-300/40 bg-stone-50/80 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Cause list · {matterType || "Civil"} forum (simulated)
+              </p>
+              <p className="mt-1 text-[14px] font-semibold tracking-tight">{matterTitle}</p>
+              {(petitionerName || respondentName) && (
+                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                  {petitionerName || "Petitioner"} vs {respondentName || "Respondent"}
+                </p>
+              )}
+              <p className="mt-1 text-[11px] text-muted-foreground">{listingPurpose}</p>
+            </div>
+          ) : (
+            <p className="text-[13px] leading-relaxed text-muted-foreground sm:text-[14px]">
+              Configure your matter and begin a procedural hearing with Judge and Advocate AI.
+              Output is a starting brief for case strength — not a court order.
+            </p>
+          )}
+
           <div className="flex flex-wrap gap-2 pt-1">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.06] bg-white/70 px-2.5 py-1 text-[11px] text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04]">
               <Gavel className="h-3 w-3" strokeWidth={1.75} />

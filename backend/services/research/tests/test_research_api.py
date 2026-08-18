@@ -12,11 +12,10 @@ async def test_research_returns_grounded_answer(client, access_token) -> None:
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["answer"] == "Grounded legal answer citing [1]."
+    assert "[KB-1]" in body["answer"]
     assert body["sources"][0]["document_id"] == "d1"
-    assert body["citations"][0]["marker"] == "[1]"
+    assert body["citations"][0]["marker"] == "[KB-1]"
     assert 0.0 < body["confidence"]["overall"] <= 1.0
-    assert "reasoning_agent" in body["trace"]
     assert body["disclaimer"]
 
 

@@ -12,6 +12,10 @@ interface HearingStageProps {
   judgeNote?: string;
   agents?: AgentPersona[];
   isThinking?: boolean;
+  /** Show appearance / cause-list strip before or during hearing. */
+  showAppearance?: boolean;
+  matterTitle?: string;
+  matterType?: string;
 }
 
 export function HearingStage({
@@ -22,7 +26,14 @@ export function HearingStage({
   judgeNote,
   agents,
   isThinking,
+  showAppearance = true,
+  matterTitle,
+  matterType,
 }: HearingStageProps) {
+  const judgeAgent = agents?.find((a) => a.role === "judge");
+  const pAgent = agents?.find((a) => a.role === "petitioner_advocate");
+  const rAgent = agents?.find((a) => a.role === "respondent_advocate");
+
   return (
     <div
       className={cn(
@@ -32,9 +43,38 @@ export function HearingStage({
       )}
     >
       <div className="pointer-events-none absolute inset-x-8 top-0 h-px cs-shimmer-line" />
-      <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+      <p className="mb-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         Live hearing stage
       </p>
+
+      {showAppearance && (
+        <div className="mb-3 rounded-xl border border-stone-300/35 bg-white/70 px-3 py-2 text-[11px] dark:border-white/10 dark:bg-white/[0.04]">
+          <p className="font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            Appearance
+          </p>
+          <div className="mt-1.5 grid gap-1 sm:grid-cols-3">
+            <p>
+              <span className="text-muted-foreground">Bench — </span>
+              {judgeAgent?.displayName || "Hon'ble AI Judge"}
+            </p>
+            <p>
+              <span className="text-muted-foreground">For petitioner — </span>
+              {pAgent?.displayName || petitionerName}
+            </p>
+            <p>
+              <span className="text-muted-foreground">For respondent — </span>
+              {rAgent?.displayName || respondentName}
+            </p>
+          </div>
+          {(matterTitle || matterType) && (
+            <p className="mt-1 text-muted-foreground">
+              {matterType ? `${matterType} · ` : ""}
+              {matterTitle}
+            </p>
+          )}
+        </div>
+      )}
+
       <CourtroomBench
         petitionerName={petitionerName}
         respondentName={respondentName}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, ShieldCheck } from "lucide-react";
+import { ChevronRight, ExternalLink, ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { ResearchResponse } from "@/lib/types";
@@ -22,19 +22,17 @@ export function ResearchMetadataPanel({ research, onCitationClick }: ResearchMet
 
   const sourceCount = research.sources.length;
   const citationCount = research.citations.length;
+  const webCount = research.web_sources?.length ?? 0;
   const confidencePct = Math.round(research.confidence.overall * 100);
-  const hasMetadata =
-    sourceCount > 0 ||
-    citationCount > 0 ||
-    research.confidence.overall > 0 ||
-    (research.web_sources?.length ?? 0) > 0;
+  const hasMetadata = sourceCount > 0 || citationCount > 0 || webCount > 0;
 
   if (!hasMetadata) return null;
 
   const summaryParts = [
     "Sources & grounding",
     confidencePct > 0 ? `${confidencePct}% confidence` : null,
-    sourceCount > 0 ? `${sourceCount} article${sourceCount === 1 ? "" : "s"}` : null,
+    citationCount > 0 ? `${citationCount} KB citation${citationCount === 1 ? "" : "s"}` : null,
+    webCount > 0 ? `${webCount} web source${webCount === 1 ? "" : "s"}` : null,
   ].filter(Boolean);
 
   return (
@@ -79,8 +77,8 @@ export function ResearchMetadataPanel({ research, onCitationClick }: ResearchMet
                 {research.jurisdiction.level}
                 {research.jurisdiction.region ? ` · ${research.jurisdiction.region}` : ""}
               </span>
-              {research.web_sources?.length > 0 && (
-                <span className="text-slate-600 dark:text-slate-300">Web supplemented</span>
+              {webCount > 0 && (
+                <span className="text-blue-600 dark:text-blue-400">Web supplemented</span>
               )}
             </div>
 
@@ -97,6 +95,24 @@ export function ResearchMetadataPanel({ research, onCitationClick }: ResearchMet
                     <span className="font-medium">{cite.marker}</span>
                     <span className="max-w-[180px] truncate">{cite.title ?? cite.document_id}</span>
                   </button>
+                ))}
+              </div>
+            )}
+
+            {webCount > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {research.web_sources.map((src, idx) => (
+                  <a
+                    key={src.url}
+                    href={src.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border border-blue-200/70 bg-blue-50/60 px-2.5 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-100/80 dark:border-blue-400/20 dark:bg-blue-900/20 dark:text-blue-300"
+                  >
+                    <span className="font-medium">{`[WEB-${idx + 1}]`}</span>
+                    <span className="max-w-[180px] truncate">{src.title}</span>
+                    <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-60" />
+                  </a>
                 ))}
               </div>
             )}

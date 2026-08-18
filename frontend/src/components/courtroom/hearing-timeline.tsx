@@ -4,20 +4,29 @@ import type { HearingTimelineStep } from "@/lib/courtroom/types";
 import { cn } from "@/lib/utils";
 
 const STEPS: { id: HearingTimelineStep; label: string }[] = [
-  { id: "opening", label: "Matter called" },
-  { id: "examination", label: "Arguments" },
-  { id: "objections", label: "Objections" },
+  { id: "appearance", label: "Appearance" },
+  { id: "issues_framed", label: "Issues framed" },
+  { id: "evidence_marking", label: "Evidence" },
+  { id: "submissions", label: "Submissions" },
+  { id: "reply", label: "Reply" },
   { id: "closing", label: "Closing" },
   { id: "verdict", label: "Oral order" },
   { id: "deliberation", label: "Written order" },
 ];
+
+const LEGACY_MAP: Partial<Record<HearingTimelineStep, HearingTimelineStep>> = {
+  opening: "appearance",
+  examination: "submissions",
+  objections: "submissions",
+};
 
 interface HearingTimelineProps {
   activeStep: HearingTimelineStep;
 }
 
 export function HearingTimeline({ activeStep }: HearingTimelineProps) {
-  const activeIndex = STEPS.findIndex((s) => s.id === activeStep);
+  const normalized = LEGACY_MAP[activeStep] ?? activeStep;
+  const activeIndex = STEPS.findIndex((s) => s.id === normalized);
 
   return (
     <div
@@ -30,7 +39,7 @@ export function HearingTimeline({ activeStep }: HearingTimelineProps) {
       <div className="flex min-w-max gap-1.5">
         {STEPS.map((step, index) => {
           const done = activeIndex > index;
-          const active = step.id === activeStep;
+          const active = step.id === normalized;
           return (
             <span
               key={step.id}

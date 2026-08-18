@@ -201,6 +201,12 @@ export function buildActionsPayload(opts: {
   transcriptText: string;
 }) {
   const { config, judgment, agenda, transcriptText } = opts;
+  const verifiedCiteCount = judgment.authoritiesQuality?.verifiedCount ??
+    judgment.authorities?.filter((a) => a.verified).length ??
+    0;
+  const unverifiedCiteCount = judgment.authoritiesQuality?.unverifiedCount ??
+    judgment.authorities?.filter((a) => !a.verified).length ??
+    0;
   return {
     matter_title: config.matterTitle,
     matter_type: config.matterType,
@@ -217,6 +223,9 @@ export function buildActionsPayload(opts: {
       status: a.status,
     })),
     transcript_excerpt: transcriptText.slice(-6000),
+    notCovered: judgment.notCovered ?? [],
+    verifiedCiteCount,
+    unverifiedCiteCount,
   };
 }
 

@@ -139,7 +139,11 @@ export function MessageBubble({
               "rounded-2xl bg-white/40 px-4 py-3 shadow-[0_2px_12px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:bg-white/[0.03]",
           )}
         >
-          <Markdown content={displayContent} onCitationClick={onCitationClick} />
+          <Markdown
+            content={displayContent}
+            onCitationClick={onCitationClick}
+            webSources={research?.web_sources}
+          />
           {stillTyping && (
             <span
               className="stream-caret ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[2px] bg-slate-600 dark:bg-slate-300"

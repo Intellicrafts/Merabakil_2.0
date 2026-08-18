@@ -57,9 +57,14 @@ class OrchestratorState(BaseModel):
     query: str
     jurisdiction_hint: str | None = None
     user_token: str | None = None
+    session_id: str | None = None
+    user_id: str | None = None
     scope: ResearchScope = ResearchScope.CORPUS
     search_filters: SearchFilters = Field(default_factory=SearchFilters)
     history: list[ConversationMessage] = Field(default_factory=list)
+    user_facts: list[str] = Field(default_factory=list)
+
+    route: str = "legal"  # set by QueryRouter before orchestrator runs
 
     intent: IntentResult | None = None
     jurisdiction: JurisdictionResult | None = None

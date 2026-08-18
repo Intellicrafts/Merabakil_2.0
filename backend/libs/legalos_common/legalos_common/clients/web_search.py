@@ -1,8 +1,9 @@
-"""Lightweight web search for legal fallback when the corpus is insufficient."""
+"""Web search client — Tavily (primary) with DuckDuckGo HTML fallback."""
 
 from __future__ import annotations
 
 import html
+import os
 import re
 from urllib.parse import quote, unquote
 
@@ -14,6 +15,8 @@ _USER_AGENT = (
     "Mozilla/5.0 (compatible; LegalOS/1.0; +https://legalos.local) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+
+# ── DuckDuckGo regex helpers (fallback only) ─────────────────────────────────
 
 _RESULT_LINK_RE = re.compile(
     r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
@@ -40,8 +43,36 @@ def _normalize_ddg_url(raw: str) -> str:
     return raw
 
 
-async def search_web_text(query: str, *, max_results: int = 5) -> list[WebSearchResult]:
-    """Search the public web via DuckDuckGo HTML (no API key required)."""
+# ── Tavily ───────────────────────────────────────────────────────────────────
+
+async def _search_tavily(query: str, *, max_results: int, api_key: str) -> list[WebSearchResult]:
+    from tavily import AsyncTavilyClient
+
+    if not api_key or api_key == "replace-me":
+        return []
+
+    client = AsyncTavilyClient(api_key=api_key)
+    response = await client.search(
+        query=query,
+        max_results=max_results,
+        search_depth="advanced",
+        include_answer=False,
+    )
+    results = []
+    for r in response.get("results", []):
+        results.append(
+            WebSearchResult(
+                title=r.get("title") or query,
+                url=r.get("url", ""),
+                snippet=(r.get("content") or r.get("raw_content") or "")[:600],
+            )
+        )
+    return results
+
+
+# ── DuckDuckGo fallback ──────────────────────────────────────────────────────
+
+async def _search_ddg(query: str, *, max_results: int) -> list[WebSearchResult]:
     results: list[WebSearchResult] = []
     try:
         async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
@@ -101,6 +132,22 @@ async def search_web_text(query: str, *, max_results: int = 5) -> list[WebSearch
         pass
 
     return results[:max_results]
+
+
+# ── Public API ───────────────────────────────────────────────────────────────
+
+async def search_web_text(
+    query: str, *, max_results: int = 5, tavily_api_key: str = ""
+) -> list[WebSearchResult]:
+    """Search the web — uses Tavily when a key is provided, otherwise DuckDuckGo."""
+    key = tavily_api_key or os.environ.get("TAVILY_API_KEY", "")
+    try:
+        results = await _search_tavily(query, max_results=max_results, api_key=key)
+        if results:
+            return results
+    except Exception:
+        pass
+    return await _search_ddg(query, max_results=max_results)
 
 
 async def search_web_images(query: str, *, max_results: int = 3) -> list[WebImageResult]:

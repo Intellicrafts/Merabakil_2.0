@@ -18,7 +18,9 @@ from app.api.schemas import (
     IngestStructuredRequest,
     IngestTextRequest,
     KnowledgeGraphResponse,
+    ReindexSourceRequest,
 )
+from app.application.reindex import ReindexDocumentUseCase
 from app.application.use_cases import IngestDocumentUseCase, IngestionResult
 from app.application.ports import StructuredChunkInput
 from app.infrastructure.container import get_container
@@ -37,6 +39,20 @@ ASYNC_THRESHOLD = 2_097_152
 
 def _to_response(result: IngestionResult) -> IngestionResultResponse:
     return IngestionResultResponse(**asdict(result))
+
+
+def _doc_summary(d) -> DocumentSummary:  # noqa: ANN001
+    return DocumentSummary(
+        document_id=str(d.id),
+        title=d.title,
+        doc_type=d.doc_type,
+        jurisdiction=d.jurisdiction,
+        chunk_count=d.chunk_count,
+        status=d.status,
+        source_uri=d.source_uri,
+        content_hash=d.content_hash,
+        indexed_at=getattr(d, "updated_at", None),
+    )
 
 
 @router.get(
@@ -137,6 +153,8 @@ async def ingest_structured(
         content_type=body.content_type,
         page_count=body.page_count,
         citations=body.citations,
+        content_hash=body.content_hash,
+        force=body.force,
         owner_id=uuid.UUID(user.user_id),
     )
     return _to_response(result)
@@ -221,17 +239,7 @@ async def list_documents(
 ) -> Page[DocumentSummary]:
     repo = DocumentRepository(session)
     docs, total = await repo.list(offset=params.offset, limit=params.size, doc_type=doc_type)
-    items = [
-        DocumentSummary(
-            document_id=str(d.id),
-            title=d.title,
-            doc_type=d.doc_type,
-            jurisdiction=d.jurisdiction,
-            chunk_count=d.chunk_count,
-            status=d.status,
-        )
-        for d in docs
-    ]
+    items = [_doc_summary(d) for d in docs]
     return paginate(items, total, params)
 
 
@@ -249,11 +257,47 @@ async def get_document(
     doc = await repo.get(document_id)
     if doc is None:
         raise NotFoundError("Document not found")
-    return DocumentSummary(
-        document_id=str(doc.id),
-        title=doc.title,
-        doc_type=doc.doc_type,
-        jurisdiction=doc.jurisdiction,
-        chunk_count=doc.chunk_count,
-        status=doc.status,
+    return _doc_summary(doc)
+
+
+@router.post(
+    "/documents/{document_id}/reindex",
+    response_model=IngestionResultResponse,
+    summary="Force re-embed and re-index one document",
+)
+async def reindex_document(
+    document_id: uuid.UUID,
+    force: bool = True,
+    _: CurrentUser = Depends(require_permissions(Permission.KNOWLEDGE_INGEST.value)),
+    use_case: IngestDocumentUseCase = Depends(build_ingest_use_case),
+    session: AsyncSession = Depends(get_session),
+) -> IngestionResultResponse:
+    reindex = ReindexDocumentUseCase(
+        ingest=use_case,
+        documents=DocumentRepository(session),
     )
+    result = await reindex.reindex_by_id(document_id, force=force)
+    return _to_response(result)
+
+
+@router.post(
+    "/sources/reindex",
+    response_model=IngestionResultResponse,
+    summary="Force re-ingest one raw-data corpus source by relative path",
+)
+async def reindex_source(
+    body: ReindexSourceRequest,
+    user: CurrentUser = Depends(require_permissions(Permission.KNOWLEDGE_INGEST.value)),
+    use_case: IngestDocumentUseCase = Depends(build_ingest_use_case),
+    session: AsyncSession = Depends(get_session),
+) -> IngestionResultResponse:
+    reindex = ReindexDocumentUseCase(
+        ingest=use_case,
+        documents=DocumentRepository(session),
+    )
+    result = await reindex.reindex_by_source_uri(
+        body.source_uri,
+        force=body.force,
+        owner_id=uuid.UUID(user.user_id),
+    )
+    return _to_response(result)

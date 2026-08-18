@@ -17,6 +17,7 @@ import {
   listCategories,
   listIngestionJobs,
   listKnowledgeDocuments,
+  reindexKnowledgeDocument,
   uploadDocument,
 } from "@/lib/api";
 import { isJobActive } from "@/lib/knowledge-ui";
@@ -30,6 +31,7 @@ export default function KnowledgeHubPage() {
   const [fileKey, setFileKey] = useState(0);
   const [activeJobs, setActiveJobs] = useState<string[]>([]);
   const [corpusFilter, setCorpusFilter] = useState<string | null>(null);
+  const [reindexingId, setReindexingId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -126,6 +128,31 @@ export default function KnowledgeHubPage() {
     },
   });
 
+  const handleReindex = useCallback(
+    async (documentId: string) => {
+      setReindexingId(documentId);
+      try {
+        const result = await reindexKnowledgeDocument(documentId, true);
+        toast({
+          title: result.status === "unchanged" ? "Already up to date" : "Re-indexed",
+          description: `${result.title} · ${result.chunk_count} chunks`,
+          variant: "success",
+        });
+        queryClient.invalidateQueries({ queryKey: ["knowledge-documents"] });
+        queryClient.invalidateQueries({ queryKey: ["knowledge-graph"] });
+      } catch (err) {
+        toast({
+          title: "Re-index failed",
+          description: err instanceof Error ? err.message : "Unknown error",
+          variant: "destructive",
+        });
+      } finally {
+        setReindexingId(null);
+      }
+    },
+    [queryClient, toast],
+  );
+
   const allJobs: IngestionJob[] = useMemo(() => {
     const remote = jobsQuery.data?.items ?? [];
     const placeholders = activeJobs
@@ -214,6 +241,8 @@ export default function KnowledgeHubPage() {
           errorMessage={
             documentsQuery.isError ? (documentsQuery.error as Error).message : undefined
           }
+          onReindex={handleReindex}
+          reindexingId={reindexingId}
         />
       )}
 

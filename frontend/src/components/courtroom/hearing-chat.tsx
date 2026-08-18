@@ -18,6 +18,8 @@ interface HearingChatProps {
   typingCharCount?: number;
   isThinking?: boolean;
   className?: string;
+  viewMode?: "chat" | "order_sheet";
+  onViewModeChange?: (mode: "chat" | "order_sheet") => void;
 }
 
 const BUBBLE: Record<SpeakerRole, string> = {
@@ -62,6 +64,8 @@ export function HearingChat({
   typingCharCount = 0,
   isThinking = false,
   className,
+  viewMode = "chat",
+  onViewModeChange,
 }: HearingChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevLen = useRef(0);
@@ -91,10 +95,35 @@ export function HearingChat({
         </div>
         <div className="min-w-0 flex-1">
           <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Argument chamber
+            {viewMode === "order_sheet" ? "Order sheet" : "Argument chamber"}
           </h2>
-          <p className="text-[10px] text-muted-foreground">{entries.length} submissions</p>
+          <p className="text-[10px] text-muted-foreground">{entries.length} entries</p>
         </div>
+        {onViewModeChange && (
+          <div className="flex rounded-lg border border-black/[0.06] p-0.5 text-[10px] dark:border-white/10">
+            <button
+              type="button"
+              onClick={() => onViewModeChange("chat")}
+              className={cn(
+                "rounded-md px-2 py-1 font-semibold",
+                viewMode === "chat" && "bg-stone-800 text-stone-50 dark:bg-stone-200 dark:text-stone-900",
+              )}
+            >
+              Chat
+            </button>
+            <button
+              type="button"
+              onClick={() => onViewModeChange("order_sheet")}
+              className={cn(
+                "rounded-md px-2 py-1 font-semibold",
+                viewMode === "order_sheet" &&
+                  "bg-stone-800 text-stone-50 dark:bg-stone-200 dark:text-stone-900",
+              )}
+            >
+              Order sheet
+            </button>
+          </div>
+        )}
         {listeningMode && speakingEntryId && (
           <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:text-emerald-200">
             <Volume2 className="h-3 w-3 cs-live-dot" />
@@ -123,6 +152,24 @@ export function HearingChat({
           </div>
         )}
 
+        {viewMode === "order_sheet" ? (
+          <ol className="space-y-0 border-l border-stone-300/50 pl-3 dark:border-white/15">
+            {entries.map((entry, index) => {
+              const { primary } = formatTranscriptLine(entry, language);
+              return (
+                <li key={entry.id} className="relative pb-3">
+                  <span className="absolute -left-[19px] top-0 flex h-5 w-5 items-center justify-center rounded-full border border-stone-300/60 bg-white text-[9px] font-bold tabular-nums dark:border-white/20 dark:bg-stone-900">
+                    {index + 1}
+                  </span>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {entry.speaker} · {entry.role}
+                  </p>
+                  <p className="mt-0.5 text-[12px] leading-relaxed text-foreground/90">{primary}</p>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
         <ul className="space-y-3">
           {entries.map((entry, index) => {
             const { primary, secondary } = formatTranscriptLine(entry, language);
@@ -191,6 +238,7 @@ export function HearingChat({
             );
           })}
         </ul>
+        )}
 
         {isThinking && (
           <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-stone-300/50 px-3 py-3 text-[11px] text-muted-foreground dark:border-white/12">

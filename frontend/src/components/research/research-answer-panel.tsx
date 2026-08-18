@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import type { ResearchResponse } from "@/lib/types";
@@ -75,32 +75,6 @@ export function ResearchAnswerPanel({
         <p className="rounded-xl border border-black/[0.05] bg-white/50 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground dark:border-white/[0.06] dark:bg-white/[0.03]">
           {result.disclaimer}
         </p>
-      )}
-
-      {result?.web_sources && result.web_sources.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Further reading
-          </p>
-          <ul className="space-y-1.5">
-            {result.web_sources.slice(0, 4).map((src) => (
-              <li key={src.url}>
-                <a
-                  href={src.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group flex items-start gap-2 rounded-lg border border-black/[0.05] bg-white/50 px-2.5 py-2 text-[12px] transition-colors hover:border-slate-300 dark:border-white/[0.06] dark:bg-white/[0.03]"
-                >
-                  <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium group-hover:underline">{src.title}</span>
-                    <span className="line-clamp-1 text-[11px] text-muted-foreground">{src.snippet}</span>
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
 
       {result?.suggestions && result.suggestions.length > 0 && onPickSuggestion && (
