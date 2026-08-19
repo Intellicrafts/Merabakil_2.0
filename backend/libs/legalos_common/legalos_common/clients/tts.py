@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import json
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
@@ -93,52 +92,14 @@ class GeminiTTSClient(TTSClient):
         raise ValueError("No audio data in Gemini TTS response")
 
     async def stream_speech(self, text: str, *, voice: str | None = None) -> AsyncIterator[bytes]:
+        # TTS audio is atomic — the model generates the full sentence audio at once,
+        # not token-by-token. generateContent is the correct endpoint; the streaming
+        # endpoint returns no additional benefit and its SSE format differs per model.
+        # Sentence-level concurrency (in the route layer) covers latency instead.
         selected_voice = self._voice(voice)
-        model = self._model()
-
-        # Try streaming endpoint first (works for all Gemini TTS models).
-        url = f"{_GEMINI_API_BASE}/models/{model}:streamGenerateContent"
-        params = {"key": self._settings.llm_api_key, "alt": "sse"}
-        body = self._request_body(text, selected_voice)
-        yielded = False
-
-        try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                async with client.stream("POST", url, params=params, json=body) as resp:
-                    if resp.status_code != 200:
-                        logger.warning(
-                            "gemini_tts_stream_error status=%s model=%s",
-                            resp.status_code,
-                            model,
-                        )
-                        resp.raise_for_status()
-                    async for line in resp.aiter_lines():
-                        if not line.startswith("data:"):
-                            continue
-                        payload = line[5:].strip()
-                        if not payload or payload == "[DONE]":
-                            continue
-                        try:
-                            chunk = json.loads(payload)
-                        except json.JSONDecodeError:
-                            continue
-                        try:
-                            pcm = self._extract_pcm(chunk)
-                            if pcm:
-                                yielded = True
-                                yield pcm
-                        except ValueError:
-                            continue
-        except httpx.HTTPStatusError as exc:
-            logger.warning("gemini_tts_stream_http_error model=%s error=%s", model, exc)
-            yielded = False
-
-        if not yielded:
-            # Fallback: non-streaming generateContent (works for most standard models).
-            logger.debug("gemini_tts_fallback_to_sync model=%s", model)
-            pcm = await self._synthesize_chunk(text, selected_voice)
-            if pcm:
-                yield pcm
+        pcm = await self._synthesize_chunk(text, selected_voice)
+        if pcm:
+            yield pcm
 
 
 def build_tts_client(settings: LLMSettings | None = None) -> TTSClient:
