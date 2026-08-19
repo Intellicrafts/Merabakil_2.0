@@ -483,6 +483,10 @@ export default function MeraVakilPage() {
             />
           )}
 
+          <p className="px-4 pb-1 text-center text-[11px] text-muted-foreground/50">
+            Informational only · Not a substitute for licensed legal advice
+          </p>
+
           <InputDock
             value={input}
             onChange={setInput}

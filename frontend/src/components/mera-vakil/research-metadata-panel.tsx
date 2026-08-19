@@ -137,9 +137,6 @@ export function ResearchMetadataPanel({ research, onCitationClick }: ResearchMet
               </div>
             )}
 
-            <p className="text-[11px] italic leading-relaxed text-muted-foreground/70">
-              {research.disclaimer}
-            </p>
           </div>
         </div>
       </div>
