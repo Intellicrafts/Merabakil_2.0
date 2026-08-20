@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Pencil, Sparkles, X } from "lucide-react";
 
 import { Markdown } from "@/components/mera-vakil/markdown";
+import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
 import { ReadAloudControl } from "@/components/mera-vakil/read-aloud-control";
 import { ResearchMetadataPanel } from "@/components/mera-vakil/research-metadata-panel";
 import { Button } from "@/components/ui/button";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
 import type { ChatMessage } from "@/lib/conversations";
+import type { LawyerMatchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface MessageBubbleProps {
@@ -195,6 +197,11 @@ export function MessageBubble({
             )}
 
             <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} />
+
+            {(() => {
+              const lawyers = (research.specialist_payload?.lawyers ?? []) as LawyerMatchResult[];
+              return lawyers.length > 0 ? <LawyerRecommendationPanel lawyers={lawyers} /> : null;
+            })()}
           </div>
         )}
       </div>

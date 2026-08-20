@@ -202,6 +202,23 @@ export interface LawyerProfile {
   bio: string;
 }
 
+export interface LawyerMatchResult {
+  id: string;
+  full_name: string;
+  bar_council_id: string | null;
+  practice_areas: string[];
+  jurisdictions: string[];
+  years_experience: number;
+  languages: string[];
+  rating: number;
+  rating_count: number;
+  hourly_rate: number | null;
+  is_verified: boolean;
+  summary: string;
+  match_score: number;
+  ai_recommended: boolean;
+}
+
 export type AppointmentStatus = "requested" | "confirmed" | "completed" | "cancelled";
 
 export interface ConsultationBooking {

@@ -17,6 +17,7 @@ from legalos_orchestrator.agent.citation_merger import merge_citations
 from legalos_orchestrator.agent.graph import AgentGraph, build_system_message
 from legalos_orchestrator.agent.state import LegalAgentState
 from legalos_orchestrator.agent.tools.kb_tool import build_kb_tool
+from legalos_orchestrator.agent.tools.lawyer_tool import build_lawyer_tool
 from legalos_orchestrator.agent.tools.web_tool import build_web_tool
 from legalos_orchestrator.agent.router import QueryRoute
 from legalos_orchestrator.conversation import expand_retrieval_query, is_conversational
@@ -133,10 +134,11 @@ def _build_agent_state(state: OrchestratorState) -> LegalAgentState:
         user_id=state.user_id,
         search_filters=state.search_filters if not state.search_filters.is_empty() else None,
         user_token=state.user_token,
-        top_k=8,
+        top_k=5,
         iterations=0,
         kb_results=[],
         web_results=[],
+        lawyer_results=[],
     )
 
 
@@ -178,9 +180,11 @@ class LegalOrchestrator:
     ) -> None:
         kb_tool = build_kb_tool(retriever)
         web_tool = build_web_tool(tavily_api_key=llm_settings.tavily_api_key)
+        lawyer_tool = build_lawyer_tool(llm_settings.marketplace_base_url)
         self._agent_graph = AgentGraph(
             kb_tool=kb_tool,
             web_tool=web_tool,
+            lawyer_tool=lawyer_tool,
             llm_model=llm_settings.llm_model,
             llm_api_key=llm_settings.llm_api_key,
             llm_base_url=llm_settings.llm_base_url,
@@ -226,6 +230,7 @@ class LegalOrchestrator:
         answer_parts: list[str] = []
         kb_results: list = []
         web_results: list = []
+        lawyer_results: list = []
 
         try:
             async for event in self._agent_graph.astream_events(initial):
@@ -235,6 +240,8 @@ class LegalOrchestrator:
                 if kind == "on_tool_start":
                     if "knowledge_base" in name:
                         yield _sse("status", {"stage": "research", "message": "Searching legal sources…"})
+                    elif "get_lawyer" in name:
+                        yield _sse("status", {"stage": "lawyer", "message": "Finding matching lawyers…"})
                     elif "web" in name:
                         yield _sse("status", {"stage": "web", "message": "Checking recent developments…"})
 
@@ -256,6 +263,7 @@ class LegalOrchestrator:
                     output = event.get("data", {}).get("output", {})
                     kb_results = output.get("kb_results", [])
                     web_results = output.get("web_results", [])
+                    lawyer_results = output.get("lawyer_results", [])
 
         except Exception as exc:
             logger.error("Agent graph error: %s", exc)
@@ -275,6 +283,8 @@ class LegalOrchestrator:
         suggestions = _suggest(state.query, kb_results, web_results)
         result = _build_result(state, answer, kb_results, cited_web, citations, suggestions)
         serialised = result.model_dump(mode="json")
+        if lawyer_results:
+            serialised["specialist_payload"] = {"lawyers": lawyer_results}
         # citations fires first so the UI can render sources before the done event.
         yield _sse("citations", serialised)
         yield _sse("done", serialised)

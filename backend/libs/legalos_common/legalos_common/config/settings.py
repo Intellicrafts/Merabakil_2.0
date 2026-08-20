@@ -96,6 +96,7 @@ class LLMSettings(BaseSettings):
     tts_voice: str = "Kore"
     tavily_api_key: str = ""
     llm_router_model: str = "gemini-3.6-flash"
+    marketplace_base_url: str = "http://localhost:8010"
 
 
 class CommonSettings(BaseSettings):

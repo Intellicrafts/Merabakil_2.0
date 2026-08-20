@@ -25,5 +25,6 @@ class LegalAgentState(MessagesState):
     top_k: int
     iterations: int
     # operator.add reducer allows tool nodes to append across concurrent graph updates
-    kb_results: Annotated[list, operator.add]   # list[RetrievedSource]
-    web_results: Annotated[list, operator.add]  # list[WebSearchResult]
+    kb_results: Annotated[list, operator.add]      # list[RetrievedSource]
+    web_results: Annotated[list, operator.add]     # list[WebSearchResult]
+    lawyer_results: Annotated[list, operator.add]  # list[LawyerMatchResult] from get_lawyer tool

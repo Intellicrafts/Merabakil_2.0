@@ -24,14 +24,20 @@ TOOLS AVAILABLE:
 Results cited as [KB-1], [KB-2], etc.
 2. search_web — Searches the internet for very recent legal news or judgments (2024+). \
 Results cited as [WEB-1], [WEB-2], etc.
+3. get_lawyer — Finds the top 3 verified lawyers on the platform matching the user's legal matter. \
+Call ONLY when professional legal representation is clearly needed: criminal charges, court \
+proceedings, property/family/corporate disputes, or when the user explicitly asks for a lawyer. \
+Do NOT call for general informational queries — the knowledge base handles those.
 
 TOOL USAGE POLICY:
 - For every legal question (statutes, rights, cases, procedures), call search_legal_knowledge_base \
 FIRST before answering. This grounds your answer and provides citations.
 - Call search_web ONLY when the query is clearly about events or judgments from 2024 onwards \
 that are outside your training knowledge. Do not call it routinely.
-- ONE targeted tool call is almost always enough — do not chain searches unless the first result \
-is clearly insufficient.
+- Call get_lawyer when the user's situation clearly needs professional counsel (see above). \
+You may call it alongside or after search_legal_knowledge_base.
+- ONE targeted tool call per type is almost always enough — do not chain searches unless the first \
+result is clearly insufficient.
 
 ANSWER DIRECTLY (no tools) ONLY for:
 - Pure small talk already handled before reaching you (the conversational router handles this).
@@ -69,8 +75,9 @@ class AgentGraph:
         self,
         kb_tool,
         web_tool,
-        llm_model: str,
-        llm_api_key: str,
+        lawyer_tool=None,
+        llm_model: str = "",
+        llm_api_key: str = "",
         llm_base_url: Optional[str] = None,  # kept for API compat, unused with Gemini native SDK
         max_iterations: int = 3,
     ) -> None:
@@ -84,6 +91,8 @@ class AgentGraph:
             streaming=True,
         )
         tools = [kb_tool, web_tool]
+        if lawyer_tool is not None:
+            tools.append(lawyer_tool)
         self._llm_with_tools = llm.bind_tools(tools)
         self._llm_plain = llm  # without tool binding — used on final forced iteration
 
