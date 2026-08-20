@@ -23,15 +23,28 @@ class MemoryManager:
         user_id: str | None,
         query: str,
     ) -> MemoryContext:
-        """Retrieve session history and long-term facts concurrently."""
+        """Retrieve session history and long-term facts concurrently.
+
+        LTM retrieval is skipped for anonymous users (no user_id) to avoid
+        a 300-600ms embedding+Qdrant round-trip that has no useful output.
+        """
         session_task = asyncio.create_task(
             self._session.get_history(session_id or "")
         )
-        ltm_task = asyncio.create_task(
-            self._ltm.retrieve_relevant(user_id or "", query)
-        )
-        history, facts = await asyncio.gather(session_task, ltm_task)
-        return MemoryContext(session_history=history, long_term_facts=facts)
+        if user_id:
+            ltm_task = asyncio.create_task(
+                self._ltm.retrieve_relevant(user_id, query)
+            )
+            results = await asyncio.gather(session_task, ltm_task, return_exceptions=True)
+            history = results[0] if not isinstance(results[0], Exception) else []
+            facts = results[1] if not isinstance(results[1], Exception) else []
+        else:
+            try:
+                history = await session_task
+            except Exception:
+                history = []
+            facts = []
+        return MemoryContext(session_history=history or [], long_term_facts=facts)
 
     async def persist(
         self,

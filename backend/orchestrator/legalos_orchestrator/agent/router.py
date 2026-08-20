@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from enum import StrEnum
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -28,6 +29,13 @@ _SYSTEM = (
     "Reply with exactly one word: conversational OR legal. Nothing else."
 )
 
+_CONVERSATIONAL_RE = re.compile(
+    r"^\s*(hi+|hello|hey|how are you|what can you (do|help)|who are you|"
+    r"namaskar|namaste|thanks?|thank you|bye|good\s*(morning|evening|night)|"
+    r"what is mera vakil|tell me about yourself)\W*$",
+    re.IGNORECASE,
+)
+
 
 class QueryRouter:
     """Fast LLM router — returns a QueryRoute enum value for every query."""
@@ -40,7 +48,18 @@ class QueryRouter:
             max_output_tokens=10,
         )
 
+    def _quick_classify(self, query: str) -> QueryRoute | None:
+        q = query.strip()
+        if _CONVERSATIONAL_RE.match(q):
+            return QueryRoute.CONVERSATIONAL
+        if len(q) > 60:
+            return QueryRoute.LEGAL
+        return None
+
     async def classify(self, query: str) -> QueryRoute:
+        quick = self._quick_classify(query)
+        if quick is not None:
+            return quick
         try:
             result = await self._llm.ainvoke([
                 SystemMessage(content=_SYSTEM),

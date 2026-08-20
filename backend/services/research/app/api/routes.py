@@ -194,51 +194,48 @@ async def research_stream(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> StreamingResponse:
     import asyncio
+    import json as _json
+    from legalos_orchestrator.agent.router import QueryRoute
 
     container = get_container()
 
-    # Router and LTM run in parallel — router decides path; LTM is skipped for conversational
-    route_result, memory_result = await asyncio.gather(
-        container.router.classify(body.query),
-        container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
-        return_exceptions=True,
-    )
-
-    from legalos_orchestrator.agent.router import QueryRoute
-    route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
-
-    if route == QueryRoute.CONVERSATIONAL or isinstance(memory_result, Exception):
-        history = None
-        user_facts: list[str] = []
-    else:
-        history = [
-            ConversationMessage(role=t.role, content=t.content)
-            for t in memory_result.session_history
-        ] or None
-        user_facts = memory_result.long_term_facts
-
-    state = _build_state(
-        body,
-        credentials=credentials,
-        current_user=current_user,
-        server_history=history,
-        user_facts=user_facts,
-    )
-    state = state.model_copy(update={"route": route})
-
-    guard = _input_guardrail.validate(state.query)
-    if not guard.passed:
-        raise ValidationFailedError(
-            "The query was rejected by guardrails.",
-            details=[{"reason": guard.reason}],
-        )
-
-    import json as _json
-
     async def generator() -> AsyncIterator[str]:
+        # HTTP 200 + first event reach browser in ~10ms — before any LLM or memory work
+        yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
+
+        route_result, memory_result = await asyncio.gather(
+            container.router.classify(body.query),
+            container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
+            return_exceptions=True,
+        )
+        route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
+
+        if route == QueryRoute.CONVERSATIONAL or isinstance(memory_result, Exception):
+            history = None
+            user_facts: list[str] = []
+        else:
+            history = [
+                ConversationMessage(role=t.role, content=t.content)
+                for t in memory_result.session_history
+            ] or None
+            user_facts = memory_result.long_term_facts
+
+        state = _build_state(
+            body,
+            credentials=credentials,
+            current_user=current_user,
+            server_history=history,
+            user_facts=user_facts,
+        )
+        state = state.model_copy(update={"route": route})
+
+        guard = _input_guardrail.validate(state.query)
+        if not guard.passed:
+            yield "event: error\ndata: " + _json.dumps({"message": "Query rejected — please rephrase."}) + "\n\n"
+            return
+
         answer = ""
         async for chunk in container.orchestrator.run_state_streaming(state):
-            # Capture answer from done event for memory persistence
             if chunk.startswith("event: done"):
                 try:
                     data_line = chunk.split("data: ", 1)[1].strip()
@@ -248,11 +245,13 @@ async def research_stream(
             yield chunk
 
         if answer and (state.session_id or state.user_id):
-            await container.memory_manager.persist(
-                session_id=state.session_id,
-                user_id=state.user_id,
-                user_content=state.query,
-                assistant_content=answer,
+            asyncio.create_task(
+                container.memory_manager.persist(
+                    session_id=state.session_id,
+                    user_id=state.user_id,
+                    user_content=state.query,
+                    assistant_content=answer,
+                )
             )
 
     return StreamingResponse(
@@ -277,48 +276,46 @@ async def research_document_stream(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> StreamingResponse:
     import asyncio
+    import json as _json
+    from legalos_orchestrator.agent.router import QueryRoute
 
     container = get_container()
 
-    route_result, memory_result = await asyncio.gather(
-        container.router.classify(body.query),
-        container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
-        return_exceptions=True,
-    )
-
-    from legalos_orchestrator.agent.router import QueryRoute
-    route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
-
-    if route == QueryRoute.CONVERSATIONAL or isinstance(memory_result, Exception):
-        history = None
-        user_facts: list[str] = []
-    else:
-        history = [
-            ConversationMessage(role=t.role, content=t.content)
-            for t in memory_result.session_history
-        ] or None
-        user_facts = memory_result.long_term_facts
-
-    state = _build_state(
-        body,
-        credentials=credentials,
-        current_user=current_user,
-        document_id=str(document_id),
-        server_history=history,
-        user_facts=user_facts,
-    )
-    state = state.model_copy(update={"route": route})
-
-    guard = _input_guardrail.validate(state.query)
-    if not guard.passed:
-        raise ValidationFailedError(
-            "The query was rejected by guardrails.",
-            details=[{"reason": guard.reason}],
-        )
-
-    import json as _json
-
     async def generator() -> AsyncIterator[str]:
+        yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
+
+        route_result, memory_result = await asyncio.gather(
+            container.router.classify(body.query),
+            container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
+            return_exceptions=True,
+        )
+        route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
+
+        if route == QueryRoute.CONVERSATIONAL or isinstance(memory_result, Exception):
+            history = None
+            user_facts: list[str] = []
+        else:
+            history = [
+                ConversationMessage(role=t.role, content=t.content)
+                for t in memory_result.session_history
+            ] or None
+            user_facts = memory_result.long_term_facts
+
+        state = _build_state(
+            body,
+            credentials=credentials,
+            current_user=current_user,
+            document_id=str(document_id),
+            server_history=history,
+            user_facts=user_facts,
+        )
+        state = state.model_copy(update={"route": route})
+
+        guard = _input_guardrail.validate(state.query)
+        if not guard.passed:
+            yield "event: error\ndata: " + _json.dumps({"message": "Query rejected — please rephrase."}) + "\n\n"
+            return
+
         answer = ""
         async for chunk in container.orchestrator.run_state_streaming(state):
             if chunk.startswith("event: done"):
@@ -330,11 +327,13 @@ async def research_document_stream(
             yield chunk
 
         if answer and (state.session_id or state.user_id):
-            await container.memory_manager.persist(
-                session_id=state.session_id,
-                user_id=state.user_id,
-                user_content=state.query,
-                assistant_content=answer,
+            asyncio.create_task(
+                container.memory_manager.persist(
+                    session_id=state.session_id,
+                    user_id=state.user_id,
+                    user_content=state.query,
+                    assistant_content=answer,
+                )
             )
 
     return StreamingResponse(
