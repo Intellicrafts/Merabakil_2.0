@@ -72,6 +72,30 @@ export function ResearchMetadataPanel({ research, onCitationClick }: ResearchMet
                   confidence
                 </span>
               )}
+              {research.confidence.overall > 0 && (
+                <div className="flex w-full flex-col gap-1.5 pt-1">
+                  {(
+                    [
+                      ["Retrieval", research.confidence.retrieval_strength],
+                      ["Agreement", research.confidence.source_agreement],
+                      ["Coverage", research.confidence.coverage],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <span className="w-16 shrink-0 text-[10px] uppercase tracking-[0.08em]">{label}</span>
+                      <div className="h-1 flex-1 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-slate-700 dark:bg-slate-200"
+                          style={{ width: `${Math.min(100, Math.round(value * 100))}%` }}
+                        />
+                      </div>
+                      <span className="w-8 text-right tabular-nums text-[10px]">
+                        {Math.round(value * 100)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <span className="capitalize">{research.intent.replace(/_/g, " ")}</span>
               <span className="capitalize">
                 {research.jurisdiction.level}

@@ -22,11 +22,16 @@ import {
   createUserMessage,
   deleteConversation,
   deriveTitleFromQuery,
+  loadActiveConversationId,
   loadConversations,
+  renameConversation,
+  saveActiveConversationId,
+  togglePinConversation,
   upsertConversation,
   toResearchHistory,
   type ChatConversation,
   type ChatMessage,
+  type MatterType,
 } from "@/lib/conversations";
 import type { ResearchResponse } from "@/lib/types";
 
@@ -50,10 +55,20 @@ export default function MeraVakilPage() {
   const abortRef = useRef<AbortController | null>(null);
   const assistantMsgIdRef = useRef<string | null>(null);
   const withUserRef = useRef<ChatConversation | null>(null);
+  const tokenBufferRef = useRef("");
+  const tokenRafRef = useRef<number | null>(null);
+  const skipActivePersist = useRef(true);
+  const [groundingMessageId, setGroundingMessageId] = useState<string | null>(null);
   const readAloud = useReadAloud(speechLocale);
 
   useEffect(() => {
-    setConversations(loadConversations());
+    const all = loadConversations();
+    setConversations(all);
+    const lastId = loadActiveConversationId();
+    if (lastId) {
+      const found = all.find((c) => c.id === lastId);
+      if (found) setActiveConversation(found);
+    }
     const stored = localStorage.getItem(THEME_KEY);
     const prefersDark = stored === "dark";
     setDark(prefersDark);
@@ -66,6 +81,14 @@ export default function MeraVakilPage() {
     const prefill = consumeMeraVakilPrefill();
     if (prefill) setInput(prefill);
   }, []);
+
+  useEffect(() => {
+    if (skipActivePersist.current) {
+      skipActivePersist.current = false;
+      return;
+    }
+    saveActiveConversationId(activeConversation?.id ?? null);
+  }, [activeConversation?.id]);
 
   function setRightPanelOpenPersisted(open: boolean) {
     setRightPanelOpen(open);
@@ -88,7 +111,11 @@ export default function MeraVakilPage() {
   }
 
   function handleNewChat() {
-    const conv = createConversation({ documentId, jurisdiction: jurisdiction || null });
+    const conv = createConversation({
+      documentId,
+      jurisdiction: jurisdiction || null,
+      matterType: activeConversation?.matterType ?? null,
+    });
     setActiveConversation(conv);
     setInput("");
     setStreamingMessageId(null);
@@ -114,6 +141,33 @@ export default function MeraVakilPage() {
     if (activeConversation?.id === id) {
       setActiveConversation(null);
     }
+  }
+
+  function handleRenameConversation(id: string, title: string) {
+    const updated = renameConversation(id, title);
+    setConversations(loadConversations());
+    if (updated && activeConversation?.id === id) {
+      setActiveConversation(updated);
+    }
+  }
+
+  function handlePinConversation(id: string) {
+    const updated = togglePinConversation(id);
+    setConversations(loadConversations());
+    if (updated && activeConversation?.id === id) {
+      setActiveConversation(updated);
+    }
+  }
+
+  function handleMatterTypeChange(type: MatterType) {
+    setActiveConversation((prev) => {
+      const base =
+        prev ?? createConversation({ documentId, jurisdiction: jurisdiction || null, matterType: type });
+      const next = { ...base, matterType: type };
+      upsertConversation(next);
+      setConversations(loadConversations());
+      return next;
+    });
   }
 
   function handleDocumentChange(id: string | null) {
@@ -185,6 +239,11 @@ export default function MeraVakilPage() {
 
   function handleStopGeneration() {
     abortRef.current?.abort();
+    if (tokenRafRef.current != null) {
+      cancelAnimationFrame(tokenRafRef.current);
+      tokenRafRef.current = null;
+    }
+    tokenBufferRef.current = "";
 
     const assistantId = assistantMsgIdRef.current;
     const baseConv = withUserRef.current;
@@ -236,6 +295,7 @@ export default function MeraVakilPage() {
         title: deriveTitleFromQuery(query),
         documentId,
         jurisdiction: jurisdiction || null,
+        matterType: activeConversation?.matterType ?? null,
       });
     }
 
@@ -270,6 +330,28 @@ export default function MeraVakilPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     let assistantAdded = false;
+    tokenBufferRef.current = "";
+    if (tokenRafRef.current != null) {
+      cancelAnimationFrame(tokenRafRef.current);
+      tokenRafRef.current = null;
+    }
+    setGroundingMessageId(null);
+
+    const flushTokens = (assistantMsgId: string) => {
+      const chunk = tokenBufferRef.current;
+      tokenBufferRef.current = "";
+      tokenRafRef.current = null;
+      if (!chunk) return;
+      setActiveConversation((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: prev.messages.map((m) =>
+            m.id === assistantMsgId ? { ...m, content: m.content + chunk } : m,
+          ),
+        };
+      });
+    };
 
     try {
       const result = await streamResearch(
@@ -295,18 +377,17 @@ export default function MeraVakilPage() {
               });
               return;
             }
-            setActiveConversation((prev) => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                messages: prev.messages.map((m) =>
-                  m.id === assistantMsgId ? { ...m, content: m.content + token } : m,
-                ),
-              };
-            });
+            tokenBufferRef.current += token;
+            if (tokenRafRef.current == null) {
+              tokenRafRef.current = requestAnimationFrame(() => flushTokens(assistantMsgId));
+            }
           },
           onCitations: (citationsResult) => {
-            // Attach citations immediately — don't wait for suggestions (done event).
+            if (tokenRafRef.current != null) {
+              cancelAnimationFrame(tokenRafRef.current);
+              flushTokens(assistantMsgId);
+            }
+            setGroundingMessageId(assistantMsgId);
             setActiveConversation((prev) => {
               if (!prev) return prev;
               return {
@@ -315,7 +396,7 @@ export default function MeraVakilPage() {
                   m.id === assistantMsgId
                     ? {
                         ...m,
-                        content: citationsResult.answer,
+                        content: citationsResult.answer || m.content,
                         research: {
                           ...citationsResult,
                           web_sources: citationsResult.web_sources ?? [],
@@ -352,9 +433,15 @@ export default function MeraVakilPage() {
       });
       setActiveConversation(withUser);
     } finally {
+      if (tokenRafRef.current != null) {
+        cancelAnimationFrame(tokenRafRef.current);
+        tokenRafRef.current = null;
+      }
+      tokenBufferRef.current = "";
       setIsResearching(false);
       setStreamingMessageId(null);
       setPendingStatus(undefined);
+      setGroundingMessageId(null);
       abortRef.current = null;
       assistantMsgIdRef.current = null;
       withUserRef.current = null;
@@ -405,6 +492,12 @@ export default function MeraVakilPage() {
                 setMobilePanelOpen(false);
               }}
               onDeleteConversation={handleDeleteConversation}
+              onRenameConversation={handleRenameConversation}
+              onPinConversation={handlePinConversation}
+              onMatterTypeChange={handleMatterTypeChange}
+              onJurisdictionChange={handleJurisdictionChange}
+              onQuickAction={setInput}
+              activeConversation={activeConversation}
               speechLocale={speechLocale}
               onSpeechLocaleChange={handleSpeechLocaleChange}
               latestResearch={latestResearch}
@@ -476,6 +569,11 @@ export default function MeraVakilPage() {
               onStartEdit={setEditingMessageId}
               onCancelEdit={() => setEditingMessageId(null)}
               onResendEdit={handleResendEdit}
+              onRegenerate={(userMessageId) => {
+                const userMsg = activeConversation?.messages.find((m) => m.id === userMessageId);
+                if (userMsg) void sendMessage(userMsg.content, { editMessageId: userMessageId });
+              }}
+              groundingMessageId={groundingMessageId}
               readAloudStatus={readAloud.state.status}
               readAloudActiveId={readAloud.state.activeMessageId}
               onReadAloudToggle={(id, content) => void readAloud.toggle(id, content)}
@@ -507,6 +605,12 @@ export default function MeraVakilPage() {
           onNewChat={handleNewChat}
           onSelectConversation={handleSelectConversation}
           onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
+          onPinConversation={handlePinConversation}
+          onMatterTypeChange={handleMatterTypeChange}
+          onJurisdictionChange={handleJurisdictionChange}
+          onQuickAction={setInput}
+          activeConversation={activeConversation}
           speechLocale={speechLocale}
           onSpeechLocaleChange={handleSpeechLocaleChange}
           latestResearch={latestResearch}

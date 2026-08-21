@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import enforce_rate_limit, get_auth_service, get_auth_settings
 from app.api.schemas import (
@@ -21,9 +20,6 @@ from app.api.schemas import (
     UserResponse,
 )
 from app.application.use_cases import AuthResult, AuthService
-from app.infrastructure.db import get_session
-from app.infrastructure.repositories import SqlAlchemyUserRepository
-from legalos_common.api.errors import NotFoundError
 from legalos_common.api.pagination import Page, PageParams, paginate
 from legalos_common.security.rbac import (
     CurrentUser,
@@ -127,15 +123,7 @@ async def confirm_password_reset(
     return MessageResponse(message="Password updated successfully.")
 
 
-@users_router.get("/me", response_model=UserResponse, summary="Current user profile")
-async def me(
-    current: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> UserResponse:
-    repo = SqlAlchemyUserRepository(session)
-    user = await repo.get_by_id(uuid.UUID(current.user_id))
-    if user is None:
-        raise NotFoundError("User not found")
+def _to_user_response(user) -> UserResponse:
     return UserResponse(
         user_id=str(user.id),
         email=user.email,
@@ -143,6 +131,15 @@ async def me(
         roles=user.role_names,
         permissions=user.permission_codes,
     )
+
+
+@users_router.get("/me", response_model=UserResponse, summary="Current user profile")
+async def me(
+    current: CurrentUser = Depends(get_current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> UserResponse:
+    user = await service.get_user(uuid.UUID(current.user_id))
+    return _to_user_response(user)
 
 
 @users_router.get(
@@ -153,20 +150,10 @@ async def me(
 async def list_users(
     params: PageParams = Depends(PageParams.as_query),
     _: CurrentUser = Depends(require_permissions(Permission.USER_MANAGE.value)),
-    session: AsyncSession = Depends(get_session),
+    service: AuthService = Depends(get_auth_service),
 ) -> Page[UserResponse]:
-    repo = SqlAlchemyUserRepository(session)
-    users, total = await repo.list_users(offset=params.offset, limit=params.size)
-    items = [
-        UserResponse(
-            user_id=str(u.id),
-            email=u.email,
-            full_name=u.full_name,
-            roles=u.role_names,
-            permissions=u.permission_codes,
-        )
-        for u in users
-    ]
+    users, total = await service.list_users(offset=params.offset, limit=params.size)
+    items = [_to_user_response(u) for u in users]
     return paginate(items, total, params)
 
 
@@ -178,16 +165,7 @@ async def list_users(
 async def get_user(
     user_id: uuid.UUID,
     _: CurrentUser = Depends(require_permissions(Permission.USER_MANAGE.value)),
-    session: AsyncSession = Depends(get_session),
+    service: AuthService = Depends(get_auth_service),
 ) -> UserResponse:
-    repo = SqlAlchemyUserRepository(session)
-    user = await repo.get_by_id(user_id)
-    if user is None:
-        raise NotFoundError("User not found")
-    return UserResponse(
-        user_id=str(user.id),
-        email=user.email,
-        full_name=user.full_name,
-        roles=user.role_names,
-        permissions=user.permission_codes,
-    )
+    user = await service.get_user(user_id)
+    return _to_user_response(user)

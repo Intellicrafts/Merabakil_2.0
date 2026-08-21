@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Pencil, Sparkles, X } from "lucide-react";
 
+import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
+import { AuthorityCards } from "@/components/mera-vakil/authority-cards";
+import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
-import { ReadAloudControl } from "@/components/mera-vakil/read-aloud-control";
 import { ResearchMetadataPanel } from "@/components/mera-vakil/research-metadata-panel";
 import { Button } from "@/components/ui/button";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
@@ -18,10 +20,12 @@ interface MessageBubbleProps {
   isTyping?: boolean;
   isEditing?: boolean;
   isPending?: boolean;
+  grounding?: boolean;
   onCitationClick?: (marker: string) => void;
   onStartEdit?: (messageId: string) => void;
   onCancelEdit?: () => void;
   onResendEdit?: (messageId: string, newContent: string) => void;
+  onRegenerate?: () => void;
   readAloudStatus?: ReadAloudStatus;
   readAloudActiveId?: string | null;
   onReadAloudToggle?: (messageId: string, content: string) => void;
@@ -33,10 +37,12 @@ export function MessageBubble({
   isTyping,
   isEditing,
   isPending,
+  grounding,
   onCitationClick,
   onStartEdit,
   onCancelEdit,
   onResendEdit,
+  onRegenerate,
   readAloudStatus = "idle",
   readAloudActiveId = null,
   onReadAloudToggle,
@@ -44,6 +50,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const [editText, setEditText] = useState(message.content);
   const editRef = useRef<HTMLTextAreaElement>(null);
+  const answerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isEditing) {
@@ -123,6 +130,7 @@ export function MessageBubble({
   const stillTyping = Boolean(isTyping);
   const displayContent = message.content;
   const showAvatar = !(stillTyping && !message.content);
+  const lawyers = (research?.specialist_payload?.lawyers ?? []) as LawyerMatchResult[];
 
   return (
     <div className="group flex gap-3">
@@ -134,9 +142,15 @@ export function MessageBubble({
       {!showAvatar && <div className="w-7 shrink-0" aria-hidden />}
 
       <div className="min-w-0 flex-1 space-y-3 pt-0.5">
+        {grounding && stillTyping && (
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Grounding authorities…
+          </p>
+        )}
         <div
+          ref={answerRef}
           className={cn(
-            "text-[13.5px] leading-7 text-foreground/90",
+            "mv-brief-surface text-[13.5px] leading-7 text-foreground/90",
             message.content &&
               "rounded-2xl bg-white/40 px-4 py-3 shadow-[0_2px_12px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:bg-white/[0.03]",
           )}
@@ -145,6 +159,8 @@ export function MessageBubble({
             content={displayContent}
             onCitationClick={onCitationClick}
             webSources={research?.web_sources}
+            sources={research?.sources}
+            citations={research?.citations}
           />
           {stillTyping && (
             <span
@@ -154,54 +170,40 @@ export function MessageBubble({
           )}
         </div>
 
-        {!stillTyping && message.content && onReadAloudToggle && onReadAloudStop && (
-          <ReadAloudControl
-            messageId={message.id}
+        {!stillTyping && message.content && (
+          <AnswerToolbar
+            answerRef={answerRef}
             content={message.content}
-            status={readAloudStatus}
-            activeMessageId={readAloudActiveId}
-            onToggle={onReadAloudToggle}
-            onStop={onReadAloudStop}
+            title={research?.query}
+            messageId={message.id}
+            onRegenerate={onRegenerate}
+            readAloudStatus={readAloudStatus}
+            readAloudActiveId={readAloudActiveId}
+            onReadAloudToggle={onReadAloudToggle}
+            onReadAloudStop={onReadAloudStop}
           />
         )}
 
         {research && !stillTyping && (
           <div className="space-y-3">
             {research.web_images?.length > 0 && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {research.web_images.map((image) => (
-                  <a
-                    key={image.image_url}
-                    href={image.source_url || image.image_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group overflow-hidden rounded-xl border border-black/[0.06] bg-black/[0.02] transition-all hover:border-slate-400/40 dark:border-white/10 dark:bg-white/5"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={image.image_url}
-                      alt={image.title}
-                      className="h-36 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                    />
-                    <div className="space-y-1 p-3">
-                      <p className="text-xs font-medium">{image.title}</p>
-                      {image.caption && (
-                        <p className="line-clamp-2 text-[11px] text-muted-foreground">
-                          {image.caption}
-                        </p>
-                      )}
-                    </div>
-                  </a>
-                ))}
-              </div>
+              <ImageGallery images={toGalleryImages(research.web_images)} />
             )}
+
+            <AuthorityCards
+              sources={research.sources}
+              citations={research.citations}
+              webSources={research.web_sources}
+              onCitationClick={onCitationClick}
+            />
 
             <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} />
 
-            {(() => {
-              const lawyers = (research.specialist_payload?.lawyers ?? []) as LawyerMatchResult[];
-              return lawyers.length > 0 ? <LawyerRecommendationPanel lawyers={lawyers} /> : null;
-            })()}
+            {lawyers.length > 0 && <LawyerRecommendationPanel lawyers={lawyers} />}
+
+            {research.disclaimer && (
+              <p className="mv-msg-disclaimer">{research.disclaimer}</p>
+            )}
           </div>
         )}
       </div>

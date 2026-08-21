@@ -30,6 +30,7 @@ export function DashboardModuleCard({
         "transition-all duration-300",
         "hover:-translate-y-1 hover:border-black/[0.10] hover:bg-white/85 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]",
         "active:scale-[0.99]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/35 focus-visible:ring-offset-2",
         "dark:border-white/[0.08] dark:bg-white/[0.035]",
         "dark:hover:border-white/[0.14] dark:hover:bg-white/[0.07]",
         "dash-card-in",
@@ -64,6 +65,18 @@ export function DashboardModuleCard({
         <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
           {mod.description}
         </p>
+        {meta.features.length > 0 && (
+          <ul className="mt-2.5 flex flex-wrap gap-1">
+            {meta.features.slice(0, 2).map((feature) => (
+              <li
+                key={feature}
+                className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-white/[0.06]"
+              >
+                {feature}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="relative mt-5 flex items-center justify-between border-t border-black/[0.05] pt-3.5 dark:border-white/[0.06]">

@@ -1,12 +1,19 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import {
+  ChevronDown,
   ChevronRight,
   FileText,
+  Gavel,
   LogOut,
   MessageSquarePlus,
+  Pin,
+  PinOff,
+  Pencil,
+  Scale,
+  Search,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -17,16 +24,62 @@ import { VoiceVisualizer } from "@/components/mera-vakil/voice-visualizer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { clearSession, getStoredUser } from "@/lib/api";
-import type { ChatConversation } from "@/lib/conversations";
+import {
+  JURISDICTION_OPTIONS,
+  MATTER_TYPES,
+  lastMessagePreview,
+  relativeTime,
+  type ChatConversation,
+  type MatterType,
+} from "@/lib/conversations";
 import type { ResearchResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+const LEGAL_QUICK_ACTIONS = [
+  {
+    id: "fir",
+    label: "FIR outline",
+    prompt:
+      "Draft a professional FIR outline under Indian criminal procedure: essential facts to record, sections likely attracted, documents to annex, and common defects that cause delay.",
+  },
+  {
+    id: "bail",
+    label: "Bail checklist",
+    prompt:
+      "Give a counsel-grade bail checklist for India: bailable vs non-bailable, statutory provisions, factors courts weigh, and a structured list of documents and arguments.",
+  },
+  {
+    id: "limitation",
+    label: "Limitation",
+    prompt:
+      "Explain the limitation period that typically applies to this matter under the Limitation Act, 1963, including when time starts, exclusions, and practical next steps.",
+  },
+  {
+    id: "section",
+    label: "Section explainer",
+    prompt:
+      "Explain the relevant statutory section in plain professional English: ingredients, burden of proof, leading Supreme Court interpretation, and how it applies on these facts.",
+  },
+  {
+    id: "precedent",
+    label: "Precedent hunt",
+    prompt:
+      "Identify the leading Indian authorities (Supreme Court and High Court) on this issue, with citation, holding, and why each is on-point or distinguishable.",
+  },
+] as const;
 
 interface ContextPanelProps {
   conversations: ChatConversation[];
   activeId: string | null;
+  activeConversation?: ChatConversation | null;
   onNewChat: () => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onRenameConversation?: (id: string, title: string) => void;
+  onPinConversation?: (id: string) => void;
+  onMatterTypeChange?: (type: MatterType) => void;
+  onJurisdictionChange?: (value: string) => void;
+  onQuickAction?: (prompt: string) => void;
   speechLocale: string;
   onSpeechLocaleChange: (code: string) => void;
   latestResearch: ResearchResponse | null;
@@ -34,12 +87,83 @@ interface ContextPanelProps {
   onClose?: () => void;
 }
 
+function SectionHeader({
+  label,
+  open,
+  onToggle,
+  extra,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  extra?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex min-w-0 items-center gap-2 text-left"
+        aria-expanded={open}
+      >
+        <span className="mv-ink-dot" />
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          {label}
+        </p>
+        <ChevronDown
+          className={cn("h-3 w-3 text-muted-foreground/70 transition-transform", open && "rotate-180")}
+        />
+      </button>
+      {extra}
+    </div>
+  );
+}
+
+function ConfidenceBars({ research }: { research: ResearchResponse }) {
+  const items = [
+    { label: "Retrieval", value: research.confidence.retrieval_strength },
+    { label: "Agreement", value: research.confidence.source_agreement },
+    { label: "Coverage", value: research.confidence.coverage },
+  ];
+  const overall = Math.round(research.confidence.overall * 100);
+  return (
+    <div className="space-y-2 rounded-xl border border-black/[0.06] bg-white/40 p-2.5 dark:border-white/[0.07] dark:bg-white/[0.03]">
+      <div className="flex items-baseline justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Grounding
+        </p>
+        <p className="text-[12px] font-semibold tabular-nums">{overall}%</p>
+      </div>
+      {items.map((item) => (
+        <div key={item.label} className="space-y-1">
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>{item.label}</span>
+            <span className="tabular-nums">{Math.round(item.value * 100)}%</span>
+          </div>
+          <div className="h-1 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/10">
+            <div
+              className="h-full rounded-full bg-slate-800 dark:bg-slate-200"
+              style={{ width: `${Math.min(100, Math.round(item.value * 100))}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ContextPanel({
   conversations,
   activeId,
+  activeConversation,
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
+  onPinConversation,
+  onMatterTypeChange,
+  onJurisdictionChange,
+  onQuickAction,
   speechLocale,
   onSpeechLocaleChange,
   latestResearch,
@@ -49,6 +173,55 @@ export function ContextPanel({
   const router = useRouter();
   const user = getStoredUser();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [renameId, setRenameId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [clock, setClock] = useState(() =>
+    new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+  );
+  const [open, setOpen] = useState({
+    history: true,
+    matter: true,
+    tools: true,
+    authorities: true,
+    voice: false,
+  });
+  const [visibleCount, setVisibleCount] = useState(40);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(query.trim().toLowerCase()), 150);
+    return () => window.clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setClock(new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "/" && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!debounced) return conversations;
+    return conversations.filter((c) => c.title.toLowerCase().includes(debounced));
+  }, [conversations, debounced]);
+
+  const shown = filtered.slice(0, visibleCount);
+  const roleLabel = user?.roles?.[0]?.replace(/_/g, " ") ?? "Counsel";
+  const confidence = latestResearch?.confidence;
 
   return (
     <>
@@ -69,21 +242,23 @@ export function ContextPanel({
         onCancel={() => setDeleteTarget(null)}
       />
 
-      <div className="glass-panel relative flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="pointer-events-none absolute -right-10 top-0 h-32 w-32 rounded-full bg-slate-400/10 blur-3xl mv-panel-glow" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px mp-shimmer-line" />
+      <div className="counsel-rail relative flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="counsel-rail-rule" />
 
-        {/* User profile header */}
-        <div className="relative border-b border-black/[0.05] px-4 pb-4 pt-4 dark:border-white/[0.06]">
+        <div className="relative border-b border-black/[0.06] px-4 pb-3.5 pt-4 dark:border-white/[0.07]">
           <div className="mb-3 flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="mv-live-ping absolute inset-0 rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Live session
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Mera Vakil · Counsel
               </p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inset-0 rounded-full bg-emerald-400/70" />
+                  <span className="relative h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-[11px] capitalize text-muted-foreground">{roleLabel}</span>
+                <span className="text-[11px] tabular-nums text-muted-foreground/70">{clock}</span>
+              </div>
             </div>
             {onClose && (
               <button
@@ -98,31 +273,21 @@ export function ContextPanel({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="mv-avatar-ring absolute -inset-1 rounded-full opacity-60" />
-              <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-sm font-semibold text-white shadow-md dark:from-slate-100 dark:to-slate-300 dark:text-slate-900">
-                {user?.full_name?.charAt(0) ?? "?"}
-              </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-sm font-semibold text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900">
+              {user?.full_name?.charAt(0) ?? "?"}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold tracking-tight">
                 {user?.full_name ?? "Guest"}
               </p>
-              <p className="truncate text-[11px] text-muted-foreground">
-                {user?.email ?? "Signed in"}
-              </p>
-              {user?.roles?.[0] && (
-                <p className="mt-0.5 text-[10px] font-medium capitalize text-muted-foreground/80">
-                  {user.roles[0].replace("_", " ")}
-                </p>
-              )}
+              <p className="truncate text-[11px] text-muted-foreground">{user?.email ?? "Signed in"}</p>
             </div>
           </div>
 
           <Button
             variant="outline"
             size="sm"
-            className="mt-3 min-h-10 w-full rounded-xl border-black/[0.08] bg-white/50 dark:border-white/10 dark:bg-white/[0.04]"
+            className="mt-3 min-h-9 w-full rounded-lg border-black/[0.08] bg-white/40 text-[12px] dark:border-white/10 dark:bg-white/[0.04]"
             onClick={() => {
               clearSession();
               router.replace("/login");
@@ -134,157 +299,314 @@ export function ContextPanel({
         </div>
 
         <div className="no-scrollbar relative flex-1 space-y-5 overflow-y-auto px-4 py-4">
-          {/* Read aloud */}
-          <section aria-label="Voice and read-aloud language" className="space-y-2.5">
-            <div className="flex items-center gap-2">
-              <span className="mv-section-dot" />
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Read aloud
-              </p>
-            </div>
-            <LanguagePicker value={speechLocale} onChange={onSpeechLocaleChange} />
-            <VoiceVisualizer isActive={isSpeaking} />
-          </section>
-
-          {/* Chat history */}
           <section aria-label="Conversation history" className="space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="mv-section-dot" />
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Chat history
-                </p>
-              </div>
-              <Button
-                size="sm"
-                onClick={onNewChat}
-                className="h-8 gap-1.5 rounded-full bg-gradient-to-r from-slate-800 to-slate-900 px-3 text-[11px] font-medium text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
-              >
-                <MessageSquarePlus className="h-3.5 w-3.5" />
-                New
-              </Button>
-            </div>
-
-            <nav className="space-y-1">
-              {conversations.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-black/[0.08] px-3 py-6 text-center dark:border-white/10">
-                  <Sparkles className="mx-auto mb-2 h-5 w-5 text-muted-foreground/40" />
-                  <p className="text-[12px] text-muted-foreground">No conversations yet</p>
-                </div>
-              ) : (
-                <ul className="space-y-1">
-                  {conversations.map((conv, idx) => {
-                    const active = conv.id === activeId;
-                    return (
-                      <li
-                        key={conv.id}
-                        style={{ animationDelay: `${Math.min(idx, 8) * 40}ms` }}
-                        className="mv-hist-item"
-                      >
-                        <div
-                          className={cn(
-                            "group flex items-center gap-2 rounded-xl px-2 py-2 transition-all duration-200",
-                            active
-                              ? "bg-slate-900/90 text-white shadow-md dark:bg-white/90 dark:text-slate-900"
-                              : "bg-white/40 hover:bg-white/70 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]",
-                          )}
-                        >
-                          <button
-                            type="button"
-                            className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
-                            onClick={() => onSelectConversation(conv.id)}
-                            aria-current={active ? "page" : undefined}
-                          >
-                            <span
+            <SectionHeader
+              label="Matters"
+              open={open.history}
+              onToggle={() => setOpen((s) => ({ ...s, history: !s.history }))}
+              extra={
+                <Button
+                  size="sm"
+                  onClick={onNewChat}
+                  className="h-7 gap-1 rounded-full bg-slate-900 px-2.5 text-[11px] font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+                >
+                  <MessageSquarePlus className="h-3.5 w-3.5" />
+                  New
+                </Button>
+              }
+            />
+            {open.history && (
+              <>
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    ref={searchRef}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search history"
+                    className="h-8 w-full rounded-lg border border-black/[0.06] bg-white/50 pl-8 pr-2 text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-slate-400 dark:border-white/10 dark:bg-white/[0.04]"
+                    aria-label="Search conversations"
+                  />
+                </label>
+                <nav>
+                  {shown.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-black/[0.08] px-3 py-6 text-center dark:border-white/10">
+                      <Sparkles className="mx-auto mb-2 h-5 w-5 text-muted-foreground/40" />
+                      <p className="text-[12px] text-muted-foreground">
+                        {debounced ? "No matching matters" : "No conversations yet"}
+                      </p>
+                    </div>
+                  ) : (
+                    <ul
+                      ref={listRef}
+                      className="space-y-0.5"
+                      onClick={(e) => {
+                        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-conv-id]");
+                        if (!target) return;
+                        const id = target.dataset.convId;
+                        const action = target.dataset.action;
+                        if (!id) return;
+                        if (action === "select") onSelectConversation(id);
+                      }}
+                    >
+                      {shown.map((conv) => {
+                        const active = conv.id === activeId;
+                        const renaming = renameId === conv.id;
+                        return (
+                          <li key={conv.id} className="mv-hist-row">
+                            <div
                               className={cn(
-                                "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                                "group relative flex items-start gap-1 rounded-lg py-1.5 pl-2 pr-1 transition-colors",
                                 active
-                                  ? "bg-white/15 dark:bg-black/10"
-                                  : "bg-black/[0.04] dark:bg-white/[0.06]",
+                                  ? "bg-black/[0.04] dark:bg-white/[0.06]"
+                                  : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
                               )}
                             >
-                              <Sparkles className="h-3.5 w-3.5" />
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
-                              {conv.title}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className={cn(
-                              "shrink-0 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100",
-                              active
-                                ? "text-white/70 hover:bg-white/10 hover:text-white dark:text-slate-700 dark:hover:bg-black/10"
-                                : "text-muted-foreground hover:bg-black/[0.05] hover:text-destructive dark:hover:bg-white/10",
-                            )}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget({ id: conv.id, title: conv.title });
-                            }}
-                            aria-label={`Delete ${conv.title}`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </nav>
+                              <span
+                                className={cn(
+                                  "absolute bottom-1.5 left-0 top-1.5 w-0.5 rounded-full bg-slate-900 dark:bg-slate-100",
+                                  active ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                              {renaming ? (
+                                <input
+                                  autoFocus
+                                  value={renameValue}
+                                  onChange={(e) => setRenameValue(e.target.value)}
+                                  onBlur={() => {
+                                    if (renameValue.trim()) onRenameConversation?.(conv.id, renameValue);
+                                    setRenameId(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      if (renameValue.trim()) onRenameConversation?.(conv.id, renameValue);
+                                      setRenameId(null);
+                                    }
+                                    if (e.key === "Escape") setRenameId(null);
+                                  }}
+                                  className="h-7 w-full rounded border border-black/10 bg-white px-1.5 text-[12px] dark:border-white/15 dark:bg-zinc-900"
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  data-conv-id={conv.id}
+                                  data-action="select"
+                                  className="min-w-0 flex-1 text-left"
+                                  aria-current={active ? "page" : undefined}
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    {conv.pinned && (
+                                      <Pin className="h-3 w-3 shrink-0 text-slate-500" />
+                                    )}
+                                    <span className="truncate text-[12px] font-medium">{conv.title}</span>
+                                  </span>
+                                  <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                    <span className="tabular-nums">{relativeTime(conv.updatedAt)}</span>
+                                    <span className="truncate">{lastMessagePreview(conv)}</span>
+                                  </span>
+                                </button>
+                              )}
+                              <div className="flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                <button
+                                  type="button"
+                                  className="rounded p-1 text-muted-foreground hover:text-foreground"
+                                  aria-label={conv.pinned ? "Unpin" : "Pin"}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onPinConversation?.(conv.id);
+                                  }}
+                                >
+                                  {conv.pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded p-1 text-muted-foreground hover:text-foreground"
+                                  aria-label="Rename"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRenameId(conv.id);
+                                    setRenameValue(conv.title);
+                                  }}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded p-1 text-muted-foreground hover:text-destructive"
+                                  aria-label={`Delete ${conv.title}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteTarget({ id: conv.id, title: conv.title });
+                                  }}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  {filtered.length > shown.length && (
+                    <button
+                      type="button"
+                      className="mt-1 w-full py-1 text-center text-[11px] text-muted-foreground hover:text-foreground"
+                      onClick={() => setVisibleCount((n) => n + 40)}
+                    >
+                      Show more
+                    </button>
+                  )}
+                </nav>
+              </>
+            )}
           </section>
 
-          {/* Live intelligence — sources */}
-          {latestResearch && latestResearch.sources.length > 0 && (
-            <section aria-label="Live sources" className="space-y-2.5">
-              <div className="flex items-center gap-2">
-                <span className="mv-section-dot" />
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Live sources
-                </p>
-                <Badge variant="secondary" className="rounded-full text-[10px]">
-                  {latestResearch.sources.length}
-                </Badge>
-              </div>
-              <ul className="space-y-1.5">
-                {latestResearch.sources.slice(0, 4).map((source, idx) => (
-                  <li
-                    key={source.chunk_id}
-                    className="mv-insight-card rounded-xl border border-black/[0.05] bg-white/50 p-2.5 dark:border-white/[0.06] dark:bg-white/[0.04]"
+          {activeConversation && (
+            <section aria-label="Matter settings" className="space-y-2.5">
+              <SectionHeader
+                label="Matter"
+                open={open.matter}
+                onToggle={() => setOpen((s) => ({ ...s, matter: !s.matter }))}
+              />
+              {open.matter && (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1">
+                    {MATTER_TYPES.map((item) => {
+                      const selected = activeConversation.matterType === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() =>
+                            onMatterTypeChange?.(selected ? null : item.id)
+                          }
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                            selected
+                              ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+                              : "border-black/[0.08] text-muted-foreground hover:border-slate-400 dark:border-white/10",
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <select
+                    value={activeConversation.jurisdiction ?? ""}
+                    onChange={(e) => onJurisdictionChange?.(e.target.value)}
+                    className="h-8 w-full rounded-lg border border-black/[0.06] bg-white/50 px-2 text-[12px] outline-none dark:border-white/10 dark:bg-white/[0.04]"
+                    aria-label="Jurisdiction"
                   >
-                    <div className="flex items-start gap-2">
-                      <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
-                      <div className="min-w-0">
-                        <p className="truncate text-[11px] font-medium">
-                          [{idx + 1}] {source.title ?? source.document_id}
-                        </p>
-                        <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
-                          {source.content}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
+                    <option value="">Jurisdiction</option>
+                    {JURISDICTION_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </section>
+          )}
+
+          <section aria-label="Legal tools" className="space-y-2.5">
+            <SectionHeader
+              label="Counsel tools"
+              open={open.tools}
+              onToggle={() => setOpen((s) => ({ ...s, tools: !s.tools }))}
+            />
+            {open.tools && (
+              <div className="flex flex-wrap gap-1.5">
+                {LEGAL_QUICK_ACTIONS.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => onQuickAction?.(action.prompt)}
+                    className="rounded-lg border border-black/[0.06] bg-white/40 px-2 py-1 text-[11px] font-medium text-foreground/80 transition-colors hover:border-slate-400 dark:border-white/10 dark:bg-white/[0.04]"
+                  >
+                    {action.label}
+                  </button>
                 ))}
-              </ul>
+              </div>
+            )}
+          </section>
+
+          <section aria-label="Voice and read-aloud language" className="space-y-2.5">
+            <SectionHeader
+              label="Read aloud"
+              open={open.voice}
+              onToggle={() => setOpen((s) => ({ ...s, voice: !s.voice }))}
+            />
+            {open.voice && (
+              <>
+                <LanguagePicker value={speechLocale} onChange={onSpeechLocaleChange} />
+                <VoiceVisualizer isActive={isSpeaking} />
+              </>
+            )}
+          </section>
+
+          {latestResearch && (latestResearch.sources.length > 0 || (confidence && confidence.overall > 0)) && (
+            <section aria-label="Live authorities" className="space-y-2.5">
+              <SectionHeader
+                label="Authorities"
+                open={open.authorities}
+                onToggle={() => setOpen((s) => ({ ...s, authorities: !s.authorities }))}
+                extra={
+                  latestResearch.sources.length > 0 ? (
+                    <Badge variant="secondary" className="rounded-full text-[10px]">
+                      {latestResearch.sources.length}
+                    </Badge>
+                  ) : null
+                }
+              />
+              {open.authorities && (
+                <div className="space-y-2">
+                  {confidence && confidence.overall > 0 && <ConfidenceBars research={latestResearch} />}
+                  <ul className="space-y-1.5">
+                    {latestResearch.sources.slice(0, 4).map((source, idx) => {
+                      const isJudgment = /judgment|court|air|scc/i.test(
+                        `${source.doc_type ?? ""} ${source.citation ?? ""}`,
+                      );
+                      const Icon = isJudgment ? Gavel : source.section ? Scale : FileText;
+                      return (
+                        <li
+                          key={source.chunk_id}
+                          className="rounded-xl border border-black/[0.05] bg-white/50 p-2.5 dark:border-white/[0.06] dark:bg-white/[0.04]"
+                        >
+                          <div className="flex items-start gap-2">
+                            <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
+                            <div className="min-w-0">
+                              <p className="truncate text-[11px] font-medium">
+                                [{idx + 1}] {source.title ?? source.document_id}
+                              </p>
+                              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                {source.section ? `§ ${source.section}` : source.citation || "Authority"}
+                              </p>
+                              <p className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
+                                {source.content}
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </section>
           )}
 
           {latestResearch && latestResearch.trace.length > 0 && (
-            <section aria-label="Agent activity" className="space-y-2.5">
-              <div className="flex items-center gap-2">
-                <span className="mv-section-dot" />
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Agent activity
-                </p>
-              </div>
+            <section aria-label="Agent activity" className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Activity
+              </p>
               <div className="flex flex-wrap gap-1.5">
                 {latestResearch.trace.map((step, idx) => (
-                  <Badge
-                    key={`${step}-${idx}`}
-                    variant="secondary"
-                    className="mv-trace-chip rounded-full text-[10px]"
-                    style={{ animationDelay: `${idx * 60}ms` }}
-                  >
+                  <Badge key={`${step}-${idx}`} variant="secondary" className="rounded-full text-[10px]">
                     {step}
                   </Badge>
                 ))}

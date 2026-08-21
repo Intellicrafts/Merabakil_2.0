@@ -64,6 +64,24 @@ class StubEmbeddingClient(EmbeddingClient):
         return [v / norm for v in vec]
 
 
+_GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+
+def _is_gemini_auth_key(api_key: str) -> bool:
+    """Google AI Studio now issues AQ. auth keys (not AIza standard keys)."""
+    return api_key.strip().startswith("AQ.")
+
+
+def _gemini_headers(api_key: str) -> dict[str, str]:
+    # Auth keys must use the native header. Do not also pass ?key= — that yields
+    # "Multiple authentication credentials received".
+    return {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+
+
+def _gemini_model_name(model: str) -> str:
+    return model.removeprefix("models/")
+
+
 class OpenAICompatibleEmbeddingClient(EmbeddingClient):
     def __init__(self, settings: LLMSettings) -> None:
         super().__init__(settings.embedding_dim)
@@ -87,6 +105,46 @@ class OpenAICompatibleEmbeddingClient(EmbeddingClient):
                 )
             data = resp.json()["data"]
             return [item["embedding"] for item in data]
+
+
+class GeminiNativeEmbeddingClient(EmbeddingClient):
+    """Native Gemini embedContent API — required for AQ. auth keys."""
+
+    def __init__(self, settings: LLMSettings) -> None:
+        super().__init__(settings.embedding_dim)
+        self._settings = settings
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        model = _gemini_model_name(self._settings.embedding_model)
+        url = f"{_GEMINI_API_BASE}/models/{model}:batchEmbedContents"
+        headers = _gemini_headers(self._settings.embedding_api_key or self._settings.llm_api_key)
+        vectors: list[list[float]] = []
+        batch_size = 16
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            for start in range(0, len(texts), batch_size):
+                batch = texts[start : start + batch_size]
+                requests = []
+                for text in batch:
+                    req: dict = {
+                        "model": f"models/{model}",
+                        "content": {"parts": [{"text": text or " "}]},
+                    }
+                    if self.dim:
+                        req["outputDimensionality"] = self.dim
+                    requests.append(req)
+                resp = await client.post(url, headers=headers, json={"requests": requests})
+                if resp.is_error:
+                    detail = resp.text[:400].strip()
+                    raise httpx.HTTPStatusError(
+                        f"Gemini embedding API {resp.status_code} for model {model}: {detail}",
+                        request=resp.request,
+                        response=resp,
+                    )
+                embeddings = resp.json().get("embeddings") or []
+                vectors.extend(item["values"] for item in embeddings)
+        return vectors
 
 
 # --------------------------------------------------------------------------- #
@@ -207,6 +265,93 @@ class OpenAICompatibleLLMClient(LLMClient):
             return content
 
 
+def _gemini_generate_body(messages: list[ChatMessage], temperature: float) -> dict:
+    system_parts: list[str] = []
+    contents: list[dict] = []
+    for message in messages:
+        if message.role == "system":
+            system_parts.append(message.content)
+            continue
+        role = "model" if message.role == "assistant" else "user"
+        contents.append({"role": role, "parts": [{"text": message.content}]})
+    if not contents:
+        contents.append({"role": "user", "parts": [{"text": ""}]})
+    body: dict = {
+        "contents": contents,
+        "generationConfig": {"temperature": temperature},
+    }
+    if system_parts:
+        body["systemInstruction"] = {"parts": [{"text": "\n\n".join(system_parts)}]}
+    return body
+
+
+def _gemini_text_from_candidate(data: dict) -> str:
+    candidates = data.get("candidates") or []
+    parts: list[str] = []
+    for candidate in candidates:
+        content = candidate.get("content") or {}
+        for part in content.get("parts") or []:
+            text = part.get("text")
+            if text:
+                parts.append(text)
+    return "".join(parts)
+
+
+class GeminiNativeLLMClient(LLMClient):
+    """Native Gemini generateContent API — required for AQ. auth keys."""
+
+    def __init__(self, settings: LLMSettings) -> None:
+        self._settings = settings
+
+    def _url(self, action: str) -> str:
+        model = _gemini_model_name(self._settings.llm_model)
+        return f"{_GEMINI_API_BASE}/models/{model}:{action}"
+
+    async def stream_complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        temperature: float = 0.1,
+    ) -> AsyncIterator[str]:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                self._url("streamGenerateContent"),
+                headers=_gemini_headers(self._settings.llm_api_key),
+                params={"alt": "sse"},
+                json=_gemini_generate_body(messages, temperature),
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if not payload or payload == "[DONE]":
+                        continue
+                    try:
+                        chunk = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    token = _gemini_text_from_candidate(chunk)
+                    if token:
+                        yield token
+
+    async def complete(self, messages: list[ChatMessage], *, temperature: float = 0.1) -> str:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                self._url("generateContent"),
+                headers=_gemini_headers(self._settings.llm_api_key),
+                json=_gemini_generate_body(messages, temperature),
+            )
+            resp.raise_for_status()
+            content = _gemini_text_from_candidate(resp.json())
+            if not content:
+                raise httpx.HTTPError(
+                    f"LLM returned empty content for model {self._settings.llm_model}"
+                )
+            return content
+
+
 class FallbackEmbeddingClient(EmbeddingClient):
     """Use the primary embedder; fall back to the offline stub on provider errors."""
 
@@ -264,12 +409,29 @@ class FallbackLLMClient(LLMClient):
 # --------------------------------------------------------------------------- #
 # Factories
 # --------------------------------------------------------------------------- #
+def _primary_embedding_client(settings: LLMSettings) -> EmbeddingClient:
+    key = settings.embedding_api_key or settings.llm_api_key
+    if _is_gemini_auth_key(key) or settings.llm_provider.lower() in {"gemini", "google", "google_genai"}:
+        return GeminiNativeEmbeddingClient(settings)
+    return OpenAICompatibleEmbeddingClient(settings)
+
+
+def _primary_llm_client(settings: LLMSettings) -> LLMClient:
+    if _is_gemini_auth_key(settings.llm_api_key) or settings.llm_provider.lower() in {
+        "gemini",
+        "google",
+        "google_genai",
+    }:
+        return GeminiNativeLLMClient(settings)
+    return OpenAICompatibleLLMClient(settings)
+
+
 def build_embedding_client(settings: LLMSettings | None = None) -> EmbeddingClient:
     settings = settings or get_common_settings().llm
     stub = StubEmbeddingClient(settings.embedding_dim)
     if settings.embedding_use_stub:
         return stub
-    return FallbackEmbeddingClient(OpenAICompatibleEmbeddingClient(settings), stub)
+    return FallbackEmbeddingClient(_primary_embedding_client(settings), stub)
 
 
 def build_llm_client(settings: LLMSettings | None = None) -> LLMClient:
@@ -277,4 +439,4 @@ def build_llm_client(settings: LLMSettings | None = None) -> LLMClient:
     stub = StubLLMClient()
     if settings.llm_use_stub:
         return stub
-    return FallbackLLMClient(OpenAICompatibleLLMClient(settings), stub)
+    return FallbackLLMClient(_primary_llm_client(settings), stub)

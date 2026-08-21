@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Moon, Scale, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { DashboardCommandPalette } from "@/components/dashboard/dashboard-command-palette";
 import { BackButton } from "@/components/layout/back-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +49,7 @@ function AppTopBar({
   onToggleTheme,
   onGoHome,
   onSignOut,
+  onOpenPalette,
 }: {
   user: AuthUser | null;
   dark: boolean;
@@ -56,7 +58,14 @@ function AppTopBar({
   onToggleTheme: () => void;
   onGoHome: () => void;
   onSignOut: () => void;
+  onOpenPalette: () => void;
 }) {
+  const [modKey, setModKey] = useState("Ctrl");
+
+  useEffect(() => {
+    setModKey(/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl");
+  }, []);
+
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 px-5 md:h-16 md:px-8">
       <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
@@ -85,6 +94,17 @@ function AppTopBar({
       </div>
 
       <div className="flex items-center gap-1">
+        {isHome && (
+          <button
+            type="button"
+            onClick={onOpenPalette}
+            className="mr-1 hidden items-center gap-1.5 rounded-lg border border-black/[0.06] bg-white/50 px-2 py-1 text-muted-foreground transition-colors hover:bg-white hover:text-foreground dark:border-white/[0.10] dark:bg-white/[0.05] dark:hover:bg-white/[0.08] sm:inline-flex"
+            aria-label="Open command palette"
+            aria-keyshortcuts="Meta+K Control+K"
+          >
+            <kbd className="dash-kbd">{modKey}K</kbd>
+          </button>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -132,6 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [dark, setDark] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const isHome = pathname === "/dashboard";
   const pageTitle = resolvePageTitle(pathname);
@@ -140,6 +161,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setUser(getStoredUser());
     setDark(initTheme());
   }, []);
+
+  useEffect(() => {
+    if (!isHome) setPaletteOpen(false);
+  }, [isHome]);
+
+  useEffect(() => {
+    if (!isHome) return;
+
+    function onKey(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
+      event.preventDefault();
+      setPaletteOpen((open) => !open);
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isHome]);
 
   function handleToggleTheme() {
     setDark(toggleTheme());
@@ -164,7 +202,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onToggleTheme={handleToggleTheme}
           onGoHome={() => router.push("/dashboard")}
           onSignOut={handleSignOut}
+          onOpenPalette={() => setPaletteOpen(true)}
         />
+        {isHome && (
+          <DashboardCommandPalette
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            user={user}
+          />
+        )}
         <main
           className={
             isHome

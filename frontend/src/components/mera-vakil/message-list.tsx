@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { FollowUpSuggestions } from "@/components/mera-vakil/follow-up-suggestions";
+import { ImageLightboxHost } from "@/components/mera-vakil/image-gallery";
 import { MessageBubble } from "@/components/mera-vakil/message-bubble";
 import { ThinkingLoader } from "@/components/mera-vakil/thinking-loader";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
@@ -20,6 +21,8 @@ interface MessageListProps {
   onStartEdit?: (messageId: string) => void;
   onCancelEdit?: () => void;
   onResendEdit?: (messageId: string, newContent: string) => void;
+  onRegenerate?: (userMessageId: string) => void;
+  groundingMessageId?: string | null;
   readAloudStatus?: ReadAloudStatus;
   readAloudActiveId?: string | null;
   onReadAloudToggle?: (messageId: string, content: string) => void;
@@ -38,6 +41,8 @@ export function MessageList({
   onStartEdit,
   onCancelEdit,
   onResendEdit,
+  onRegenerate,
+  groundingMessageId,
   readAloudStatus,
   readAloudActiveId,
   onReadAloudToggle,
@@ -71,23 +76,34 @@ export function MessageList({
       className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-8 md:px-6"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
-        {visibleMessages.map((msg) => (
+        {visibleMessages.map((msg, idx) => {
+          const prevUser = [...visibleMessages.slice(0, idx)]
+            .reverse()
+            .find((m) => m.role === "user");
+          return (
           <MessageBubble
             key={msg.id}
             message={msg}
             isTyping={msg.id === streamingMessageId}
             isEditing={msg.id === editingMessageId}
             isPending={isPending}
+            grounding={msg.id === groundingMessageId}
             onCitationClick={onCitationClick}
             onStartEdit={msg.role === "user" ? onStartEdit : undefined}
             onCancelEdit={onCancelEdit}
             onResendEdit={onResendEdit}
+            onRegenerate={
+              msg.role === "assistant" && prevUser && onRegenerate
+                ? () => onRegenerate(prevUser.id)
+                : undefined
+            }
             readAloudStatus={readAloudStatus}
             readAloudActiveId={readAloudActiveId}
             onReadAloudToggle={onReadAloudToggle}
             onReadAloudStop={onReadAloudStop}
           />
-        ))}
+          );
+        })}
         {isPending && <ThinkingLoader message={pendingMessage} />}
         {showSuggestions && lastAssistant?.research && (
           <FollowUpSuggestions
@@ -97,6 +113,7 @@ export function MessageList({
           />
         )}
       </div>
+      <ImageLightboxHost />
     </div>
   );
 }

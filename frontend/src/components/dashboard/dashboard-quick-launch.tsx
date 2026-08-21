@@ -6,9 +6,44 @@ import type { DashboardModule } from "@/lib/dashboard-config";
 import { getModuleMeta } from "@/lib/dashboard-meta";
 import { cn } from "@/lib/utils";
 
-export function DashboardQuickLaunch({ modules }: { modules: DashboardModule[] }) {
-  const items = modules.slice(0, 4);
+export function DashboardQuickLaunch({
+  modules,
+  variant = "mobile",
+}: {
+  modules: DashboardModule[];
+  variant?: "mobile" | "desktop";
+}) {
+  const items = modules.slice(0, variant === "desktop" ? 8 : 4);
   if (items.length === 0) return null;
+
+  if (variant === "desktop") {
+    return (
+      <div className="mb-4 hidden gap-2 sm:flex" aria-label="Quick launch">
+        {items.map((mod) => {
+          const Icon = mod.icon;
+          const meta = getModuleMeta(mod.href);
+          return (
+            <Link
+              key={mod.href}
+              href={mod.href}
+              title={mod.title}
+              className={cn(
+                "inline-flex h-9 items-center gap-2 rounded-full border border-black/[0.06] bg-white/70 px-3",
+                "text-[12px] font-medium tracking-tight text-foreground/80",
+                "shadow-[0_2px_10px_rgba(15,23,42,0.03)] backdrop-blur-md",
+                "transition-colors hover:border-black/[0.10] hover:bg-white hover:text-foreground",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/35 focus-visible:ring-offset-2",
+                "dark:border-white/[0.08] dark:bg-white/[0.05] dark:hover:border-white/[0.14]",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {meta.shortLabel}
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <section
@@ -33,6 +68,7 @@ export function DashboardQuickLaunch({ modules }: { modules: DashboardModule[] }
                 "snap-start flex min-h-[88px] min-w-[76px] flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3",
                 "border border-black/[0.06] bg-white/70 shadow-[0_4px_16px_rgba(15,23,42,0.04)] backdrop-blur-md",
                 "active:scale-[0.97] transition-transform duration-150",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/35",
                 "dark:border-white/[0.08] dark:bg-white/[0.05]",
                 `dash-module-tint-${meta.tint}`,
               )}

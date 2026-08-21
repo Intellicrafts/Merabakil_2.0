@@ -1,6 +1,7 @@
 "use client";
 
-import { BookOpen, Shield, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BookOpen, Clock, Shield, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,10 +12,21 @@ const TRUST_ITEMS = [
 ] as const;
 
 export function DashboardTrustBar({ className }: { className?: string }) {
+  const [syncedAt, setSyncedAt] = useState("");
+
+  useEffect(() => {
+    setSyncedAt(
+      new Intl.DateTimeFormat("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date()),
+    );
+  }, []);
+
   return (
     <footer
       className={cn(
-        "mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2.5 border-t border-black/[0.05] pt-8 dark:border-white/[0.06]",
+        "mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2.5 border-t border-black/[0.05] pt-8 dark:border-white/[0.06]",
         "pb-[max(1.5rem,env(safe-area-inset-bottom))]",
         "dash-card-in",
         className,
@@ -30,6 +42,13 @@ export function DashboardTrustBar({ className }: { className?: string }) {
           {text}
         </span>
       ))}
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full border border-transparent px-2 py-1 text-[11px] text-muted-foreground/70"
+        title={`Synced at ${syncedAt}`}
+      >
+        <Clock className="h-3 w-3" strokeWidth={1.75} />
+        Last synced: just now
+      </span>
     </footer>
   );
 }

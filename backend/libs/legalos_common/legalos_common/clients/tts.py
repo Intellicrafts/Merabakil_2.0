@@ -61,9 +61,17 @@ class GeminiTTSClient(TTSClient):
     async def _synthesize_chunk(self, text: str, voice: str) -> bytes:
         url = f"{_GEMINI_API_BASE}/models/{self._model()}:generateContent"
         async with httpx.AsyncClient(timeout=120.0) as client:
+            headers = {"Content-Type": "application/json"}
+            params = None
+            api_key = self._settings.llm_api_key
+            if api_key.startswith("AQ."):
+                headers["x-goog-api-key"] = api_key
+            else:
+                params = {"key": api_key}
             resp = await client.post(
                 url,
-                params={"key": self._settings.llm_api_key},
+                headers=headers,
+                params=params,
                 json=self._request_body(text, voice),
             )
             if resp.status_code != 200:

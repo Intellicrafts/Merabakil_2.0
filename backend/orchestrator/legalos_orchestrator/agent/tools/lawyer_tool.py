@@ -7,8 +7,7 @@ from typing import Annotated
 
 import httpx
 from langchain_core.messages import ToolMessage
-from langchain_core.tools import tool
-from langgraph.prebuilt import InjectedToolCallId
+from langchain_core.tools import InjectedToolCallId, tool
 from langgraph.types import Command
 
 try:

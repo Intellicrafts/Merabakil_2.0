@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Shield } from "lucide-react";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { getRoleLabel, type DashboardConfig } from "@/lib/dashboard-config";
 import { cn } from "@/lib/utils";
 
@@ -20,18 +22,35 @@ function formatDate(): string {
   }).format(new Date());
 }
 
+function formatClock(): string {
+  return new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+export interface DashboardKpi {
+  label: string;
+  value: string;
+}
+
 export function DashboardHero({
   firstName,
   config,
+  kpis,
+  ready,
 }: {
   firstName: string;
   config: DashboardConfig;
+  kpis: DashboardKpi[];
+  ready: boolean;
 }) {
-  const stats = [
-    { label: "Corpus", value: "1,250+" },
-    { label: "Modules", value: String(config.modules.length) },
-    { label: "Status", value: "Live" },
-  ];
+  const [clock, setClock] = useState("");
+
+  useEffect(() => {
+    setClock(formatClock());
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    const id = window.setInterval(() => setClock(formatClock()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <header
@@ -56,6 +75,13 @@ export function DashboardHero({
             {getRoleLabel(config.role)}
           </span>
           <span className="text-[11px] font-medium text-muted-foreground/80">{formatDate()}</span>
+          <span className="text-[11px] tabular-nums text-muted-foreground/70">{clock}</span>
+          <span
+            className="hidden rounded-full border border-black/[0.06] bg-white/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04] sm:inline-flex"
+            title="Indexed Indian statutes and judgments"
+          >
+            Corpus 1,250+
+          </span>
           <span className="ml-auto hidden items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 sm:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dash-live-dot" />
             Systems live
@@ -75,30 +101,40 @@ export function DashboardHero({
             </p>
           </div>
 
-          {/* Mobile: pill chips · Desktop: segmented stats */}
           <div className="flex flex-wrap gap-2 sm:hidden">
-            {stats.map((item) => (
-              <span
-                key={item.label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.06] bg-white/60 px-3 py-1.5 text-[11px] dark:border-white/[0.08] dark:bg-white/[0.04]"
-              >
-                <span className="text-muted-foreground">{item.label}</span>
-                <span className="font-semibold tabular-nums">{item.value}</span>
-              </span>
-            ))}
+            {ready
+              ? kpis.map((item) => (
+                  <span
+                    key={item.label}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.06] bg-white/60 px-3 py-1.5 text-[11px] dark:border-white/[0.08] dark:bg-white/[0.04]"
+                  >
+                    <span className="text-muted-foreground">{item.label}</span>
+                    <span className="font-semibold tabular-nums">{item.value}</span>
+                  </span>
+                ))
+              : Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-24 rounded-full" />
+                ))}
           </div>
 
           <dl className="hidden shrink-0 divide-x divide-black/[0.06] overflow-hidden rounded-2xl border border-black/[0.06] bg-white/60 shadow-[0_4px_20px_rgba(15,23,42,0.04)] dark:divide-white/[0.08] dark:border-white/[0.08] dark:bg-white/[0.04] sm:flex">
-            {stats.map((item) => (
-              <div key={item.label} className="min-w-[88px] px-5 py-3.5 text-center">
-                <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {item.label}
-                </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums tracking-tight">
-                  {item.value}
-                </dd>
-              </div>
-            ))}
+            {ready
+              ? kpis.map((item) => (
+                  <div key={item.label} className="min-w-[76px] px-4 py-3.5 text-center lg:min-w-[88px] lg:px-5">
+                    <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      {item.label}
+                    </dt>
+                    <dd className="mt-1 text-sm font-semibold tabular-nums tracking-tight">
+                      {item.value}
+                    </dd>
+                  </div>
+                ))
+              : Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="min-w-[76px] px-4 py-3.5 lg:min-w-[88px] lg:px-5">
+                    <Skeleton className="mx-auto h-2.5 w-12" />
+                    <Skeleton className="mx-auto mt-2 h-4 w-8" />
+                  </div>
+                ))}
           </dl>
         </div>
       </div>

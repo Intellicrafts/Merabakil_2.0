@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Stop all native stack processes (auth, search, research, frontend).
 set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 pkill -f "backend/scripts/dev_auth_server.py" 2>/dev/null || true
 pkill -f "backend/scripts/dev_search_server.py" 2>/dev/null || true
@@ -11,7 +12,7 @@ pkill -f "backend/scripts/dev_stack.py" 2>/dev/null || true
 # Stop Next.js dev servers for this project only
 for pid in $(pgrep -f "next dev" 2>/dev/null || true); do
   cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || echo "")
-  if [[ "$cwd" == *"Bakilat2.0/frontend"* ]]; then
+  if [[ "$cwd" == "$ROOT/frontend"* ]]; then
     kill "$pid" 2>/dev/null || true
   fi
 done

@@ -148,3 +148,12 @@ class AuthService:
         if user is None:
             raise NotFoundError("User not found")
         await self._users.update_password(user, hash_password(new_password))
+
+    async def get_user(self, user_id: uuid.UUID):
+        user = await self._users.get_by_id(user_id)
+        if user is None:
+            raise NotFoundError("User not found")
+        return user
+
+    async def list_users(self, *, offset: int, limit: int):
+        return await self._users.list_users(offset=offset, limit=limit)

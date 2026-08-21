@@ -23,6 +23,7 @@ export function DashboardFeaturedCard({ mod }: { mod: DashboardModule }) {
         "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_28px_64px_rgba(15,23,42,0.28)]",
         "dark:border-white/[0.10] dark:from-zinc-100 dark:via-zinc-200 dark:to-zinc-300 dark:text-zinc-900",
         "dark:shadow-[0_20px_56px_rgba(0,0,0,0.4)]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 focus-visible:ring-offset-2",
         "dash-card-in dash-module-tint-mera-vakil",
       )}
       style={{ animationDelay: "100ms" }}

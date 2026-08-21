@@ -10,6 +10,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from legalos_common.clients.web_search import search_web_images
 from legalos_common.config.settings import LLMSettings
 from legalos_common.rag.confidence import score_confidence
 from legalos_common.rag.guardrails import OutputGuardrail
@@ -142,6 +143,15 @@ def _build_agent_state(state: OrchestratorState) -> LegalAgentState:
     )
 
 
+async def _attach_web_images(query: str) -> list:
+    try:
+        images = await search_web_images(query, max_results=3)
+        return images[:3]
+    except Exception as exc:
+        logger.warning("web_images_failed error=%s", exc)
+        return []
+
+
 def _build_result(
     state: OrchestratorState,
     answer: str,
@@ -149,6 +159,7 @@ def _build_result(
     web_sources: list,
     citations: list,
     suggestions: list,
+    web_images: list | None = None,
 ) -> OrchestratorResult:
     return OrchestratorResult(
         query=state.query,
@@ -157,7 +168,7 @@ def _build_result(
         answer=answer,
         sources=kb_results,
         web_sources=web_sources,
-        web_images=[],
+        web_images=web_images or [],
         suggestions=suggestions,
         citations=citations,
         confidence=score_confidence(kb_results),
@@ -281,7 +292,8 @@ class LegalOrchestrator:
         answer = guardrail_result.answer
 
         suggestions = _suggest(state.query, kb_results, web_results)
-        result = _build_result(state, answer, kb_results, cited_web, citations, suggestions)
+        images = await _attach_web_images(state.query)
+        result = _build_result(state, answer, kb_results, cited_web, citations, suggestions, images)
         serialised = result.model_dump(mode="json")
         if lawyer_results:
             serialised["specialist_payload"] = {"lawyers": lawyer_results}
@@ -309,7 +321,8 @@ class LegalOrchestrator:
         answer = guardrail_result.answer
 
         suggestions = _suggest(state.query, kb_results, web_results)
-        return _build_result(state, answer, kb_results, cited_web, citations, suggestions)
+        images = await _attach_web_images(state.query)
+        return _build_result(state, answer, kb_results, cited_web, citations, suggestions, images)
 
     async def run(
         self, query: str, *, jurisdiction_hint: str | None = None, user_token: str | None = None
