@@ -10,6 +10,9 @@ import { InputDock } from "@/components/mera-vakil/input-dock";
 import { MeraVakilShell } from "@/components/mera-vakil/mera-vakil-shell";
 import { MessageList } from "@/components/mera-vakil/message-list";
 import { PremiumModal } from "@/components/mera-vakil/premium-modal";
+import { VoiceModeOverlay } from "@/components/mera-vakil/voice-mode-overlay";
+import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
+import type { LawyerMatchResult } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
@@ -51,6 +54,8 @@ export default function MeraVakilPage() {
   const [speechLocale, setSpeechLocale] = useState("en-IN");
   const [isUploading, setIsUploading] = useState(false);
   const [premiumOpen, setPremiumOpen] = useState(false);
+  const [voiceModeOpen, setVoiceModeOpen] = useState(false);
+  const [voiceSupported] = useState(() => isVoiceBotSupported());
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const assistantMsgIdRef = useRef<string | null>(null);
@@ -121,6 +126,51 @@ export default function MeraVakilPage() {
     setStreamingMessageId(null);
     setPendingStatus(undefined);
     setEditingMessageId(null);
+  }
+
+  function handleVoiceConversationEnd(messages: VoiceMessage[], lawyers: LawyerMatchResult[]) {
+    if (messages.length === 0) return;
+    const chatMessages: ChatMessage[] = messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      createdAt: new Date().toISOString(),
+    }));
+    // Attach lawyer results to the last assistant message so LawyerRecommendationPanel renders
+    if (lawyers.length > 0) {
+      const lastAssistantIdx = [...chatMessages].reverse().findIndex((m) => m.role === "assistant");
+      if (lastAssistantIdx !== -1) {
+        const idx = chatMessages.length - 1 - lastAssistantIdx;
+        chatMessages[idx] = {
+          ...chatMessages[idx],
+          research: {
+            answer: chatMessages[idx].content,
+            sources: [],
+            web_results: [],
+            web_images: [],
+            suggestions: [],
+            citations: [],
+            confidence: { overall: 1, sources: 1, reasoning: 1, recency: 1 },
+            trace: [],
+            specialist_payload: { lawyers },
+            disclaimer: "",
+          } as ResearchResponse,
+        };
+      }
+    }
+    const base = activeConversation ?? createConversation({ documentId, jurisdiction: jurisdiction || null });
+    const firstUserMsg = messages.find((m) => m.role === "user");
+    const updated: ChatConversation = {
+      ...base,
+      title: base.messages.length === 0 && firstUserMsg
+        ? firstUserMsg.content.slice(0, 48)
+        : base.title,
+      messages: [...base.messages, ...chatMessages],
+      updatedAt: new Date().toISOString(),
+    };
+    upsertConversation(updated);
+    setConversations(loadConversations());
+    setActiveConversation(updated);
   }
 
   function handleSelectConversation(id: string) {
@@ -470,6 +520,12 @@ export default function MeraVakilPage() {
   return (
     <>
       <PremiumModal open={premiumOpen} onClose={() => setPremiumOpen(false)} />
+      <VoiceModeOverlay
+        open={voiceModeOpen}
+        onClose={() => setVoiceModeOpen(false)}
+        speechLocale={speechLocale}
+        onConversationEnd={handleVoiceConversationEnd}
+      />
 
       {mobilePanelOpen && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Session panel">
@@ -595,6 +651,7 @@ export default function MeraVakilPage() {
             onStop={handleStopGeneration}
             isUploading={isUploading}
             onFileSelect={handleFileUpload}
+            onVoiceModeOpen={voiceSupported ? () => setVoiceModeOpen(true) : undefined}
           />
         </div>
       }

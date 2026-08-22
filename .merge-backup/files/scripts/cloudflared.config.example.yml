@@ -1,0 +1,18 @@
+# Named Cloudflare Tunnel — stable URL (does not change on restart)
+#
+# Setup (one time):
+#   1. cloudflared tunnel login
+#   2. cloudflared tunnel create legalos-dev
+#   3. cloudflared tunnel route dns legalos-dev legalos.yourdomain.com
+#   4. Copy credentials JSON path below
+#   5. cloudflared tunnel --config scripts/cloudflared.config.yml run
+#
+# Requires: make public or make native running on localhost:3000 with /svc proxy
+
+tunnel: legalos-dev
+credentials-file: /home/YOUR_USER/.cloudflared/LEGALOS_TUNNEL_ID.json
+
+ingress:
+  - hostname: legalos.yourdomain.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404

@@ -93,7 +93,7 @@ export function MessageBubble({
               </Button>
               <Button
                 size="sm"
-                className="h-7 rounded-lg bg-gradient-to-r from-slate-800 to-slate-900 px-3 text-xs text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
+                className="h-7 rounded-lg bg-amber-800 px-3 text-xs text-white hover:bg-amber-900 dark:bg-amber-600 dark:text-white"
                 onClick={() => onResendEdit?.(message.id, editText.trim())}
                 disabled={isPending || editText.trim().length < 3}
               >
@@ -108,7 +108,7 @@ export function MessageBubble({
     return (
       <div className="group flex justify-end">
         <div className="relative max-w-[80%]">
-          <div className="rounded-2xl rounded-br-md bg-gradient-to-br from-slate-800 to-slate-900 px-4 py-2.5 text-white shadow-[0_3px_14px_rgba(15,23,42,0.18)] dark:from-slate-100 dark:to-slate-300 dark:text-slate-900">
+          <div className="rounded-2xl rounded-br-md bg-slate-900 px-4 py-2.5 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900">
             <p className="text-[13.5px] leading-relaxed">{message.content}</p>
           </div>
           {onStartEdit && !isPending && (
@@ -135,11 +135,11 @@ export function MessageBubble({
   return (
     <div className="group flex gap-3">
       {showAvatar && (
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-sm dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
-          <Sparkles className="icon-breathe h-3.5 w-3.5" />
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900">
+          <Sparkles className="h-3.5 w-3.5" />
         </div>
       )}
-      {!showAvatar && <div className="w-7 shrink-0" aria-hidden />}
+      {!showAvatar && <div className="w-6 shrink-0" aria-hidden />}
 
       <div className="min-w-0 flex-1 space-y-3 pt-0.5">
         {grounding && stillTyping && (
@@ -149,7 +149,7 @@ export function MessageBubble({
         )}
         <div
           ref={answerRef}
-          className="mv-brief-surface text-[13.5px] leading-7 text-foreground/90"
+          className="mv-brief-surface text-[13.5px] leading-[1.7] text-foreground/90"
         >
           <Markdown
             content={displayContent}

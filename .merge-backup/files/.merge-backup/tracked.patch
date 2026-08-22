@@ -1,0 +1,3149 @@
+diff --git a/.env.example b/.env.example
+index aa48ffc..ad9acd0 100644
+--- a/.env.example
++++ b/.env.example
+@@ -79,16 +79,37 @@ CONTRACT_REVIEW_SERVICE_URL=http://contract-review:8008
+ LITIGATION_SERVICE_URL=http://litigation:8009
+ CORPUS_REGISTRY_PATH=data/corpus_registry.yaml
+ 
+-# ---- Frontend ----
++# ---- Frontend (also copy to frontend/.env.local for Next.js) ----
++# Local dev — browser talks directly to each service port:
+ NEXT_PUBLIC_AUTH_API_URL=http://localhost:8001
+ NEXT_PUBLIC_INGESTION_API_URL=http://localhost:8002
+ NEXT_PUBLIC_DOCUMENT_API_URL=http://localhost:8005
+ NEXT_PUBLIC_RESEARCH_API_URL=http://localhost:8004
+ NEXT_PUBLIC_SEARCH_API_URL=http://localhost:8003
++NEXT_PUBLIC_MARKETPLACE_API_URL=http://localhost:8010
++#
++# Global / mobile access: copy frontend/.env.public.example → frontend/.env.local
++# and run `make public` (see docs/PUBLIC_ACCESS.md).
+ 
+-# ---- Text-to-Speech (Gemini) ----
++# ---- Lawyer marketplace (native SQLite unless overridden) ----
++MARKETPLACE_NATIVE=true
++MARKETPLACE_AUTO_CONFIRM=true
++# MARKETPLACE_DATABASE_URL=postgresql+asyncpg://legalos:legalos@localhost:5432/legalos
++
++# ---- LiveKit (appointment room audio/video; optional) ----
++# Leave empty to use polling chat without calls.
++LIVEKIT_URL=
++LIVEKIT_API_KEY=
++LIVEKIT_API_SECRET=
++# Or LiveKit Cloud:
++# LIVEKIT_URL=wss://your-project.livekit.cloud
++# LIVEKIT_API_KEY=
++# LIVEKIT_API_SECRET=
++
++# ---- Text-to-Speech + Voice Live (Gemini) ----
+ TTS_MODEL=gemini-2.5-flash-preview-tts
+ TTS_VOICE=Kore
++VOICE_LIVE_MODEL=gemini-3.1-flash-live-preview
+ 
+ # ---- Web Search (Tavily) ----
+ # Get a free key at https://tavily.com — used for real-time legal news & SC judgments.
+diff --git a/Makefile b/Makefile
+index 70354f7..fd83103 100644
+--- a/Makefile
++++ b/Makefile
+@@ -42,6 +42,19 @@ migrate: ## Run Alembic migrations for the auth service
+ stop-native: ## Stop native dev stack processes
+ 	bash scripts/stop_native.sh
+ 
++.PHONY: public
++public: env ## Start full stack + Cloudflare Tunnel (one global HTTPS URL)
++	bash scripts/stop_native.sh 2>/dev/null || true
++	. .venv/bin/activate && LEGALOS_PUBLIC_MODE=1 python backend/scripts/run_public_stack.py
++
++.PHONY: public-tunnel
++public-tunnel: env ## Tunnel only — stack must already be running
++	bash scripts/expose_public.sh tunnel
++
++.PHONY: public-restore
++public-restore: ## Restore local-only frontend API URLs after public tunnel
++	bash scripts/expose_public.sh restore
++
+ .PHONY: native
+ native: env ## Run native stack with raw-data + Gemini (no Docker)
+ 	bash scripts/stop_native.sh 2>/dev/null || true
+diff --git a/backend/scripts/dev_auth_server.py b/backend/scripts/dev_auth_server.py
+index 882b811..3e90f65 100644
+--- a/backend/scripts/dev_auth_server.py
++++ b/backend/scripts/dev_auth_server.py
+@@ -35,6 +35,8 @@ from tests.fakes import (  # noqa: E402
+ )
+ 
+ ADMIN_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
++ADVOCATE_ID = uuid.UUID("00000000-0000-4000-8000-000000000010")
++CITIZEN_ID = uuid.UUID("00000000-0000-4000-8000-000000000011")
+ STATE_FILE = _ROOT / "data" / ".dev-auth-state.json"
+ 
+ _users = FakeUserRepository()
+@@ -54,6 +56,61 @@ def _admin_user() -> FakeUser:
+     )
+ 
+ 
++def _citizen_user() -> FakeUser:
++    return FakeUser(
++        id=CITIZEN_ID,
++        email="citizen@legalos.in",
++        full_name="Aarav Mehta",
++        hashed_password=hash_password("ChangeMe!2026"),
++        is_active=True,
++        is_verified=True,
++        roles_data=[
++            FakeRole(
++                name=Role.CITIZEN.value,
++                permissions=[
++                    Permission.RESEARCH_READ.value,
++                    Permission.SEARCH_READ.value,
++                    Permission.CASE_READ.value,
++                ],
++            )
++        ],
++    )
++
++
++def _advocate_user() -> FakeUser:
++    return FakeUser(
++        id=ADVOCATE_ID,
++        email="advocate@legalos.in",
++        full_name="Adv. Priya Sharma",
++        hashed_password=hash_password("ChangeMe!2026"),
++        is_active=True,
++        is_verified=True,
++        roles_data=[
++            FakeRole(
++                name=Role.ADVOCATE.value,
++                permissions=[
++                    Permission.RESEARCH_READ.value,
++                    Permission.SEARCH_READ.value,
++                    Permission.KNOWLEDGE_INGEST.value,
++                    Permission.CASE_READ.value,
++                    Permission.CASE_WRITE.value,
++                    Permission.COURTROOM_SIMULATE.value,
++                    Permission.DOCUMENT_READ.value,
++                    Permission.DOCUMENT_WRITE.value,
++                ],
++            )
++        ],
++    )
++
++
++def _ensure_demo_users() -> None:
++    by_email = {u.email: u for u in _users.store.values()}
++    if "citizen@legalos.in" not in by_email and CITIZEN_ID not in _users.store:
++        _users.store[CITIZEN_ID] = _citizen_user()
++    if "advocate@legalos.in" not in by_email and ADVOCATE_ID not in _users.store:
++        _users.store[ADVOCATE_ID] = _advocate_user()
++
++
+ def _save_state() -> None:
+     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+     users_payload = []
+@@ -88,6 +145,8 @@ def _save_state() -> None:
+ def _load_state() -> None:
+     if not STATE_FILE.is_file():
+         _users.store[ADMIN_ID] = _admin_user()
++        _ensure_demo_users()
++        _save_state()
+         return
+     try:
+         raw = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+@@ -112,6 +171,8 @@ def _load_state() -> None:
+ 
+     if ADMIN_ID not in _users.store:
+         _users.store[ADMIN_ID] = _admin_user()
++    _ensure_demo_users()
++    _save_state()
+ 
+     for jti, tok in raw.get("refresh_tokens", {}).items():
+         _refresh.tokens[jti] = {
+diff --git a/backend/scripts/run_native_stack.py b/backend/scripts/run_native_stack.py
+index 50dffe2..d5a5980 100644
+--- a/backend/scripts/run_native_stack.py
++++ b/backend/scripts/run_native_stack.py
+@@ -73,12 +73,17 @@ def main() -> None:
+     procs.append(_start([PY, os.path.join(SCRIPTS, "dev_research_server.py")]))
+     _wait_url("http://localhost:8004/health", timeout_sec=30, label="Research")
+ 
++    procs.append(_start([PY, os.path.join(SCRIPTS, "dev_marketplace_server.py")]))
++    _wait_url("http://localhost:8010/health", timeout_sec=30, label="Marketplace")
++
+     procs.append(_start(["npm", "run", "dev"], cwd=os.path.join(ROOT, "frontend")))
+     _wait_url("http://localhost:3000/login", timeout_sec=60, label="Frontend")
+ 
+     print("\n  Frontend:  http://localhost:3000")
+     print("  Login:     admin@legalos.in / ChangeMe!2026")
+-    print("  Mera Vakil: http://localhost:3000/mera-vakil\n")
++    print("  Citizen:   citizen@legalos.in / ChangeMe!2026")
++    print("  Advocate:  advocate@legalos.in / ChangeMe!2026")
++    print("  Marketplace: http://localhost:3000/lawyer-marketplace\n")
+     print("  Press Ctrl+C to stop.\n")
+ 
+     signal.signal(signal.SIGINT, _shutdown)
+diff --git a/backend/services/lawyer-marketplace/app/api/schemas.py b/backend/services/lawyer-marketplace/app/api/schemas.py
+index 06c8f51..3320a3d 100644
+--- a/backend/services/lawyer-marketplace/app/api/schemas.py
++++ b/backend/services/lawyer-marketplace/app/api/schemas.py
+@@ -21,6 +21,7 @@ class CreateLawyerRequest(BaseModel):
+ class MatchRequest(BaseModel):
+     practice_areas: list[str] = Field(default_factory=list)
+     jurisdictions: list[str] = Field(default_factory=list)
++    city: str | None = None
+     limit: int = Field(default=3, ge=1, le=10)
+ 
+ 
+@@ -49,3 +50,193 @@ class SummaryResponse(BaseModel):
+ class BatchSummaryResponse(BaseModel):
+     generated: int
+     skipped: int
++
++
++class LawyerPublic(BaseModel):
++    id: str
++    slug: str | None = None
++    user_id: str
++    full_name: str
++    bar_council_id: str | None = None
++    practice_areas: list[str] = []
++    city: str = ""
++    jurisdictions: list[str] = []
++    languages: list[str] = []
++    years_experience: int = 0
++    rating: float = 0
++    rating_count: int = 0
++    hourly_rate: float | None = None
++    is_verified: bool = False
++    bio: str = ""
++    summary: str = ""
++    match_score: int = 0
++    ai_recommended: bool = False
++
++
++class BookAppointmentRequest(BaseModel):
++    lawyer_id: str
++    date: str
++    time_slot: str
++    matter_summary: str = Field(min_length=10)
++    source: str = "manual"
++    citizen_name: str = "Citizen"
++
++
++class AppointmentOut(BaseModel):
++    id: str
++    lawyer_id: str
++    lawyer_name: str
++    lawyer_slug: str | None = None
++    citizen_user_id: str
++    lawyer_user_id: str
++    citizen_name: str
++    counterpart_name: str
++    my_role: str = "citizen"
++    livekit_room: str | None = None
++    date: str
++    time_slot: str
++    scheduled_at: str | None
++    scheduled_end_at: str | None
++    matter_summary: str
++    status: str
++    source: str
++    join_state: str
++    seconds_until_start: int
++    seconds_until_end: int
++    opponent_present: bool = False
++    pending_summon: bool = False
++    created_at: str
++    metrics: dict = {}
++    priority: str = "normal"
++    emergency_status: str = "none"
++    emergency_reason: str = ""
++    emergency_at: str | None = None
++    emergency_ack_at: str | None = None
++    emergency_resolved_at: str | None = None
++    assigned_admin_user_id: str | None = None
++    ops_note: str = ""
++    citizen_present: bool = False
++    lawyer_present: bool = False
++    last_summon_at: str | None = None
++    prior_join: bool = False
++
++
++class JoinStateOut(BaseModel):
++    appointment_id: str
++    join_state: str
++    seconds_until_start: int
++    seconds_until_end: int
++    opponent_present: bool
++    pending_summon: bool
++    opponent_typing: bool = False
++    status: str
++    scheduled_at: str | None
++    scheduled_end_at: str | None
++    priority: str = "normal"
++    emergency_status: str = "none"
++    emergency_reason: str = ""
++    last_summon_at: str | None = None
++    prior_join: bool = False
++
++
++class AttachmentOut(BaseModel):
++    id: str
++    consultation_id: str
++    sender_user_id: str
++    receiver_user_id: str
++    filename: str
++    content_type: str
++    size_bytes: int
++    kind: str
++    url: str
++    created_at: str
++
++
++class MessageOut(BaseModel):
++    id: str
++    sender_user_id: str
++    sender_role: str
++    body: str
++    created_at: str
++    reactions: dict = {}
++    kind: str = "text"
++    attachment_id: str | None = None
++    attachment: AttachmentOut | None = None
++
++
++class PostMessageRequest(BaseModel):
++    body: str = Field(min_length=1, max_length=4000)
++
++
++class ReactionRequest(BaseModel):
++    emoji: str = Field(min_length=1, max_length=16)
++
++
++class TypingRequest(BaseModel):
++    on: bool = True
++
++
++class RoomTokenOut(BaseModel):
++    url: str | None = None
++    token: str | None = None
++    room: str
++    configured: bool = False
++    mode: str = "polling"
++
++
++class TranscriptOut(BaseModel):
++    appointment: AppointmentOut
++    messages: list[MessageOut]
++
++
++class LawyerMeUpdate(BaseModel):
++    full_name: str | None = None
++    bar_council_id: str | None = None
++    practice_areas: list[str] | None = None
++    jurisdictions: list[str] | None = None
++    languages: list[str] | None = None
++    city: str | None = None
++    years_experience: int | None = Field(default=None, ge=0, le=70)
++    hourly_rate: float | None = Field(default=None, ge=0)
++    bio: str | None = None
++
++
++class CallEventRequest(BaseModel):
++    type: str = Field(pattern="^(started|ended)$")
++    talk_seconds: int = Field(default=0, ge=0, le=86400)
++
++
++class AdminLawyerPatch(BaseModel):
++    is_verified: bool
++
++
++class ReasonRequest(BaseModel):
++    reason: str = Field(min_length=3, max_length=500)
++
++
++class EmergencyRequest(BaseModel):
++    reason: str = Field(min_length=3, max_length=500)
++
++
++class PriorityRequest(BaseModel):
++    priority: str = Field(pattern="^(normal|urgent|emergency)$")
++
++
++class ExtendRequest(BaseModel):
++    minutes: int = Field(ge=1, le=60)
++
++
++class ReassignRequest(BaseModel):
++    lawyer_id: str
++
++
++class SystemMessageRequest(BaseModel):
++    body: str = Field(min_length=1, max_length=4000)
++
++
++class AdminEventOut(BaseModel):
++    id: str
++    type: str
++    actor_user_id: str | None = None
++    payload: dict = {}
++    created_at: str | None = None
+diff --git a/backend/services/lawyer-marketplace/app/main.py b/backend/services/lawyer-marketplace/app/main.py
+index 92afa8a..292d568 100644
+--- a/backend/services/lawyer-marketplace/app/main.py
++++ b/backend/services/lawyer-marketplace/app/main.py
+@@ -7,7 +7,9 @@ from contextlib import asynccontextmanager
+ from fastapi import FastAPI
+ from fastapi.middleware.cors import CORSMiddleware
+ 
+-from app.api.routes import router
++from app.api.marketplace_api import admin_router, appointments_router, lawyers_router
++from app.infrastructure.db import get_engine, init_db
++from app.infrastructure.seed import seed_lawyers
+ from legalos_common.api import (
+     RequestContextMiddleware,
+     build_health_router,
+@@ -23,13 +25,28 @@ configure_logging(settings.service_name, settings.log_level)
+ 
+ @asynccontextmanager
+ async def lifespan(_: FastAPI):
++    await init_db()
++    from sqlalchemy.ext.asyncio import AsyncSession
++
++    from app.infrastructure.db import _sessionmaker, get_engine as _ge
++
++    _ge()
++    assert _sessionmaker is not None
++    session = _sessionmaker()
++    try:
++        await seed_lawyers(session)
++        await session.commit()
++    finally:
++        await session.close()
+     yield
++    engine = get_engine()
++    await engine.dispose()
+ 
+ 
+ app = FastAPI(
+     title="AI Legal OS - Lawyer Marketplace",
+-    version="0.1.0",
+-    description="Lawyer profiles, LLM-generated summaries, and agent-driven matching.",
++    version="0.2.0",
++    description="Verified counsel listings, appointments, and room tokens.",
+     lifespan=lifespan,
+ )
+ 
+@@ -46,4 +63,6 @@ register_exception_handlers(app)
+ setup_telemetry(app, settings)
+ 
+ app.include_router(build_health_router("lawyer-marketplace"))
+-app.include_router(router)
++app.include_router(lawyers_router)
++app.include_router(appointments_router)
++app.include_router(admin_router)
+diff --git a/frontend/next.config.mjs b/frontend/next.config.mjs
+index 01761fd..8b7d417 100644
+--- a/frontend/next.config.mjs
++++ b/frontend/next.config.mjs
+@@ -2,6 +2,23 @@
+ const nextConfig = {
+   reactStrictMode: true,
+   output: "standalone",
++  /** Route browser API calls through Next.js so one public URL works on any device. */
++  async rewrites() {
++    const auth = process.env.API_PROXY_AUTH ?? "http://127.0.0.1:8001";
++    const search = process.env.API_PROXY_SEARCH ?? "http://127.0.0.1:8003";
++    const research = process.env.API_PROXY_RESEARCH ?? "http://127.0.0.1:8004";
++    const marketplace = process.env.API_PROXY_MARKETPLACE ?? "http://127.0.0.1:8010";
++    const ingestion = process.env.API_PROXY_INGESTION ?? "http://127.0.0.1:8002";
++    const document = process.env.API_PROXY_DOCUMENT ?? "http://127.0.0.1:8005";
++    return [
++      { source: "/svc/auth/:path*", destination: `${auth}/:path*` },
++      { source: "/svc/search/:path*", destination: `${search}/:path*` },
++      { source: "/svc/research/:path*", destination: `${research}/:path*` },
++      { source: "/svc/marketplace/:path*", destination: `${marketplace}/:path*` },
++      { source: "/svc/ingestion/:path*", destination: `${ingestion}/:path*` },
++      { source: "/svc/document/:path*", destination: `${document}/:path*` },
++    ];
++  },
+ };
+ 
+ export default nextConfig;
+diff --git a/frontend/package-lock.json b/frontend/package-lock.json
+index 2e6b339..8e78d61 100644
+--- a/frontend/package-lock.json
++++ b/frontend/package-lock.json
+@@ -13,6 +13,7 @@
+         "clsx": "^2.1.1",
+         "html2canvas": "^1.4.1",
+         "jspdf": "^4.2.1",
++        "livekit-client": "^2.22.0",
+         "lucide-react": "^0.451.0",
+         "next": "^15.0.0",
+         "react": "^19.0.0",
+@@ -56,6 +57,12 @@
+         "node": ">=6.9.0"
+       }
+     },
++    "node_modules/@bufbuild/protobuf": {
++      "version": "1.10.1",
++      "resolved": "https://registry.npmjs.org/@bufbuild/protobuf/-/protobuf-1.10.1.tgz",
++      "integrity": "sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==",
++      "license": "(Apache-2.0 AND BSD-3-Clause)"
++    },
+     "node_modules/@emnapi/core": {
+       "version": "1.10.0",
+       "resolved": "https://registry.npmjs.org/@emnapi/core/-/core-1.10.0.tgz",
+@@ -804,6 +811,21 @@
+         "@jridgewell/sourcemap-codec": "^1.4.14"
+       }
+     },
++    "node_modules/@livekit/mutex": {
++      "version": "1.1.1",
++      "resolved": "https://registry.npmjs.org/@livekit/mutex/-/mutex-1.1.1.tgz",
++      "integrity": "sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==",
++      "license": "Apache-2.0"
++    },
++    "node_modules/@livekit/protocol": {
++      "version": "1.50.4",
++      "resolved": "https://registry.npmjs.org/@livekit/protocol/-/protocol-1.50.4.tgz",
++      "integrity": "sha512-L1uggNQAqyY21smQY8AllyOYbcv9Me9TaxwuLytL1R8ck9nbYPmQLNwEDi3pOFGAMa5F8I2nUi2Jc59W5awxlA==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@bufbuild/protobuf": "^1.10.0"
++      }
++    },
+     "node_modules/@napi-rs/wasm-runtime": {
+       "version": "1.1.6",
+       "resolved": "https://registry.npmjs.org/@napi-rs/wasm-runtime/-/wasm-runtime-1.1.6.tgz",
+@@ -1084,6 +1106,13 @@
+         "@types/ms": "*"
+       }
+     },
++    "node_modules/@types/dom-mediacapture-record": {
++      "version": "1.0.22",
++      "resolved": "https://registry.npmjs.org/@types/dom-mediacapture-record/-/dom-mediacapture-record-1.0.22.tgz",
++      "integrity": "sha512-mUMZLK3NvwRLcAAT9qmcK+9p7tpU2FHdDsntR3YI4+GY88XrgG4XiE7u1Q2LAN2/FZOz/tdMDC3GQCR4T8nFuw==",
++      "license": "MIT",
++      "peer": true
++    },
+     "node_modules/@types/estree": {
+       "version": "1.0.9",
+       "resolved": "https://registry.npmjs.org/@types/estree/-/estree-1.0.9.tgz",
+@@ -3482,6 +3511,15 @@
+         "node": ">=0.10.0"
+       }
+     },
++    "node_modules/events": {
++      "version": "3.3.0",
++      "resolved": "https://registry.npmjs.org/events/-/events-3.3.0.tgz",
++      "integrity": "sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=0.8.x"
++      }
++    },
+     "node_modules/extend": {
+       "version": "3.0.2",
+       "resolved": "https://registry.npmjs.org/extend/-/extend-3.0.2.tgz",
+@@ -4605,6 +4643,15 @@
+         "jiti": "bin/jiti.js"
+       }
+     },
++    "node_modules/jose": {
++      "version": "6.2.10",
++      "resolved": "https://registry.npmjs.org/jose/-/jose-6.2.10.tgz",
++      "integrity": "sha512-iiW7J9qRFlGxvCOIBDBDxFePQSn7ZMAnrYGhrrOo6siO/MIqwfyilLR27pkfDgUk+raLuzADS8A3S/KLBisc0g==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://github.com/sponsors/panva"
++      }
++    },
+     "node_modules/js-tokens": {
+       "version": "4.0.0",
+       "resolved": "https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz",
+@@ -4766,6 +4813,26 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/livekit-client": {
++      "version": "2.22.0",
++      "resolved": "https://registry.npmjs.org/livekit-client/-/livekit-client-2.22.0.tgz",
++      "integrity": "sha512-GLtYQfRh/RsvXaOX1x609bFZ17yyKmKWDqu9JmkMKn9vIFLi2GsapRv9gT8OJO/1R2dsitrkbGmloyUfxWQsaA==",
++      "license": "Apache-2.0",
++      "dependencies": {
++        "@livekit/mutex": "1.1.1",
++        "@livekit/protocol": "1.50.4",
++        "events": "^3.3.0",
++        "jose": "^6.1.0",
++        "loglevel": "^1.9.2",
++        "sdp-transform": "^2.15.0",
++        "tslib": "2.8.1",
++        "typed-emitter": "^2.1.0",
++        "webrtc-adapter": "9.0.6"
++      },
++      "peerDependencies": {
++        "@types/dom-mediacapture-record": "^1"
++      }
++    },
+     "node_modules/locate-path": {
+       "version": "6.0.0",
+       "resolved": "https://registry.npmjs.org/locate-path/-/locate-path-6.0.0.tgz",
+@@ -4789,6 +4856,19 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/loglevel": {
++      "version": "1.9.2",
++      "resolved": "https://registry.npmjs.org/loglevel/-/loglevel-1.9.2.tgz",
++      "integrity": "sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6.0"
++      },
++      "funding": {
++        "type": "tidelift",
++        "url": "https://tidelift.com/funding/github/npm/loglevel"
++      }
++    },
+     "node_modules/longest-streak": {
+       "version": "3.1.0",
+       "resolved": "https://registry.npmjs.org/longest-streak/-/longest-streak-3.1.0.tgz",
+@@ -6801,6 +6881,16 @@
+         "queue-microtask": "^1.2.2"
+       }
+     },
++    "node_modules/rxjs": {
++      "version": "7.8.2",
++      "resolved": "https://registry.npmjs.org/rxjs/-/rxjs-7.8.2.tgz",
++      "integrity": "sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==",
++      "license": "Apache-2.0",
++      "optional": true,
++      "dependencies": {
++        "tslib": "^2.1.0"
++      }
++    },
+     "node_modules/safe-array-concat": {
+       "version": "1.1.4",
+       "resolved": "https://registry.npmjs.org/safe-array-concat/-/safe-array-concat-1.1.4.tgz",
+@@ -6862,6 +6952,21 @@
+       "integrity": "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==",
+       "license": "MIT"
+     },
++    "node_modules/sdp": {
++      "version": "3.2.2",
++      "resolved": "https://registry.npmjs.org/sdp/-/sdp-3.2.2.tgz",
++      "integrity": "sha512-xZocWwfyp4hkbN4hLWxMjmv2Q8aNa9MhmOZ7L9aCZPT+dZsgRr6wZRrSYE3HTdyk/2pZKPSgqI7ns7Een1xMSA==",
++      "license": "MIT"
++    },
++    "node_modules/sdp-transform": {
++      "version": "2.15.0",
++      "resolved": "https://registry.npmjs.org/sdp-transform/-/sdp-transform-2.15.0.tgz",
++      "integrity": "sha512-KrOH82c/W+GYQ0LHqtr3caRpM3ITglq3ljGUIb8LTki7ByacJZ9z+piSGiwZDsRyhQbYBOBJgr2k6X4BZXi3Kw==",
++      "license": "MIT",
++      "bin": {
++        "sdp-verify": "checker.js"
++      }
++    },
+     "node_modules/semver": {
+       "version": "7.8.5",
+       "resolved": "https://registry.npmjs.org/semver/-/semver-7.8.5.tgz",
+@@ -7722,6 +7827,15 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
++    "node_modules/typed-emitter": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/typed-emitter/-/typed-emitter-2.1.0.tgz",
++      "integrity": "sha512-g/KzbYKbH5C2vPkaXGu8DJlHrGKHLsM25Zg9WuC9pMGfuvT+X25tZQWo5fK1BjBm8+UrVE9LDCvaY0CQk+fXDA==",
++      "license": "MIT",
++      "optionalDependencies": {
++        "rxjs": "*"
++      }
++    },
+     "node_modules/typescript": {
+       "version": "5.9.3",
+       "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+@@ -7972,6 +8086,19 @@
+         "url": "https://opencollective.com/unified"
+       }
+     },
++    "node_modules/webrtc-adapter": {
++      "version": "9.0.6",
++      "resolved": "https://registry.npmjs.org/webrtc-adapter/-/webrtc-adapter-9.0.6.tgz",
++      "integrity": "sha512-CHbl2ZQbxx164IgWRgzJno4hWtM4tFbRam1QfI3Yxhs3w/DvqluVxVWeXs3oL5/fbGkSNLKo0Ty5MgUWceNhog==",
++      "license": "BSD-3-Clause",
++      "dependencies": {
++        "sdp": "^3.2.0"
++      },
++      "engines": {
++        "node": ">=6.0.0",
++        "npm": ">=3.10.0"
++      }
++    },
+     "node_modules/which": {
+       "version": "2.0.2",
+       "resolved": "https://registry.npmjs.org/which/-/which-2.0.2.tgz",
+diff --git a/frontend/package.json b/frontend/package.json
+index a47df07..76d4421 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -15,6 +15,7 @@
+     "clsx": "^2.1.1",
+     "html2canvas": "^1.4.1",
+     "jspdf": "^4.2.1",
++    "livekit-client": "^2.22.0",
+     "lucide-react": "^0.451.0",
+     "next": "^15.0.0",
+     "react": "^19.0.0",
+diff --git a/frontend/src/app/(protected)/lawyer-marketplace/page.tsx b/frontend/src/app/(protected)/lawyer-marketplace/page.tsx
+index 1da31c7..b5735bb 100644
+--- a/frontend/src/app/(protected)/lawyer-marketplace/page.tsx
++++ b/frontend/src/app/(protected)/lawyer-marketplace/page.tsx
+@@ -1,10 +1,11 @@
+ "use client";
+ 
+-import { useMemo, useState } from "react";
++import { useEffect, useMemo, useState } from "react";
+ 
+ import { AppointmentList } from "@/components/lawyer-marketplace/appointment-list";
+ import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
+ import { LawyerCard } from "@/components/lawyer-marketplace/lawyer-card";
++import { MyListingEditor } from "@/components/lawyer-marketplace/my-listing-editor";
+ import {
+   LawyerFilters,
+   type LawyerFilterState,
+@@ -14,8 +15,14 @@ import { LawyerProfileDrawer } from "@/components/lawyer-marketplace/lawyer-prof
+ import { MarketplaceHero } from "@/components/lawyer-marketplace/marketplace-hero";
+ import { TopMatchesStrip } from "@/components/lawyer-marketplace/top-matches-strip";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+-import { listLawyers, listMyAppointments, type RankedLawyer } from "@/lib/marketplace-store";
+-import { MOCK_LAWYERS } from "@/lib/mock/lawyers";
++import {
++  fetchMarketplaceLawyers,
++  getAppointmentJoinState,
++  listAppointments,
++  syncAdvocateListing,
++} from "@/lib/api";
++import type { AppointmentRecord } from "@/lib/appointment-types";
++import { listLawyers, toRankedLawyer, type RankedLawyer } from "@/lib/marketplace-store";
+ import { cn } from "@/lib/utils";
+ 
+ export default function LawyerMarketplacePage() {
+@@ -24,41 +31,142 @@ export default function LawyerMarketplacePage() {
+     query: "",
+     practiceArea: "",
+     city: "",
+-    verifiedOnly: false,
++    verifiedOnly: true,
+     sort: "match",
+   });
++  const [catalog, setCatalog] = useState<RankedLawyer[]>([]);
++  const [catalogError, setCatalogError] = useState<string | null>(null);
++  const [catalogLoading, setCatalogLoading] = useState(true);
+   const [profileLawyer, setProfileLawyer] = useState<RankedLawyer | null>(null);
+   const [bookingLawyer, setBookingLawyer] = useState<RankedLawyer | null>(null);
++  const [bookingSource, setBookingSource] = useState<"ai_match" | "manual">("manual");
+   const [appointmentsVersion, setAppointmentsVersion] = useState(0);
++  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
++  const [catalogTick, setCatalogTick] = useState(0);
++
++  useEffect(() => {
++    void syncAdvocateListing();
++  }, []);
++
++  useEffect(() => {
++    let cancelled = false;
++    setCatalogLoading(true);
++    fetchMarketplaceLawyers({
++      query: filters.query || undefined,
++      practiceArea: filters.practiceArea || undefined,
++      city: filters.city || undefined,
++      verified: filters.verifiedOnly,
++    })
++      .then((rows) => {
++        if (!cancelled) {
++          setCatalog(rows.map(toRankedLawyer));
++          setCatalogError(null);
++        }
++      })
++      .catch((err: Error) => {
++        if (!cancelled) setCatalogError(err.message);
++      })
++      .finally(() => {
++        if (!cancelled) setCatalogLoading(false);
++      });
++    return () => {
++      cancelled = true;
++    };
++  }, [filters.query, filters.practiceArea, filters.city, filters.verifiedOnly, catalogTick]);
++
++  useEffect(() => {
++    let cancelled = false;
++    const load = async () => {
++      try {
++        const rows = await listAppointments();
++        if (!cancelled) setAppointments(rows);
++      } catch {
++        /* list surfaces empty */
++      }
++    };
++    void load();
++    return () => {
++      cancelled = true;
++    };
++  }, [appointmentsVersion]);
++
++  useEffect(() => {
++    if (appointments.length === 0) return undefined;
++    const poll = async () => {
++      const updates = await Promise.all(
++        appointments
++          .filter((a) => a.join_state !== "expired" && a.status !== "cancelled")
++          .map(async (apt) => {
++            try {
++              return { id: apt.id, join: await getAppointmentJoinState(apt.id) };
++            } catch {
++              return null;
++            }
++          }),
++      );
++      setAppointments((prev) =>
++        prev.map((row) => {
++          const hit = updates.find((u) => u && u.id === row.id);
++          if (!hit) return row;
++          return {
++            ...row,
++            join_state: hit.join.join_state,
++            seconds_until_start: hit.join.seconds_until_start,
++            seconds_until_end: hit.join.seconds_until_end,
++            opponent_present: hit.join.opponent_present,
++            pending_summon: hit.join.pending_summon,
++            last_summon_at: hit.join.last_summon_at ?? row.last_summon_at,
++            prior_join: hit.join.prior_join ?? row.prior_join,
++            priority: hit.join.priority ?? row.priority,
++            emergency_status: hit.join.emergency_status ?? row.emergency_status,
++            emergency_reason: hit.join.emergency_reason ?? row.emergency_reason,
++            status: (hit.join.status as AppointmentRecord["status"]) ?? row.status,
++          };
++        }),
++      );
++    };
++    void poll();
++    const timer = window.setInterval(() => void poll(), 3000);
++    const onFocus = () => void poll();
++    window.addEventListener("focus", onFocus);
++    return () => {
++      window.clearInterval(timer);
++      window.removeEventListener("focus", onFocus);
++    };
++  }, [appointments.map((a) => a.id).join(",")]);
+ 
+   const lawyers = useMemo(
+     () =>
+-      listLawyers({
++      listLawyers(catalog, {
+         query: filters.query,
+         practiceArea: filters.practiceArea || undefined,
+         city: filters.city || undefined,
+         verifiedOnly: filters.verifiedOnly,
+         sort: filters.sort,
+       }),
+-    [filters],
+-  );
+-
+-  const appointments = useMemo(
+-    () => listMyAppointments(),
+-    // eslint-disable-next-line react-hooks/exhaustive-deps
+-    [appointmentsVersion],
++    [catalog, filters],
+   );
+ 
+-  const verifiedCount = MOCK_LAWYERS.filter((l) => l.verified).length;
++  const verifiedCount = catalog.filter((l) => l.verified).length;
+   const avgMatch =
+     lawyers.length > 0
+       ? Math.round(lawyers.reduce((s, l) => s + l.match_score, 0) / lawyers.length)
+       : 0;
+ 
++  function bookManual(lawyer: RankedLawyer) {
++    setBookingSource("manual");
++    setBookingLawyer(lawyer);
++  }
++
++  function bookMatch(lawyer: RankedLawyer) {
++    setBookingSource("ai_match");
++    setBookingLawyer(lawyer);
++  }
++
+   return (
+     <div className="mx-auto w-full max-w-[1120px] space-y-5 pb-6 md:space-y-6 md:pb-8">
+       <MarketplaceHero
+-        counselCount={MOCK_LAWYERS.length}
++        counselCount={catalog.length}
+         verifiedCount={verifiedCount}
+         avgMatch={avgMatch}
+       />
+@@ -81,23 +189,19 @@ export default function LawyerMarketplacePage() {
+             className="min-h-8 flex-1 rounded-xl px-4 text-[12px] font-semibold sm:flex-none"
+           >
+             Appointments
+-            {appointments.length > 0 && (
+-              <span className="ml-1.5 rounded-full border border-slate-300/70 bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-zinc-200">
+-                {appointments.length}
+-              </span>
+-            )}
+           </TabsTrigger>
+         </TabsList>
+ 
+         <TabsContent value="lawyers" className="mt-4 space-y-5">
+-          <LiveMatchPanel onView={setProfileLawyer} onBook={setBookingLawyer} />
++          <MyListingEditor onSaved={() => setCatalogTick((n) => n + 1)} />
++          <LiveMatchPanel catalog={catalog} onView={setProfileLawyer} onBook={bookMatch} />
+ 
+           <LawyerFilters value={filters} onChange={setFilters} />
+ 
+           <TopMatchesStrip
+             lawyers={lawyers}
+             onView={setProfileLawyer}
+-            onBook={setBookingLawyer}
++            onBook={bookManual}
+           />
+ 
+           <div className="flex items-baseline justify-between gap-3">
+@@ -107,11 +211,31 @@ export default function LawyerMarketplacePage() {
+             <p className="text-[11px] text-muted-foreground/70">By {filters.sort}</p>
+           </div>
+ 
+-          {lawyers.length === 0 ? (
++          {catalogLoading ? (
++            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
++              {[0, 1, 2].map((i) => (
++                <div
++                  key={i}
++                  className="h-44 animate-pulse rounded-2xl border border-black/[0.06] bg-white/40 dark:border-white/10"
++                />
++              ))}
++            </div>
++          ) : catalogError ? (
+             <div className="rounded-2xl border border-dashed border-black/[0.08] py-14 text-center dark:border-white/10">
+-              <p className="text-sm font-medium">No lawyers match your filters</p>
+-              <p className="mt-1 text-[13px] text-muted-foreground">
+-                Try a broader practice area or clear the search.
++              <p className="text-sm font-medium">Could not load counsel</p>
++              <p className="mt-1 text-[13px] text-muted-foreground">{catalogError}</p>
++            </div>
++          ) : lawyers.length === 0 ? (
++            <div className="rounded-2xl border border-dashed border-black/[0.08] px-6 py-14 text-center dark:border-white/10">
++              <p className="text-sm font-medium">
++                {catalog.length === 0
++                  ? "No verified registered advocates yet"
++                  : "No lawyers match your filters"}
++              </p>
++              <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">
++                {catalog.length === 0
++                  ? "Only advocates who registered in this app and are verified appear here. Ask counsel to sign up with the advocate role."
++                  : "Try a broader practice area or clear the search."}
+               </p>
+             </div>
+           ) : (
+@@ -122,7 +246,7 @@ export default function LawyerMarketplacePage() {
+                   lawyer={lawyer}
+                   index={index}
+                   onView={setProfileLawyer}
+-                  onBook={setBookingLawyer}
++                  onBook={bookManual}
+                 />
+               ))}
+             </div>
+@@ -130,7 +254,10 @@ export default function LawyerMarketplacePage() {
+         </TabsContent>
+ 
+         <TabsContent value="appointments" className="mt-4">
+-          <AppointmentList appointments={appointments} />
++          <AppointmentList
++            appointments={appointments}
++            onChanged={() => setAppointmentsVersion((v) => v + 1)}
++          />
+         </TabsContent>
+       </Tabs>
+ 
+@@ -138,12 +265,13 @@ export default function LawyerMarketplacePage() {
+         lawyer={profileLawyer}
+         open={Boolean(profileLawyer)}
+         onClose={() => setProfileLawyer(null)}
+-        onBook={setBookingLawyer}
++        onBook={bookManual}
+       />
+ 
+       <BookingDialog
+         lawyer={bookingLawyer}
+         open={Boolean(bookingLawyer)}
++        source={bookingSource}
+         onClose={() => setBookingLawyer(null)}
+         onBooked={() => {
+           setAppointmentsVersion((v) => v + 1);
+diff --git a/frontend/src/app/login/page.tsx b/frontend/src/app/login/page.tsx
+index 503d72d..8af2797 100644
+--- a/frontend/src/app/login/page.tsx
++++ b/frontend/src/app/login/page.tsx
+@@ -12,7 +12,7 @@ import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Label } from "@/components/ui/label";
+-import { login, setSession } from "@/lib/api";
++import { login, setSession, syncAdvocateListing } from "@/lib/api";
+ import { loginRedirectForUser } from "@/lib/permissions";
+ 
+ function LoginForm() {
+@@ -25,8 +25,9 @@ function LoginForm() {
+ 
+   const mutation = useMutation({
+     mutationFn: () => login(email, password),
+-    onSuccess: (auth) => {
++    onSuccess: async (auth) => {
+       setSession(auth);
++      await syncAdvocateListing();
+       if (nextPath && nextPath.startsWith("/")) {
+         router.push(nextPath);
+         return;
+diff --git a/frontend/src/app/register/page.tsx b/frontend/src/app/register/page.tsx
+index e4ceb3a..cf861f1 100644
+--- a/frontend/src/app/register/page.tsx
++++ b/frontend/src/app/register/page.tsx
+@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Label } from "@/components/ui/label";
+ import { Select } from "@/components/ui/select";
+-import { register, setSession } from "@/lib/api";
++import { register, setSession, syncAdvocateListing } from "@/lib/api";
+ import { loginRedirectForUser } from "@/lib/permissions";
+ 
+ export default function RegisterPage() {
+@@ -24,8 +24,9 @@ export default function RegisterPage() {
+ 
+   const mutation = useMutation({
+     mutationFn: () => register(email, fullName || email.split("@")[0], password, role),
+-    onSuccess: (auth) => {
++    onSuccess: async (auth) => {
+       setSession(auth);
++      await syncAdvocateListing();
+       router.push(loginRedirectForUser(auth.user));
+     },
+   });
+diff --git a/frontend/src/components/lawyer-marketplace/appointment-list.tsx b/frontend/src/components/lawyer-marketplace/appointment-list.tsx
+index 30162e3..ae81f4e 100644
+--- a/frontend/src/components/lawyer-marketplace/appointment-list.tsx
++++ b/frontend/src/components/lawyer-marketplace/appointment-list.tsx
+@@ -1,37 +1,79 @@
+ "use client";
+ 
++import Link from "next/link";
++import { useEffect, useMemo, useState } from "react";
+ import { CalendarDays, Clock3 } from "lucide-react";
+ 
+ import { Badge } from "@/components/ui/badge";
+-import type { AppointmentStatus, ConsultationBooking } from "@/lib/types";
++import { useToast } from "@/components/ui/toast";
++import { useAppointmentSummonWatcher } from "@/hooks/use-appointment-summon-watcher";
++import { cancelAppointment, confirmAppointment, getStoredUser } from "@/lib/api";
++import {
++  appointmentClock,
++  formatCountdown,
++  liveJoinPhase,
++  secondsUntil,
++} from "@/lib/appointment-format";
++import type { AppointmentRecord } from "@/lib/appointment-types";
++import type { AppointmentStatus } from "@/lib/types";
+ import { cn } from "@/lib/utils";
+ 
+ const STATUS_STYLES: Record<AppointmentStatus, string> = {
+-  requested:
+-    "border-transparent bg-amber-500/10 text-amber-800 dark:text-amber-300",
+-  confirmed:
+-    "border-transparent bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
++  requested: "border-transparent bg-amber-500/10 text-amber-800 dark:text-amber-300",
++  confirmed: "border-transparent bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
++  live: "border-transparent bg-sky-500/10 text-sky-800 dark:text-sky-300",
+   completed: "border-transparent bg-slate-500/10 text-slate-700 dark:text-slate-300",
++  expired: "border-transparent bg-slate-500/10 text-slate-700 dark:text-slate-300",
+   cancelled: "border-transparent bg-red-500/10 text-red-700 dark:text-red-300",
++  no_show: "border-transparent bg-red-500/10 text-red-700 dark:text-red-300",
+ };
+ 
+-function formatDate(isoDate: string): string {
+-  try {
+-    return new Intl.DateTimeFormat("en-IN", {
+-      day: "numeric",
+-      month: "short",
+-      year: "numeric",
+-    }).format(new Date(`${isoDate}T00:00:00`));
+-  } catch {
+-    return isoDate;
+-  }
+-}
+-
+ interface AppointmentListProps {
+-  appointments: ConsultationBooking[];
++  appointments: AppointmentRecord[];
++  onChanged?: () => void;
+ }
+ 
+-export function AppointmentList({ appointments }: AppointmentListProps) {
++export function AppointmentList({ appointments, onChanged }: AppointmentListProps) {
++  const [now, setNow] = useState(() => Date.now());
++  const user = useMemo(() => getStoredUser(), []);
++
++  useEffect(() => {
++    const timer = window.setInterval(() => setNow(Date.now()), 1000);
++    return () => window.clearInterval(timer);
++  }, []);
++
++  useAppointmentSummonWatcher({ appointments });
++  const isAdvocate = Boolean(user?.roles.includes("advocate") || user?.roles.includes("admin"));
++
++  const asLawyer = (a: AppointmentRecord) =>
++    a.my_role === "lawyer" || (isAdvocate && user?.user_id === a.lawyer_user_id);
++
++  const inbox = useMemo(
++    () =>
++      appointments.filter(
++        (a) => asLawyer(a) && ["requested", "confirmed", "live"].includes(a.status),
++      ),
++    [appointments, isAdvocate, user?.user_id],
++  );
++  const schedule = useMemo(
++    () => appointments.filter((a) => asLawyer(a) && !inbox.includes(a)),
++    [appointments, inbox, isAdvocate, user?.user_id],
++  );
++  const mine = useMemo(
++    () => appointments.filter((a) => !asLawyer(a)),
++    [appointments, isAdvocate, user?.user_id],
++  );
++  const upcoming = useMemo(
++    () =>
++      appointments.filter((a) => liveJoinPhase(a, now) !== "expired" && a.status !== "cancelled"),
++    [appointments, now],
++  );
++  const past = useMemo(
++    () =>
++      appointments.filter((a) => liveJoinPhase(a, now) === "expired" || a.status === "cancelled"),
++    [appointments, now],
++  );
++
+   if (appointments.length === 0) {
+     return (
+       <div className="rounded-3xl border border-dashed border-black/[0.08] bg-white/30 py-20 text-center dark:border-white/10 dark:bg-white/[0.02]">
+@@ -40,25 +82,41 @@ export function AppointmentList({ appointments }: AppointmentListProps) {
+         </div>
+         <p className="text-sm font-semibold">No appointments yet</p>
+         <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
+-          Book a consultation from Top Lawyers — your schedule will appear here instantly.
++          Book a consultation from Top Lawyers — your inbox will appear here.
+         </p>
+       </div>
+     );
+   }
+ 
+-  const today = new Date().toISOString().slice(0, 10);
+-  const upcoming = appointments.filter((a) => a.date >= today);
+-  const past = appointments.filter((a) => a.date < today);
+-
+   return (
+     <div className="space-y-8">
+-      <Section title="Upcoming" items={upcoming} />
+-      <Section title="Past" items={past} />
++      {isAdvocate ? (
++        <>
++          <Section title="Inbox" items={inbox} now={now} onChanged={onChanged} />
++          <Section title="My schedule" items={schedule} now={now} onChanged={onChanged} />
++          {mine.length > 0 && <Section title="My consultations" items={mine} now={now} onChanged={onChanged} />}
++        </>
++      ) : (
++        <>
++          <Section title="My consultations" items={upcoming} now={now} onChanged={onChanged} />
++          <Section title="Past" items={past} now={now} onChanged={onChanged} />
++        </>
++      )}
+     </div>
+   );
+ }
+ 
+-function Section({ title, items }: { title: string; items: ConsultationBooking[] }) {
++function Section({
++  title,
++  items,
++  now,
++  onChanged,
++}: {
++  title: string;
++  items: AppointmentRecord[];
++  now: number;
++  onChanged?: () => void;
++}) {
+   if (items.length === 0) return null;
+   return (
+     <section>
+@@ -67,31 +125,149 @@ function Section({ title, items }: { title: string; items: ConsultationBooking[]
+       </h3>
+       <ul className="space-y-3">
+         {items.map((apt, i) => (
+-          <li
+-            key={apt.id}
+-            style={{ animationDelay: `${i * 50}ms` }}
+-            className={cn(
+-              "mp-card-enter rounded-2xl border border-black/[0.06] bg-white/60 p-4 backdrop-blur-xl",
+-              "transition-all duration-300 hover:border-slate-300/50 hover:shadow-[0_10px_30px_rgba(15,23,42,0.06)]",
+-              "dark:border-white/[0.08] dark:bg-white/[0.04]",
+-            )}
+-          >
+-            <div className="flex flex-wrap items-start justify-between gap-2">
+-              <div>
+-                <p className="font-semibold tracking-tight">{apt.lawyer_name}</p>
+-                <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+-                  <Clock3 className="h-3.5 w-3.5" />
+-                  {formatDate(apt.date)} · {apt.time_slot}
+-                </p>
+-              </div>
+-              <Badge className={cn("capitalize", STATUS_STYLES[apt.status])}>{apt.status}</Badge>
+-            </div>
+-            <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+-              {apt.matter_summary}
+-            </p>
+-          </li>
++          <AppointmentRow key={apt.id} apt={apt} now={now} index={i} onChanged={onChanged} />
+         ))}
+       </ul>
+     </section>
+   );
+ }
++
++function AppointmentRow({
++  apt,
++  now,
++  index,
++  onChanged,
++}: {
++  apt: AppointmentRecord;
++  now: number;
++  index: number;
++  onChanged?: () => void;
++}) {
++  const { toast } = useToast();
++  const [busy, setBusy] = useState<"confirm" | "cancel" | null>(null);
++  const phase = liveJoinPhase(apt, now);
++  const roleLabel = apt.my_role === "lawyer" ? "Citizen" : "Counsel";
++  const untilStart = secondsUntil(apt.scheduled_at, now);
++  const untilEnd = secondsUntil(apt.scheduled_end_at, now);
++  const canAct = !["completed", "expired", "no_show", "cancelled"].includes(apt.status);
++  const isRejoin =
++    apt.prior_join ||
++    (apt.metrics?.citizen_join_count ?? 0) > 0 ||
++    (apt.metrics?.lawyer_join_count ?? 0) > 0 ||
++    apt.status === "live";
++  const joinLabel = phase === "joinable" ? (isRejoin ? "Rejoin room" : "Join room") : "Join room";
++
++  async function handleConfirm() {
++    setBusy("confirm");
++    try {
++      await confirmAppointment(apt.id);
++      toast({ title: "Appointment confirmed", variant: "success" });
++      onChanged?.();
++    } catch (err) {
++      toast({ title: "Could not confirm", description: (err as Error).message, variant: "destructive" });
++    } finally {
++      setBusy(null);
++    }
++  }
++
++  async function handleCancel() {
++    setBusy("cancel");
++    try {
++      await cancelAppointment(apt.id);
++      toast({ title: "Appointment cancelled" });
++      onChanged?.();
++    } catch (err) {
++      toast({ title: "Could not cancel", description: (err as Error).message, variant: "destructive" });
++    } finally {
++      setBusy(null);
++    }
++  }
++
++  return (
++    <li
++      style={{ animationDelay: `${index * 50}ms` }}
++      className={cn(
++        "mp-card-enter rounded-2xl border border-black/[0.06] bg-white/60 p-4 backdrop-blur-xl",
++        "transition-all duration-300 hover:border-slate-300/50 hover:shadow-[0_10px_30px_rgba(15,23,42,0.06)]",
++        "dark:border-white/[0.08] dark:bg-white/[0.04]",
++      )}
++    >
++      <div className="flex flex-wrap items-start justify-between gap-2">
++        <div>
++          <p className="font-semibold tracking-tight">{apt.counterpart_name || apt.lawyer_name}</p>
++          <p className="mt-0.5 text-[11px] text-muted-foreground">{roleLabel}</p>
++          <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
++            <Clock3 className="h-3.5 w-3.5" />
++            {appointmentClock(apt.scheduled_at)} · {apt.time_slot}
++          </p>
++        </div>
++        <div className="flex flex-wrap items-center justify-end gap-1.5">
++          <Badge className={cn("capitalize", STATUS_STYLES[apt.status] ?? STATUS_STYLES.confirmed)}>
++            {apt.status.replace("_", " ")}
++          </Badge>
++          {apt.pending_summon ? (
++            <Badge className="border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200">Join request</Badge>
++          ) : null}
++        </div>
++      </div>
++      <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
++        {apt.matter_summary}
++      </p>
++      {phase === "upcoming" && (
++        <p className="mt-3 text-[12px] font-medium tabular-nums text-slate-600 dark:text-slate-300">
++          Join unlocks in {formatCountdown(untilStart)}
++        </p>
++      )}
++      {phase === "joinable" && (
++        <p className="mt-3 text-[12px] font-medium tabular-nums text-emerald-700 dark:text-emerald-300">
++          Window open · {formatCountdown(untilEnd)} remaining
++          {apt.opponent_present ? " · Counsel waiting in room" : ""}
++        </p>
++      )}
++      <div className="mt-3.5 flex flex-wrap gap-2">
++        {phase === "joinable" ? (
++          <Link
++            href={`/appointments/${apt.id}/room`}
++            className="mp-btn-primary inline-flex h-9 items-center rounded-xl px-4 text-[12px] font-semibold"
++          >
++            {joinLabel}
++          </Link>
++        ) : (
++          <button
++            type="button"
++            disabled
++            className="inline-flex h-9 items-center rounded-xl border border-black/[0.06] px-4 text-[12px] font-semibold text-muted-foreground/70 dark:border-white/10"
++          >
++            Join room
++          </button>
++        )}
++        <Link
++          href={`/appointments/${apt.id}`}
++          className="mp-btn-soft inline-flex h-9 items-center rounded-xl px-4 text-[12px] font-semibold"
++        >
++          Details
++        </Link>
++        {apt.my_role === "lawyer" && apt.status === "requested" && (
++          <button
++            type="button"
++            disabled={busy !== null}
++            onClick={() => void handleConfirm()}
++            className="mp-btn-soft inline-flex h-9 items-center rounded-xl px-4 text-[12px] font-semibold"
++          >
++            {busy === "confirm" ? "Confirming…" : "Confirm"}
++          </button>
++        )}
++        {canAct && (
++          <button
++            type="button"
++            disabled={busy !== null}
++            onClick={() => void handleCancel()}
++            className="inline-flex h-9 items-center rounded-xl border border-red-200 px-4 text-[12px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300"
++          >
++            {busy === "cancel" ? "Cancelling…" : "Cancel"}
++          </button>
++        )}
++      </div>
++    </li>
++  );
++}
+diff --git a/frontend/src/components/lawyer-marketplace/booking-dialog.tsx b/frontend/src/components/lawyer-marketplace/booking-dialog.tsx
+index 83dd06d..46bb59a 100644
+--- a/frontend/src/components/lawyer-marketplace/booking-dialog.tsx
++++ b/frontend/src/components/lawyer-marketplace/booking-dialog.tsx
+@@ -1,21 +1,23 @@
+ "use client";
+ 
+ import Image from "next/image";
+-import { useEffect, useState } from "react";
++import { useEffect, useMemo, useState } from "react";
+ import { createPortal } from "react-dom";
+-import { CalendarDays, Sparkles, X } from "lucide-react";
++import { ArrowLeft, CalendarDays, Check, Clock3, FileText, Sparkles, X } from "lucide-react";
+ 
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Label } from "@/components/ui/label";
+ import { Textarea } from "@/components/ui/textarea";
+ import { useToast } from "@/components/ui/toast";
++import { bookAppointment, getStoredUser } from "@/lib/api";
+ import { lawyerAvatarSrc } from "@/lib/lawyer-avatar";
+-import { bookConsultation } from "@/lib/marketplace-store";
+ import type { LawyerProfile } from "@/lib/types";
+ import { cn } from "@/lib/utils";
+ 
+ const TIME_SLOTS = [
++  "Immediate",
++  "Start in 1 minute",
+   "10:00 AM",
+   "11:00 AM",
+   "12:00 PM",
+@@ -25,18 +27,56 @@ const TIME_SLOTS = [
+   "05:00 PM",
+ ];
+ 
++const QUICK_SLOTS = new Set(["immediate", "start in 1 minute"]);
++const STEPS = ["When", "Matter", "Review"] as const;
++const MATTER_MIN = 10;
++
++type Step = 0 | 1 | 2;
++type FieldErrors = { date?: string; slot?: string; matter?: string };
++
++function localToday(): string {
++  const now = new Date();
++  const parts = new Intl.DateTimeFormat("en-CA", {
++    timeZone: "Asia/Kolkata",
++    year: "numeric",
++    month: "2-digit",
++    day: "2-digit",
++  }).formatToParts(now);
++  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
++  const month = parts.find((p) => p.type === "month")?.value ?? "01";
++  const day = parts.find((p) => p.type === "day")?.value ?? "01";
++  return `${year}-${month}-${day}`;
++}
++
++function formatReviewDate(isoDate: string): string {
++  if (!isoDate) return "—";
++  const [y, m, d] = isoDate.split("-").map(Number);
++  if (!y || !m || !d) return isoDate;
++  return new Intl.DateTimeFormat("en-IN", {
++    weekday: "short",
++    day: "numeric",
++    month: "short",
++    year: "numeric",
++    timeZone: "Asia/Kolkata",
++  }).format(new Date(y, m - 1, d));
++}
++
+ interface BookingDialogProps {
+   lawyer: LawyerProfile | null;
+   open: boolean;
+   onClose: () => void;
+   onBooked: () => void;
++  source?: "ai_match" | "manual";
+ }
+ 
+-export function BookingDialog({ lawyer, open, onClose, onBooked }: BookingDialogProps) {
++export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manual" }: BookingDialogProps) {
+   const { toast } = useToast();
+-  const [date, setDate] = useState("");
+-  const [slot, setSlot] = useState("");
++  const today = useMemo(() => localToday(), [open]);
++  const [date, setDate] = useState(today);
++  const [slot, setSlot] = useState("Immediate");
+   const [matter, setMatter] = useState("");
++  const [step, setStep] = useState<Step>(0);
++  const [errors, setErrors] = useState<FieldErrors>({});
+   const [submitting, setSubmitting] = useState(false);
+   const [mounted, setMounted] = useState(false);
+ 
+@@ -46,6 +86,12 @@ export function BookingDialog({ lawyer, open, onClose, onBooked }: BookingDialog
+ 
+   useEffect(() => {
+     if (!open) return;
++    const nextToday = localToday();
++    setDate(nextToday);
++    setSlot("Immediate");
++    setMatter("");
++    setStep(0);
++    setErrors({});
+     const prev = document.body.style.overflow;
+     document.body.style.overflow = "hidden";
+     return () => {
+@@ -53,45 +99,67 @@ export function BookingDialog({ lawyer, open, onClose, onBooked }: BookingDialog
+     };
+   }, [open]);
+ 
+-  if (!open || !lawyer || !mounted) return null;
++  const matterLen = matter.trim().length;
++  const dateValid = Boolean(date) && date >= today;
++  const slotValid = Boolean(slot);
++  const matterValid = matterLen >= MATTER_MIN;
++  const allValid = dateValid && slotValid && matterValid;
+ 
+-  const counsel = lawyer;
++  function validateWhen(): boolean {
++    const next: FieldErrors = {};
++    if (!date) next.date = "Choose a consultation date.";
++    else if (date < today) next.date = "Choose today or a future date.";
++    if (!slot) next.slot = "Select a time slot to continue.";
++    setErrors(next);
++    return !next.date && !next.slot;
++  }
+ 
+-  function reset() {
+-    setDate("");
+-    setSlot("");
+-    setMatter("");
++  function validateMatter(): boolean {
++    const next: FieldErrors = {};
++    if (!matterValid) next.matter = `Describe the matter in at least ${MATTER_MIN} characters.`;
++    setErrors((prev) => ({ ...prev, matter: next.matter }));
++    return !next.matter;
+   }
+ 
+   function handleClose() {
+-    reset();
+     onClose();
+   }
+ 
+-  function handleSubmit(e: React.FormEvent) {
++  function goNext() {
++    if (step === 0 && !validateWhen()) return;
++    if (step === 1 && !validateMatter()) return;
++    setErrors({});
++    setStep((prev) => (prev < 2 ? ((prev + 1) as Step) : prev));
++  }
++
++  async function handleSubmit(e: React.FormEvent) {
+     e.preventDefault();
+-    if (!date || !slot || matter.trim().length < 10) {
+-      toast({
+-        title: "Missing details",
+-        description: "Choose a date, time slot, and describe your matter (min 10 characters).",
+-        variant: "destructive",
+-      });
++    if (step < 2) {
++      goNext();
+       return;
+     }
++    if (!allValid) {
++      validateWhen();
++      validateMatter();
++      return;
++    }
++    if (!lawyer) return;
+     setSubmitting(true);
+     try {
+-      bookConsultation({
+-        lawyer_id: counsel.id,
++      const user = getStoredUser();
++      await bookAppointment({
++        lawyer_id: lawyer.id,
+         date,
+         time_slot: slot,
+-        matter_summary: matter,
++        matter_summary: matter.trim(),
++        source,
++        citizen_name: user?.full_name ?? "Citizen",
+       });
+       toast({
+-        title: "Consultation requested",
+-        description: `Your request with ${counsel.full_name} has been saved.`,
++        title: "Consultation booked",
++        description: `Your request with ${lawyer.full_name} is confirmed.`,
+         variant: "success",
+       });
+-      reset();
+       onBooked();
+       onClose();
+     } catch (err) {
+@@ -105,7 +173,7 @@ export function BookingDialog({ lawyer, open, onClose, onBooked }: BookingDialog
+     }
+   }
+ 
+-  const minDate = new Date().toISOString().slice(0, 10);
++  if (!open || !lawyer || !mounted) return null;
+ 
+   return createPortal(
+     <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-5">
+@@ -119,7 +187,7 @@ export function BookingDialog({ lawyer, open, onClose, onBooked }: BookingDialog
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="booking-title"
+-        className="relative z-[71] flex max-h-[min(92vh,640px)] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-black/[0.08] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[hsl(220_14%_9%)] sm:rounded-3xl"
++        className="relative z-[71] flex max-h-[min(94vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-black/[0.08] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[hsl(220_14%_9%)] sm:rounded-3xl"
+       >
+         <div className="relative shrink-0 border-b border-black/[0.06] px-5 py-4 dark:border-white/[0.08]">
+           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-500/[0.06] via-transparent to-transparent" />
+@@ -127,7 +195,7 @@ export function BookingDialog({ lawyer, open, onClose, onBooked }: BookingDialog
+             <div className="flex min-w-0 items-center gap-3">
+               <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl ring-1 ring-black/[0.08] shadow-sm dark:ring-white/10">
+                 <Image
+-                  src={lawyerAvatarSrc(lawyer.id)}
++                  src={lawyerAvatarSrc(lawyer.slug || lawyer.id)}
+                   alt=""
+                   fill
+                   className="object-cover"
+@@ -141,98 +209,215 @@ export function BookingDialog({ lawyer, open, onClose, onBooked }: BookingDialog
+                     Book consultation
+                   </h2>
+                 </div>
+-                <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
+-                  {lawyer.full_name}
+-                </p>
++                <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{lawyer.full_name}</p>
+               </div>
+             </div>
+-            <Button
+-              variant="ghost"
+-              size="sm"
+-              className="h-8 w-8 shrink-0 rounded-full p-0"
+-              onClick={handleClose}
+-            >
++            <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 rounded-full p-0" onClick={handleClose}>
+               <X className="h-4 w-4" />
+             </Button>
+           </div>
++          <ol className="relative mt-4 flex items-center gap-2">
++            {STEPS.map((label, index) => {
++              const active = step === index;
++              const done = step > index;
++              return (
++                <li key={label} className="flex min-w-0 flex-1 items-center gap-2">
++                  <div
++                    className={cn(
++                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
++                      done && "bg-slate-800 text-white dark:bg-white dark:text-slate-900",
++                      active && !done && "bg-slate-200 text-slate-800 dark:bg-white/20 dark:text-white",
++                      !active && !done && "bg-black/[0.06] text-muted-foreground dark:bg-white/10",
++                    )}
++                  >
++                    {done ? <Check className="h-3 w-3" /> : index + 1}
++                  </div>
++                  <span
++                    className={cn(
++                      "truncate text-[11px] font-medium",
++                      active ? "text-foreground" : "text-muted-foreground",
++                    )}
++                  >
++                    {label}
++                  </span>
++                  {index < STEPS.length - 1 && (
++                    <span className="hidden h-px flex-1 bg-black/[0.06] dark:bg-white/10 sm:block" />
++                  )}
++                </li>
++              );
++            })}
++          </ol>
+         </div>
+ 
+         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+-          <div className="space-y-4 overflow-y-auto px-5 py-4">
+-            <div className="flex items-start gap-2 rounded-xl border border-black/[0.05] bg-slate-50/80 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04]">
+-              <Sparkles className="mt-0.5 h-3 w-3 shrink-0 text-slate-500" />
+-              Include court stage, city, and urgency so counsel can prepare.
+-            </div>
+-
+-            <div className="space-y-1.5">
+-              <Label htmlFor="booking-date" className="text-[11px] font-medium text-muted-foreground">
+-                Date
+-              </Label>
+-              <Input
+-                id="booking-date"
+-                type="date"
+-                min={minDate}
+-                value={date}
+-                onChange={(e) => setDate(e.target.value)}
+-                className="h-10 rounded-xl border-black/[0.08] bg-white text-[13px] dark:border-white/10 dark:bg-white/[0.04]"
+-                required
+-              />
+-            </div>
++          <div className="min-h-[280px] space-y-4 overflow-y-auto px-5 py-4">
++            {step === 0 && (
++              <>
++                <p className="text-[13px] leading-relaxed text-muted-foreground">
++                  Choose when you want to meet. Immediate opens the room as soon as both of you join.
++                </p>
++                <div className="space-y-1.5">
++                  <Label htmlFor="booking-date" className="text-[11px] font-medium text-muted-foreground">
++                    Date
++                  </Label>
++                  <Input
++                    id="booking-date"
++                    type="date"
++                    min={today}
++                    value={date}
++                    onChange={(e) => {
++                      setDate(e.target.value);
++                      setErrors((prev) => ({ ...prev, date: undefined }));
++                    }}
++                    className={cn(
++                      "h-10 rounded-xl border-black/[0.08] bg-white text-[13px] dark:border-white/10 dark:bg-white/[0.04]",
++                      errors.date && "border-red-300 dark:border-red-800",
++                    )}
++                  />
++                  {errors.date && <p className="text-[11px] text-red-600 dark:text-red-400">{errors.date}</p>}
++                </div>
++                <div className="space-y-1.5">
++                  <Label id="time-slot-label" className="text-[11px] font-medium text-muted-foreground">
++                    Time slot
++                  </Label>
++                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-labelledby="time-slot-label">
++                    {TIME_SLOTS.map((option) => (
++                      <button
++                        key={option}
++                        type="button"
++                        onClick={() => {
++                          setSlot(option);
++                          if (QUICK_SLOTS.has(option.toLowerCase())) setDate(today);
++                          setErrors((prev) => ({ ...prev, slot: undefined }));
++                        }}
++                        className={cn(
++                          "min-h-10 rounded-xl border px-2 text-[12px] font-medium transition-all duration-200",
++                          slot === option
++                            ? "border-slate-500 bg-slate-900 text-white shadow-sm dark:border-white/40 dark:bg-white dark:text-slate-900"
++                            : "border-black/[0.08] bg-white/70 text-muted-foreground hover:border-slate-300 hover:text-foreground dark:border-white/10 dark:bg-white/[0.04]",
++                        )}
++                      >
++                        {option}
++                      </button>
++                    ))}
++                  </div>
++                  {errors.slot && <p className="text-[11px] text-red-600 dark:text-red-400">{errors.slot}</p>}
++                </div>
++              </>
++            )}
+ 
+-            <div className="space-y-1.5">
+-              <Label id="time-slot-label" className="text-[11px] font-medium text-muted-foreground">
+-                Time slot
+-              </Label>
+-              <div
+-                className="grid grid-cols-3 gap-2 sm:grid-cols-4"
+-                role="group"
+-                aria-labelledby="time-slot-label"
+-              >
+-                {TIME_SLOTS.map((t) => (
+-                  <button
+-                    key={t}
+-                    type="button"
+-                    onClick={() => setSlot(t)}
++            {step === 1 && (
++              <>
++                <div className="flex items-start gap-2 rounded-xl border border-black/[0.05] bg-slate-50/80 px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04]">
++                  <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" />
++                  Include court stage, city, and urgency so counsel can prepare.
++                </div>
++                <div className="space-y-1.5">
++                  <div className="flex items-center justify-between gap-3">
++                    <Label htmlFor="matter-summary" className="text-[11px] font-medium text-muted-foreground">
++                      Matter summary
++                    </Label>
++                    <span
++                      className={cn(
++                        "text-[11px] tabular-nums",
++                        matterValid ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground",
++                      )}
++                    >
++                      {matterLen}/{MATTER_MIN}
++                    </span>
++                  </div>
++                  <Textarea
++                    id="matter-summary"
++                    value={matter}
++                    onChange={(e) => {
++                      setMatter(e.target.value);
++                      if (e.target.value.trim().length >= MATTER_MIN) {
++                        setErrors((prev) => ({ ...prev, matter: undefined }));
++                      }
++                    }}
++                    placeholder="e.g. Anticipatory bail in a 498A matter, Delhi, hearing next week…"
++                    rows={6}
+                     className={cn(
+-                      "min-h-9 rounded-xl border px-2 text-[12px] font-medium transition-all duration-200",
+-                      slot === t
+-                        ? "border-slate-400/60 bg-slate-100 text-slate-800 shadow-sm dark:border-white/25 dark:bg-white/15 dark:text-zinc-100"
+-                        : "border-black/[0.08] bg-white/70 text-muted-foreground hover:border-slate-300 hover:text-foreground dark:border-white/10 dark:bg-white/[0.04]",
++                      "rounded-xl border-black/[0.08] bg-white text-[13px] dark:border-white/10 dark:bg-white/[0.04]",
++                      errors.matter && "border-red-300 dark:border-red-800",
+                     )}
+-                  >
+-                    {t}
+-                  </button>
+-                ))}
+-              </div>
+-            </div>
++                  />
++                  {errors.matter ? (
++                    <p className="text-[11px] text-red-600 dark:text-red-400">{errors.matter}</p>
++                  ) : (
++                    <p className="text-[11px] text-muted-foreground">Minimum {MATTER_MIN} characters.</p>
++                  )}
++                </div>
++              </>
++            )}
+ 
+-            <div className="space-y-1.5">
+-              <Label
+-                htmlFor="matter-summary"
+-                className="text-[11px] font-medium text-muted-foreground"
+-              >
+-                Matter summary
+-              </Label>
+-              <Textarea
+-                id="matter-summary"
+-                value={matter}
+-                onChange={(e) => setMatter(e.target.value)}
+-                placeholder="Briefly describe your legal matter…"
+-                rows={3}
+-                className="rounded-xl border-black/[0.08] bg-white text-[13px] dark:border-white/10 dark:bg-white/[0.04]"
+-                required
+-              />
+-            </div>
++            {step === 2 && (
++              <div className="space-y-3">
++                <p className="text-[13px] text-muted-foreground">Review the details, then confirm the booking.</p>
++                <div className="rounded-2xl border border-black/[0.06] bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/[0.04]">
++                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Counsel</p>
++                  <p className="mt-1 text-[14px] font-semibold tracking-tight">{lawyer.full_name}</p>
++                </div>
++                <div className="grid gap-3 sm:grid-cols-2">
++                  <div className="rounded-2xl border border-black/[0.06] px-4 py-3 dark:border-white/10">
++                    <p className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
++                      <CalendarDays className="h-3.5 w-3.5" />
++                      Date
++                    </p>
++                    <p className="mt-1 text-[13px] font-medium">{formatReviewDate(date)}</p>
++                  </div>
++                  <div className="rounded-2xl border border-black/[0.06] px-4 py-3 dark:border-white/10">
++                    <p className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
++                      <Clock3 className="h-3.5 w-3.5" />
++                      Slot
++                    </p>
++                    <p className="mt-1 text-[13px] font-medium">{slot}</p>
++                  </div>
++                </div>
++                <div className="rounded-2xl border border-black/[0.06] px-4 py-3 dark:border-white/10">
++                  <p className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
++                    <FileText className="h-3.5 w-3.5" />
++                    Matter
++                  </p>
++                  <p className="mt-1 text-[13px] leading-relaxed">{matter.trim()}</p>
++                </div>
++                {!allValid && (
++                  <p className="text-[11px] text-red-600 dark:text-red-400">
++                    Complete date, time slot, and a matter of at least {MATTER_MIN} characters.
++                  </p>
++                )}
++              </div>
++            )}
+           </div>
+ 
+           <div className="shrink-0 border-t border-black/[0.06] px-5 py-4 dark:border-white/[0.08]">
+-            <button
+-              type="submit"
+-              className="mp-btn-accent h-10 w-full rounded-xl text-[13px] font-semibold disabled:opacity-50"
+-              disabled={submitting}
+-            >
+-              {submitting ? "Saving…" : "Confirm booking"}
+-            </button>
++            <div className="flex gap-2">
++              {step > 0 && (
++                <button
++                  type="button"
++                  className="mp-btn-soft inline-flex h-10 items-center rounded-xl px-4 text-[13px] font-semibold"
++                  onClick={() => {
++                    setErrors({});
++                    setStep((prev) => (prev > 0 ? ((prev - 1) as Step) : prev));
++                  }}
++                >
++                  <ArrowLeft className="mr-1 h-3.5 w-3.5" />
++                  Back
++                </button>
++              )}
++              <button
++                type="submit"
++                className="mp-btn-accent h-10 flex-1 rounded-xl text-[13px] font-semibold disabled:opacity-50"
++                disabled={submitting || (step === 2 && !allValid)}
++              >
++                {submitting ? "Booking…" : step === 2 ? "Confirm booking" : "Continue"}
++              </button>
++            </div>
++            {step === 2 && !allValid && (
++              <p className="mt-2 text-center text-[11px] text-muted-foreground">
++                Add a date, slot, and matter summary to confirm.
++              </p>
++            )}
+           </div>
+         </form>
+       </div>
+diff --git a/frontend/src/components/lawyer-marketplace/lawyer-card.tsx b/frontend/src/components/lawyer-marketplace/lawyer-card.tsx
+index d76e81c..9f039f2 100644
+--- a/frontend/src/components/lawyer-marketplace/lawyer-card.tsx
++++ b/frontend/src/components/lawyer-marketplace/lawyer-card.tsx
+@@ -46,7 +46,7 @@ export function LawyerCard({ lawyer, index = 0, onView, onBook }: LawyerCardProp
+             <div className="relative">
+               <div className="relative h-11 w-11 overflow-hidden rounded-xl ring-1 ring-black/[0.06] shadow-sm dark:ring-white/10">
+                 <Image
+-                  src={lawyerAvatarSrc(lawyer.id)}
++                  src={lawyerAvatarSrc(lawyer.slug || lawyer.id)}
+                   alt=""
+                   fill
+                   className="object-cover"
+diff --git a/frontend/src/components/lawyer-marketplace/lawyer-profile-drawer.tsx b/frontend/src/components/lawyer-marketplace/lawyer-profile-drawer.tsx
+index ba13b09..c662f84 100644
+--- a/frontend/src/components/lawyer-marketplace/lawyer-profile-drawer.tsx
++++ b/frontend/src/components/lawyer-marketplace/lawyer-profile-drawer.tsx
+@@ -76,7 +76,7 @@ export function LawyerProfileDrawer({
+           <div className="relative mt-3.5 flex items-start gap-3">
+             <div className="relative h-14 w-14 overflow-hidden rounded-2xl shadow-md ring-1 ring-black/[0.06] dark:ring-white/10">
+               <Image
+-                src={lawyerAvatarSrc(lawyer.id)}
++                src={lawyerAvatarSrc(lawyer.slug || lawyer.id)}
+                 alt=""
+                 fill
+                 className="object-cover"
+diff --git a/frontend/src/components/lawyer-marketplace/live-match/live-match-panel.tsx b/frontend/src/components/lawyer-marketplace/live-match/live-match-panel.tsx
+index ada687f..ac28f9b 100644
+--- a/frontend/src/components/lawyer-marketplace/live-match/live-match-panel.tsx
++++ b/frontend/src/components/lawyer-marketplace/live-match/live-match-panel.tsx
+@@ -24,11 +24,12 @@ import { cn } from "@/lib/utils";
+ type PanelPhase = "idle" | "matching" | "result";
+ 
+ interface LiveMatchPanelProps {
++  catalog: RankedLawyer[];
+   onView: (lawyer: RankedLawyer) => void;
+   onBook: (lawyer: RankedLawyer) => void;
+ }
+ 
+-export function LiveMatchPanel({ onView, onBook }: LiveMatchPanelProps) {
++export function LiveMatchPanel({ catalog, onView, onBook }: LiveMatchPanelProps) {
+   const [user, setUser] = useState<AuthUser | null>(null);
+   const [prefs, setPrefs] = useState<MatchPreferences>(DEFAULT_MATCH_PREFERENCES);
+   const [phase, setPhase] = useState<PanelPhase>("idle");
+@@ -60,7 +61,7 @@ export function LiveMatchPanel({ onView, onBook }: LiveMatchPanelProps) {
+   const startMatch = useCallback(() => {
+     setLocationError(null);
+     const currentPrefs = prefsRef.current;
+-    const match = findBestMatch(currentPrefs);
++    const match = findBestMatch(currentPrefs, catalog);
+     if (!match) {
+       setLocationError("No counsel matched. Try adjusting preferences.");
+       setExpanded(true);
+@@ -71,7 +72,7 @@ export function LiveMatchPanel({ onView, onBook }: LiveMatchPanelProps) {
+     setPendingResult(match);
+     setPhase("matching");
+     setExpanded(true);
+-  }, []);
++  }, [catalog]);
+ 
+   const commitResult = useCallback((match: MatchResult) => {
+     const hist = saveMatchToHistory(match);
+diff --git a/frontend/src/components/lawyer-marketplace/live-match/match-animation.tsx b/frontend/src/components/lawyer-marketplace/live-match/match-animation.tsx
+index da29032..af2786e 100644
+--- a/frontend/src/components/lawyer-marketplace/live-match/match-animation.tsx
++++ b/frontend/src/components/lawyer-marketplace/live-match/match-animation.tsx
+@@ -12,7 +12,6 @@ import {
+ } from "lucide-react";
+ 
+ import type { MatchResult, RankedLawyer } from "@/lib/marketplace-store";
+-import { MOCK_LAWYERS } from "@/lib/mock/lawyers";
+ import { cn } from "@/lib/utils";
+ 
+ function initials(name: string): string {
+@@ -67,12 +66,7 @@ export function MatchAnimation({ result, onComplete, onBook }: MatchAnimationPro
+ 
+   /** Sequence ends with winner; scanning steps through candidates first */
+   const sequence = useMemo(() => {
+-    const others: RankedLawyer[] = [
+-      ...result.runnersUp,
+-      ...MOCK_LAWYERS.filter(
+-        (l) => l.id !== result.lawyer.id && !result.runnersUp.some((r) => r.id === l.id),
+-      ).map((l) => ({ ...l, match_score: 70, ai_recommended: false })),
+-    ];
++    const others: RankedLawyer[] = [...result.runnersUp];
+     const steps = others.slice(0, SCAN_STEPS);
+     return [...steps, result.lawyer];
+   }, [result]);
+diff --git a/frontend/src/components/lawyer-marketplace/live-match/match-result-card.tsx b/frontend/src/components/lawyer-marketplace/live-match/match-result-card.tsx
+index c83bf24..f0ade9b 100644
+--- a/frontend/src/components/lawyer-marketplace/live-match/match-result-card.tsx
++++ b/frontend/src/components/lawyer-marketplace/live-match/match-result-card.tsx
+@@ -102,7 +102,7 @@ export function MatchResultCard({
+             <div className="flex flex-1 items-start gap-2.5">
+               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/20 dark:ring-black/10">
+                 <Image
+-                  src={lawyerAvatarSrc(lawyer.id)}
++                  src={lawyerAvatarSrc(lawyer.slug || lawyer.id)}
+                   alt=""
+                   fill
+                   className="object-cover"
+diff --git a/frontend/src/components/lawyer-marketplace/top-matches-strip.tsx b/frontend/src/components/lawyer-marketplace/top-matches-strip.tsx
+index 3cec36a..fbc293f 100644
+--- a/frontend/src/components/lawyer-marketplace/top-matches-strip.tsx
++++ b/frontend/src/components/lawyer-marketplace/top-matches-strip.tsx
+@@ -47,7 +47,7 @@ export function TopMatchesStrip({ lawyers, onView, onBook }: TopMatchesStripProp
+               aria-label={`View ${lawyer.full_name}`}
+             >
+               <Image
+-                src={lawyerAvatarSrc(lawyer.id)}
++                src={lawyerAvatarSrc(lawyer.slug || lawyer.id)}
+                 alt=""
+                 fill
+                 className="object-cover"
+diff --git a/frontend/src/components/layout/app-shell.tsx b/frontend/src/components/layout/app-shell.tsx
+index c734c33..4baadd6 100644
+--- a/frontend/src/components/layout/app-shell.tsx
++++ b/frontend/src/components/layout/app-shell.tsx
+@@ -7,6 +7,9 @@ import { useEffect, useState } from "react";
+ 
+ import { DashboardCommandPalette } from "@/components/dashboard/dashboard-command-palette";
+ import { BackButton } from "@/components/layout/back-button";
++import { NotificationBell } from "@/components/layout/notification-bell";
++import { NotificationProvider } from "@/components/layout/notification-provider";
++import { SummonAlertHost } from "@/components/layout/summon-alert-host";
+ import { Button } from "@/components/ui/button";
+ import {
+   DropdownMenu,
+@@ -24,20 +27,25 @@ const PAGE_TITLES: Record<string, string> = {
+   "/dashboard": "Home",
+   "/research": "Research Console",
+   "/lawyer-marketplace": "Lawyer Marketplace",
++  "/appointments": "Appointments",
+   "/cases": "Case Management",
+   "/documents": "Documents",
+   "/courtroom": "AI Courtroom",
+   "/admin/knowledge": "Knowledge Hub",
+   "/admin/users": "User Management",
++  "/admin/appointments": "Appointment Ops",
+ };
+ 
+ function resolvePageTitle(pathname: string): string {
+   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
++  if (pathname.startsWith("/appointments") && pathname.endsWith("/room")) return "Appointment Room";
++  if (pathname.startsWith("/appointments")) return "Appointment details";
+   if (pathname.startsWith("/cases")) return "Case Management";
+   if (pathname.startsWith("/documents")) return "Documents";
+   if (pathname.startsWith("/courtroom")) return "AI Courtroom";
+   if (pathname.startsWith("/admin/knowledge")) return "Knowledge Hub";
+   if (pathname.startsWith("/admin/users")) return "User Management";
++  if (pathname.startsWith("/admin/appointments")) return "Appointment Ops";
+   return "Console";
+ }
+ 
+@@ -105,6 +113,7 @@ function AppTopBar({
+             <kbd className="dash-kbd">{modKey}K</kbd>
+           </button>
+         )}
++        <NotificationBell />
+         <Button
+           variant="ghost"
+           size="sm"
+@@ -155,6 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
+   const [paletteOpen, setPaletteOpen] = useState(false);
+ 
+   const isHome = pathname === "/dashboard";
++  const isRoom = pathname.startsWith("/appointments") && pathname.endsWith("/room");
+   const pageTitle = resolvePageTitle(pathname);
+ 
+   useEffect(() => {
+@@ -162,6 +172,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
+     setDark(initTheme());
+   }, []);
+ 
++  useEffect(() => {
++    if (!isRoom) return;
++    const html = document.documentElement;
++    const body = document.body;
++    const prevHtml = html.style.overflow;
++    const prevBody = body.style.overflow;
++    html.style.overflow = "hidden";
++    body.style.overflow = "hidden";
++    return () => {
++      html.style.overflow = prevHtml;
++      body.style.overflow = prevBody;
++    };
++  }, [isRoom]);
++
+   useEffect(() => {
+     if (!isHome) setPaletteOpen(false);
+   }, [isHome]);
+@@ -189,11 +213,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
+   }
+ 
+   return (
+-    <div className="dashboard-root min-h-screen">
++    <NotificationProvider>
++      <div className={isRoom ? "dashboard-root h-dvh overflow-hidden" : "dashboard-root min-h-screen"}>
+       <div className="pointer-events-none absolute inset-0 overflow-hidden">
+         <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(100,116,139,0.07),transparent)] dark:bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(148,163,184,0.06),transparent)]" />
+       </div>
+-      <div className="relative flex min-h-screen flex-col">
++      <div className={isRoom ? "relative flex h-full flex-col overflow-hidden" : "relative flex min-h-screen flex-col"}>
+         <AppTopBar
+           user={user}
+           dark={dark}
+@@ -204,6 +229,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
+           onSignOut={handleSignOut}
+           onOpenPalette={() => setPaletteOpen(true)}
+         />
++        <SummonAlertHost />
+         {isHome && (
+           <DashboardCommandPalette
+             open={paletteOpen}
+@@ -215,12 +241,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
+           className={
+             isHome
+               ? "flex-1 px-0 pb-0 pt-0 md:px-8"
+-              : "flex-1 px-5 pb-10 pt-2 md:px-8"
++              : isRoom
++                ? "flex min-h-0 flex-1 flex-col overflow-hidden px-0 pt-0"
++                : "flex-1 px-5 pb-10 pt-2 md:px-8"
+           }
+         >
+           {children}
+         </main>
+       </div>
+     </div>
++    </NotificationProvider>
+   );
+ }
+diff --git a/frontend/src/components/mera-vakil/lawyer-recommendation-panel.tsx b/frontend/src/components/mera-vakil/lawyer-recommendation-panel.tsx
+index 4fc4c3b..275fd14 100644
+--- a/frontend/src/components/mera-vakil/lawyer-recommendation-panel.tsx
++++ b/frontend/src/components/mera-vakil/lawyer-recommendation-panel.tsx
+@@ -1,10 +1,13 @@
+ "use client";
+ 
++import { useState } from "react";
+ import { Scale } from "lucide-react";
+ 
++import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
+ import { LawyerCard } from "@/components/lawyer-marketplace/lawyer-card";
+-import type { LawyerMatchResult } from "@/lib/types";
++import { LawyerProfileDrawer } from "@/components/lawyer-marketplace/lawyer-profile-drawer";
+ import type { RankedLawyer } from "@/lib/marketplace-store";
++import type { LawyerMatchResult } from "@/lib/types";
+ 
+ interface LawyerRecommendationPanelProps {
+   lawyers: LawyerMatchResult[];
+@@ -13,6 +16,7 @@ interface LawyerRecommendationPanelProps {
+ function toRankedLawyer(lawyer: LawyerMatchResult): RankedLawyer {
+   return {
+     id: lawyer.id,
++    slug: lawyer.slug,
+     full_name: lawyer.full_name,
+     bar_council_id: lawyer.bar_council_id ?? "",
+     practice_areas: lawyer.practice_areas,
+@@ -31,6 +35,9 @@ function toRankedLawyer(lawyer: LawyerMatchResult): RankedLawyer {
+ }
+ 
+ export function LawyerRecommendationPanel({ lawyers }: LawyerRecommendationPanelProps) {
++  const [profile, setProfile] = useState<RankedLawyer | null>(null);
++  const [booking, setBooking] = useState<RankedLawyer | null>(null);
++
+   if (!lawyers.length) return null;
+ 
+   return (
+@@ -47,11 +54,24 @@ export function LawyerRecommendationPanel({ lawyers }: LawyerRecommendationPanel
+             key={lawyer.id}
+             lawyer={toRankedLawyer(lawyer)}
+             index={idx}
+-            onView={() => {}}
+-            onBook={() => {}}
++            onView={setProfile}
++            onBook={setBooking}
+           />
+         ))}
+       </div>
++      <LawyerProfileDrawer
++        lawyer={profile}
++        open={Boolean(profile)}
++        onClose={() => setProfile(null)}
++        onBook={setBooking}
++      />
++      <BookingDialog
++        lawyer={booking}
++        open={Boolean(booking)}
++        source="ai_match"
++        onClose={() => setBooking(null)}
++        onBooked={() => setBooking(null)}
++      />
+     </div>
+   );
+ }
+diff --git a/frontend/src/lib/api.ts b/frontend/src/lib/api.ts
+index 13bf3b3..4f424ca 100644
+--- a/frontend/src/lib/api.ts
++++ b/frontend/src/lib/api.ts
+@@ -19,14 +19,21 @@ import type {
+   ProposedAction,
+   ProposedActionPlan,
+ } from "@/lib/courtroom/types";
+-
+-export const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_API_URL ?? "http://localhost:8001";
+-export const INGESTION_URL =
+-  process.env.NEXT_PUBLIC_INGESTION_API_URL ?? "http://localhost:8002";
+-export const DOCUMENT_URL =
+-  process.env.NEXT_PUBLIC_DOCUMENT_API_URL ?? "http://localhost:8005";
+-export const RESEARCH_URL =
+-  process.env.NEXT_PUBLIC_RESEARCH_API_URL ?? "http://localhost:8004";
++import type {
++  AppointmentMessage,
++  AppointmentRecord,
++  JoinStateDto,
++  RankedMarketplaceLawyer,
++  RoomTokenResponse,
++} from "@/lib/appointment-types";
++
++import {
++  authServiceUrl,
++  documentServiceUrl,
++  ingestionServiceUrl,
++  marketplaceServiceUrl,
++  researchServiceUrl,
++} from "@/lib/service-urls";
+ 
+ const TOKEN_KEY = "legalos.access_token";
+ const REFRESH_TOKEN_KEY = "legalos.refresh_token";
+@@ -76,7 +83,7 @@ async function refreshAccessToken(): Promise<string> {
+ 
+   if (!refreshPromise) {
+     refreshPromise = (async () => {
+-      const res = await fetch(`${AUTH_URL}/api/v1/auth/refresh`, {
++      const res = await fetch(`${authServiceUrl()}/api/v1/auth/refresh`, {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ refresh_token: refreshToken }),
+@@ -136,7 +143,7 @@ export async function syncStoredUser(): Promise<AuthUser | null> {
+   try {
+     await refreshAccessToken();
+     const me = await apiFetch<Pick<AuthUser, "roles" | "permissions">>(
+-      `${AUTH_URL}/api/v1/users/me`,
++      `${authServiceUrl()}/api/v1/users/me`,
+       { headers: authHeaders() },
+     );
+     return updateStoredUser({ roles: me.roles, permissions: me.permissions });
+@@ -155,6 +162,10 @@ async function parseError(res: Response): Promise<never> {
+       message = body.detail;
+     } else if (Array.isArray(body.detail)) {
+       message = body.detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join("; ") || message;
++    } else if (body.detail && typeof body.detail === "object") {
++      const detail = body.detail as { message?: string; join_state?: string };
++      if (typeof detail.message === "string") message = detail.message;
++      else if (typeof detail.join_state === "string") message = `Join window is ${detail.join_state}`;
+     }
+   } catch {
+     /* ignore */
+@@ -188,14 +199,14 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
+ export async function login(email: string, password: string): Promise<AuthResponse> {
+   let res: Response;
+   try {
+-    res = await fetch(`${AUTH_URL}/api/v1/auth/login`, {
++    res = await fetch(`${authServiceUrl()}/api/v1/auth/login`, {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ email, password }),
+     });
+   } catch {
+     throw new Error(
+-      `Cannot reach auth service at ${AUTH_URL}. Start the backend with: make native`,
++      `Cannot reach auth service at ${authServiceUrl()}. Start the backend with: make native`,
+     );
+   }
+   if (!res.ok) return parseError(res);
+@@ -210,14 +221,14 @@ export async function register(
+ ): Promise<AuthResponse> {
+   let res: Response;
+   try {
+-    res = await fetch(`${AUTH_URL}/api/v1/auth/register`, {
++    res = await fetch(`${authServiceUrl()}/api/v1/auth/register`, {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ email, full_name, password, role }),
+     });
+   } catch {
+     throw new Error(
+-      `Cannot reach auth service at ${AUTH_URL}. Start the backend with: make native`,
++      `Cannot reach auth service at ${authServiceUrl()}. Start the backend with: make native`,
+     );
+   }
+   if (!res.ok) return parseError(res);
+@@ -225,7 +236,7 @@ export async function register(
+ }
+ 
+ export async function requestPasswordReset(email: string): Promise<void> {
+-  const res = await fetch(`${AUTH_URL}/api/v1/auth/password-reset`, {
++  const res = await fetch(`${authServiceUrl()}/api/v1/auth/password-reset`, {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({ email }),
+@@ -237,7 +248,7 @@ export async function confirmPasswordReset(
+   token: string,
+   newPassword: string,
+ ): Promise<void> {
+-  const res = await fetch(`${AUTH_URL}/api/v1/auth/password-reset/confirm`, {
++  const res = await fetch(`${authServiceUrl()}/api/v1/auth/password-reset/confirm`, {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({ token, new_password: newPassword }),
+@@ -246,13 +257,13 @@ export async function confirmPasswordReset(
+ }
+ 
+ export async function listUsers(page = 1, size = 20): Promise<Page<AuthUser>> {
+-  return apiFetch(`${AUTH_URL}/api/v1/users?page=${page}&size=${size}`, {
++  return apiFetch(`${authServiceUrl()}/api/v1/users?page=${page}&size=${size}`, {
+     headers: authHeaders(),
+   });
+ }
+ 
+ export async function listCategories(): Promise<Category[]> {
+-  return apiFetch(`${INGESTION_URL}/api/v1/knowledge/categories`, {
++  return apiFetch(`${ingestionServiceUrl()}/api/v1/knowledge/categories`, {
+     headers: authHeaders(),
+   });
+ }
+@@ -264,25 +275,25 @@ export async function listKnowledgeDocuments(
+ ): Promise<Page<KnowledgeDocument>> {
+   const params = new URLSearchParams({ page: String(page), size: String(size) });
+   if (docType) params.set("doc_type", docType);
+-  return apiFetch(`${INGESTION_URL}/api/v1/knowledge/documents?${params}`, {
++  return apiFetch(`${ingestionServiceUrl()}/api/v1/knowledge/documents?${params}`, {
+     headers: authHeaders(),
+   });
+ }
+ 
+ export async function listIngestionJobs(page = 1, size = 20): Promise<Page<IngestionJob>> {
+-  return apiFetch(`${INGESTION_URL}/api/v1/knowledge/jobs?page=${page}&size=${size}`, {
++  return apiFetch(`${ingestionServiceUrl()}/api/v1/knowledge/jobs?page=${page}&size=${size}`, {
+     headers: authHeaders(),
+   });
+ }
+ 
+ export async function getJob(jobId: string): Promise<IngestionJob> {
+-  return apiFetch(`${INGESTION_URL}/api/v1/knowledge/jobs/${jobId}`, {
++  return apiFetch(`${ingestionServiceUrl()}/api/v1/knowledge/jobs/${jobId}`, {
+     headers: authHeaders(),
+   });
+ }
+ 
+ export async function getKnowledgeGraph(limit = 200): Promise<KnowledgeGraph> {
+-  return apiFetch(`${INGESTION_URL}/api/v1/knowledge/graph?limit=${limit}`, {
++  return apiFetch(`${ingestionServiceUrl()}/api/v1/knowledge/graph?limit=${limit}`, {
+     headers: authHeaders(),
+   });
+ }
+@@ -298,7 +309,7 @@ export async function uploadDocument(
+   if (meta.jurisdiction) form.append("jurisdiction", meta.jurisdiction);
+   form.append("async_mode", String(meta.async_mode ?? false));
+ 
+-  const res = await authorizedFetch(`${INGESTION_URL}/api/v1/knowledge/documents/upload`, {
++  const res = await authorizedFetch(`${ingestionServiceUrl()}/api/v1/knowledge/documents/upload`, {
+     method: "POST",
+     body: form,
+   });
+@@ -314,7 +325,7 @@ export async function reindexKnowledgeDocument(
+ ): Promise<IngestionResult> {
+   const params = new URLSearchParams({ force: String(force) });
+   return apiFetch(
+-    `${INGESTION_URL}/api/v1/knowledge/documents/${documentId}/reindex?${params}`,
++    `${ingestionServiceUrl()}/api/v1/knowledge/documents/${documentId}/reindex?${params}`,
+     {
+       method: "POST",
+       headers: authHeaders(),
+@@ -326,7 +337,7 @@ export async function reindexKnowledgeSource(
+   sourceUri: string,
+   force = true,
+ ): Promise<IngestionResult> {
+-  return apiFetch(`${INGESTION_URL}/api/v1/knowledge/sources/reindex`, {
++  return apiFetch(`${ingestionServiceUrl()}/api/v1/knowledge/sources/reindex`, {
+     method: "POST",
+     headers: { ...authHeaders(), "Content-Type": "application/json" },
+     body: JSON.stringify({ source_uri: sourceUri, force }),
+@@ -337,13 +348,13 @@ export async function listUserDocuments(
+   page = 1,
+   size = 20,
+ ): Promise<Page<UserDocument>> {
+-  return apiFetch(`${DOCUMENT_URL}/api/v1/documents?page=${page}&size=${size}`, {
++  return apiFetch(`${documentServiceUrl()}/api/v1/documents?page=${page}&size=${size}`, {
+     headers: authHeaders(),
+   });
+ }
+ 
+ export async function getUserDocument(documentId: string): Promise<UserDocument> {
+-  return apiFetch(`${DOCUMENT_URL}/api/v1/documents/${documentId}`, {
++  return apiFetch(`${documentServiceUrl()}/api/v1/documents/${documentId}`, {
+     headers: authHeaders(),
+   });
+ }
+@@ -357,7 +368,7 @@ export async function uploadUserDocument(
+   form.append("title", meta.title);
+   form.append("doc_type", meta.doc_type ?? "user_upload");
+ 
+-  const res = await authorizedFetch(`${DOCUMENT_URL}/api/v1/documents/upload`, {
++  const res = await authorizedFetch(`${documentServiceUrl()}/api/v1/documents/upload`, {
+     method: "POST",
+     body: form,
+   });
+@@ -370,7 +381,7 @@ export async function runResearch(
+   jurisdiction?: string,
+   history: ConversationTurn[] = [],
+ ): Promise<ResearchResponse> {
+-  return apiFetch(`${RESEARCH_URL}/api/v1/research`, {
++  return apiFetch(`${researchServiceUrl()}/api/v1/research`, {
+     method: "POST",
+     headers: authHeaders(),
+     body: JSON.stringify({ query, jurisdiction: jurisdiction || null, history }),
+@@ -406,7 +417,7 @@ export async function streamResearch(
+     : "/api/v1/research/stream";
+ 
+   const user = getStoredUser();
+-  const res = await authorizedFetch(`${RESEARCH_URL}${path}`, {
++  const res = await authorizedFetch(`${researchServiceUrl()}${path}`, {
+     method: "POST",
+     headers: authHeaders(),
+     body: JSON.stringify({
+@@ -493,7 +504,7 @@ export async function runDocumentResearch(
+   jurisdiction?: string,
+   history: ConversationTurn[] = [],
+ ): Promise<ResearchResponse> {
+-  return apiFetch(`${RESEARCH_URL}/api/v1/research/document/${documentId}`, {
++  return apiFetch(`${researchServiceUrl()}/api/v1/research/document/${documentId}`, {
+     method: "POST",
+     headers: authHeaders(),
+     body: JSON.stringify({
+@@ -514,7 +525,7 @@ export async function streamReadAloud(
+   text: string,
+   options?: { signal?: AbortSignal; language?: string; rewriteForSpeech?: boolean },
+ ): Promise<ReadAloudStream> {
+-  const res = await authorizedFetch(`${RESEARCH_URL}/api/v1/research/tts/stream`, {
++  const res = await authorizedFetch(`${researchServiceUrl()}/api/v1/research/tts/stream`, {
+     method: "POST",
+     headers: authHeaders(),
+     body: JSON.stringify({
+@@ -591,7 +602,7 @@ function mapOpponentDefense(raw: Record<string, unknown>): OpponentFactDefense {
+ export async function proposeCourtroomActions(
+   payload: CourtroomActionsRequestPayload,
+ ): Promise<ProposedActionPlan> {
+-  const data = await apiFetch(`${RESEARCH_URL}/api/v1/research/courtroom/actions`, {
++  const data = await apiFetch(`${researchServiceUrl()}/api/v1/research/courtroom/actions`, {
+     method: "POST",
+     headers: authHeaders(),
+     body: JSON.stringify({
+@@ -677,7 +688,7 @@ export async function runCourtroomTurn(
+   payload: CourtroomTurnRequestPayload,
+   options?: { signal?: AbortSignal },
+ ): Promise<import("@/lib/courtroom/types").CourtroomTurnResponse> {
+-  const data = await apiFetch(`${RESEARCH_URL}/api/v1/research/courtroom/turn`, {
++  const data = await apiFetch(`${researchServiceUrl()}/api/v1/research/courtroom/turn`, {
+     method: "POST",
+     headers: authHeaders(),
+     body: JSON.stringify(payload),
+@@ -834,7 +845,7 @@ export async function runCourtroomAgentTurn(
+   payload: CourtroomAgentTurnPayload,
+   options?: { signal?: AbortSignal },
+ ): Promise<CourtroomAgentTurnResponse> {
+-  const data = await apiFetch(`${RESEARCH_URL}/api/v1/research/courtroom/agent-turn`, {
++  const data = await apiFetch(`${researchServiceUrl()}/api/v1/research/courtroom/agent-turn`, {
+     method: "POST",
+     headers: authHeaders(),
+     body: JSON.stringify(payload),
+@@ -952,3 +963,355 @@ export async function runCourtroomAgentTurn(
+   };
+ }
+ 
++export async function fetchMarketplaceLawyers(params: {
++  query?: string;
++  practiceArea?: string;
++  city?: string;
++  verified?: boolean;
++} = {}): Promise<RankedMarketplaceLawyer[]> {
++  const qs = new URLSearchParams();
++  if (params.query) qs.set("query", params.query);
++  if (params.practiceArea) qs.set("practice_area", params.practiceArea);
++  if (params.city) qs.set("city", params.city);
++  qs.set("verified", String(params.verified ?? true));
++  return apiFetch<RankedMarketplaceLawyer[]>(`${marketplaceServiceUrl()}/api/v1/lawyers?${qs.toString()}`);
++}
++
++export async function matchMarketplaceLawyers(body: {
++  practice_areas: string[];
++  city?: string;
++  limit?: number;
++}): Promise<RankedMarketplaceLawyer[]> {
++  return apiFetch<RankedMarketplaceLawyer[]>(`${marketplaceServiceUrl()}/api/v1/lawyers/match`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify(body),
++  });
++}
++
++export async function bookAppointment(body: {
++  lawyer_id: string;
++  date: string;
++  time_slot: string;
++  matter_summary: string;
++  source?: "ai_match" | "manual";
++  citizen_name?: string;
++}): Promise<AppointmentRecord> {
++  return apiFetch<AppointmentRecord>(`${marketplaceServiceUrl()}/api/v1/appointments`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify(body),
++  });
++}
++
++export async function listAppointments(): Promise<AppointmentRecord[]> {
++  return apiFetch<AppointmentRecord[]>(`${marketplaceServiceUrl()}/api/v1/appointments`);
++}
++
++export async function getAppointment(id: string): Promise<AppointmentRecord> {
++  return apiFetch<AppointmentRecord>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}`);
++}
++
++export async function getAppointmentJoinState(id: string): Promise<JoinStateDto> {
++  return apiFetch<JoinStateDto>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/join-state`);
++}
++
++export async function confirmAppointment(id: string): Promise<AppointmentRecord> {
++  return apiFetch<AppointmentRecord>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/confirm`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function cancelAppointment(id: string): Promise<AppointmentRecord> {
++  return apiFetch<AppointmentRecord>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/cancel`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function fetchRoomToken(id: string): Promise<RoomTokenResponse> {
++  try {
++    return await apiFetch<RoomTokenResponse>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/room-token`, {
++      method: "POST",
++      headers: authHeaders(),
++    });
++  } catch (err) {
++    const message = (err as Error).message ?? "";
++    if (message.includes("503") || message.toLowerCase().includes("livekit")) {
++      return { token: null, url: null, room: `apt-${id}`, configured: false, mode: "polling" };
++    }
++    throw err;
++  }
++}
++
++export async function listAppointmentMessages(id: string, after?: string): Promise<AppointmentMessage[]> {
++  const qs = after && !after.startsWith("tmp-") ? `?after=${encodeURIComponent(after)}` : "";
++  return apiFetch<AppointmentMessage[]>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/messages${qs}`);
++}
++
++export async function postAppointmentMessage(id: string, body: string): Promise<AppointmentMessage> {
++  return apiFetch<AppointmentMessage>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/messages`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ body }),
++  });
++}
++
++export async function reactAppointmentMessage(
++  appointmentId: string,
++  messageId: string,
++  emoji: string,
++): Promise<{ id: string; reactions: Record<string, string[]> }> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${appointmentId}/messages/${messageId}/reactions`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ emoji }),
++  });
++}
++
++export async function summonAppointmentOpponent(id: string): Promise<JoinStateDto> {
++  return apiFetch<JoinStateDto>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/summon`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function dismissAppointmentSummon(id: string): Promise<JoinStateDto> {
++  return apiFetch<JoinStateDto>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/summon/dismiss`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function leaveAppointment(id: string): Promise<{ ok: boolean }> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/leave`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function fetchAppointmentTranscript(
++  id: string,
++): Promise<{ appointment: AppointmentRecord; messages: AppointmentMessage[] }> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/transcript`);
++}
++
++export async function markAppointmentRead(id: string, messageId?: string): Promise<void> {
++  const qs = messageId ? `?message_id=${messageId}` : "";
++  await apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/read${qs}`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function postAppointmentTyping(id: string, on = true): Promise<void> {
++  await apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/typing`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ on }),
++  });
++}
++
++export async function uploadAppointmentAttachment(
++  id: string,
++  file: File,
++  opts: { caption?: string; kind?: "document" | "image" | "screenshot" | "voice" } = {},
++): Promise<AppointmentMessage> {
++  const form = new FormData();
++  form.append("file", file);
++  form.append("caption", opts.caption ?? "");
++  form.append("kind", opts.kind ?? (file.type.startsWith("image/") ? "image" : "document"));
++  const res = await authorizedFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/attachments`, {
++    method: "POST",
++    body: form,
++  });
++  if (!res.ok) return parseError(res);
++  return res.json();
++}
++
++export async function fetchAppointmentAttachmentBlob(appointmentId: string, attachmentId: string): Promise<Blob> {
++  const res = await authorizedFetch(
++    `${marketplaceServiceUrl()}/api/v1/appointments/${appointmentId}/attachments/${attachmentId}`,
++  );
++  if (!res.ok) return parseError(res);
++  return res.blob();
++}
++
++export async function recordAppointmentCallEvent(
++  id: string,
++  type: "started" | "ended",
++  talkSeconds = 0,
++): Promise<void> {
++  await apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/call-event`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ type, talk_seconds: talkSeconds }),
++  });
++}
++
++export interface LawyerListingInput {
++  full_name?: string;
++  bar_council_id?: string | null;
++  practice_areas?: string[];
++  jurisdictions?: string[];
++  languages?: string[];
++  city?: string;
++  years_experience?: number;
++  hourly_rate?: number | null;
++  bio?: string;
++}
++
++export async function getMyLawyerListing(): Promise<RankedMarketplaceLawyer> {
++  return apiFetch<RankedMarketplaceLawyer>(`${marketplaceServiceUrl()}/api/v1/lawyers/me`);
++}
++
++export async function upsertMyLawyerListing(
++  body: LawyerListingInput,
++): Promise<RankedMarketplaceLawyer> {
++  return apiFetch<RankedMarketplaceLawyer>(`${marketplaceServiceUrl()}/api/v1/lawyers/me`, {
++    method: "PUT",
++    headers: authHeaders(),
++    body: JSON.stringify(body),
++  });
++}
++
++export async function syncAdvocateListing(): Promise<void> {
++  const user = getStoredUser();
++  if (!user?.roles.includes("advocate")) return;
++  try {
++    await upsertMyLawyerListing({ full_name: user.full_name });
++  } catch {
++    /* marketplace may be offline during login */
++  }
++}
++
++export async function adminListAppointments(params: {
++  status?: string;
++  search?: string;
++  emergency?: string;
++  live?: boolean;
++} = {}): Promise<{
++  items: AppointmentRecord[];
++  live_matrix?: AppointmentRecord[];
++  counts: Record<string, number>;
++  emergency_counts?: Record<string, number>;
++  total: number;
++  live_total?: number;
++}> {
++  const qs = new URLSearchParams();
++  if (params.status) qs.set("status", params.status);
++  if (params.search) qs.set("search", params.search);
++  if (params.emergency) qs.set("emergency", params.emergency);
++  if (params.live) qs.set("live", "true");
++  const suffix = qs.toString() ? `?${qs.toString()}` : "";
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments${suffix}`);
++}
++
++export async function adminGetAppointment(id: string): Promise<{
++  appointment: AppointmentRecord;
++  messages: AppointmentMessage[];
++  events: { id: string; type: string; actor_user_id: string | null; payload: Record<string, unknown>; created_at: string | null }[];
++}> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}`);
++}
++
++export async function adminForceCancelAppointment(id: string, reason: string): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/force-cancel`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ reason }),
++  });
++}
++
++export async function adminForceCompleteAppointment(id: string, reason: string): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/force-complete`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ reason }),
++  });
++}
++
++export async function requestAppointmentEmergency(id: string, reason: string): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/emergency`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ reason }),
++  });
++}
++
++export async function resolveAppointmentEmergency(id: string): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/emergency/resolve`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function adminAckEmergency(id: string): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/emergency/ack`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function adminResolveEmergency(id: string): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/emergency/resolve`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function adminSetPriority(id: string, priority: "normal" | "urgent" | "emergency"): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/priority`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ priority }),
++  });
++}
++
++export async function adminExtendAppointment(id: string, minutes: number): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/extend`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ minutes }),
++  });
++}
++
++export async function adminReassignAppointment(id: string, lawyerId: string): Promise<AppointmentRecord> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/reassign`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ lawyer_id: lawyerId }),
++  });
++}
++
++export async function adminSystemMessage(id: string, body: string): Promise<AppointmentMessage> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/system-message`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ body }),
++  });
++}
++
++export async function adminForceSummon(id: string): Promise<JoinStateDto> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/force-summon`, {
++    method: "POST",
++    headers: authHeaders(),
++  });
++}
++
++export async function adminListLawyers(): Promise<RankedMarketplaceLawyer[]> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/lawyers`);
++}
++
++export async function adminSetLawyerVerified(
++  lawyerId: string,
++  isVerified: boolean,
++): Promise<RankedMarketplaceLawyer> {
++  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/lawyers/${lawyerId}`, {
++    method: "PATCH",
++    headers: authHeaders(),
++    body: JSON.stringify({ is_verified: isVerified }),
++  });
++}
++
+diff --git a/frontend/src/lib/dashboard-config.ts b/frontend/src/lib/dashboard-config.ts
+index cc8792c..87ec5af 100644
+--- a/frontend/src/lib/dashboard-config.ts
++++ b/frontend/src/lib/dashboard-config.ts
+@@ -1,6 +1,7 @@
+ import type { LucideIcon } from "lucide-react";
+ import {
+   Briefcase,
++  CalendarClock,
+   Database,
+   FileText,
+   FolderOpen,
+@@ -100,6 +101,13 @@ const ALL_MODULES: DashboardModule[] = [
+     icon: Users,
+     permission: Permission.USER_MANAGE,
+   },
++  {
++    href: "/admin/appointments",
++    title: "Appointment Ops",
++    description: "Oversee bookings, transcripts, and counsel verification.",
++    icon: CalendarClock,
++    permission: Permission.USER_MANAGE,
++  },
+ ];
+ 
+ const ROLE_CONFIG: Record<
+@@ -118,6 +126,7 @@ const ROLE_CONFIG: Record<
+       "/documents",
+       "/admin/knowledge",
+       "/admin/users",
++      "/admin/appointments",
+     ],
+   },
+   enterprise: {
+diff --git a/frontend/src/lib/lawyer-avatar.ts b/frontend/src/lib/lawyer-avatar.ts
+index 295a61a..87af333 100644
+--- a/frontend/src/lib/lawyer-avatar.ts
++++ b/frontend/src/lib/lawyer-avatar.ts
+@@ -1,6 +1,10 @@
+-/** Deterministic avatar path for mock lawyer profiles. */
+-export function lawyerAvatarSrc(lawyerId: string): string {
+-  return `/marketplace/avatars/${lawyerId}.svg`;
++/** Deterministic avatar path — prefer slug (`lw-001`) over UUID. */
++export function lawyerAvatarSrc(idOrSlug: string): string {
++  return `/marketplace/avatars/${idOrSlug}.svg`;
++}
++
++export function counselAvatarKey(lawyer: { id: string; slug?: string | null }): string {
++  return lawyer.slug || lawyer.id;
+ }
+ 
+ export function lawyerInitials(name: string): string {
+diff --git a/frontend/src/lib/marketplace-store.ts b/frontend/src/lib/marketplace-store.ts
+index a75f73d..5f38a65 100644
+--- a/frontend/src/lib/marketplace-store.ts
++++ b/frontend/src/lib/marketplace-store.ts
+@@ -1,7 +1,7 @@
+-import { CITIES, MOCK_LAWYERS } from "@/lib/mock/lawyers";
+-import type { ConsultationBooking, LawyerProfile } from "@/lib/types";
++import type { RankedMarketplaceLawyer } from "@/lib/appointment-types";
++import { CITIES } from "@/lib/mock/lawyers";
++import type { LawyerProfile } from "@/lib/types";
+ 
+-const APPOINTMENTS_KEY = "legalos.appointments";
+ const MATCH_PREFS_KEY = "legalos.match_preferences";
+ 
+ export type LocationMode = "auto" | "manual" | "current";
+@@ -33,6 +33,28 @@ export interface RankedLawyer extends LawyerProfile {
+   ai_recommended: boolean;
+ }
+ 
++export function toRankedLawyer(raw: RankedMarketplaceLawyer): RankedLawyer {
++  return {
++    id: raw.id,
++    slug: raw.slug ?? undefined,
++    user_id: raw.user_id,
++    full_name: raw.full_name,
++    bar_council_id: raw.bar_council_id ?? "",
++    practice_areas: raw.practice_areas ?? [],
++    city: raw.city || raw.jurisdictions?.[0] || "India",
++    jurisdictions: raw.jurisdictions ?? [],
++    languages: raw.languages ?? [],
++    years_experience: raw.years_experience ?? 0,
++    rating: raw.rating ?? 0,
++    review_count: raw.review_count ?? raw.rating_count ?? 0,
++    verified: Boolean(raw.verified ?? raw.is_verified),
++    hourly_rate_inr: raw.hourly_rate_inr ?? raw.hourly_rate ?? null,
++    bio: raw.bio || raw.summary || "",
++    match_score: Math.round(Number(raw.match_score ?? 0)),
++    ai_recommended: Boolean(raw.ai_recommended),
++  };
++}
++
+ /** Approximate city centroids for nearest-city geolocation. */
+ const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+   Delhi: { lat: 28.6139, lng: 77.209 },
+@@ -190,8 +212,8 @@ export function saveMatchToHistory(result: MatchResult): MatchResult[] {
+   return next;
+ }
+ 
+-export function findBestMatch(prefs: MatchPreferences): MatchResult | null {
+-  let pool = [...MOCK_LAWYERS];
++export function findBestMatch(prefs: MatchPreferences, catalog: LawyerProfile[]): MatchResult | null {
++  let pool = [...catalog];
+   if (prefs.verifiedOnly) pool = pool.filter((l) => l.verified);
+   if (!prefs.experienceAuto) {
+     pool = pool.filter((l) => l.years_experience >= prefs.minExperience);
+@@ -201,7 +223,7 @@ export function findBestMatch(prefs: MatchPreferences): MatchResult | null {
+       (l) => l.hourly_rate_inr == null || l.hourly_rate_inr <= prefs.maxRateInr!,
+     );
+   }
+-  if (pool.length === 0) pool = [...MOCK_LAWYERS];
++  if (pool.length === 0) pool = [...catalog];
+ 
+   const ranked: RankedLawyer[] = pool
+     .map((l) => ({
+@@ -233,20 +255,6 @@ export interface LawyerFilters {
+   sort?: LawyerSort;
+ }
+ 
+-function readAppointments(): ConsultationBooking[] {
+-  if (typeof window === "undefined") return [];
+-  try {
+-    const raw = window.localStorage.getItem(APPOINTMENTS_KEY);
+-    return raw ? (JSON.parse(raw) as ConsultationBooking[]) : [];
+-  } catch {
+-    return [];
+-  }
+-}
+-
+-function writeAppointments(items: ConsultationBooking[]): void {
+-  window.localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(items));
+-}
+-
+ /** Heuristic AI match score (0–100) from active filters + profile strength. */
+ export function computeMatchScore(
+   lawyer: LawyerProfile,
+@@ -270,9 +278,9 @@ export function computeMatchScore(
+   return Math.max(42, Math.min(99, Math.round(score)));
+ }
+ 
+-export function listLawyers(filters: LawyerFilters = {}): RankedLawyer[] {
++export function listLawyers(catalog: LawyerProfile[], filters: LawyerFilters = {}): RankedLawyer[] {
+   const q = filters.query?.trim().toLowerCase() ?? "";
+-  let list = [...MOCK_LAWYERS];
++  let list = [...catalog];
+ 
+   if (q) {
+     list = list.filter(
+@@ -324,42 +332,10 @@ export function listLawyers(filters: LawyerFilters = {}): RankedLawyer[] {
+   return ranked;
+ }
+ 
+-export function getFeaturedLawyers(limit = 3): RankedLawyer[] {
+-  return listLawyers({ sort: "rating", verifiedOnly: true }).slice(0, limit);
+-}
+-
+-export function getLawyer(id: string): LawyerProfile | null {
+-  return MOCK_LAWYERS.find((l) => l.id === id) ?? null;
++export function getFeaturedLawyers(catalog: LawyerProfile[], limit = 3): RankedLawyer[] {
++  return listLawyers(catalog, { sort: "rating", verifiedOnly: true }).slice(0, limit);
+ }
+ 
+-export function listMyAppointments(): ConsultationBooking[] {
+-  return readAppointments().sort(
+-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+-  );
+-}
+-
+-export function bookConsultation(input: {
+-  lawyer_id: string;
+-  date: string;
+-  time_slot: string;
+-  matter_summary: string;
+-}): ConsultationBooking {
+-  const lawyer = getLawyer(input.lawyer_id);
+-  if (!lawyer) throw new Error("Lawyer not found");
+-
+-  const booking: ConsultationBooking = {
+-    id: `apt-${crypto.randomUUID()}`,
+-    lawyer_id: lawyer.id,
+-    lawyer_name: lawyer.full_name,
+-    date: input.date,
+-    time_slot: input.time_slot,
+-    matter_summary: input.matter_summary.trim(),
+-    status: "requested",
+-    created_at: new Date().toISOString(),
+-  };
+-
+-  const all = readAppointments();
+-  all.unshift(booking);
+-  writeAppointments(all);
+-  return booking;
++export function getLawyer(catalog: LawyerProfile[], id: string): LawyerProfile | null {
++  return catalog.find((l) => l.id === id || l.slug === id) ?? null;
+ }
+diff --git a/frontend/src/lib/nav-history.ts b/frontend/src/lib/nav-history.ts
+index 625f174..8cf5925 100644
+--- a/frontend/src/lib/nav-history.ts
++++ b/frontend/src/lib/nav-history.ts
+@@ -14,6 +14,7 @@ const MODULE_ROOTS = [
+   "/courtroom",
+   "/admin/knowledge",
+   "/admin/users",
++  "/admin/appointments",
+ ] as const;
+ 
+ export function resolveRouteLabel(pathname: string): string {
+@@ -26,6 +27,7 @@ export function resolveRouteLabel(pathname: string): string {
+   if (pathname.startsWith("/courtroom")) return "AI Courtroom";
+   if (pathname.startsWith("/admin/knowledge")) return "Knowledge Hub";
+   if (pathname.startsWith("/admin/users")) return "Users";
++  if (pathname.startsWith("/admin/appointments")) return "Appointments";
+   return "previous page";
+ }
+ 
+diff --git a/frontend/src/lib/permissions.ts b/frontend/src/lib/permissions.ts
+index 0e954b4..9858734 100644
+--- a/frontend/src/lib/permissions.ts
++++ b/frontend/src/lib/permissions.ts
+@@ -40,11 +40,13 @@ const ROUTE_RULES: { pattern: RegExp; permission: PermissionCode | null }[] = [
+   { pattern: /^\/mera-vakil$/, permission: Permission.RESEARCH_READ },
+   { pattern: /^\/research$/, permission: Permission.RESEARCH_READ },
+   { pattern: /^\/lawyer-marketplace$/, permission: Permission.RESEARCH_READ },
++  { pattern: /^\/appointments(\/.*)?$/, permission: Permission.RESEARCH_READ },
+   { pattern: /^\/cases(\/.*)?$/, permission: Permission.CASE_READ },
+   { pattern: /^\/documents(\/.*)?$/, permission: Permission.DOCUMENT_READ },
+   { pattern: /^\/courtroom$/, permission: Permission.COURTROOM_SIMULATE },
+   { pattern: /^\/admin\/knowledge$/, permission: Permission.KNOWLEDGE_INGEST },
+   { pattern: /^\/admin\/users$/, permission: Permission.USER_MANAGE },
++  { pattern: /^\/admin\/appointments$/, permission: Permission.USER_MANAGE },
+ ];
+ 
+ export function canAccessRoute(
+diff --git a/frontend/src/lib/types.ts b/frontend/src/lib/types.ts
+index 65486ac..f42b8b4 100644
+--- a/frontend/src/lib/types.ts
++++ b/frontend/src/lib/types.ts
+@@ -188,6 +188,8 @@ export interface ResearchResponse {
+ 
+ export interface LawyerProfile {
+   id: string;
++  slug?: string | null;
++  user_id?: string;
+   full_name: string;
+   bar_council_id: string;
+   practice_areas: string[];
+@@ -204,9 +206,11 @@ export interface LawyerProfile {
+ 
+ export interface LawyerMatchResult {
+   id: string;
++  slug?: string;
+   full_name: string;
+   bar_council_id: string | null;
+   practice_areas: string[];
++  city?: string;
+   jurisdictions: string[];
+   years_experience: number;
+   languages: string[];
+@@ -219,17 +223,67 @@ export interface LawyerMatchResult {
+   ai_recommended: boolean;
+ }
+ 
+-export type AppointmentStatus = "requested" | "confirmed" | "completed" | "cancelled";
++export type AppointmentStatus =
++  | "requested"
++  | "confirmed"
++  | "live"
++  | "completed"
++  | "expired"
++  | "cancelled"
++  | "no_show";
++
++export type AppointmentJoinState = "upcoming" | "joinable" | "expired";
+ 
+ export interface ConsultationBooking {
+   id: string;
+   lawyer_id: string;
+   lawyer_name: string;
++  lawyer_slug?: string | null;
++  citizen_user_id?: string;
++  lawyer_user_id?: string;
++  citizen_name?: string;
++  counterpart_name?: string;
+   date: string;
+   time_slot: string;
++  scheduled_at?: string | null;
++  scheduled_end_at?: string | null;
+   matter_summary: string;
+   status: AppointmentStatus;
++  source?: string;
++  join_state?: AppointmentJoinState;
++  seconds_until_start?: number;
++  seconds_until_end?: number;
++  opponent_present?: boolean;
++  pending_summon?: boolean;
++  created_at: string;
++  metrics?: Record<string, unknown>;
++}
++
++export interface AppointmentMessage {
++  id: string;
++  sender_user_id: string;
++  sender_role: "citizen" | "lawyer" | string;
++  body: string;
+   created_at: string;
++  reactions: Record<string, string[]>;
++}
++
++export interface JoinState {
++  appointment_id: string;
++  join_state: AppointmentJoinState;
++  seconds_until_start: number;
++  seconds_until_end: number;
++  opponent_present: boolean;
++  pending_summon: boolean;
++  status: AppointmentStatus;
++  scheduled_at: string | null;
++  scheduled_end_at: string | null;
++}
++
++export interface RoomToken {
++  url: string;
++  token: string;
++  room: string;
+ }
+ 
+ export type CaseStatus = "open" | "in_progress" | "closed";
+diff --git a/scripts/stop_native.sh b/scripts/stop_native.sh
+index 4ae0baa..94f0350 100755
+--- a/scripts/stop_native.sh
++++ b/scripts/stop_native.sh
+@@ -1,13 +1,15 @@
+ #!/usr/bin/env bash
+-# Stop all native stack processes (auth, search, research, frontend).
++# Stop all native stack processes (auth, search, research, marketplace, frontend).
+ set -euo pipefail
+ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ 
+ pkill -f "backend/scripts/dev_auth_server.py" 2>/dev/null || true
+ pkill -f "backend/scripts/dev_search_server.py" 2>/dev/null || true
+ pkill -f "backend/scripts/dev_research_server.py" 2>/dev/null || true
++pkill -f "backend/scripts/dev_marketplace_server.py" 2>/dev/null || true
+ pkill -f "backend/scripts/dev_stack.py" 2>/dev/null || true
+-# Note: do not kill run_native_stack.py here — it invokes this script on startup.
++pkill -f "cloudflared tunnel" 2>/dev/null || true
++pkill -f "backend/scripts/run_public_stack.py" 2>/dev/null || true
+ 
+ # Stop Next.js dev servers for this project only
+ for pid in $(pgrep -f "next dev" 2>/dev/null || true); do

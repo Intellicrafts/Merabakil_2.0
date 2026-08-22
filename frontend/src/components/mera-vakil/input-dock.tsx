@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Paperclip, Send } from "lucide-react";
+import { Loader2, Mic, Paperclip, Send } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ interface InputDockProps {
   onStop?: () => void;
   isUploading?: boolean;
   onFileSelect?: (file: File) => void;
+  onVoiceModeOpen?: () => void;
 }
 
 const MIN_ROWS = 1;
@@ -27,7 +28,7 @@ function StopButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="orb-glow mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-slate-900 shadow-md ring-1 ring-black/[0.08] transition-all duration-200 hover:scale-105 active:scale-95 dark:bg-slate-100 dark:text-slate-900"
+      className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-slate-900 shadow-sm ring-1 ring-black/[0.08] transition-colors hover:bg-slate-50 active:scale-95 dark:bg-slate-100 dark:text-slate-900"
       aria-label="Stop generating"
     >
       <span className="block h-3 w-3 rounded-[2px] bg-slate-900 dark:bg-slate-900" />
@@ -45,6 +46,7 @@ export function InputDock({
   onStop,
   isUploading,
   onFileSelect,
+  onVoiceModeOpen,
 }: InputDockProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,9 +80,8 @@ export function InputDock({
     <div className="shrink-0 px-4 pb-6 pt-2 md:px-6">
       <div
         className={cn(
-          "mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-black/[0.07] bg-white/70 px-2.5 py-2 shadow-[0_6px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-300 ease-in-out dark:border-white/10 dark:bg-white/5",
-          focused &&
-            "border-slate-400/60 shadow-[0_8px_30px_rgba(15,23,42,0.14)] dark:border-slate-400/40",
+          "mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-black/[0.07] bg-white px-2.5 py-2 shadow-sm transition-colors dark:border-white/10 dark:bg-zinc-900",
+          focused && "border-slate-400/60 dark:border-slate-400/40",
         )}
       >
         <input
@@ -108,6 +109,18 @@ export function InputDock({
           )}
         </button>
 
+        {onVoiceModeOpen && (
+          <button
+            type="button"
+            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground disabled:opacity-50 dark:hover:bg-white/10"
+            onClick={onVoiceModeOpen}
+            aria-label="Voice mode"
+            disabled={busy || isGenerating}
+          >
+            <Mic className="h-4 w-4" />
+          </button>
+        )}
+
         <textarea
           ref={textareaRef}
           rows={MIN_ROWS}
@@ -128,8 +141,8 @@ export function InputDock({
           <button
             type="button"
             className={cn(
-              "orb-glow mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md transition-all duration-300 ease-in-out dark:from-slate-100 dark:to-slate-300 dark:text-slate-900",
-              canSend ? "hover:scale-105 active:scale-95" : "cursor-not-allowed opacity-50",
+              "mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-800 text-white shadow-sm transition-colors hover:bg-amber-900 active:scale-95 dark:bg-amber-600 dark:hover:bg-amber-500",
+              !canSend && "cursor-not-allowed opacity-50",
             )}
             onClick={onSubmit}
             disabled={!canSend}
@@ -140,7 +153,8 @@ export function InputDock({
         )}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Enter to send · Shift+Enter for new line · Attach PDF, DOCX, TXT, CSV
+        Enter to send · Shift+Enter for new line
+        {onVoiceModeOpen ? " · Mic for voice mode" : " · Attach PDF, DOCX, TXT, CSV"}
       </p>
     </div>
   );
