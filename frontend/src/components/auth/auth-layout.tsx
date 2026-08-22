@@ -24,15 +24,10 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
   return (
     <div className="relative flex min-h-screen flex-col lg:flex-row">
       {/* Brand panel */}
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-slate-800 via-slate-900 to-black px-10 py-12 text-white lg:flex lg:w-[44%] lg:flex-col lg:justify-between dark:from-slate-200 dark:via-slate-300 dark:to-slate-400 dark:text-slate-900">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="aurora absolute -left-20 top-20 h-64 w-64 opacity-40" />
-          <div className="aurora absolute -right-16 bottom-32 h-48 w-48 opacity-30" />
-        </div>
-
+      <div className="relative hidden overflow-hidden bg-[#0f172a] px-10 py-12 text-white lg:flex lg:w-[44%] lg:flex-col lg:justify-between">
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm dark:bg-black/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
               <Scale className="h-5 w-5" />
             </div>
             <span className="text-lg font-semibold tracking-tight">AI Legal OS</span>
@@ -87,7 +82,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
               <p className="text-sm text-muted-foreground">{subtitle}</p>
             </div>
 
-            <div className="rounded-2xl border border-black/[0.08] bg-white/70 p-6 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
+            <div className="rounded-2xl border border-black/[0.08] bg-white p-6 shadow-sm dark:border-white/10 dark:bg-zinc-900">
               {children}
             </div>
 

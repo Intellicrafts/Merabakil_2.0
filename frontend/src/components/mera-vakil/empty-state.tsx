@@ -188,10 +188,7 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
   return (
     <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-6 py-10">
       <div className="relative flex items-center justify-center">
-        <div className="aurora pointer-events-none absolute h-48 w-48 rounded-full" aria-hidden />
-        <div className="mascot-float relative">
-          <Mascot className="h-36 w-32 drop-shadow-lg" />
-        </div>
+        <Mascot className="h-36 w-32 drop-shadow-sm" />
       </div>
 
       <div className="text-center">
@@ -209,14 +206,13 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
               key={action.title}
               type="button"
               onClick={() => onQuickAction(action.prompt)}
-              className="group flex items-center gap-2.5 rounded-xl border border-black/[0.05] bg-white/50 p-3 text-left shadow-[0_2px_14px_rgba(15,23,42,0.04)] backdrop-blur-md transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:bg-white/75 hover:shadow-[0_6px_22px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.08]"
+              className="group flex items-center gap-2.5 rounded-xl border border-black/[0.05] bg-white p-3 text-left shadow-sm transition-colors hover:border-black/[0.10] hover:bg-slate-50 dark:border-white/10 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
               <div
                 className={cn(
-                  "icon-breathe flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-white shadow-sm transition-transform group-hover:scale-110 dark:from-slate-200 dark:to-slate-400 dark:text-slate-900",
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-white shadow-sm dark:from-slate-200 dark:to-slate-400 dark:text-slate-900",
                   action.gradient,
                 )}
-                style={{ animationDelay: `${idx * 0.4}s` }}
               >
                 <Icon className="h-4 w-4" />
               </div>
@@ -229,7 +225,7 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
       {showBanner && (
         <div
           className={cn(
-            "relative w-full max-w-xl overflow-hidden rounded-xl border border-black/[0.05] bg-white/55 shadow-[0_3px_18px_rgba(15,23,42,0.05)] backdrop-blur-md transition-all duration-200 dark:border-white/10 dark:bg-white/[0.04]",
+            "relative w-full max-w-xl overflow-hidden rounded-xl border border-black/[0.05] bg-white shadow-sm transition-all duration-200 dark:border-white/10 dark:bg-zinc-900",
             bannerFading && "scale-[0.98] opacity-0",
           )}
         >
@@ -252,7 +248,7 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
             <div className="flex shrink-0 items-center gap-1.5">
               <Button
                 size="sm"
-                className="h-7 shrink-0 rounded-full bg-gradient-to-r from-slate-800 to-slate-900 px-3.5 text-xs font-medium text-white shadow-sm transition-all hover:from-slate-700 hover:to-slate-800 hover:shadow-md dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
+                className="h-7 shrink-0 rounded-full bg-amber-800 px-3.5 text-xs font-medium text-white shadow-sm hover:bg-amber-900 dark:bg-amber-600 dark:text-white dark:hover:bg-amber-500"
                 aria-label="View premium plan"
                 onClick={onOpenPremium}
               >

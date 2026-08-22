@@ -4,9 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
-import { ModuleMotif } from "@/components/dashboard/dashboard-visuals";
 import type { DashboardModule } from "@/lib/dashboard-config";
-import { getModuleMeta, tintClassName } from "@/lib/dashboard-meta";
+import { getModuleMeta } from "@/lib/dashboard-meta";
 import { cn } from "@/lib/utils";
 
 export function DashboardModuleCard({
@@ -24,21 +23,19 @@ export function DashboardModuleCard({
     <Link
       href={mod.href}
       className={cn(
-        "group relative flex min-h-[168px] flex-col justify-between overflow-hidden rounded-3xl p-5",
-        "border border-black/[0.06] bg-white/60 backdrop-blur-xl",
-        "shadow-[0_4px_20px_rgba(15,23,42,0.03)]",
-        "transition-all duration-300",
-        "hover:-translate-y-1 hover:border-black/[0.10] hover:bg-white/85 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]",
+        "group relative flex min-h-[168px] flex-col justify-between overflow-hidden rounded-2xl p-5",
+        "border border-black/[0.06] bg-white",
+        "shadow-sm",
+        "transition-colors duration-200",
+        "hover:border-slate-300 hover:shadow-md",
         "active:scale-[0.99]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/35 focus-visible:ring-offset-2",
-        "dark:border-white/[0.08] dark:bg-white/[0.035]",
-        "dark:hover:border-white/[0.14] dark:hover:bg-white/[0.07]",
+        "dark:border-white/[0.08] dark:bg-zinc-900",
+        "dark:hover:border-zinc-600",
         "dash-card-in",
-        tintClassName(meta.tint),
       )}
       style={{ animationDelay: `${delayMs}ms` }}
     >
-      <ModuleMotif tint={meta.tint} />
 
       {meta.imageSrc && meta.tint !== "mera-vakil" && (
         <div className="pointer-events-none absolute bottom-0 right-0 h-20 w-28 opacity-40 transition-opacity duration-300 group-hover:opacity-60">
