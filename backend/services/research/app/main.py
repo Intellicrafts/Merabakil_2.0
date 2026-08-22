@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.api.voice_live import voice_router
 from app.config import get_settings
 from app.infrastructure.container import init_container
 from legalos_common.api import (
@@ -51,3 +52,4 @@ setup_telemetry(app, settings)
 
 app.include_router(build_health_router(settings.service_name))
 app.include_router(router)
+app.include_router(voice_router)

@@ -1858,6 +1858,40 @@
   }
 }
 
+/* ── Voice Bot – ChatGPT-style morphing blob ─────────────────────────────── */
+
+@keyframes voice-blob-morph {
+  0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+  15%       { border-radius: 35% 65% 55% 45% / 50% 60% 40% 55%; }
+  30%       { border-radius: 50% 40% 65% 50% / 30% 65% 35% 60%; }
+  45%       { border-radius: 65% 50% 45% 30% / 70% 30% 55% 40%; }
+  60%       { border-radius: 40% 60% 30% 65% / 45% 50% 65% 35%; }
+  75%       { border-radius: 55% 35% 60% 40% / 60% 45% 30% 70%; }
+}
+
+@keyframes voice-blob-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50%       { transform: scale(1.12); opacity: 0; }
+}
+
+.voice-blob {
+  width: 190px;
+  height: 190px;
+  border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  animation: voice-blob-morph 4s ease-in-out infinite;
+  will-change: transform, border-radius;
+}
+
+.voice-blob-listen { animation-duration: 4s; }
+.voice-blob-think  { animation-duration: 5.5s; }
+.voice-blob-speak  { animation-duration: 1.8s; }
+
+.voice-blob-breathe {
+  animation: voice-blob-breathe 2.4s ease-in-out infinite;
+  position: absolute;
+  will-change: transform, opacity;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mv-panel-glow,
   .mv-live-ping,
@@ -1868,7 +1902,9 @@
   .mv-section-dot,
   .mv-hist-item,
   .mv-trace-chip,
-  .mv-voice-bar {
+  .mv-voice-bar,
+  .voice-blob,
+  .voice-blob-breathe {
     animation: none;
   }
 }

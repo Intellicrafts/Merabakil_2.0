@@ -94,6 +94,7 @@ class LLMSettings(BaseSettings):
     embedding_use_stub: bool = True
     tts_model: str = "gemini-2.5-flash-preview-tts"
     tts_voice: str = "Kore"
+    voice_live_model: str = "gemini-3.1-flash-live-preview"
     tavily_api_key: str = ""
     llm_router_model: str = "gemini-3.6-flash"
     marketplace_base_url: str = "http://localhost:8010"

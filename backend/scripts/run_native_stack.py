@@ -73,6 +73,9 @@ def main() -> None:
     procs.append(_start([PY, os.path.join(SCRIPTS, "dev_research_server.py")]))
     _wait_url("http://localhost:8004/health", timeout_sec=30, label="Research")
 
+    procs.append(_start([PY, os.path.join(SCRIPTS, "dev_marketplace_server.py")]))
+    _wait_url("http://localhost:8010/health", timeout_sec=30, label="Marketplace")
+
     procs.append(_start(["npm", "run", "dev"], cwd=os.path.join(ROOT, "frontend")))
     _wait_url("http://localhost:3000/login", timeout_sec=60, label="Frontend")
 

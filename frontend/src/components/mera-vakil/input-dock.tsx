@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Paperclip, Send } from "lucide-react";
+import { Loader2, Mic, Paperclip, Send } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ interface InputDockProps {
   onStop?: () => void;
   isUploading?: boolean;
   onFileSelect?: (file: File) => void;
+  onVoiceModeOpen?: () => void;
 }
 
 const MIN_ROWS = 1;
@@ -45,6 +46,7 @@ export function InputDock({
   onStop,
   isUploading,
   onFileSelect,
+  onVoiceModeOpen,
 }: InputDockProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,6 +110,18 @@ export function InputDock({
           )}
         </button>
 
+        {onVoiceModeOpen && (
+          <button
+            type="button"
+            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground disabled:opacity-50 dark:hover:bg-white/10"
+            onClick={onVoiceModeOpen}
+            aria-label="Voice mode"
+            disabled={busy || isGenerating}
+          >
+            <Mic className="h-4 w-4" />
+          </button>
+        )}
+
         <textarea
           ref={textareaRef}
           rows={MIN_ROWS}
@@ -140,7 +154,8 @@ export function InputDock({
         )}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Enter to send · Shift+Enter for new line · Attach PDF, DOCX, TXT, CSV
+        Enter to send · Shift+Enter for new line
+        {onVoiceModeOpen ? " · Mic for voice mode" : " · Attach PDF, DOCX, TXT, CSV"}
       </p>
     </div>
   );
