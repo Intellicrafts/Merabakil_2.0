@@ -72,6 +72,7 @@ _ROLE_CATALOG = {
 class FakeUserRepository:
     def __init__(self) -> None:
         self.store: dict[uuid.UUID, FakeUser] = {}
+        self.profile_roles: dict[uuid.UUID, str] = {}
 
     async def get_by_email(self, email: str) -> FakeUser | None:
         return next((u for u in self.store.values() if u.email.lower() == email.lower()), None)
@@ -90,6 +91,10 @@ class FakeUserRepository:
         user.roles_data = [
             FakeRole(name=n, permissions=_ROLE_CATALOG.get(n, [])) for n in role_names
         ]
+
+    async def create_role_profile(self, user: FakeUser, role_name: str) -> None:
+        if role_name != "admin":
+            self.profile_roles[user.id] = role_name
 
     async def update_password(self, user: FakeUser, hashed_password: str) -> None:
         user.hashed_password = hashed_password

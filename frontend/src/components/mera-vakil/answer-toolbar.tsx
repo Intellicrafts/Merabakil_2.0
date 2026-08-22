@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode, type RefObject } from "react";
-import { Check, Copy, FileDown, Loader2, RefreshCw } from "lucide-react";
+import { Check, Copy, FileDown, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 
 import { ReadAloudControl } from "@/components/mera-vakil/read-aloud-control";
 import { useToast } from "@/components/ui/toast";
@@ -18,6 +18,9 @@ interface AnswerToolbarProps {
   readAloudActiveId?: string | null;
   onReadAloudToggle?: (messageId: string, content: string) => void;
   onReadAloudStop?: () => void;
+  hasGrounding?: boolean;
+  groundingOpen?: boolean;
+  onGroundingToggle?: () => void;
 }
 
 function stripCitationMarkup(text: string): string {
@@ -130,6 +133,9 @@ export function AnswerToolbar({
   readAloudActiveId = null,
   onReadAloudToggle,
   onReadAloudStop,
+  hasGrounding = false,
+  groundingOpen = false,
+  onGroundingToggle,
 }: AnswerToolbarProps) {
   const { toast } = useToast();
   const [copied, setCopied] = useState<"plain" | "md" | null>(null);
@@ -170,6 +176,22 @@ export function AnswerToolbar({
         {copied === "md" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         MD
       </ToolButton>
+      {hasGrounding && onGroundingToggle && (
+        <ToolButton
+          label={groundingOpen ? "Hide sources" : "View sources & grounding"}
+          onClick={onGroundingToggle}
+        >
+          <ShieldCheck
+            className={cn(
+              "h-3.5 w-3.5 transition-colors",
+              groundingOpen ? "text-emerald-600 dark:text-emerald-400" : "",
+            )}
+          />
+          <span className={cn(groundingOpen && "text-emerald-600 dark:text-emerald-400")}>
+            Sources
+          </span>
+        </ToolButton>
+      )}
       {onRegenerate && (
         <ToolButton label="Regenerate answer" onClick={onRegenerate}>
           <RefreshCw className="h-3.5 w-3.5" />

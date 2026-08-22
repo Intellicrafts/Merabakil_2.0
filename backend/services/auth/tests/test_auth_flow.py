@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 from app.application.use_cases import AuthService
@@ -17,8 +19,27 @@ async def test_register_and_authenticate(auth_service: AuthService) -> None:
     assert "citizen" in result.roles
     assert result.tokens.access_token
 
+    users = auth_service._users
+    assert users.profile_roles[uuid.UUID(result.user_id)] == "citizen"
+
     auth = await auth_service.authenticate(email="user@example.com", password="StrongPass1")
     assert auth.user_id == result.user_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", ["advocate", "law_firm", "enterprise"])
+async def test_registration_creates_matching_role_profile(
+    auth_service: AuthService, role: str
+) -> None:
+    result = await auth_service.register(
+        email=f"{role}@example.com",
+        full_name=f"{role} account",
+        password="StrongPass1",
+        role=role,
+    )
+
+    users = auth_service._users
+    assert users.profile_roles[uuid.UUID(result.user_id)] == role
 
 
 @pytest.mark.asyncio

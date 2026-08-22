@@ -48,7 +48,7 @@ async def create_lawyer(
 ) -> LawyerMatchResult:
     """Create a lawyer profile and immediately generate its LLM summary."""
     repo = LawyerRepository(session)
-    lawyer = await repo.create(
+    lawyer = await repo.create_or_update_for_user(
         user_id=uuid.UUID(body.user_id),
         full_name=body.full_name,
         bar_council_id=body.bar_council_id,

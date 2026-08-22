@@ -32,41 +32,65 @@ import {
   type ChatConversation,
   type MatterType,
 } from "@/lib/conversations";
+import { getPrimaryRole, type PrimaryRole } from "@/lib/dashboard-config";
 import type { ResearchResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const LEGAL_QUICK_ACTIONS = [
-  {
-    id: "fir",
-    label: "FIR outline",
-    prompt:
-      "Draft a professional FIR outline under Indian criminal procedure: essential facts to record, sections likely attracted, documents to annex, and common defects that cause delay.",
-  },
-  {
-    id: "bail",
-    label: "Bail checklist",
-    prompt:
-      "Give a counsel-grade bail checklist for India: bailable vs non-bailable, statutory provisions, factors courts weigh, and a structured list of documents and arguments.",
-  },
-  {
-    id: "limitation",
-    label: "Limitation",
-    prompt:
-      "Explain the limitation period that typically applies to this matter under the Limitation Act, 1963, including when time starts, exclusions, and practical next steps.",
-  },
-  {
-    id: "section",
-    label: "Section explainer",
-    prompt:
-      "Explain the relevant statutory section in plain professional English: ingredients, burden of proof, leading Supreme Court interpretation, and how it applies on these facts.",
-  },
-  {
-    id: "precedent",
-    label: "Precedent hunt",
-    prompt:
-      "Identify the leading Indian authorities (Supreme Court and High Court) on this issue, with citation, holding, and why each is on-point or distinguishable.",
-  },
-] as const;
+type QuickAction = { id: string; label: string; prompt: string };
+
+const TOOLS_BY_ROLE: Record<PrimaryRole, QuickAction[]> = {
+  citizen: [
+    { id: "rights", label: "My rights", prompt: "What are my fundamental rights under the Indian Constitution and how are they protected?" },
+    { id: "complaint", label: "File complaint", prompt: "Guide me step-by-step on how to file a complaint — FIR, consumer court, or civil dispute." },
+    { id: "notice", label: "Got a notice?", prompt: "I received a legal notice. Explain what it means, what I must do immediately, and what my options are." },
+    { id: "findlawyer", label: "Find a lawyer", prompt: "How do I find and evaluate a good lawyer in India for my specific legal problem? What should I ask before hiring?" },
+    { id: "courtprocess", label: "Court process", prompt: "Explain the typical court process in India for civil or criminal cases in simple, plain language." },
+  ],
+  advocate: [
+    { id: "fir", label: "FIR outline", prompt: "Draft a professional FIR outline under Indian criminal procedure: essential facts to record, sections likely attracted, documents to annex, and common defects that cause delay." },
+    { id: "bail", label: "Bail checklist", prompt: "Give a counsel-grade bail checklist for India: bailable vs non-bailable, statutory provisions, factors courts weigh, and a structured list of documents and arguments." },
+    { id: "limitation", label: "Limitation", prompt: "Explain the limitation period that typically applies to this matter under the Limitation Act, 1963, including when time starts, exclusions, and practical next steps." },
+    { id: "section", label: "Section explainer", prompt: "Explain the relevant statutory section in plain professional English: ingredients, burden of proof, leading Supreme Court interpretation, and how it applies on these facts." },
+    { id: "precedent", label: "Precedent hunt", prompt: "Identify the leading Indian authorities (Supreme Court and High Court) on this issue, with citation, holding, and why each is on-point or distinguishable." },
+  ],
+  law_firm: [
+    { id: "fir", label: "FIR outline", prompt: "Draft a professional FIR outline under Indian criminal procedure: essential facts to record, sections likely attracted, documents to annex, and common defects that cause delay." },
+    { id: "bail", label: "Bail checklist", prompt: "Give a counsel-grade bail checklist for India: bailable vs non-bailable, statutory provisions, factors courts weigh, and a structured list of documents and arguments." },
+    { id: "limitation", label: "Limitation", prompt: "Explain the limitation period that typically applies to this matter under the Limitation Act, 1963, including when time starts, exclusions, and practical next steps." },
+    { id: "section", label: "Section explainer", prompt: "Explain the relevant statutory section in plain professional English: ingredients, burden of proof, leading Supreme Court interpretation, and how it applies on these facts." },
+    { id: "precedent", label: "Precedent hunt", prompt: "Identify the leading Indian authorities (Supreme Court and High Court) on this issue, with citation, holding, and why each is on-point or distinguishable." },
+  ],
+  enterprise: [
+    { id: "dpdp", label: "DPDP Act", prompt: "What are our key obligations under the Digital Personal Data Protection Act, 2023 and the implementation timeline?" },
+    { id: "contract", label: "Contract risks", prompt: "Identify the most common risk clauses in commercial contracts under Indian law and how to mitigate them." },
+    { id: "employment", label: "Employment law", prompt: "Summarise our key obligations under Indian employment and labour laws for a technology company." },
+    { id: "sebi", label: "SEBI / RBI", prompt: "What are the recent SEBI or RBI regulatory changes that listed companies or NBFCs must comply with?" },
+    { id: "compliance", label: "Compliance map", prompt: "Build a compliance checklist for a technology startup operating in India across major regulators." },
+  ],
+  admin: [
+    { id: "fir", label: "FIR outline", prompt: "Draft a professional FIR outline under Indian criminal procedure: essential facts to record, sections likely attracted, documents to annex, and common defects that cause delay." },
+    { id: "bail", label: "Bail checklist", prompt: "Give a counsel-grade bail checklist for India: bailable vs non-bailable, statutory provisions, factors courts weigh, and a structured list of documents and arguments." },
+    { id: "limitation", label: "Limitation", prompt: "Explain the limitation period that typically applies to this matter under the Limitation Act, 1963, including when time starts, exclusions, and practical next steps." },
+    { id: "section", label: "Section explainer", prompt: "Explain the relevant statutory section in plain professional English: ingredients, burden of proof, leading Supreme Court interpretation, and how it applies on these facts." },
+    { id: "precedent", label: "Precedent hunt", prompt: "Identify the leading Indian authorities (Supreme Court and High Court) on this issue, with citation, holding, and why each is on-point or distinguishable." },
+  ],
+};
+
+const PANEL_LABELS: Record<PrimaryRole, string> = {
+  citizen: "Your Legal Guide",
+  advocate: "Counsel Workbench",
+  law_firm: "Firm Intelligence",
+  enterprise: "Compliance Hub",
+  admin: "Admin Console",
+};
+
+const TOOLS_SECTION_LABELS: Record<PrimaryRole, string> = {
+  citizen: "Common questions",
+  advocate: "Counsel tools",
+  law_firm: "Counsel tools",
+  enterprise: "Compliance tools",
+  admin: "Counsel tools",
+};
 
 interface ContextPanelProps {
   conversations: ChatConversation[];
@@ -172,6 +196,10 @@ export function ContextPanel({
 }: ContextPanelProps) {
   const router = useRouter();
   const user = getStoredUser();
+  const role = getPrimaryRole(user);
+  const roleTools = TOOLS_BY_ROLE[role];
+  const panelLabel = PANEL_LABELS[role];
+  const toolsSectionLabel = TOOLS_SECTION_LABELS[role];
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -220,7 +248,7 @@ export function ContextPanel({
   }, [conversations, debounced]);
 
   const shown = filtered.slice(0, visibleCount);
-  const roleLabel = user?.roles?.[0]?.replace(/_/g, " ") ?? "Counsel";
+  const roleLabel = panelLabel;
   const confidence = latestResearch?.confidence;
 
   return (
@@ -249,7 +277,7 @@ export function ContextPanel({
           <div className="mb-3 flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Mera Vakil · Counsel
+                Mera Vakil · {panelLabel}
               </p>
               <div className="mt-1.5 flex items-center gap-2">
                 <span className="relative flex h-1.5 w-1.5">
@@ -514,13 +542,13 @@ export function ContextPanel({
 
           <section aria-label="Legal tools" className="space-y-2.5">
             <SectionHeader
-              label="Counsel tools"
+              label={toolsSectionLabel}
               open={open.tools}
               onToggle={() => setOpen((s) => ({ ...s, tools: !s.tools }))}
             />
             {open.tools && (
               <div className="flex flex-wrap gap-1.5">
-                {LEGAL_QUICK_ACTIONS.map((action) => (
+                {roleTools.map((action) => (
                   <button
                     key={action.id}
                     type="button"
@@ -573,7 +601,7 @@ export function ContextPanel({
                       const Icon = isJudgment ? Gavel : source.section ? Scale : FileText;
                       return (
                         <li
-                          key={source.chunk_id}
+                          key={`${source.chunk_id}-${idx}`}
                           className="rounded-xl border border-black/[0.05] bg-white/50 p-2.5 dark:border-white/[0.06] dark:bg-white/[0.04]"
                         >
                           <div className="flex items-start gap-2">

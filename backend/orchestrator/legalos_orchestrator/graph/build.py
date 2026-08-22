@@ -214,7 +214,15 @@ class LegalOrchestrator:
         answer_parts: list[str] = []
         try:
             async for chunk in self._agent_graph.astream_direct(messages):
-                token = chunk.content if isinstance(chunk.content, str) else ""
+                if isinstance(chunk.content, str):
+                    token = chunk.content
+                elif isinstance(chunk.content, list):
+                    token = "".join(
+                        b.get("text", "") for b in chunk.content
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    )
+                else:
+                    token = ""
                 if token:
                     answer_parts.append(token)
                     yield _sse("token", {"text": token})
@@ -310,7 +318,15 @@ class LegalOrchestrator:
         answer = ""
         for msg in reversed(final_state.get("messages", [])):
             if isinstance(msg, AIMessage) and not msg.tool_calls:
-                answer = msg.content if isinstance(msg.content, str) else ""
+                if isinstance(msg.content, str):
+                    answer = msg.content
+                elif isinstance(msg.content, list):
+                    answer = "".join(
+                        b.get("text", "") for b in msg.content
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    )
+                else:
+                    answer = ""
                 break
 
         kb_results = final_state.get("kb_results", [])

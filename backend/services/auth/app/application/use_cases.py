@@ -93,6 +93,7 @@ class AuthService:
             email=email, full_name=full_name, hashed_password=hash_password(password)
         )
         await self._users.assign_roles(user, [role])
+        await self._users.create_role_profile(user, role)
         refreshed = await self._users.get_by_id(user.id)
         assert refreshed is not None
         tokens = await self._issue_tokens(refreshed)

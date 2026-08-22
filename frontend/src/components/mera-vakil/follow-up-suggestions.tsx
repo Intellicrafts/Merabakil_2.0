@@ -1,7 +1,5 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
-
 interface FollowUpSuggestionsProps {
   suggestions: string[];
   onSelect: (prompt: string) => void;
@@ -13,24 +11,30 @@ export function FollowUpSuggestions({
   onSelect,
   disabled,
 }: FollowUpSuggestionsProps) {
-  if (suggestions.length === 0) return null;
+  const visible = suggestions.slice(0, 3);
+  if (visible.length === 0) return null;
 
   return (
-    <div className="mt-4 space-y-2" aria-label="Suggested follow-up questions">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Continue the conversation
+    <div
+      className="ml-10 mt-1 border-t border-black/[0.05] pt-3 dark:border-white/[0.06]"
+      aria-label="Suggested follow-up questions"
+    >
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/50">
+        Continue
       </p>
-      <div className="flex flex-wrap gap-2">
-        {suggestions.map((suggestion) => (
+      <div className="space-y-0.5">
+        {visible.map((suggestion) => (
           <button
             key={suggestion}
             type="button"
             disabled={disabled}
             onClick={() => onSelect(suggestion)}
-            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-black/[0.06] bg-white/50 px-3 py-1.5 text-left text-xs text-foreground/90 transition-all hover:border-black/[0.1] hover:bg-white/80 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className="group flex w-full items-start gap-2 py-1 text-left text-[12.5px] leading-snug text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
           >
-            <Sparkles className="h-3 w-3 shrink-0 text-slate-500" />
-            <span className="line-clamp-2">{suggestion}</span>
+            <span className="mt-0.5 shrink-0 text-[11px] text-muted-foreground/30 transition-colors group-hover:text-slate-400">
+              →
+            </span>
+            <span>{suggestion}</span>
           </button>
         ))}
       </div>

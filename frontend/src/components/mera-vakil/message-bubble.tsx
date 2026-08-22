@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Pencil, Sparkles, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
-import { AuthorityCards } from "@/components/mera-vakil/authority-cards";
 import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
@@ -49,6 +48,7 @@ export function MessageBubble({
   onReadAloudStop,
 }: MessageBubbleProps) {
   const [editText, setEditText] = useState(message.content);
+  const [groundingOpen, setGroundingOpen] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
   const answerRef = useRef<HTMLDivElement>(null);
 
@@ -149,11 +149,7 @@ export function MessageBubble({
         )}
         <div
           ref={answerRef}
-          className={cn(
-            "mv-brief-surface text-[13.5px] leading-7 text-foreground/90",
-            message.content &&
-              "rounded-2xl bg-white/40 px-4 py-3 shadow-[0_2px_12px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:bg-white/[0.03]",
-          )}
+          className="mv-brief-surface text-[13.5px] leading-7 text-foreground/90"
         >
           <Markdown
             content={displayContent}
@@ -181,6 +177,9 @@ export function MessageBubble({
             readAloudActiveId={readAloudActiveId}
             onReadAloudToggle={onReadAloudToggle}
             onReadAloudStop={onReadAloudStop}
+            hasGrounding={Boolean(research && (research.sources.length > 0 || research.citations.length > 0 || (research.web_sources?.length ?? 0) > 0))}
+            groundingOpen={groundingOpen}
+            onGroundingToggle={() => setGroundingOpen((o) => !o)}
           />
         )}
 
@@ -190,14 +189,9 @@ export function MessageBubble({
               <ImageGallery images={toGalleryImages(research.web_images)} />
             )}
 
-            <AuthorityCards
-              sources={research.sources}
-              citations={research.citations}
-              webSources={research.web_sources}
-              onCitationClick={onCitationClick}
-            />
-
-            <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} />
+            {groundingOpen && (
+              <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} initialOpen />
+            )}
 
             {lawyers.length > 0 && <LawyerRecommendationPanel lawyers={lawyers} />}
 

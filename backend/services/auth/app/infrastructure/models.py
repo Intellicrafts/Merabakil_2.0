@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from legalos_common.db import Base, TimestampMixin, UUIDMixin
@@ -83,6 +94,67 @@ class User(Base, UUIDMixin, TimestampMixin):
             for perm in role.permissions:
                 codes.add(perm.code)
         return sorted(codes)
+
+
+class CitizenProfile(Base, TimestampMixin):
+    __tablename__ = "citizen_profiles"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    phone: Mapped[str | None] = mapped_column(String(30))
+    date_of_birth: Mapped[date | None] = mapped_column(Date)
+    address: Mapped[str | None] = mapped_column(Text)
+
+
+class AdvocateProfile(Base, UUIDMixin, TimestampMixin):
+    """Role-specific advocate profile stored in the existing ``lawyers`` table."""
+
+    __tablename__ = "lawyers"
+    __table_args__ = {"extend_existing": True}
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    bar_council_id: Mapped[str | None] = mapped_column(String(120))
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    practice_areas: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    jurisdictions: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    years_experience: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    languages: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    rating: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=0, nullable=False)
+    rating_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    hourly_rate: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    bio: Mapped[str | None] = mapped_column(Text)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+
+
+class LawFirmProfile(Base, TimestampMixin):
+    __tablename__ = "law_firm_profiles"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    firm_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    registration_number: Mapped[str | None] = mapped_column(String(120))
+    office_address: Mapped[str | None] = mapped_column(Text)
+    practice_areas: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    jurisdictions: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    team_size: Mapped[int | None] = mapped_column(Integer)
+
+
+class EnterpriseProfile(Base, TimestampMixin):
+    __tablename__ = "enterprise_profiles"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    organization_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    registration_number: Mapped[str | None] = mapped_column(String(120))
+    industry: Mapped[str | None] = mapped_column(String(120))
+    office_address: Mapped[str | None] = mapped_column(Text)
+    employee_count: Mapped[int | None] = mapped_column(Integer)
 
 
 class RefreshToken(Base, UUIDMixin, TimestampMixin):

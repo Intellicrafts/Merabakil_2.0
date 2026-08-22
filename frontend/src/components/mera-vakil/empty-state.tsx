@@ -1,40 +1,159 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Crown, FileText, Gavel, Scale, Sparkles, X } from "lucide-react";
+import { Briefcase, Crown, FileText, Gavel, Scale, Shield, Sparkles, X } from "lucide-react";
 
 import { Mascot } from "@/components/mera-vakil/mascot";
 import { Button } from "@/components/ui/button";
+import { getStoredUser } from "@/lib/api";
+import { getPrimaryRole, type PrimaryRole } from "@/lib/dashboard-config";
 import { cn } from "@/lib/utils";
 
 const PREMIUM_DISMISS_KEY = "mera-vakil.premium-banner-dismissed";
 
-const QUICK_ACTIONS = [
-  {
-    icon: FileText,
-    title: "Draft a legal notice",
-    prompt: "Draft a legal notice for breach of contract under Indian law",
-    gradient: "from-slate-600 to-slate-800",
-  },
-  {
-    icon: Scale,
-    title: "Explain a section",
-    prompt: "What is Article 21 of the Constitution of India?",
-    gradient: "from-zinc-600 to-zinc-800",
-  },
-  {
-    icon: Gavel,
-    title: "Review a clause",
-    prompt: "Review this indemnity clause for risks under Indian contract law",
-    gradient: "from-gray-600 to-gray-800",
-  },
-  {
-    icon: Sparkles,
-    title: "Find case law",
-    prompt: "What are the leading Supreme Court judgments on right to privacy?",
-    gradient: "from-slate-700 to-zinc-900",
-  },
-];
+const QUICK_ACTIONS_BY_ROLE: Record<
+  PrimaryRole,
+  { icon: React.ElementType; title: string; prompt: string; gradient: string }[]
+> = {
+  citizen: [
+    {
+      icon: Scale,
+      title: "Know my rights",
+      prompt: "What are my fundamental rights as a citizen under the Indian Constitution, and how can I enforce them?",
+      gradient: "from-slate-600 to-slate-800",
+    },
+    {
+      icon: FileText,
+      title: "Draft a complaint",
+      prompt: "Help me draft a complaint letter to the consumer court under the Consumer Protection Act, 2019",
+      gradient: "from-zinc-600 to-zinc-800",
+    },
+    {
+      icon: Sparkles,
+      title: "Explain a notice",
+      prompt: "I received a legal notice. What does it mean, what must I do, and what are my options?",
+      gradient: "from-gray-600 to-gray-800",
+    },
+    {
+      icon: Briefcase,
+      title: "Find a lawyer",
+      prompt: "How do I find and evaluate a good lawyer in India for my legal problem? What should I ask before hiring?",
+      gradient: "from-slate-700 to-zinc-900",
+    },
+  ],
+  advocate: [
+    {
+      icon: FileText,
+      title: "Draft a legal notice",
+      prompt: "Draft a legal notice for breach of contract under Indian law",
+      gradient: "from-slate-600 to-slate-800",
+    },
+    {
+      icon: Scale,
+      title: "Explain a section",
+      prompt: "What is Article 21 of the Constitution of India?",
+      gradient: "from-zinc-600 to-zinc-800",
+    },
+    {
+      icon: Gavel,
+      title: "Review a clause",
+      prompt: "Review this indemnity clause for risks under Indian contract law",
+      gradient: "from-gray-600 to-gray-800",
+    },
+    {
+      icon: Sparkles,
+      title: "Find case law",
+      prompt: "What are the leading Supreme Court judgments on right to privacy?",
+      gradient: "from-slate-700 to-zinc-900",
+    },
+  ],
+  law_firm: [
+    {
+      icon: Sparkles,
+      title: "Precedent research",
+      prompt: "What are the leading Supreme Court and High Court judgments on wrongful termination under Indian employment law?",
+      gradient: "from-slate-600 to-slate-800",
+    },
+    {
+      icon: FileText,
+      title: "Contract review",
+      prompt: "Review this commercial contract and identify the key risk clauses under Indian law",
+      gradient: "from-zinc-600 to-zinc-800",
+    },
+    {
+      icon: Gavel,
+      title: "FIR strategy",
+      prompt: "Draft a professional FIR outline with sections likely attracted and documents to annex",
+      gradient: "from-gray-600 to-gray-800",
+    },
+    {
+      icon: Scale,
+      title: "Section explainer",
+      prompt: "Explain the relevant statutory section in plain professional English with leading Supreme Court interpretation",
+      gradient: "from-slate-700 to-zinc-900",
+    },
+  ],
+  enterprise: [
+    {
+      icon: Shield,
+      title: "DPDP compliance",
+      prompt: "What are our key obligations under the Digital Personal Data Protection Act, 2023 and the implementation timeline?",
+      gradient: "from-slate-600 to-slate-800",
+    },
+    {
+      icon: FileText,
+      title: "Review a clause",
+      prompt: "Review this indemnity clause in our vendor contract for risks under Indian contract law",
+      gradient: "from-zinc-600 to-zinc-800",
+    },
+    {
+      icon: Scale,
+      title: "Employment law",
+      prompt: "Summarise our key obligations under Indian employment and labour laws for a technology company",
+      gradient: "from-gray-600 to-gray-800",
+    },
+    {
+      icon: Sparkles,
+      title: "Regulatory update",
+      prompt: "What are the recent SEBI or RBI regulatory changes that listed companies or NBFCs must comply with?",
+      gradient: "from-slate-700 to-zinc-900",
+    },
+  ],
+  admin: [
+    {
+      icon: FileText,
+      title: "Draft a legal notice",
+      prompt: "Draft a legal notice for breach of contract under Indian law",
+      gradient: "from-slate-600 to-slate-800",
+    },
+    {
+      icon: Scale,
+      title: "Explain a section",
+      prompt: "What is Article 21 of the Constitution of India?",
+      gradient: "from-zinc-600 to-zinc-800",
+    },
+    {
+      icon: Gavel,
+      title: "Review a clause",
+      prompt: "Review this indemnity clause for risks under Indian contract law",
+      gradient: "from-gray-600 to-gray-800",
+    },
+    {
+      icon: Sparkles,
+      title: "Find case law",
+      prompt: "What are the leading Supreme Court judgments on right to privacy?",
+      gradient: "from-slate-700 to-zinc-900",
+    },
+  ],
+};
+
+const ROLE_SUBTITLES: Record<PrimaryRole, string> = {
+  citizen: "Ask about your rights, understand legal notices, or get connected to the right lawyer.",
+  advocate: "Research faster, draft precisely, and cite with confidence.",
+  law_firm: "Your firm's legal intelligence — research, precedents, and knowledge at your fingertips.",
+  enterprise: "Compliance and legal intelligence for your organisation.",
+  admin: "Full platform access — research, draft, manage, and administer.",
+};
 
 interface EmptyStateProps {
   onQuickAction: (prompt: string) => void;
@@ -45,6 +164,10 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
   const [premiumDismissed, setPremiumDismissed] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(true);
   const [bannerFading, setBannerFading] = useState(false);
+
+  const role = getPrimaryRole(getStoredUser());
+  const quickActions = QUICK_ACTIONS_BY_ROLE[role];
+  const subtitle = ROLE_SUBTITLES[role];
 
   useEffect(() => {
     setPremiumDismissed(localStorage.getItem(PREMIUM_DISMISS_KEY) === "true");
@@ -75,11 +198,12 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
         <h2 className="text-2xl font-semibold tracking-tight">
           Namaste! I&apos;m <span className="gradient-text">Mera Vakil</span>
         </h2>
+        <p className="mt-1.5 text-[13px] text-muted-foreground">{subtitle}</p>
       </div>
 
       <div className="grid w-full max-w-xl gap-2.5 sm:grid-cols-2">
-        {QUICK_ACTIONS.map((action, idx) => {
-          const Icon = action.icon;
+        {quickActions.map((action, idx) => {
+          const Icon = action.icon as React.ElementType<{ className?: string }>;
           return (
             <button
               key={action.title}

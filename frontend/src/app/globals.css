@@ -321,12 +321,14 @@
     animation: spark-twinkle 2s ease-in-out infinite;
   }
 
-  .prose-mera-vakil .mv-section-heading {
-    @apply mb-2 mt-4 border-b border-black/[0.06] pb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground first:mt-0 dark:border-white/10;
-  }
-
+  /* ── Mera Vakil chat blockquote ── */
   .prose-mera-vakil .mv-blockquote {
     @apply my-3 border-l-[3px] border-slate-400/70 pl-4 italic text-muted-foreground dark:border-slate-500/50;
+  }
+
+  /* legacy — no longer drives headings but kept to avoid breaking anything */
+  .prose-mera-vakil .mv-section-heading {
+    @apply mb-2 mt-4 text-sm font-semibold text-foreground first:mt-0;
   }
 
   .citation-pill {
@@ -1995,12 +1997,13 @@
 }
 
 .mv-brief-surface {
-  content-visibility: auto;
+  /* content-visibility:auto causes reflow during streaming; keep plain */
 }
 
 .mv-answer-toolbar {
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid rgba(15, 23, 42, 0.05);
-  padding-top: 4px;
 }
 
 .dark .mv-answer-toolbar {

@@ -84,6 +84,24 @@ class LawyerRepository:
         await self._session.flush()  # populate lawyer.id without committing
         return lawyer
 
+    async def create_or_update_for_user(self, *, user_id: uuid.UUID, **fields: object) -> Lawyer:
+        """Populate the advocate profile created during account registration.
+
+        An advocate receives an empty ``lawyers`` row at signup.  Completing
+        the marketplace form enriches that same row rather than creating a
+        second profile for the user.
+        """
+        lawyer = (
+            await self._session.execute(select(Lawyer).where(Lawyer.user_id == user_id))
+        ).scalar_one_or_none()
+        if lawyer is None:
+            return await self.create(user_id=user_id, **fields)
+
+        for field, value in fields.items():
+            setattr(lawyer, field, value)
+        await self._session.flush()
+        return lawyer
+
     async def update_summary(self, lawyer_id: uuid.UUID, summary: str) -> None:
         await self._session.execute(
             update(Lawyer).where(Lawyer.id == lawyer_id).values(summary=summary)

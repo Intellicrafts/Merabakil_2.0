@@ -9,6 +9,7 @@ import type { ResearchResponse } from "@/lib/types";
 interface ResearchMetadataPanelProps {
   research: ResearchResponse;
   onCitationClick?: (marker: string) => void;
+  initialOpen?: boolean;
 }
 
 function confidenceTone(value: number): string {
@@ -17,8 +18,8 @@ function confidenceTone(value: number): string {
   return "text-rose-600 dark:text-rose-400";
 }
 
-export function ResearchMetadataPanel({ research, onCitationClick }: ResearchMetadataPanelProps) {
-  const [open, setOpen] = useState(false);
+export function ResearchMetadataPanel({ research, onCitationClick, initialOpen = false }: ResearchMetadataPanelProps) {
+  const [open, setOpen] = useState(initialOpen);
 
   const sourceCount = research.sources.length;
   const citationCount = research.citations.length;
@@ -145,7 +146,7 @@ export function ResearchMetadataPanel({ research, onCitationClick }: ResearchMet
               <div className="space-y-2">
                 {research.sources.map((source, idx) => (
                   <div
-                    key={source.chunk_id}
+                    key={`${source.chunk_id}-${idx}`}
                     id={`source-${idx + 1}`}
                     className="rounded-lg bg-black/[0.02] px-3 py-2 text-xs dark:bg-white/[0.03]"
                   >

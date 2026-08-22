@@ -16,7 +16,7 @@ class Lawyer(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "lawyers"
     __table_args__ = {"extend_existing": True}
 
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, nullable=False)
     bar_council_id: Mapped[str | None] = mapped_column(String(120))
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     practice_areas: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)

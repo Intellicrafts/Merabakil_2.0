@@ -41,7 +41,13 @@ function buildCards(
   webSources: WebSearchResult[],
 ): AuthorityCard[] {
   const cards: AuthorityCard[] = [];
-  sources.slice(0, 6).forEach((source, idx) => {
+  const seen = new Set<string>();
+  const unique = sources.filter((s) => {
+    if (seen.has(s.chunk_id)) return false;
+    seen.add(s.chunk_id);
+    return true;
+  });
+  unique.slice(0, 6).forEach((source, idx) => {
     const kind = classifySource(source);
     const cite = citations.find((c) => c.document_id === source.document_id);
     cards.push({
