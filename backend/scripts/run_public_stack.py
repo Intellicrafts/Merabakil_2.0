@@ -135,7 +135,8 @@ def main() -> None:
         _apply_public_frontend_env()
 
     if STOP_SCRIPT.is_file():
-        subprocess.run(["bash", str(STOP_SCRIPT)], check=False)
+        stop_env = {**os.environ, "SKIP_PUBLIC_ORCHESTRATOR": "1"}
+        subprocess.run(["bash", str(STOP_SCRIPT)], check=False, env=stop_env)
         time.sleep(2)
 
     procs.append(_start([PY, str(SCRIPTS / "dev_auth_server.py")]))

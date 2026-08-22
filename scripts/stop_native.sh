@@ -9,7 +9,9 @@ pkill -f "backend/scripts/dev_research_server.py" 2>/dev/null || true
 pkill -f "backend/scripts/dev_marketplace_server.py" 2>/dev/null || true
 pkill -f "backend/scripts/dev_stack.py" 2>/dev/null || true
 pkill -f "cloudflared tunnel" 2>/dev/null || true
-pkill -f "backend/scripts/run_public_stack.py" 2>/dev/null || true
+if [[ "${SKIP_PUBLIC_ORCHESTRATOR:-}" != "1" ]]; then
+  pkill -f "backend/scripts/run_public_stack.py" 2>/dev/null || true
+fi
 
 # Stop Next.js dev servers for this project only
 for pid in $(pgrep -f "next dev" 2>/dev/null || true); do
