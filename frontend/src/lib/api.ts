@@ -46,6 +46,17 @@ export function getToken(): string | null {
   return window.localStorage.getItem(TOKEN_KEY);
 }
 
+/** Returns a valid (non-expired) access token, refreshing automatically if needed. */
+export async function ensureFreshToken(): Promise<string | null> {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const exp = JSON.parse(atob(token.split(".")[1]))?.exp as number | undefined;
+    if (exp && exp * 1000 > Date.now() + 30_000) return token; // still fresh
+  } catch {}
+  return refreshAccessToken().catch(() => null);
+}
+
 function getRefreshToken(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(REFRESH_TOKEN_KEY);

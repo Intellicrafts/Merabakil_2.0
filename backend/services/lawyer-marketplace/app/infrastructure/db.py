@@ -108,3 +108,7 @@ async def session_scope() -> AsyncIterator[AsyncSession]:
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with session_scope() as session:
         yield session
+
+
+# Alias used by lawyer listing routes from origin/main.
+get_async_session = get_session

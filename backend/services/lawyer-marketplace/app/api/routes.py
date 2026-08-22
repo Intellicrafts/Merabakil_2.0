@@ -14,7 +14,7 @@ from app.infrastructure.models import Lawyer
 from app.infrastructure.repositories import LawyerRepository
 from legalos_common.clients.llm import build_llm_client
 from legalos_common.config import get_common_settings
-from legalos_common.db import get_async_session
+from app.infrastructure.db import get_async_session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/lawyers", tags=["lawyers"])
