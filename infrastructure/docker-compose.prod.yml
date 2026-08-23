@@ -130,6 +130,8 @@ services:
     build:
       context: ..
       dockerfile: infrastructure/docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     image: merabakil/frontend:latest
     env_file: .env
     environment:

@@ -120,33 +120,47 @@ ssh -i ~/.ssh/merabakil_gce ubuntu@STATIC_IP
 git clone https://github.com/Intellicrafts/Merabakil_2.0.git /opt/merabakil/repo
 ```
 
-### 2.4 Create your `.env` file
+### 2.4 Place your `.env` file
+
+**Option A — copy it directly into the repo (simplest):**
+
+```bash
+cp /opt/merabakil/repo/infrastructure/env.gcp.example \
+   /opt/merabakil/repo/infrastructure/.env
+nano /opt/merabakil/repo/infrastructure/.env
+```
+
+**Option B — keep it outside the repo and symlink:**
 
 ```bash
 cp /opt/merabakil/repo/infrastructure/env.gcp.example /opt/merabakil/.env
 nano /opt/merabakil/.env
+ln -s /opt/merabakil/.env /opt/merabakil/repo/infrastructure/.env
 ```
 
-Fill in every `<CHANGE ME>` value. Generate the secrets with these commands:
+Either way works. Fill in every `<CHANGE ME>` value:
 
+**Required — generate fresh secrets:**
 ```bash
-# Run these locally or on the VM — copy output into .env
 openssl rand -hex 32          # → JWT_SECRET_KEY
 openssl rand -hex 64          # → FIELD_ENCRYPTION_KEY
 openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24   # → POSTGRES_PASSWORD
 ```
 
-Also fill in:
-- `QDRANT_API_KEY` — from Qdrant Cloud dashboard
-- `LLM_API_KEY` and `EMBEDDING_API_KEY` — from Google AI Studio
-- `S3_ACCESS_KEY` / `S3_SECRET_KEY` — from the HMAC key created in step 1.5
-- `MARKETPLACE_DATABASE_URL` — replace `<POSTGRES_PASSWORD>` with your actual password
+**Required — from your services:**
+| Variable | Where to get it |
+|---|---|
+| `QDRANT_API_KEY` | Qdrant Cloud dashboard |
+| `LLM_API_KEY` / `EMBEDDING_API_KEY` | Google AI Studio (aistudio.google.com) |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | HMAC keys from step 1.5 |
+| `MARKETPLACE_DATABASE_URL` | Replace `<POSTGRES_PASSWORD>` with the password you set above |
 
-Symlink the `.env` so Docker Compose can find it:
-
-```bash
-ln -s /opt/merabakil/.env /opt/merabakil/repo/infrastructure/.env
-```
+**Optional — leave empty to disable the feature:**
+| Variable | Feature |
+|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | "Sign in with Google" button |
+| `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | Video/audio in appointment rooms |
+| `TAVILY_API_KEY` | Web search in AI research (falls back to DuckDuckGo) |
 
 ### 2.5 Deploy
 
