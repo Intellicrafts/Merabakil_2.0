@@ -29,6 +29,7 @@ def upgrade() -> None:
         sa.Column("provider_user_id", sa.String(255), nullable=False),
         sa.Column("email", sa.String(255), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.UniqueConstraint("provider", "provider_user_id", name="uq_oauth_provider_user"),
     )
     op.create_index("ix_oauth_identities_user_id", "oauth_identities", ["user_id"])
