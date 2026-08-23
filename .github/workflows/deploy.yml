@@ -1,0 +1,133 @@
+name: Build & Deploy — merabakil.in
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # never cancel a running deploy
+
+env:
+  REGISTRY: docker.io
+  IMAGE_PREFIX: ${{ secrets.DOCKERHUB_USERNAME }}/merabakil
+
+jobs:
+  # ── 1. Build and push Docker images ──────────────────────────────────────
+  build:
+    name: Build images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: auth
+            service_path: services/auth
+            install_orchestrator: "false"
+          - name: search
+            service_path: services/search
+            install_orchestrator: "false"
+          - name: research
+            service_path: services/research
+            install_orchestrator: "true"
+          - name: marketplace
+            service_path: services/lawyer-marketplace
+            install_orchestrator: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/backend.Dockerfile
+          build-args: |
+            SERVICE_PATH=${{ matrix.service_path }}
+            INSTALL_ORCHESTRATOR=${{ matrix.install_orchestrator }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:latest
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:latest
+          cache-to: type=inline
+
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/frontend.Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-frontend:latest
+            ${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.IMAGE_PREFIX }}-frontend:latest
+          cache-to: type=inline
+
+  # ── 2. Deploy to EC2 ─────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to merabakil.in
+    needs: [build, build-frontend]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            REPO_DIR="/opt/merabakil/repo"
+            COMPOSE="docker compose -f $REPO_DIR/infrastructure/docker-compose.prod.yml --env-file /opt/merabakil/.env"
+
+            echo "==> Pulling latest code..."
+            cd "$REPO_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Pulling latest images..."
+            $COMPOSE pull
+
+            echo "==> Restarting services (zero-downtime rolling)..."
+            $COMPOSE up -d --remove-orphans --no-build
+
+            echo "==> Cleaning up old images..."
+            docker image prune -f
+
+            echo "==> Health check..."
+            sleep 10
+            $COMPOSE ps
+
+            echo "==> Deploy complete — $(date)"
