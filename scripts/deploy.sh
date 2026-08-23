@@ -14,19 +14,22 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY_DIR="/opt/merabakil"
-ENV_FILE="$DEPLOY_DIR/.env"
 COMPOSE="docker compose -f $REPO_DIR/infrastructure/docker-compose.prod.yml -f $REPO_DIR/infrastructure/docker-compose.selfsigned.yml --env-file $REPO_DIR/infrastructure/.env"
 
-# ── Checks ────────────────────────────────────────────────────────────────
-if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: $ENV_FILE not found."
-    echo "  Copy and fill in: cp $REPO_DIR/infrastructure/env.gcp.example $ENV_FILE"
-    exit 1
-fi
+# ── Find .env — accept it in-repo or at /opt/merabakil/.env ──────────────
+REPO_ENV="$REPO_DIR/infrastructure/.env"
+LEGACY_ENV="$DEPLOY_DIR/.env"
 
-if [ ! -L "$REPO_DIR/infrastructure/.env" ] && [ ! -f "$REPO_DIR/infrastructure/.env" ]; then
-    echo "==> Symlinking $ENV_FILE → $REPO_DIR/infrastructure/.env"
-    ln -s "$ENV_FILE" "$REPO_DIR/infrastructure/.env"
+if [ -f "$REPO_ENV" ]; then
+    : # already in place — nothing to do
+elif [ -f "$LEGACY_ENV" ]; then
+    echo "==> Symlinking $LEGACY_ENV → $REPO_ENV"
+    ln -s "$LEGACY_ENV" "$REPO_ENV"
+else
+    echo "ERROR: No .env found."
+    echo "  Place your production .env at: $REPO_ENV"
+    echo "  Template: $REPO_DIR/infrastructure/env.gcp.example"
+    exit 1
 fi
 
 # ── Pull latest code ──────────────────────────────────────────────────────
