@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.marketplace_api import admin_router, appointments_router, lawyers_router
-from app.infrastructure.db import get_engine, init_db
+from app.infrastructure.appointment_repo import MarketplaceRepository
+from app.infrastructure.db import get_engine, init_db, session_scope
+from app.infrastructure.lawyer_vector_store import get_lawyer_vector_store
 from app.infrastructure.seed import seed_lawyers
 from legalos_common.api import (
     RequestContextMiddleware,
@@ -38,6 +43,18 @@ async def lifespan(_: FastAPI):
         await session.commit()
     finally:
         await session.close()
+
+    # Start vector store (non-fatal — logs warning if Qdrant is unreachable)
+    store = get_lawyer_vector_store()
+    await store.startup()
+    if store.is_ready:
+        async with session_scope() as idx_session:
+            idx_repo = MarketplaceRepository(idx_session)
+            for lawyer in await idx_repo.list_all_lawyers():
+                if lawyer.summary:
+                    await store.upsert(lawyer)
+        logger.info("startup_lawyer_index_complete")
+
     yield
     engine = get_engine()
     await engine.dispose()

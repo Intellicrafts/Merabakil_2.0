@@ -22,6 +22,21 @@ export const CITIES = [
   "Ahmedabad",
 ] as const;
 
+export const JURISDICTIONS = [
+  "Supreme Court of India",
+  "Delhi High Court",
+  "Bombay High Court",
+  "Madras High Court",
+  "Calcutta High Court",
+  "Karnataka High Court",
+  "Allahabad High Court",
+  "Punjab and Haryana High Court",
+  "Gujarat High Court",
+  "Rajasthan High Court",
+  "Hyderabad High Court",
+  "Kerala High Court",
+] as const;
+
 export const MOCK_LAWYERS: LawyerProfile[] = [
   {
     id: "lw-001",

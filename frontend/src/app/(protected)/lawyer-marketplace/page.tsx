@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { AppointmentList } from "@/components/lawyer-marketplace/appointment-list";
 import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
 import { LawyerCard } from "@/components/lawyer-marketplace/lawyer-card";
-import { MyListingEditor } from "@/components/lawyer-marketplace/my-listing-editor";
 import {
   LawyerFilters,
   type LawyerFilterState,
@@ -200,7 +199,6 @@ export default function LawyerMarketplacePage() {
         </TabsList>
 
         <TabsContent value="lawyers" className="mt-4 space-y-5">
-          <MyListingEditor onSaved={() => setCatalogTick((n) => n + 1)} />
           <LiveMatchPanel catalog={catalog} onView={setProfileLawyer} onBook={bookMatch} />
 
           <LawyerFilters value={filters} onChange={setFilters} />

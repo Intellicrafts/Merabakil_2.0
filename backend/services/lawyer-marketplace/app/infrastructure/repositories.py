@@ -25,6 +25,12 @@ class LawyerRepository:
         result = await self._session.execute(select(Lawyer))
         return list(result.scalars().all())
 
+    async def get_by_ids(self, ids: list[uuid.UUID]) -> list[Lawyer]:
+        result = await self._session.execute(
+            select(Lawyer).where(Lawyer.id.in_(ids))
+        )
+        return list(result.scalars().all())
+
     async def get_all_without_summary(self) -> list[Lawyer]:
         result = await self._session.execute(
             select(Lawyer).where(Lawyer.summary.is_(None))

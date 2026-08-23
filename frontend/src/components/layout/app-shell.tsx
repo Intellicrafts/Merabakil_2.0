@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Moon, Scale, Sun } from "lucide-react";
+import { LogOut, Moon, Scale, Sun, UserCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { DashboardCommandPalette } from "@/components/dashboard/dashboard-command-palette";
@@ -34,6 +34,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/knowledge": "Knowledge Hub",
   "/admin/users": "User Management",
   "/admin/appointments": "Appointment Ops",
+  "/profile": "My Profile",
 };
 
 function resolvePageTitle(pathname: string): string {
@@ -142,6 +143,17 @@ function AppTopBar({
             {!isHome && (
               <>
                 <DropdownMenuItem onClick={onGoHome}>Home</DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {user?.roles?.includes("advocate") && (
+              <>
+                <DropdownMenuItem asChild>
+                  <Link href="/profile" className="flex items-center">
+                    <UserCircle className="mr-2 h-4 w-4" />
+                    My profile
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
             )}

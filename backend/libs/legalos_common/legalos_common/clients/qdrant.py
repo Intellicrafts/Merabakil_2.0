@@ -24,8 +24,8 @@ def _point_id(key: str) -> str:
 
 
 class QdrantVectorClient:
-    def __init__(self, url: str, collection: str, dim: int) -> None:
-        self._client = AsyncQdrantClient(url=url)
+    def __init__(self, url: str, collection: str, dim: int, *, api_key: str = "") -> None:
+        self._client = AsyncQdrantClient(url=url, api_key=api_key or None)
         self._collection = collection
         self._dim = dim
 

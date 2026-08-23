@@ -51,7 +51,13 @@ class QdrantSettings(BaseSettings):
     model_config = _BASE_CONFIG
 
     qdrant_url: str = "http://localhost:6333"
+    qdrant_api_key: str = ""
     qdrant_collection: str = "legal_knowledge"
+    # Lawyers index — can point to a different cluster (e.g. Qdrant Cloud)
+    # Falls back to qdrant_url / qdrant_api_key if not set.
+    qdrant_lawyers_url: str = ""
+    qdrant_lawyers_api_key: str = ""
+    qdrant_lawyers_collection: str = "lawyers"
 
 
 class Neo4jSettings(BaseSettings):
