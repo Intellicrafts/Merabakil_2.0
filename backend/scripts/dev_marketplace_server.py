@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Marketplace service — native SQLite appointments + seeded counsel."""
+"""Marketplace service — shares the auth PostgreSQL database (same lawyers/users tables)."""
 from __future__ import annotations
 
 import os
@@ -12,7 +12,7 @@ from dev_bootstrap import bootstrap_dev_env  # noqa: E402
 
 bootstrap_dev_env(_ROOT)
 
-os.environ.setdefault("MARKETPLACE_NATIVE", "true")
+os.environ.setdefault("MARKETPLACE_NATIVE", "true")  # SQLite in native mode (no Postgres)
 os.environ.setdefault("MARKETPLACE_AUTO_CONFIRM", "true")
 
 sys.path[:0] = [

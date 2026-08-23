@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from datetime import datetime, timedelta
 
@@ -35,6 +36,8 @@ from app.api.schemas import (
     TranscriptOut,
     TypingRequest,
 )
+from app.application.summary import LawyerSummaryGenerator
+from app.infrastructure.lawyer_vector_store import get_lawyer_vector_store
 from app.application.appointments import (
     book,
     join_phase,
@@ -63,7 +66,50 @@ from app.infrastructure.file_store import (
     write_bytes,
 )
 from app.infrastructure.lawyer_model import Lawyer
+from legalos_common.clients.llm import build_llm_client
+from legalos_common.config import get_common_settings
 from legalos_common.security.rbac import CurrentUser, get_current_user, require_roles
+
+logger = logging.getLogger(__name__)
+
+_common_settings = get_common_settings()
+_llm = build_llm_client(_common_settings.llm)
+_summary_generator = LawyerSummaryGenerator(_llm)
+
+
+def _is_indexable(lawyer: Lawyer) -> bool:
+    """Profile is complete enough to generate an AI summary and index for matching."""
+    return bool(
+        lawyer.practice_areas
+        and (lawyer.years_experience or 0) > 0
+        and lawyer.bio
+        and len(lawyer.bio) >= 50
+    )
+
+
+async def _generate_and_index(lawyer_id: uuid.UUID) -> None:
+    """Background task: generate LLM summary, persist it, then index into Qdrant."""
+    try:
+        async with session_scope() as bg_session:
+            repo = MarketplaceRepository(bg_session)
+            lawyer = await repo.get_lawyer(lawyer_id)
+            if lawyer is None:
+                return
+            summary = await _summary_generator.generate(lawyer)
+            lawyer.summary = summary
+            # session_scope commits on exit
+
+        logger.info("lawyer_summary_generated lawyer_id=%s", lawyer_id)
+
+        # Re-fetch with fresh session so Qdrant sees the committed summary
+        async with session_scope() as idx_session:
+            repo = MarketplaceRepository(idx_session)
+            lawyer = await repo.get_lawyer(lawyer_id)
+            if lawyer:
+                await get_lawyer_vector_store().upsert(lawyer)
+
+    except Exception as exc:
+        logger.warning("lawyer_summary_failed lawyer_id=%s error=%s", lawyer_id, exc)
 
 lawyers_router = APIRouter(prefix="/api/v1/lawyers", tags=["lawyers"])
 appointments_router = APIRouter(prefix="/api/v1/appointments", tags=["appointments"])
@@ -382,6 +428,9 @@ async def upsert_my_listing(
         bio=body.bio,
         is_verified=True,
     )
+    await session.commit()
+    if _is_indexable(lawyer):
+        asyncio.create_task(_generate_and_index(lawyer.id))
     return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
 
 

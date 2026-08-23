@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas import BatchSummaryResponse, CreateLawyerRequest, LawyerMatchResult, MatchRequest, SummaryResponse
 from app.application.summary import LawyerSummaryGenerator
+from app.infrastructure.lawyer_vector_store import get_lawyer_vector_store
 from app.infrastructure.models import Lawyer
 from app.infrastructure.repositories import LawyerRepository
 from legalos_common.clients.llm import build_llm_client
@@ -79,8 +80,26 @@ async def match_lawyers(
     body: MatchRequest,
     session: AsyncSession = Depends(get_async_session),
 ) -> list[LawyerMatchResult]:
-    """Find top matching lawyers for a given legal matter."""
+    """Find top matching lawyers — Qdrant hybrid search with SQL fallback."""
+    store = get_lawyer_vector_store()
     repo = LawyerRepository(session)
+
+    if store.is_ready:
+        query_parts = list(body.practice_areas) + list(body.jurisdictions)
+        if body.city:
+            query_parts.append(body.city)
+        query = " ".join(query_parts)
+        hits = await store.search(query, limit=body.limit)
+        if hits:
+            ids = [uuid.UUID(lawyer_id) for lawyer_id, _ in hits]
+            by_id = {l.id: l for l in await repo.get_by_ids(ids)}
+            ordered = [by_id[lid] for lid in ids if lid in by_id]
+            if ordered:
+                logger.info("match_lawyers source=qdrant count=%d query=%r", len(ordered), query)
+                return [_to_result(l) for l in ordered]
+
+    # SQL fallback (Qdrant empty or unavailable)
+    logger.info("match_lawyers source=sql practice_areas=%s jurisdictions=%s", body.practice_areas, body.jurisdictions)
     lawyers = await repo.match(
         practice_areas=body.practice_areas,
         jurisdictions=body.jurisdictions,
@@ -120,5 +139,27 @@ async def generate_summary(
 
     summary = await _generator.generate(lawyer)
     await repo.update_summary(lawyer_id, summary)
+    lawyer.summary = summary
+    await get_lawyer_vector_store().upsert(lawyer)
     logger.info("lawyer_summary_generated lawyer_id=%s", lawyer_id)
     return SummaryResponse(lawyer_id=str(lawyer_id), summary=summary)
+
+
+@router.post("/index/batch", response_model=BatchSummaryResponse)
+async def batch_index_lawyers(
+    session: AsyncSession = Depends(get_async_session),
+) -> BatchSummaryResponse:
+    """Index all lawyers that have a summary into Qdrant (backfill)."""
+    repo = LawyerRepository(session)
+    lawyers = await repo.get_all()
+    store = get_lawyer_vector_store()
+    indexed = 0
+    for lawyer in lawyers:
+        if not lawyer.summary:
+            continue
+        try:
+            await store.upsert(lawyer)
+            indexed += 1
+        except Exception as exc:
+            logger.warning("batch_index_failed lawyer_id=%s error=%s", lawyer.id, exc)
+    return BatchSummaryResponse(generated=indexed, skipped=len(lawyers) - indexed)

@@ -25,7 +25,8 @@ def bootstrap_dev_env(root: Path | None = None) -> Path:
     # Docker Compose uses service DNS names; native processes talk to localhost.
     os.environ["POSTGRES_HOST"] = "localhost"
     os.environ["REDIS_URL"] = "redis://localhost:6379/0"
-    os.environ["QDRANT_URL"] = "http://localhost:6333"
+    # Qdrant — do NOT override; native mode reads QDRANT_URL from .env (may be cloud).
+    os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
     os.environ["NEO4J_URI"] = "bolt://localhost:7687"
     os.environ["OPENSEARCH_URL"] = "http://localhost:9200"
     os.environ["KAFKA_BOOTSTRAP_SERVERS"] = "localhost:9092"

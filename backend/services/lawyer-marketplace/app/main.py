@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.marketplace_api import admin_router, appointments_router, lawyers_router
 from app.infrastructure.db import get_engine, init_db
+from app.infrastructure.lawyer_vector_store import get_lawyer_vector_store
 from app.infrastructure.seed import seed_lawyers
 from legalos_common.api import (
     RequestContextMiddleware,
@@ -38,6 +39,10 @@ async def lifespan(_: FastAPI):
         await session.commit()
     finally:
         await session.close()
+
+    # Start vector store (non-fatal — logs warning if Qdrant is unreachable)
+    await get_lawyer_vector_store().startup()
+
     yield
     engine = get_engine()
     await engine.dispose()
