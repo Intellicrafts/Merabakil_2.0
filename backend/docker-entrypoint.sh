@@ -7,4 +7,9 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
   alembic upgrade head
 fi
 
+if [ "${RUN_SEED:-false}" = "true" ]; then
+  echo "[entrypoint] seeding roles and permissions..."
+  python -m app.seed
+fi
+
 exec "$@"

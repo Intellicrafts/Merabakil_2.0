@@ -1,0 +1,6 @@
+services:
+  nginx:
+    volumes:
+      - ./nginx/nginx-selfsigned.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/ssl/certs/merabakil.crt:/etc/ssl/certs/merabakil.crt:ro
+      - /etc/ssl/private/merabakil.key:/etc/ssl/private/merabakil.key:ro
