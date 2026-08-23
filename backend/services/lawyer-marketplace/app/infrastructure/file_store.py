@@ -6,7 +6,17 @@ import os
 import uuid
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[5]
+def _find_root() -> Path:
+    p = Path(__file__).resolve()
+    for _ in range(7):
+        if (p / "data").exists():
+            return p
+        if p.parent == p:
+            break
+        p = p.parent
+    return Path("/app")  # Docker fallback
+
+_ROOT = _find_root()
 
 ALLOWED_EXT = {".pdf", ".doc", ".docx", ".txt", ".png", ".jpg", ".jpeg", ".webp", ".webm", ".ogg", ".mp3", ".m4a", ".mp4", ".wav"}
 ALLOWED_MIME = {
