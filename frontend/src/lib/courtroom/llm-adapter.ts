@@ -312,7 +312,7 @@ export function createLlmCourtroomAdapter(): CourtroomSimulationAdapter {
             verified: src.verified !== false,
           },
           `V${state.authorities.filter((a) => a.verified).length + 1}`,
-          role === "clerk" ? undefined : role,
+          role,
         );
         state = { ...state, authorities: [...state.authorities, authority] };
         emit({ type: "authorityCited", authority });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Pencil, Sparkles, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
@@ -31,7 +31,7 @@ interface MessageBubbleProps {
   onReadAloudStop?: () => void;
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   isTyping,
   isEditing,
@@ -203,4 +203,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});

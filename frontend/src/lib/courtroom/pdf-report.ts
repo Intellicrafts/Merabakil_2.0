@@ -2,8 +2,6 @@
  * Courtroom PDF export via HTML → canvas → PDF so Devanagari (Hindi) renders correctly.
  * jsPDF's built-in Helvetica cannot draw Unicode Indic scripts.
  */
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 
 import type { JudgmentReport, ProposedActionPlan } from "@/lib/courtroom/types";
 
@@ -388,6 +386,10 @@ async function renderHtmlToPdf(htmlBody: string, filename: string): Promise<void
   document.body.appendChild(host);
 
   try {
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
     const root = host.querySelector(".pdf-root") as HTMLElement;
     const canvas = await html2canvas(root, {
       scale: 2,

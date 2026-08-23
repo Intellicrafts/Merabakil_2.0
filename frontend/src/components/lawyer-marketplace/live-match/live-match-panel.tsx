@@ -137,7 +137,7 @@ export function LiveMatchPanel({ catalog, onView, onBook }: LiveMatchPanelProps)
       <button
         type="button"
         onClick={() => {
-          if (forceOpen && phase !== "idle") return;
+          if (forceOpen && phase === "matching") return;
           setExpanded((v) => !v);
         }}
         className="relative flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left md:px-5"

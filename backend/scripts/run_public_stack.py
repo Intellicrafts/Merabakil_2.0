@@ -155,10 +155,27 @@ def main() -> None:
     procs.append(_start([PY, str(SCRIPTS / "dev_marketplace_server.py")]))
     _wait_url("http://localhost:8010/health", timeout_sec=30, label="Marketplace")
 
-    frontend_args = ["npm", "run", "dev"]
+    node_tools = Path(ROOT / ".tools" / "node-v22.18.0-linux-x64" / "bin")
+    frontend_env = {}
+    if node_tools.is_dir():
+        frontend_env["PATH"] = f"{node_tools}:{os.environ.get('PATH', '')}"
+
     if public:
-        frontend_args.extend(["--", "--hostname", "0.0.0.0", "--port", str(frontend_port)])
-    procs.append(_start(frontend_args, cwd=ROOT / "frontend"))
+        print("  Building optimized production frontend …", flush=True)
+        build = subprocess.run(
+            ["npm", "run", "build"],
+            cwd=str(ROOT / "frontend"),
+            env={**os.environ, **frontend_env},
+        )
+        if build.returncode != 0:
+            print("  Frontend production build failed", flush=True)
+            _shutdown()
+            sys.exit(1)
+        frontend_args = ["npm", "run", "start", "--", "-H", "0.0.0.0", "-p", str(frontend_port)]
+    else:
+        frontend_args = ["npm", "run", "dev"]
+
+    procs.append(_start(frontend_args, cwd=ROOT / "frontend", env=frontend_env))
     _wait_url(f"http://127.0.0.1:{frontend_port}/login", timeout_sec=90, label="Frontend")
 
     if public:

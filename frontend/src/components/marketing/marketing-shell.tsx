@@ -39,8 +39,8 @@ export function MarketingShell({ children }: MarketingShellProps) {
               <Scale className="h-4 w-4" />
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-semibold tracking-tight">AI Legal OS</p>
-              <p className="text-[10px] text-muted-foreground">for India</p>
+              <p className="text-sm font-semibold tracking-tight">Mera Vakil</p>
+              <p className="text-[10px] text-muted-foreground">Legal AI for India</p>
             </div>
           </Link>
 

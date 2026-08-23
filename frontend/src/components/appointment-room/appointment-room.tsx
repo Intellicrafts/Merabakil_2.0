@@ -7,6 +7,7 @@ import { Camera, Mic, MicOff, Paperclip, Phone, PhoneOff, Send, Siren, Video, Vi
 import { CallStage } from "@/components/appointment-room/call-stage";
 import { CameraCapture } from "@/components/appointment-room/camera-capture";
 import { ChatPane } from "@/components/appointment-room/chat-pane";
+import { RoomCountdown } from "@/components/appointment-room/room-countdown";
 import { RoomAlertBanner, type RoomAlertKind } from "@/components/appointment-room/room-alert-banner";
 import { RejoinPromptModal } from "@/components/appointment-room/rejoin-prompt-modal";
 import { VoiceNoteComposer } from "@/components/appointment-room/voice-note-composer";
@@ -99,6 +100,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   const user = useMemo(() => getStoredUser(), []);
   const userId = user?.user_id ?? "";
   const [apt, setApt] = useState<AppointmentRecord | null>(null);
+  const [connecting, setConnecting] = useState(true);
   const [join, setJoin] = useState<JoinStateDto | null>(null);
   const [messages, setMessages] = useState<AppointmentMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -114,7 +116,6 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   const [pingSent, setPingSent] = useState(false);
   const lastPingAt = useRef(0);
   const prevOpponentPresent = useRef<boolean | null>(null);
-  const [tick, setTick] = useState(0);
   const roomRef = useRef<unknown>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
@@ -248,11 +249,6 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   messagesRef.current = messages;
 
   useEffect(() => {
-    const timer = window.setInterval(() => setTick((n) => n + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     requestNotificationPermission();
   }, []);
 
@@ -263,6 +259,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         const row = await getAppointment(appointmentId);
         if (cancelled) return;
         setApt(row);
+        setConnecting(false);
         if (row.join_state === "expired") {
           expireToDetails();
           return;
@@ -287,6 +284,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           }
           setError(message);
         }
+        if (!cancelled) setConnecting(false);
       }
     })();
     return () => {
@@ -308,14 +306,14 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       room.on(lk.RoomEvent.ParticipantDisconnected, () =>
         setJoin((prev) => (prev ? { ...prev, opponent_present: false } : prev)),
       );
-      room.on(lk.RoomEvent.LocalTrackPublished, (pub) => {
-        const track = pub.track as { mediaStream?: MediaStream } | undefined;
+      room.on(lk.RoomEvent.LocalTrackPublished, (pub: { track?: { mediaStream?: MediaStream } }) => {
+        const track = pub.track;
         if (track?.mediaStream) {
           localStreamRef.current = track.mediaStream;
           setLocalStream(track.mediaStream);
         }
       });
-      room.on(lk.RoomEvent.TrackSubscribed, (track) => {
+      room.on(lk.RoomEvent.TrackSubscribed, (track: { kind: unknown; mediaStream?: MediaStream }) => {
         if (track.kind === lk.Track.Kind.Video || track.kind === lk.Track.Kind.Audio) {
           const media = track.mediaStream;
           if (media) {
@@ -358,6 +356,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   }, [appointmentId, counterpart, expireToDetails, syncEmergencyAlert, sseOn]);
 
   useEffect(() => {
+    if (sseOn) return undefined;
     let cancelled = false;
     const pull = async () => {
       try {
@@ -371,8 +370,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       }
     };
     void pull();
-    const intervalMs = sseOn ? 20000 : 3500;
-    const timer = window.setInterval(() => void pull(), intervalMs);
+    const timer = window.setInterval(() => void pull(), 3500);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -565,8 +563,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     }
   }
 
-  const remaining = secondsUntil(join?.scheduled_end_at ?? apt?.scheduled_end_at);
-  void tick;
+  const endAt = join?.scheduled_end_at ?? apt?.scheduled_end_at;
 
   if (error) {
     return (
@@ -580,7 +577,14 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   }
 
   if (!apt) {
-    return <div className="h-64 animate-pulse rounded-3xl bg-white/40 dark:bg-white/[0.04]" />;
+    return (
+      <div className="mx-auto w-full max-w-[680px] space-y-4 px-4 py-6">
+        <div className="h-64 animate-pulse rounded-3xl bg-white/40 dark:bg-white/[0.04]" />
+        {connecting && (
+          <p className="text-center text-sm text-muted-foreground">Connecting to appointment room…</p>
+        )}
+      </div>
+    );
   }
 
   const present = join?.opponent_present ?? apt.opponent_present;
@@ -619,7 +623,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold tracking-tight">{counterpart}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {present ? "In the room" : "Not present"} · {formatCountdown(remaining)} remaining
+            {present ? "In the room" : "Not present"} · <RoomCountdown endAt={endAt} /> remaining
             {sseOn ? " · Live" : " · Reconnecting"}
           </p>
         </div>

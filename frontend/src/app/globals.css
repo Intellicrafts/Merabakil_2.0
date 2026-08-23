@@ -618,7 +618,154 @@
   }
 }
 
-/* Marketing live demo — 3D scene + chat animation */
+/* ---------- Landing hero — entrance, mesh, module progress ---------- */
+@keyframes hero-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes hero-orb-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(12px, -16px) scale(1.04);
+  }
+}
+
+.hero-stagger-1 {
+  animation: hero-fade-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+.hero-stagger-2 {
+  animation: hero-fade-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+.hero-stagger-3 {
+  animation: hero-fade-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+.hero-stagger-4 {
+  animation: hero-fade-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
+}
+.hero-stagger-5 {
+  animation: hero-fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.36s both;
+}
+
+.hero-module-progress {
+  width: 0%;
+  animation: hero-progress 12s linear forwards;
+}
+
+.showcase-premium-frame {
+  position: relative;
+  isolation: isolate;
+}
+
+.showcase-premium-frame::before {
+  content: "";
+  position: absolute;
+  inset-x: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(148, 163, 184, 0.35),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.hero-mesh-orb {
+  background: radial-gradient(circle, rgba(148, 163, 184, 0.16) 0%, transparent 68%);
+  filter: blur(48px);
+  pointer-events: none;
+}
+
+.dark .hero-mesh-orb {
+  background: radial-gradient(circle, rgba(226, 232, 240, 0.08) 0%, transparent 68%);
+}
+
+.hero-mesh-orb-a {
+  animation: hero-orb-drift 14s ease-in-out infinite;
+}
+
+.hero-mesh-orb-b {
+  animation: hero-orb-drift 18s ease-in-out infinite reverse;
+}
+
+@media (min-width: 769px) {
+  .hero-aurora {
+    background: radial-gradient(ellipse at center, rgba(148, 163, 184, 0.1) 0%, transparent 62%);
+    animation: hero-orb-drift 22s ease-in-out infinite;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .dark .hero-aurora {
+    background: radial-gradient(ellipse at center, rgba(226, 232, 240, 0.06) 0%, transparent 62%);
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-mesh-orb,
+  .hero-aurora {
+    display: none;
+  }
+
+  .demo-surface-float {
+    animation: none;
+  }
+}
+
+/* Marketing live demo — edgeless surface + chat animation */
+.demo-surface,
+.demo-surface-float {
+  background: transparent;
+  box-shadow: none;
+}
+
+.demo-surface {
+  isolation: isolate;
+}
+
+.demo-surface-float {
+  animation: demo-float 7s ease-in-out infinite;
+}
+
+/* Edgeless demo primitives — no fill, no shadow, blends with page bg */
+.demo-soft-bubble {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.demo-soft-chip {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.demo-dock-mock {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
 .demo-scene {
   perspective: 1200px;
   transform-style: preserve-3d;
@@ -782,6 +929,8 @@
 
 .demo-doc-page {
   animation: demo-doc-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  background: transparent;
+  box-shadow: none;
 }
 
 .demo-clause-in {
@@ -828,6 +977,23 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hero-stagger-1,
+  .hero-stagger-2,
+  .hero-stagger-3,
+  .hero-stagger-4,
+  .hero-stagger-5,
+  .hero-module-progress,
+  .hero-mesh-orb-a,
+  .hero-mesh-orb-b,
+  .hero-aurora {
+    animation: none !important;
+  }
+
+  .hero-module-progress {
+    width: 100%;
+  }
+
+  .demo-surface-float,
   .demo-main-card,
   .demo-orb-1,
   .demo-orb-2,
@@ -2007,6 +2173,28 @@
   /* content-visibility:auto causes reflow during streaming; keep plain */
 }
 
+.mv-input-dock {
+  position: relative;
+  isolation: isolate;
+}
+
+.mv-input-dock::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -14px;
+  height: 14px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, hsl(var(--background)));
+}
+
+@media (min-width: 768px) {
+  .mv-input-dock::before {
+    display: none;
+  }
+}
+
 .mv-answer-toolbar {
   margin-top: 6px;
   padding-top: 6px;
@@ -2020,5 +2208,26 @@
 @media (prefers-reduced-motion: reduce) {
   .mv-authority-card {
     transition: none;
+  }
+}
+
+/* Mobile: reduce GPU-heavy blur compositing on low-end devices */
+@media (max-width: 768px) {
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .blur-3xl {
+    filter: none !important;
+  }
+
+  .shimmer-bg,
+  .wave-animate {
+    animation: none;
   }
 }

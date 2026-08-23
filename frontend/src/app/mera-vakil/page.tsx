@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Moon, PanelRight, Sun, X } from "lucide-react";
 
 import { BackButton } from "@/components/layout/back-button";
-import { ContextPanel } from "@/components/mera-vakil/context-panel";
 import { EmptyState } from "@/components/mera-vakil/empty-state";
 import { InputDock } from "@/components/mera-vakil/input-dock";
 import { MeraVakilShell } from "@/components/mera-vakil/mera-vakil-shell";
 import { MessageList } from "@/components/mera-vakil/message-list";
 import { PremiumModal } from "@/components/mera-vakil/premium-modal";
-import { VoiceModeOverlay } from "@/components/mera-vakil/voice-mode-overlay";
+import { Skeleton } from "@/components/ui/skeleton";
 import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
 import type { LawyerMatchResult } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,22 @@ import {
 } from "@/lib/conversations";
 import type { ResearchResponse } from "@/lib/types";
 
+const ContextPanel = dynamic(
+  () =>
+    import("@/components/mera-vakil/context-panel").then((m) => ({
+      default: m.ContextPanel,
+    })),
+  { loading: () => <Skeleton className="h-full w-full" /> },
+);
+
+const VoiceModeOverlay = dynamic(
+  () =>
+    import("@/components/mera-vakil/voice-mode-overlay").then((m) => ({
+      default: m.VoiceModeOverlay,
+    })),
+  { ssr: false },
+);
+
 const THEME_KEY = "legalos.theme";
 const CONTEXT_PANEL_KEY = "mera-vakil.context-panel-open";
 
@@ -64,6 +80,7 @@ export default function MeraVakilPage() {
   const tokenRafRef = useRef<number | null>(null);
   const skipActivePersist = useRef(true);
   const [groundingMessageId, setGroundingMessageId] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   const readAloud = useReadAloud(speechLocale);
 
   useEffect(() => {
@@ -85,6 +102,7 @@ export default function MeraVakilPage() {
     }
     const prefill = consumeMeraVakilPrefill();
     if (prefill) setInput(prefill);
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -105,10 +123,13 @@ export default function MeraVakilPage() {
 
   const [isResearching, setIsResearching] = useState(false);
 
-  const latestResearch =
-    activeConversation?.messages
-      .filter((m) => m.role === "assistant" && m.research)
-      .at(-1)?.research ?? null;
+  const latestResearch = useMemo(
+    () =>
+      activeConversation?.messages
+        .filter((m) => m.role === "assistant" && m.research)
+        .at(-1)?.research ?? null,
+    [activeConversation?.messages],
+  );
 
   function handleSpeechLocaleChange(code: string) {
     setSpeechLocale(code);
@@ -144,17 +165,30 @@ export default function MeraVakilPage() {
         chatMessages[idx] = {
           ...chatMessages[idx],
           research: {
+            query: chatMessages[idx].content.slice(0, 80),
+            intent: "voice",
+            jurisdiction: {
+              country: "IN",
+              level: jurisdiction ? "state" : "national",
+              region: jurisdiction || null,
+              confidence: 1,
+            },
             answer: chatMessages[idx].content,
             sources: [],
-            web_results: [],
+            web_sources: [],
             web_images: [],
             suggestions: [],
             citations: [],
-            confidence: { overall: 1, sources: 1, reasoning: 1, recency: 1 },
+            confidence: {
+              retrieval_strength: 1,
+              source_agreement: 1,
+              coverage: 1,
+              overall: 1,
+            },
             trace: [],
             specialist_payload: { lawyers },
             disclaimer: "",
-          } as ResearchResponse,
+          } satisfies ResearchResponse,
         };
       }
     }
@@ -502,17 +536,46 @@ export default function MeraVakilPage() {
     void sendMessage(newContent, { editMessageId: messageId });
   }
 
+  const handleCitationClick = useCallback((marker: string) => {
+    const num = marker.replace(/[[\]]/g, "").replace(/^(KB|WEB)-/, "");
+    const el = document.getElementById(`source-${num}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
+  const handleSuggestionSelect = useCallback(
+    (prompt: string) => {
+      void sendMessage(prompt);
+    },
+    // sendMessage is intentionally omitted — stable identity would require a large refactor
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isResearching, activeConversation, documentId, jurisdiction],
+  );
+
+  const handleRegenerate = useCallback(
+    (userMessageId: string) => {
+      const userMsg = activeConversation?.messages.find((m) => m.id === userMessageId);
+      if (userMsg) void sendMessage(userMsg.content, { editMessageId: userMessageId });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeConversation?.messages, isResearching, documentId, jurisdiction],
+  );
+
+  const handleReadAloudToggle = useCallback(
+    (id: string, content: string) => {
+      void readAloud.toggle(id, content);
+    },
+    [readAloud],
+  );
+
+  const handleReadAloudStop = useCallback(() => {
+    readAloud.stop();
+  }, [readAloud]);
+
   function toggleTheme() {
     const next = !dark;
     setDark(next);
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem(THEME_KEY, next ? "dark" : "light");
-  }
-
-  function handleCitationClick(marker: string) {
-    const num = marker.replace(/[[\]]/g, "").replace(/^(KB|WEB)-/, "");
-    const el = document.getElementById(`source-${num}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   const hasMessages = (activeConversation?.messages.length ?? 0) > 0;
@@ -607,7 +670,13 @@ export default function MeraVakilPage() {
             </div>
           </header>
 
-          {!hasMessages && !isResearching ? (
+          {!hydrated ? (
+            <div className="mx-auto flex max-w-3xl flex-1 flex-col gap-4 px-4 py-8 md:px-6">
+              <Skeleton className="ml-auto h-16 w-[70%] rounded-2xl" />
+              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton className="h-20 w-[85%] rounded-2xl" />
+            </div>
+          ) : !hasMessages && !isResearching ? (
             <EmptyState
               onQuickAction={(prompt) => sendMessage(prompt)}
               onOpenPremium={() => setPremiumOpen(true)}
@@ -621,23 +690,20 @@ export default function MeraVakilPage() {
               isGenerating={isResearching}
               editingMessageId={editingMessageId}
               onCitationClick={handleCitationClick}
-              onSuggestionSelect={(prompt) => sendMessage(prompt)}
+              onSuggestionSelect={handleSuggestionSelect}
               onStartEdit={setEditingMessageId}
               onCancelEdit={() => setEditingMessageId(null)}
               onResendEdit={handleResendEdit}
-              onRegenerate={(userMessageId) => {
-                const userMsg = activeConversation?.messages.find((m) => m.id === userMessageId);
-                if (userMsg) void sendMessage(userMsg.content, { editMessageId: userMessageId });
-              }}
+              onRegenerate={handleRegenerate}
               groundingMessageId={groundingMessageId}
               readAloudStatus={readAloud.state.status}
               readAloudActiveId={readAloud.state.activeMessageId}
-              onReadAloudToggle={(id, content) => void readAloud.toggle(id, content)}
-              onReadAloudStop={readAloud.stop}
+              onReadAloudToggle={handleReadAloudToggle}
+              onReadAloudStop={handleReadAloudStop}
             />
           )}
 
-          <p className="px-4 pb-1 text-center text-[11px] text-muted-foreground/50">
+          <p className="hidden px-4 pb-0.5 text-center text-[11px] text-muted-foreground/50 sm:block">
             Informational only · Not a substitute for licensed legal advice
           </p>
 

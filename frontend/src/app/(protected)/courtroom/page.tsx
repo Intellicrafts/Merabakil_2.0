@@ -1,31 +1,25 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AgentForgePanel } from "@/components/courtroom/agent-forge-panel";
 import { CaseAnalysisPipeline } from "@/components/courtroom/case-analysis-pipeline";
 import { CourtroomControls } from "@/components/courtroom/courtroom-controls";
 import { CourtroomEmptyState } from "@/components/courtroom/courtroom-empty-state";
 import { CourtroomHero } from "@/components/courtroom/courtroom-hero";
 import { CourtroomLanguageToggle } from "@/components/courtroom/courtroom-language-toggle";
 import { CourtroomListeningToggle } from "@/components/courtroom/courtroom-listening-toggle";
-import { DeliberationScreen } from "@/components/courtroom/deliberation-screen";
-import { PrepareCasePanel } from "@/components/courtroom/prepare-case-panel";
 import { CitationsPanel } from "@/components/courtroom/citations-panel";
 import { EvidencePanel } from "@/components/courtroom/evidence-panel";
 import { HearingTimeline } from "@/components/courtroom/hearing-timeline";
 import { HearingTimer } from "@/components/courtroom/hearing-timer";
-import {
-  JudgmentScreen,
-  downloadJudgmentJson,
-  downloadJudgmentReport,
-} from "@/components/courtroom/judgment-screen";
 import { PastSimulationsPanel } from "@/components/courtroom/past-simulations-panel";
 import { CoverageTracker } from "@/components/courtroom/coverage-tracker";
 import { HearingChat } from "@/components/courtroom/hearing-chat";
 import { HearingStage } from "@/components/courtroom/hearing-stage";
 import { ObjectionBar } from "@/components/courtroom/objection-bar";
 import { ValidationMeters } from "@/components/courtroom/validation-meters";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCourtroomSpeech } from "@/hooks/use-courtroom-speech";
 import {
   useHearingLinePipeline,
@@ -64,6 +58,37 @@ import type {
 } from "@/lib/courtroom/types";
 import { cn } from "@/lib/utils";
 
+const panelFallback = () => <Skeleton className="h-48 w-full rounded-2xl" />;
+
+const AgentForgePanel = dynamic(
+  () =>
+    import("@/components/courtroom/agent-forge-panel").then((m) => ({
+      default: m.AgentForgePanel,
+    })),
+  { loading: panelFallback },
+);
+const DeliberationScreen = dynamic(
+  () =>
+    import("@/components/courtroom/deliberation-screen").then((m) => ({
+      default: m.DeliberationScreen,
+    })),
+  { loading: panelFallback },
+);
+const PrepareCasePanel = dynamic(
+  () =>
+    import("@/components/courtroom/prepare-case-panel").then((m) => ({
+      default: m.PrepareCasePanel,
+    })),
+  { loading: panelFallback },
+);
+const JudgmentScreen = dynamic(
+  () =>
+    import("@/components/courtroom/judgment-screen").then((m) => ({
+      default: m.JudgmentScreen,
+    })),
+  { loading: panelFallback },
+);
+
 const DEFAULT_CONFIG: CourtroomSessionConfig = {
   matterTitle: "",
   matterType: "Commercial",
@@ -98,6 +123,7 @@ export default function CourtroomPage() {
   const [actionPlan, setActionPlan] = useState<ProposedActionPlan | null>(null);
   const [checkedActionIds, setCheckedActionIds] = useState<string[]>([]);
   const [pastRuns, setPastRuns] = useState<CourtroomRunRecord[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [reviewingRunId, setReviewingRunId] = useState<string | null>(null);
   const [reviewingSavedAt, setReviewingSavedAt] = useState<string | null>(null);
   const actionsAbortRef = useRef<AbortController | null>(null);
@@ -240,6 +266,7 @@ export default function CourtroomPage() {
 
   useEffect(() => {
     setPastRuns(listCourtroomRuns());
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -615,6 +642,16 @@ export default function CourtroomPage() {
 
   const isReviewMode = Boolean(reviewingRunId);
 
+  if (!hydrated) {
+    return (
+      <div className="mx-auto w-full max-w-[1200px] space-y-5 pb-24 md:space-y-6">
+        <Skeleton className="h-28 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+        <Skeleton className="h-40 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1200px] space-y-5 pb-24 md:space-y-6">
       <CourtroomHero
@@ -845,9 +882,15 @@ export default function CourtroomPage() {
         <JudgmentScreen
           report={state.judgment}
           onDownload={() => {
-            void downloadJudgmentReport(state.judgment!, actionPlan);
+            void import("@/components/courtroom/judgment-screen").then((m) =>
+              m.downloadJudgmentReport(state.judgment!, actionPlan),
+            );
           }}
-          onDownloadJson={() => downloadJudgmentJson(state.judgment!)}
+          onDownloadJson={() => {
+            void import("@/components/courtroom/judgment-screen").then((m) =>
+              m.downloadJudgmentJson(state.judgment!),
+            );
+          }}
           onNewSession={resetSession}
           showBilingual={displayLanguage !== "en"}
           actionPlanStatus={actionPlanStatus}

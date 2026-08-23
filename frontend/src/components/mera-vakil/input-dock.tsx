@@ -28,10 +28,34 @@ function StopButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-slate-900 shadow-sm ring-1 ring-black/[0.08] transition-colors hover:bg-slate-50 active:scale-95 dark:bg-slate-100 dark:text-slate-900"
+      className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-slate-900 shadow-md ring-1 ring-black/[0.08] transition-all hover:bg-slate-50 active:scale-95 md:h-10 md:w-10 dark:bg-slate-100 dark:text-slate-900"
       aria-label="Stop generating"
     >
-      <span className="block h-3 w-3 rounded-[2px] bg-slate-900 dark:bg-slate-900" />
+      <span className="block h-3 w-3 rounded-[2px] bg-slate-900" />
+    </button>
+  );
+}
+
+function DockIconButton({
+  onClick,
+  label,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground active:scale-95 disabled:opacity-45 md:h-9 md:w-9 md:rounded-full dark:hover:bg-white/10"
+      onClick={onClick}
+      aria-label={label}
+      disabled={disabled}
+    >
+      {children}
     </button>
   );
 }
@@ -77,11 +101,25 @@ export function InputDock({
   const canSend = !busy && !isPending && value.trim().length >= 3;
 
   return (
-    <div className="shrink-0 px-4 pb-6 pt-2 md:px-6">
+    <div
+      className={cn(
+        "mv-input-dock shrink-0",
+        "px-3 pt-1.5",
+        "pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]",
+        "md:px-6 md:pb-6 md:pt-2",
+      )}
+    >
       <div
         className={cn(
-          "mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-black/[0.07] bg-white px-2.5 py-2 shadow-sm transition-colors dark:border-white/10 dark:bg-zinc-900",
-          focused && "border-slate-400/60 dark:border-slate-400/40",
+          "mx-auto flex max-w-3xl items-end gap-1.5 md:gap-2",
+          "rounded-[1.35rem] border px-2 py-2 md:rounded-2xl md:px-2.5",
+          "border-black/[0.07] bg-white",
+          "shadow-[0_6px_28px_rgba(15,23,42,0.1),0_1px_0_rgba(255,255,255,0.65)_inset]",
+          "transition-[border-color,box-shadow,transform] duration-200",
+          "dark:border-white/[0.12] dark:bg-zinc-900",
+          "dark:shadow-[0_10px_36px_rgba(0,0,0,0.42),0_1px_0_rgba(255,255,255,0.04)_inset]",
+          focused &&
+            "border-amber-800/30 shadow-[0_8px_32px_rgba(120,53,15,0.12),0_0_0_3px_rgba(120,53,15,0.08)] dark:border-amber-500/35 dark:shadow-[0_10px_36px_rgba(0,0,0,0.45),0_0_0_3px_rgba(217,119,6,0.12)]",
         )}
       >
         <input
@@ -95,11 +133,10 @@ export function InputDock({
             e.target.value = "";
           }}
         />
-        <button
-          type="button"
-          className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground disabled:opacity-50 dark:hover:bg-white/10"
+
+        <DockIconButton
           onClick={() => fileInputRef.current?.click()}
-          aria-label="Attach document"
+          label="Attach document"
           disabled={busy || isGenerating}
         >
           {isUploading ? (
@@ -107,18 +144,16 @@ export function InputDock({
           ) : (
             <Paperclip className="h-4 w-4" />
           )}
-        </button>
+        </DockIconButton>
 
         {onVoiceModeOpen && (
-          <button
-            type="button"
-            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground disabled:opacity-50 dark:hover:bg-white/10"
+          <DockIconButton
             onClick={onVoiceModeOpen}
-            aria-label="Voice mode"
+            label="Voice mode"
             disabled={busy || isGenerating}
           >
             <Mic className="h-4 w-4" />
-          </button>
+          </DockIconButton>
         )}
 
         <textarea
@@ -129,9 +164,12 @@ export function InputDock({
           onKeyDown={handleKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Ask Mera Vakil anything — general or legal…"
+          placeholder="Ask Mera Vakil anything…"
           disabled={disabled || isUploading}
-          className="max-h-[150px] min-h-[36px] flex-1 resize-none bg-transparent py-1.5 text-[13.5px] leading-6 placeholder:text-muted-foreground focus:outline-none"
+          className={cn(
+            "max-h-[150px] min-h-[40px] flex-1 resize-none bg-transparent py-2 leading-6 placeholder:text-muted-foreground/80 focus:outline-none",
+            "text-base md:min-h-[36px] md:py-1.5 md:text-[13.5px]",
+          )}
           aria-label="Chat message input"
         />
 
@@ -141,8 +179,12 @@ export function InputDock({
           <button
             type="button"
             className={cn(
-              "mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-800 text-white shadow-sm transition-colors hover:bg-amber-900 active:scale-95 dark:bg-amber-600 dark:hover:bg-amber-500",
-              !canSend && "cursor-not-allowed opacity-50",
+              "mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
+              "bg-gradient-to-b from-amber-800 to-amber-900 text-white",
+              "shadow-[0_4px_14px_rgba(120,53,15,0.35)] transition-all",
+              "hover:from-amber-900 hover:to-amber-950 active:scale-95",
+              "md:h-10 md:w-10 dark:from-amber-600 dark:to-amber-700 dark:hover:from-amber-500 dark:hover:to-amber-600",
+              !canSend && "cursor-not-allowed opacity-45 shadow-none",
             )}
             onClick={onSubmit}
             disabled={!canSend}
@@ -152,7 +194,8 @@ export function InputDock({
           </button>
         )}
       </div>
-      <p className="mt-2 text-center text-xs text-muted-foreground">
+
+      <p className="mt-2 hidden text-center text-xs text-muted-foreground md:block">
         Enter to send · Shift+Enter for new line
         {onVoiceModeOpen ? " · Mic for voice mode" : " · Attach PDF, DOCX, TXT, CSV"}
       </p>

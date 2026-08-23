@@ -52,15 +52,11 @@ const THINKING_LABELS = [
 
 interface MeraVakilLiveDemoProps {
   className?: string;
-  /** When false, timers pause. Defaults to true. */
   active?: boolean;
-  /**
-   * When provided, the demo runs a single question then calls this instead of
-   * looping to the next scene (used by the home module carousel).
-   */
   onComplete?: () => void;
-  /** Which scene to show first (carousel rotates this each loop). */
   startIndex?: number;
+  /** Hero showcase: minimal chrome, reduced density */
+  compact?: boolean;
 }
 
 export function MeraVakilLiveDemo({
@@ -68,6 +64,7 @@ export function MeraVakilLiveDemo({
   active = true,
   onComplete,
   startIndex = 0,
+  compact = false,
 }: MeraVakilLiveDemoProps) {
   const [sceneIndex, setSceneIndex] = useState(startIndex % DEMO_SCENES.length);
   const [phase, setPhase] = useState<DemoPhase>("user-in");
@@ -77,6 +74,10 @@ export function MeraVakilLiveDemo({
 
   const scene = DEMO_SCENES[sceneIndex];
   const single = typeof onComplete === "function";
+  const citations = compact ? scene.citations.slice(0, 2) : scene.citations;
+  const contentHeight = compact
+    ? "h-[220px] sm:h-[260px] lg:h-[280px]"
+    : "h-[250px] sm:h-[280px] md:h-[300px]";
 
   const advanceScene = useCallback(() => {
     if (single) {
@@ -141,25 +142,27 @@ export function MeraVakilLiveDemo({
   const isThinking = phase === "thinking";
   const isStreaming = phase === "streaming" || phase === "citations" || phase === "hold";
 
+  const shellProps = compact
+    ? { variant: "minimal" as const }
+    : {
+        variant: "full" as const,
+        icon: <Sparkles className="h-4 w-4 spark-twinkle" />,
+        title: "Mera Vakil",
+        subtitle: "Your AI legal counsel",
+        footer: "Grounded answers · Live citations · Indian legal corpus",
+      };
+
   return (
-    <DemoCardShell
-      className={className}
-      icon={<Sparkles className="h-4 w-4 spark-twinkle" />}
-      title="Mera Vakil"
-      subtitle="Your AI legal counsel"
-      footer="Grounded answers · Live citations · Indian legal corpus"
-    >
-      <div className="space-y-4 p-5">
-        <div className="h-[300px] space-y-4 overflow-hidden">
-          {/* User message */}
+    <DemoCardShell className={className} {...shellProps}>
+      <div className="space-y-3 sm:space-y-4">
+        <div className={cn(contentHeight, "space-y-3 overflow-hidden sm:space-y-4")}>
           <div
             key={`user-${sceneIndex}`}
-            className="ml-auto max-w-[88%] rounded-2xl rounded-br-md bg-gradient-to-br from-slate-800 to-slate-900 px-4 py-3 text-sm text-white shadow-md demo-msg-in dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
+            className="ml-auto max-w-[88%] rounded-2xl rounded-br-md bg-gradient-to-br from-slate-800 to-slate-900 px-4 py-3 text-sm text-white demo-msg-in dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
           >
             {scene.userQuestion}
           </div>
 
-          {/* Thinking state */}
           {isThinking && (
             <div key={`think-${sceneIndex}`} className="flex items-center gap-3 demo-msg-in">
               <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
@@ -167,20 +170,19 @@ export function MeraVakilLiveDemo({
                 <div className="spinner-ring absolute inset-0" />
                 <Sparkles className="relative h-3.5 w-3.5 spark-twinkle" />
               </div>
-              <div className="rounded-2xl bg-white/70 px-4 py-2.5 text-xs text-muted-foreground shadow-sm dark:bg-white/[0.06]">
+              <div className="demo-soft-bubble rounded-2xl px-4 py-2.5 text-xs text-muted-foreground">
                 <span className="demo-shimmer inline-block">{thinkingLabel}</span>
               </div>
             </div>
           )}
 
-          {/* Assistant streaming */}
           {isStreaming && (
             <div key={`assist-${sceneIndex}`} className="space-y-3 demo-msg-in">
               <div className="flex gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200/80 dark:bg-slate-700/50">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground">
                   <Sparkles className="h-3.5 w-3.5" />
                 </div>
-                <div className="flex-1 rounded-2xl bg-white/90 px-4 py-3 text-sm leading-relaxed shadow-sm dark:bg-white/[0.07]">
+                <div className="demo-soft-bubble flex-1 rounded-2xl px-4 py-3 text-sm leading-relaxed">
                   {streamedText}
                   {phase === "streaming" && (
                     <span className="stream-caret ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-slate-700 dark:bg-slate-300" />
@@ -188,13 +190,12 @@ export function MeraVakilLiveDemo({
                 </div>
               </div>
 
-              {/* Citations */}
               {showCitations && (
                 <div className="ml-10 flex flex-wrap gap-2 demo-cite-in">
-                  {scene.citations.map((cite) => (
+                  {citations.map((cite) => (
                     <div
                       key={cite.label}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-black/[0.06] bg-white/80 px-2.5 py-1.5 text-[11px] shadow-sm dark:border-white/10 dark:bg-white/[0.06]"
+                      className="demo-soft-chip inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px]"
                     >
                       <BookOpen className="h-3 w-3 text-slate-500" />
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -203,32 +204,46 @@ export function MeraVakilLiveDemo({
                       <span className="text-muted-foreground">· {cite.source}</span>
                     </div>
                   ))}
-                  <div className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-                    94% confidence
-                  </div>
+                  {!compact && (
+                    <div className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                      94% confidence
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Input dock mock */}
-        <div className="flex items-center gap-2 rounded-2xl border border-black/[0.06] bg-white/50 px-4 py-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
-          <div className={cn("flex-1 text-xs text-muted-foreground", phase === "user-in" && "demo-input-pulse")}>
-            Ask anything about Indian law…
+        {!compact && (
+          <div className="demo-dock-mock flex items-center gap-2 px-1 py-2 sm:py-2.5">
+            <div className={cn("flex-1 text-xs text-muted-foreground", phase === "user-in" && "demo-input-pulse")}>
+              Ask anything about Indian law…
+            </div>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-hidden
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground/70"
+            >
+              <Mic className="h-3.5 w-3.5" />
+            </button>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
+              <Sparkles className="h-3.5 w-3.5" />
+            </div>
           </div>
-          <button
-            type="button"
-            tabIndex={-1}
-            aria-hidden
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-white/10"
-          >
-            <Mic className="h-3.5 w-3.5" />
-          </button>
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
-            <Sparkles className="h-3.5 w-3.5" />
+        )}
+
+        {compact && (
+          <div className="hidden sm:flex demo-dock-mock items-center gap-2 px-1 py-2">
+            <div className={cn("flex-1 text-xs text-muted-foreground", phase === "user-in" && "demo-input-pulse")}>
+              Ask anything about Indian law…
+            </div>
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
+              <Sparkles className="h-3 w-3" />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </DemoCardShell>
   );

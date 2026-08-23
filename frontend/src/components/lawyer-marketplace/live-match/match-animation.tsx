@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import type { MatchResult, RankedLawyer } from "@/lib/marketplace-store";
+import { rafUpdateIntervalMs } from "@/lib/perf";
 import { cn } from "@/lib/utils";
 
 function initials(name: string): string {
@@ -86,16 +87,21 @@ export function MatchAnimation({ result, onComplete, onBook }: MatchAnimationPro
 
     const start = performance.now();
     let raf = 0;
+    let lastFrame = 0;
+    const frameInterval = rafUpdateIntervalMs();
     const tick = (now: number) => {
-      const t = now - start;
-      setElapsed(t);
+      if (now - lastFrame >= frameInterval) {
+        lastFrame = now;
+        const t = now - start;
+        setElapsed(t);
 
-      if (t >= T_VALIDATE_END) {
-        const p = Math.min(1, (t - T_VALIDATE_END) / (T_SCORE_END - T_VALIDATE_END));
-        setDisplayScore(Math.round(result.lawyer.match_score * p));
+        if (t >= T_VALIDATE_END) {
+          const p = Math.min(1, (t - T_VALIDATE_END) / (T_SCORE_END - T_VALIDATE_END));
+          setDisplayScore(Math.round(result.lawyer.match_score * p));
+        }
+        if (t >= T_BOOK_IN) setShowBook(true);
+        if (t >= T_SCORE_END) setDisplayScore(result.lawyer.match_score);
       }
-      if (t >= T_BOOK_IN) setShowBook(true);
-      if (t >= T_SCORE_END) setDisplayScore(result.lawyer.match_score);
 
       raf = requestAnimationFrame(tick);
     };

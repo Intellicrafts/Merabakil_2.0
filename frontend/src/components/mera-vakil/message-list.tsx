@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { FollowUpSuggestions } from "@/components/mera-vakil/follow-up-suggestions";
 import { ImageLightboxHost } from "@/components/mera-vakil/image-gallery";
@@ -56,7 +56,7 @@ export function MessageList({
     if (!container) return;
     container.scrollTo({
       top: container.scrollHeight,
-      behavior: isGenerating ? "auto" : "smooth",
+      behavior: isGenerating || streamingMessageId ? "auto" : "smooth",
     });
   }, [messages, isPending, streamingMessageId, isGenerating]);
 
@@ -66,9 +66,23 @@ export function MessageList({
     lastAssistant?.research?.suggestions &&
     lastAssistant.research.suggestions.length > 0;
 
-  const visibleMessages = messages.filter(
-    (m) => !(m.role === "assistant" && !m.content && m.id !== streamingMessageId),
+  const visibleMessages = useMemo(
+    () =>
+      messages.filter(
+        (m) => !(m.role === "assistant" && !m.content && m.id !== streamingMessageId),
+      ),
+    [messages, streamingMessageId],
   );
+
+  const regenerateUserByAssistantId = useMemo(() => {
+    const map = new Map<string, string>();
+    let lastUserId: string | null = null;
+    for (const msg of visibleMessages) {
+      if (msg.role === "user") lastUserId = msg.id;
+      else if (msg.role === "assistant" && lastUserId) map.set(msg.id, lastUserId);
+    }
+    return map;
+  }, [visibleMessages]);
 
   return (
     <div
@@ -76,32 +90,30 @@ export function MessageList({
       className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-8 md:px-6"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
-        {visibleMessages.map((msg, idx) => {
-          const prevUser = [...visibleMessages.slice(0, idx)]
-            .reverse()
-            .find((m) => m.role === "user");
+        {visibleMessages.map((msg) => {
+          const prevUserId = regenerateUserByAssistantId.get(msg.id);
           return (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            isTyping={msg.id === streamingMessageId}
-            isEditing={msg.id === editingMessageId}
-            isPending={isPending}
-            grounding={msg.id === groundingMessageId}
-            onCitationClick={onCitationClick}
-            onStartEdit={msg.role === "user" ? onStartEdit : undefined}
-            onCancelEdit={onCancelEdit}
-            onResendEdit={onResendEdit}
-            onRegenerate={
-              msg.role === "assistant" && prevUser && onRegenerate
-                ? () => onRegenerate(prevUser.id)
-                : undefined
-            }
-            readAloudStatus={readAloudStatus}
-            readAloudActiveId={readAloudActiveId}
-            onReadAloudToggle={onReadAloudToggle}
-            onReadAloudStop={onReadAloudStop}
-          />
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              isTyping={msg.id === streamingMessageId}
+              isEditing={msg.id === editingMessageId}
+              isPending={isPending}
+              grounding={msg.id === groundingMessageId}
+              onCitationClick={onCitationClick}
+              onStartEdit={msg.role === "user" ? onStartEdit : undefined}
+              onCancelEdit={onCancelEdit}
+              onResendEdit={onResendEdit}
+              onRegenerate={
+                msg.role === "assistant" && prevUserId && onRegenerate
+                  ? () => onRegenerate(prevUserId)
+                  : undefined
+              }
+              readAloudStatus={readAloudStatus}
+              readAloudActiveId={readAloudActiveId}
+              onReadAloudToggle={onReadAloudToggle}
+              onReadAloudStop={onReadAloudStop}
+            />
           );
         })}
         {isPending && <ThinkingLoader message={pendingMessage} />}

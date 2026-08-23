@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ensureFreshToken } from "@/lib/api";
+import { rafUpdateIntervalMs } from "@/lib/perf";
 import { researchServiceUrl } from "@/lib/service-urls";
 import type { LawyerMatchResult } from "@/lib/types";
 
@@ -105,16 +106,21 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
       setAmplitude(0);
       return;
     }
-    const tick = () => {
-      const an = analyserRef.current;
-      if (an) {
-        const data = new Uint8Array(an.frequencyBinCount);
-        an.getByteTimeDomainData(data);
-        let sq = 0;
-        for (const v of data) sq += ((v - 128) / 128) ** 2;
-        const raw = Math.sqrt(sq / data.length);
-        smoothAmpRef.current = smoothAmpRef.current * 0.78 + raw * 0.22;
-        setAmplitude(Math.min(1, smoothAmpRef.current * 6));
+    let lastFrame = 0;
+    const frameInterval = rafUpdateIntervalMs();
+    const tick = (frameNow: number) => {
+      if (frameNow - lastFrame >= frameInterval) {
+        lastFrame = frameNow;
+        const an = analyserRef.current;
+        if (an) {
+          const data = new Uint8Array(an.frequencyBinCount);
+          an.getByteTimeDomainData(data);
+          let sq = 0;
+          for (const v of data) sq += ((v - 128) / 128) ** 2;
+          const raw = Math.sqrt(sq / data.length);
+          smoothAmpRef.current = smoothAmpRef.current * 0.78 + raw * 0.22;
+          setAmplitude(Math.min(1, smoothAmpRef.current * 6));
+        }
       }
       ampRafRef.current = requestAnimationFrame(tick);
     };

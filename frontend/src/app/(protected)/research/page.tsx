@@ -27,6 +27,16 @@ export default function ResearchPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const tokenBufferRef = useRef("");
+  const tokenRafRef = useRef<number | null>(null);
+
+  const flushStreamTokens = useCallback(() => {
+    const chunk = tokenBufferRef.current;
+    tokenBufferRef.current = "";
+    tokenRafRef.current = null;
+    if (!chunk) return;
+    setStreamedAnswer((prev) => prev + chunk);
+  }, []);
 
   useEffect(() => {
     setHistory(loadResearchHistory());
@@ -54,6 +64,11 @@ export default function ResearchPage() {
     setError(null);
     setResult(null);
     setStreamedAnswer("");
+    tokenBufferRef.current = "";
+    if (tokenRafRef.current != null) {
+      cancelAnimationFrame(tokenRafRef.current);
+      tokenRafRef.current = null;
+    }
     setActiveStage("intent");
     setStatusMessage("Understanding your question…");
     setIsStreaming(true);
@@ -71,11 +86,19 @@ export default function ResearchPage() {
           onToken: (token) => {
             setStatusMessage("Drafting your answer…");
             setActiveStage("answer");
-            setStreamedAnswer((prev) => prev + token);
+            tokenBufferRef.current += token;
+            if (tokenRafRef.current == null) {
+              tokenRafRef.current = requestAnimationFrame(flushStreamTokens);
+            }
           },
         },
         { signal: controller.signal },
       );
+
+      if (tokenRafRef.current != null) {
+        cancelAnimationFrame(tokenRafRef.current);
+        flushStreamTokens();
+      }
 
       setResult(data);
       setStreamedAnswer(data.answer);
@@ -88,12 +111,17 @@ export default function ResearchPage() {
       setActiveStage(null);
       setStatusMessage(null);
     } finally {
+      if (tokenRafRef.current != null) {
+        cancelAnimationFrame(tokenRafRef.current);
+        tokenRafRef.current = null;
+      }
+      tokenBufferRef.current = "";
       if (abortRef.current === controller) {
         abortRef.current = null;
       }
       setIsStreaming(false);
     }
-  }, [query, jurisdiction]);
+  }, [query, jurisdiction, flushStreamTokens]);
 
   useEffect(() => {
     return () => {

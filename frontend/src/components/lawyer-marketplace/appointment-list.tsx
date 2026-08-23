@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarDays, Clock3 } from "lucide-react";
 
+import { LiveClock } from "@/components/ui/live-clock";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useAppointmentSummonWatcher } from "@/hooks/use-appointment-summon-watcher";
@@ -34,13 +35,7 @@ interface AppointmentListProps {
 }
 
 export function AppointmentList({ appointments, onChanged }: AppointmentListProps) {
-  const [now, setNow] = useState(() => Date.now());
   const user = useMemo(() => getStoredUser(), []);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useAppointmentSummonWatcher({ appointments });
   const isAdvocate = Boolean(user?.roles.includes("advocate") || user?.roles.includes("admin"));
@@ -48,61 +43,55 @@ export function AppointmentList({ appointments, onChanged }: AppointmentListProp
   const asLawyer = (a: AppointmentRecord) =>
     a.my_role === "lawyer" || (isAdvocate && user?.user_id === a.lawyer_user_id);
 
-  const inbox = useMemo(
-    () =>
-      appointments.filter(
-        (a) => asLawyer(a) && ["requested", "confirmed", "live"].includes(a.status),
-      ),
-    [appointments, isAdvocate, user?.user_id],
-  );
-  const schedule = useMemo(
-    () => appointments.filter((a) => asLawyer(a) && !inbox.includes(a)),
-    [appointments, inbox, isAdvocate, user?.user_id],
-  );
-  const mine = useMemo(
-    () => appointments.filter((a) => !asLawyer(a)),
-    [appointments, isAdvocate, user?.user_id],
-  );
-  const upcoming = useMemo(
-    () =>
-      appointments.filter((a) => liveJoinPhase(a, now) !== "expired" && a.status !== "cancelled"),
-    [appointments, now],
-  );
-  const past = useMemo(
-    () =>
-      appointments.filter((a) => liveJoinPhase(a, now) === "expired" || a.status === "cancelled"),
-    [appointments, now],
-  );
-
-  if (appointments.length === 0) {
-    return (
-      <div className="rounded-3xl border border-dashed border-black/[0.08] bg-white/30 py-20 text-center dark:border-white/10 dark:bg-white/[0.02]">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
-          <CalendarDays className="h-6 w-6 text-muted-foreground/60" />
-        </div>
-        <p className="text-sm font-semibold">No appointments yet</p>
-        <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-          Book a consultation from Top Lawyers — your inbox will appear here.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
-      {isAdvocate ? (
-        <>
-          <Section title="Inbox" items={inbox} now={now} onChanged={onChanged} />
-          <Section title="My schedule" items={schedule} now={now} onChanged={onChanged} />
-          {mine.length > 0 && <Section title="My consultations" items={mine} now={now} onChanged={onChanged} />}
-        </>
-      ) : (
-        <>
-          <Section title="My consultations" items={upcoming} now={now} onChanged={onChanged} />
-          <Section title="Past" items={past} now={now} onChanged={onChanged} />
-        </>
-      )}
-    </div>
+    <LiveClock>
+      {(now) => {
+        const inbox = appointments.filter(
+          (a) => asLawyer(a) && ["requested", "confirmed", "live"].includes(a.status),
+        );
+        const schedule = appointments.filter((a) => asLawyer(a) && !inbox.includes(a));
+        const mine = appointments.filter((a) => !asLawyer(a));
+        const upcoming = appointments.filter(
+          (a) => liveJoinPhase(a, now) !== "expired" && a.status !== "cancelled",
+        );
+        const past = appointments.filter(
+          (a) => liveJoinPhase(a, now) === "expired" || a.status === "cancelled",
+        );
+
+        if (appointments.length === 0) {
+          return (
+            <div className="rounded-3xl border border-dashed border-black/[0.08] bg-white/30 py-20 text-center dark:border-white/10 dark:bg-white/[0.02]">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
+                <CalendarDays className="h-6 w-6 text-muted-foreground/60" />
+              </div>
+              <p className="text-sm font-semibold">No appointments yet</p>
+              <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
+                Book a consultation from Top Lawyers — your inbox will appear here.
+              </p>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-8">
+            {isAdvocate ? (
+              <>
+                <Section title="Inbox" items={inbox} now={now} onChanged={onChanged} />
+                <Section title="My schedule" items={schedule} now={now} onChanged={onChanged} />
+                {mine.length > 0 && (
+                  <Section title="My consultations" items={mine} now={now} onChanged={onChanged} />
+                )}
+              </>
+            ) : (
+              <>
+                <Section title="My consultations" items={upcoming} now={now} onChanged={onChanged} />
+                <Section title="Past" items={past} now={now} onChanged={onChanged} />
+              </>
+            )}
+          </div>
+        );
+      }}
+    </LiveClock>
   );
 }
 

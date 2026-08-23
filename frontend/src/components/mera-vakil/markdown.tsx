@@ -196,7 +196,7 @@ export const Markdown = memo(function Markdown({
 
           /* ── Images ── */
           img: ({ src, alt }) => {
-            if (!src) return null;
+            if (!src || typeof src !== "string") return null;
             return (
               <button
                 type="button"

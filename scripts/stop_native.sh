@@ -13,8 +13,14 @@ if [[ "${SKIP_PUBLIC_ORCHESTRATOR:-}" != "1" ]]; then
   pkill -f "backend/scripts/run_public_stack.py" 2>/dev/null || true
 fi
 
-# Stop Next.js dev servers for this project only
+# Stop Next.js dev/production servers for this project only
 for pid in $(pgrep -f "next dev" 2>/dev/null || true); do
+  cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || echo "")
+  if [[ "$cwd" == "$ROOT/frontend"* ]]; then
+    kill "$pid" 2>/dev/null || true
+  fi
+done
+for pid in $(pgrep -f "next start" 2>/dev/null || true); do
   cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || echo "")
   if [[ "$cwd" == "$ROOT/frontend"* ]]; then
     kill "$pid" 2>/dev/null || true

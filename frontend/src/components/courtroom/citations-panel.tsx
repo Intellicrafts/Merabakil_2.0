@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { BookMarked, ExternalLink } from "lucide-react";
 
 import type { LegalAuthority } from "@/lib/courtroom/types";
@@ -19,8 +20,14 @@ function kindLabel(kind?: string): string {
 }
 
 export function CitationsPanel({ authorities, verifiedOnly = false }: CitationsPanelProps) {
-  const list = verifiedOnly ? authorities.filter((a) => a.verified) : authorities;
-  const verifiedCount = authorities.filter((a) => a.verified).length;
+  const list = useMemo(
+    () => (verifiedOnly ? authorities.filter((a) => a.verified) : authorities),
+    [authorities, verifiedOnly],
+  );
+  const verifiedCount = useMemo(
+    () => authorities.filter((a) => a.verified).length,
+    [authorities],
+  );
   const unverifiedCount = authorities.length - verifiedCount;
 
   return (

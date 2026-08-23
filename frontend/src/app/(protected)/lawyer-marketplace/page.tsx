@@ -15,6 +15,8 @@ import { LawyerProfileDrawer } from "@/components/lawyer-marketplace/lawyer-prof
 import { MarketplaceHero } from "@/components/lawyer-marketplace/marketplace-hero";
 import { TopMatchesStrip } from "@/components/lawyer-marketplace/top-matches-strip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   fetchMarketplaceLawyers,
   getAppointmentJoinState,
@@ -42,7 +44,9 @@ export default function LawyerMarketplacePage() {
   const [bookingSource, setBookingSource] = useState<"ai_match" | "manual">("manual");
   const [appointmentsVersion, setAppointmentsVersion] = useState(0);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [catalogTick, setCatalogTick] = useState(0);
+  const debouncedQuery = useDebouncedValue(filters.query, 300);
 
   useEffect(() => {
     void syncAdvocateListing();
@@ -52,7 +56,7 @@ export default function LawyerMarketplacePage() {
     let cancelled = false;
     setCatalogLoading(true);
     fetchMarketplaceLawyers({
-      query: filters.query || undefined,
+      query: debouncedQuery || undefined,
       practiceArea: filters.practiceArea || undefined,
       city: filters.city || undefined,
       verified: filters.verifiedOnly,
@@ -72,16 +76,19 @@ export default function LawyerMarketplacePage() {
     return () => {
       cancelled = true;
     };
-  }, [filters.query, filters.practiceArea, filters.city, filters.verifiedOnly, catalogTick]);
+  }, [debouncedQuery, filters.practiceArea, filters.city, filters.verifiedOnly, catalogTick]);
 
   useEffect(() => {
     let cancelled = false;
+    setAppointmentsLoading(true);
     const load = async () => {
       try {
         const rows = await listAppointments();
         if (!cancelled) setAppointments(rows);
       } catch {
         /* list surfaces empty */
+      } finally {
+        if (!cancelled) setAppointmentsLoading(false);
       }
     };
     void load();
@@ -126,7 +133,7 @@ export default function LawyerMarketplacePage() {
       );
     };
     void poll();
-    const timer = window.setInterval(() => void poll(), 3000);
+    const timer = window.setInterval(() => void poll(), 8000);
     const onFocus = () => void poll();
     window.addEventListener("focus", onFocus);
     return () => {
@@ -254,10 +261,18 @@ export default function LawyerMarketplacePage() {
         </TabsContent>
 
         <TabsContent value="appointments" className="mt-4">
-          <AppointmentList
-            appointments={appointments}
-            onChanged={() => setAppointmentsVersion((v) => v + 1)}
-          />
+          {appointmentsLoading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-32 w-full rounded-2xl" />
+              ))}
+            </div>
+          ) : (
+            <AppointmentList
+              appointments={appointments}
+              onChanged={() => setAppointmentsVersion((v) => v + 1)}
+            />
+          )}
         </TabsContent>
       </Tabs>
 

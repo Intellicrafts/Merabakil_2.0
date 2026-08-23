@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Image from "next/image";
 import { ArrowUpRight, BadgeCheck, MapPin, Sparkles, Star } from "lucide-react";
 
@@ -19,7 +20,12 @@ interface LawyerCardProps {
   onBook: (lawyer: RankedLawyer) => void;
 }
 
-export function LawyerCard({ lawyer, index = 0, onView, onBook }: LawyerCardProps) {
+export const LawyerCard = memo(function LawyerCard({
+  lawyer,
+  index = 0,
+  onView,
+  onBook,
+}: LawyerCardProps) {
   const areas = lawyer.practice_areas.slice(0, 2);
   const more = lawyer.practice_areas.length - areas.length;
 
@@ -128,4 +134,4 @@ export function LawyerCard({ lawyer, index = 0, onView, onBook }: LawyerCardProp
       </div>
     </article>
   );
-}
+});
