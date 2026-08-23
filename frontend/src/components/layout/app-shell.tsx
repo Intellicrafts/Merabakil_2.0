@@ -57,6 +57,7 @@ function AppTopBar({
   isHome,
   onToggleTheme,
   onGoHome,
+  onGoToProfile,
   onSignOut,
   onOpenPalette,
 }: {
@@ -66,6 +67,7 @@ function AppTopBar({
   isHome: boolean;
   onToggleTheme: () => void;
   onGoHome: () => void;
+  onGoToProfile: () => void;
   onSignOut: () => void;
   onOpenPalette: () => void;
 }) {
@@ -148,7 +150,7 @@ function AppTopBar({
             )}
             {user?.roles?.includes("advocate") && (
               <>
-                <DropdownMenuItem onClick={() => router.push("/profile")}>
+                <DropdownMenuItem onClick={onGoToProfile}>
                   <UserCircle className="mr-2 h-4 w-4" />
                   My profile
                 </DropdownMenuItem>
@@ -236,6 +238,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           isHome={isHome}
           onToggleTheme={handleToggleTheme}
           onGoHome={() => router.push("/dashboard")}
+          onGoToProfile={() => router.push("/profile")}
           onSignOut={handleSignOut}
           onOpenPalette={() => setPaletteOpen(true)}
         />
