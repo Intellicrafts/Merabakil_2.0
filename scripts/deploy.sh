@@ -57,6 +57,10 @@ fi
 echo "==> Starting Docker Compose stack..."
 $COMPOSE up -d --build
 
+# Restart nginx so it re-resolves container IPs after any container rebuilds
+echo "==> Reloading nginx..."
+$COMPOSE restart nginx
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Deploy complete!"
