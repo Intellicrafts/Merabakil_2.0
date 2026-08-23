@@ -41,6 +41,9 @@ async def lifespan(_: FastAPI):
     try:
         await seed_lawyers(session)
         await session.commit()
+    except Exception as exc:  # FK violation if demo user doesn't exist in auth DB
+        logger.warning("seed_lawyers skipped: %s", exc)
+        await session.rollback()
     finally:
         await session.close()
 
