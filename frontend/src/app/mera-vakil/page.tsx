@@ -25,10 +25,8 @@ import {
   createUserMessage,
   deleteConversation,
   deriveTitleFromQuery,
-  loadActiveConversationId,
   loadConversations,
   renameConversation,
-  saveActiveConversationId,
   togglePinConversation,
   upsertConversation,
   toResearchHistory,
@@ -78,7 +76,6 @@ export default function MeraVakilPage() {
   const withUserRef = useRef<ChatConversation | null>(null);
   const tokenBufferRef = useRef("");
   const tokenRafRef = useRef<number | null>(null);
-  const skipActivePersist = useRef(true);
   const [groundingMessageId, setGroundingMessageId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const readAloud = useReadAloud(speechLocale);
@@ -86,9 +83,9 @@ export default function MeraVakilPage() {
   useEffect(() => {
     const all = loadConversations();
     setConversations(all);
-    const lastId = loadActiveConversationId();
-    if (lastId) {
-      const found = all.find((c) => c.id === lastId);
+    const convId = new URLSearchParams(window.location.search).get("c");
+    if (convId) {
+      const found = all.find((c) => c.id === convId);
       if (found) setActiveConversation(found);
     }
     const stored = localStorage.getItem(THEME_KEY);
@@ -104,14 +101,6 @@ export default function MeraVakilPage() {
     if (prefill) setInput(prefill);
     setHydrated(true);
   }, []);
-
-  useEffect(() => {
-    if (skipActivePersist.current) {
-      skipActivePersist.current = false;
-      return;
-    }
-    saveActiveConversationId(activeConversation?.id ?? null);
-  }, [activeConversation?.id]);
 
   function setRightPanelOpenPersisted(open: boolean) {
     setRightPanelOpen(open);

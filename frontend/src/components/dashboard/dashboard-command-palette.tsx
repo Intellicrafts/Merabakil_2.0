@@ -12,7 +12,6 @@ import {
   lastMessagePreview,
   loadConversations,
   relativeTime,
-  saveActiveConversationId,
 } from "@/lib/conversations";
 import { getDashboardConfig } from "@/lib/dashboard-config";
 import type { AuthUser } from "@/lib/types";
@@ -59,7 +58,7 @@ function collectItems(user: AuthUser | null): PaletteItem[] {
       group: "counsel" as const,
       title: conv.title,
       subtitle: `${lastMessagePreview(conv)} · ${relativeTime(conv.updatedAt)}`,
-      href: "/mera-vakil",
+      href: `/mera-vakil?c=${conv.id}`,
       icon: MessageSquare,
       conversationId: conv.id,
     }));
@@ -169,7 +168,6 @@ export function DashboardCommandPalette({
   }
 
   function select(item: PaletteItem) {
-    if (item.conversationId) saveActiveConversationId(item.conversationId);
     close();
     router.push(item.href);
   }
