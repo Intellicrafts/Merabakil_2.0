@@ -43,6 +43,12 @@ You are Mera Vakil — a professional AI legal assistant specialising exclusivel
 You speak with the calm authority of a senior counsel: precise, composed, and reassuring. \
 This is a real-time voice conversation.
 
+## Opening the conversation
+At the very start of every new session, greet the user immediately with a brief, warm welcome — \
+introduce yourself as Mera Vakil and invite them to share their legal concern. \
+For example: "Namaste, I am Mera Vakil, your AI legal assistant for Indian law. \
+How can I help you today?" Keep the opening to one or two sentences.
+
 ## Strict scope — Indian legal matters only
 You handle ONLY questions related to Indian law, legal rights, statutes, court procedures, \
 and lawyer referrals. If the user asks about anything outside this scope — general knowledge, \
@@ -292,20 +298,23 @@ async def _run_find_lawyers(
             [],
         )
 
-    lines = []
+    blocks = []
     for i, l in enumerate(lawyers, 1):
         name = l.get("full_name", "Unknown")
-        areas = ", ".join(l.get("practice_areas", [])[:2])
+        areas = ", ".join(l.get("practice_areas", [])[:3])
         yrs = l.get("years_experience", 0)
         rating = l.get("rating", 0)
         bar = l.get("bar_council_id") or "N/A"
         verified = "✓ Verified" if l.get("is_verified") else ""
-        lines.append(f"{i}. {name} — {areas} | {yrs} yrs exp | Rating {rating}/5 {verified} | Bar ID: {bar}")
+        summary = l.get("summary", "").strip()
+        header = f"{i}. {name} — {areas} | {yrs} yrs exp | Rating {rating}/5 {verified} | Bar ID: {bar}"
+        block = header + (f"\n   {summary}" if summary else "")
+        blocks.append(block)
 
     text = (
         "Here are the top matching lawyers from our verified directory:\n\n"
-        + "\n".join(lines)
-        + "\n\nShall I share more details about any of them?"
+        + "\n\n".join(blocks)
+        + "\n\nWould you like to know more about any of them or book a consultation?"
     )
     return text, lawyers
 
@@ -423,7 +432,22 @@ async def voice_live(
                 await websocket.close()
                 return
             if "setupComplete" not in first:
-                logger.warning("voice_live: unexpected setup response user=%s: %s", user_id, first)
+                logger.error("voice_live: Gemini setup FAILED user=%s response=%s", user_id, first)
+                await websocket.send_json({"type": "error", "message": "Voice session unavailable. Please try again."})
+                await websocket.close()
+                return
+
+            logger.info("voice_live: Gemini setup OK model=%s voice=%s user=%s", live_model, voice, user_id)
+
+            # Trigger Gemini to deliver an opening greeting immediately.
+            # Without this, Gemini waits for user audio before speaking, which
+            # means the audio pipeline is untested until the user speaks.
+            await gemini_ws.send(json.dumps({
+                "clientContent": {
+                    "turns": [{"role": "user", "parts": [{"text": "begin"}]}],
+                    "turnComplete": True,
+                }
+            }))
 
             await websocket.send_json({"type": "state", "value": "listening"})
 
@@ -507,6 +531,20 @@ async def voice_live(
                         unknown = set(msg.keys()) - known_keys
                         if unknown:
                             logger.info("voice_live: unhandled Gemini msg keys=%s body=%s", unknown, str(msg)[:300])
+
+                        # Diagnostic: log what's inside serverContent
+                        if "serverContent" in msg:
+                            sc = msg["serverContent"]
+                            sc_keys = list(sc.keys())
+                            has_audio = False
+                            mt = sc.get("modelTurn", {})
+                            for p in mt.get("parts", []):
+                                if p.get("inlineData", {}).get("mimeType", "").startswith("audio/"):
+                                    has_audio = True
+                            logger.info(
+                                "voice_live: serverContent user=%s keys=%s has_audio=%s turnComplete=%s",
+                                user_id, sc_keys, has_audio, sc.get("turnComplete", False),
+                            )
 
                         # Tool call from Gemini
                         if "toolCall" in msg:

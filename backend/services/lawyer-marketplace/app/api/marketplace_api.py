@@ -450,11 +450,34 @@ async def get_lawyer(
 @lawyers_router.post("/match", response_model=list[LawyerPublic])
 async def match_lawyers(
     body: MatchRequest,
-    _: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[LawyerPublic]:
+    """Public endpoint — called by voicebot and chatbot without user auth."""
+    store = get_lawyer_vector_store()
     repo = MarketplaceRepository(session)
-    lawyers = await repo.list_lawyers(verified_only=True, city=body.city)
+
+    if store.is_ready:
+        query_parts = list(body.practice_areas) + list(body.jurisdictions)
+        if body.city:
+            query_parts.append(body.city)
+        query = " ".join(query_parts)
+        hits = await store.search(query, limit=body.limit)
+        if hits:
+            ordered: list[Lawyer] = []
+            for lawyer_id_str, _ in hits:
+                try:
+                    lawyer = await repo.get_lawyer(uuid.UUID(lawyer_id_str))
+                except (ValueError, Exception):
+                    continue
+                if lawyer:
+                    ordered.append(lawyer)
+            if ordered:
+                logger.info("match_lawyers source=qdrant count=%d query=%r", len(ordered), query)
+                return [_lawyer_public(l, match_score=100, recommended=True) for l in ordered]
+
+    # Fallback: score and rank from SQL
+    logger.info("match_lawyers source=sql practice_areas=%s", body.practice_areas)
+    lawyers = await repo.list_lawyers(verified_only=False, city=body.city)
     ranked = [
         (lawyer, score_lawyer(lawyer, practice_areas=body.practice_areas, city=body.city))
         for lawyer in lawyers
