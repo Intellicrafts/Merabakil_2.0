@@ -148,11 +148,9 @@ function AppTopBar({
             )}
             {user?.roles?.includes("advocate") && (
               <>
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="flex items-center">
-                    <UserCircle className="mr-2 h-4 w-4" />
-                    My profile
-                  </Link>
+                <DropdownMenuItem onClick={() => router.push("/profile")}>
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  My profile
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
