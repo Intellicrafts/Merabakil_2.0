@@ -34,6 +34,7 @@ pnpm-debug.log*
 data/**/*
 !data/**/.gitkeep
 !data/**/README.md
+!data/corpus_registry.yaml
 
 # OS / editor
 .DS_Store
