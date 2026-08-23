@@ -25,6 +25,15 @@ def _token(user_id: uuid.UUID, role: str) -> str:
     return create_access_token(str(user_id), roles=[role], permissions=perms)
 
 
+@pytest.fixture(autouse=True)
+def clear_active_calls():
+    from app.application import appointments as appt_mod
+
+    appt_mod._ACTIVE_CALLS.clear()
+    yield
+    appt_mod._ACTIVE_CALLS.clear()
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MARKETPLACE_NATIVE", "true")
@@ -40,6 +49,12 @@ def client(tmp_path, monkeypatch):
 
     with TestClient(app) as test_client:
         yield test_client
+    try:
+        from app.application import appointments as appt_mod
+
+        appt_mod._ACTIVE_CALLS.clear()
+    except Exception:
+        pass
     dbmod._engine = None
     dbmod._sessionmaker = None
 
@@ -626,3 +641,145 @@ def test_inbox_events_route_not_uuid_collision(client: TestClient) -> None:
     collision = client.get("/api/v1/appointments/inbox", headers=_auth("advocate"))
     assert collision.status_code == 422
     assert collision.json()["details"][0]["loc"] == ["path", "appointment_id"]
+
+
+def test_room_token_unconfigured(client: TestClient, monkeypatch) -> None:
+    monkeypatch.delenv("LIVEKIT_URL", raising=False)
+    monkeypatch.delenv("LIVEKIT_API_KEY", raising=False)
+    monkeypatch.delenv("LIVEKIT_API_SECRET", raising=False)
+    apt_id = _book(client)
+    res = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["configured"] is False
+    assert body["mode"] == "polling"
+    assert body["token"] is None
+    assert body["url"] is None
+    assert body["room"].startswith("apt-")
+
+
+def test_room_token_livekit_configured(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setenv("LIVEKIT_URL", "wss://test.livekit.cloud")
+    monkeypatch.setenv("LIVEKIT_API_KEY", "APItestkey")
+    monkeypatch.setenv("LIVEKIT_API_SECRET", "test-secret-for-jwt-signing")
+    apt_id = _book(client)
+    res = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["configured"] is True
+    assert body["mode"] == "livekit"
+    assert body["token"]
+    assert body["url"] == "wss://test.livekit.cloud"
+    assert body["room"].startswith("apt-")
+
+
+def test_call_ring_publishes_to_room_and_inbox(client: TestClient) -> None:
+    from app.application.room_hub import subscribe_user
+
+    apt_id = _book(client)
+    queue = subscribe_user(str(ADVOCATE_USER_ID))
+    ring = client.post(
+        f"/api/v1/appointments/{apt_id}/call/ring",
+        headers=_auth("citizen"),
+        json={"mode": "video"},
+    )
+    assert ring.status_code == 200, ring.text
+    body = ring.json()
+    assert body["mode"] == "video"
+    assert body["status"] == "ringing"
+    event = queue.get_nowait()
+    assert event["type"] == "incoming_call"
+    assert event["payload"]["call_id"] == body["call_id"]
+
+
+def test_call_accept_clears_pending(client: TestClient) -> None:
+    from app.application.room_hub import subscribe
+
+    apt_id = _book(client)
+    queue = subscribe(apt_id)
+    ring = client.post(
+        f"/api/v1/appointments/{apt_id}/call/ring",
+        headers=_auth("citizen"),
+        json={"mode": "audio"},
+    ).json()
+    queue.get_nowait()
+    accepted = client.post(
+        f"/api/v1/appointments/{apt_id}/call/respond",
+        headers=_auth("advocate"),
+        json={"call_id": ring["call_id"], "action": "accept"},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["status"] == "accepted"
+    event = queue.get_nowait()
+    assert event["type"] == "call_accepted"
+
+
+def test_call_decline_notifies_caller(client: TestClient) -> None:
+    from app.application.room_hub import subscribe_user
+
+    apt_id = _book(client)
+    caller_queue = subscribe_user(str(CITIZEN_USER_ID))
+    ring = client.post(
+        f"/api/v1/appointments/{apt_id}/call/ring",
+        headers=_auth("citizen"),
+        json={"mode": "video"},
+    ).json()
+    caller_queue.get_nowait()
+    declined = client.post(
+        f"/api/v1/appointments/{apt_id}/call/respond",
+        headers=_auth("advocate"),
+        json={"call_id": ring["call_id"], "action": "decline"},
+    )
+    assert declined.status_code == 200, declined.text
+    event = caller_queue.get_nowait()
+    assert event["type"] == "call_declined"
+
+
+def test_call_cancel_by_caller(client: TestClient) -> None:
+    from app.application.room_hub import subscribe_user
+
+    apt_id = _book(client)
+    callee_queue = subscribe_user(str(ADVOCATE_USER_ID))
+    ring = client.post(
+        f"/api/v1/appointments/{apt_id}/call/ring",
+        headers=_auth("citizen"),
+        json={"mode": "audio"},
+    ).json()
+    callee_queue.get_nowait()
+    cancelled = client.post(
+        f"/api/v1/appointments/{apt_id}/call/cancel",
+        headers=_auth("citizen"),
+        json={"call_id": ring["call_id"]},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    event = callee_queue.get_nowait()
+    assert event["type"] == "call_cancelled"
+
+
+def test_call_ring_rejected_when_already_ringing(client: TestClient) -> None:
+    apt_id = _book(client)
+    first = client.post(
+        f"/api/v1/appointments/{apt_id}/call/ring",
+        headers=_auth("citizen"),
+        json={"mode": "video"},
+    )
+    assert first.status_code == 200
+    second = client.post(
+        f"/api/v1/appointments/{apt_id}/call/ring",
+        headers=_auth("citizen"),
+        json={"mode": "audio"},
+    )
+    assert second.status_code == 409
+
+
+def test_join_state_includes_pending_incoming_call(client: TestClient) -> None:
+    apt_id = _book(client)
+    ring = client.post(
+        f"/api/v1/appointments/{apt_id}/call/ring",
+        headers=_auth("citizen"),
+        json={"mode": "video"},
+    ).json()
+    join = client.get(f"/api/v1/appointments/{apt_id}/join-state", headers=_auth("advocate")).json()
+    assert join["pending_incoming_call"] is not None
+    assert join["pending_incoming_call"]["call_id"] == ring["call_id"]
+    assert join["pending_incoming_call"]["mode"] == "video"

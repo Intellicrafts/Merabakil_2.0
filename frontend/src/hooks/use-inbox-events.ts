@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { getToken } from "@/lib/api";
 import { marketplaceServiceUrl } from "@/lib/service-urls";
-import type { SummonAlertPayload } from "@/lib/appointment-types";
+import type { IncomingCallPayload, SummonAlertPayload } from "@/lib/appointment-types";
 
 export interface InboxSummonEvent {
   appointmentId: string;
@@ -16,7 +16,7 @@ export interface InboxSummonEvent {
 export interface InboxStreamEvent {
   type: string;
   appointment_id?: string;
-  payload?: SummonAlertPayload | Record<string, unknown>;
+  payload?: SummonAlertPayload | IncomingCallPayload | Record<string, unknown>;
 }
 
 function parseBlocks(buffer: string): { events: InboxStreamEvent[]; rest: string } {
@@ -43,12 +43,15 @@ function parseBlocks(buffer: string): { events: InboxStreamEvent[]; rest: string
 export function useInboxEvents(
   onSummon: (event: InboxSummonEvent) => void,
   onEvent?: (event: InboxStreamEvent) => void,
+  onIncomingCall?: (payload: IncomingCallPayload) => void,
 ): { connected: boolean } {
   const [connected, setConnected] = useState(false);
   const onSummonRef = useRef(onSummon);
   const onEventRef = useRef(onEvent);
+  const onIncomingCallRef = useRef(onIncomingCall);
   onSummonRef.current = onSummon;
   onEventRef.current = onEvent;
+  onIncomingCallRef.current = onIncomingCall;
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +98,9 @@ export function useInboxEvents(
                     counterpartName: payload.from_name,
                   });
                 }
+              }
+              if (event.type === "incoming_call" && event.payload) {
+                onIncomingCallRef.current?.(event.payload as IncomingCallPayload);
               }
               if (event.type !== "join") onEventRef.current?.(event);
             }

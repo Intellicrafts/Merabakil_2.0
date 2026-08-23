@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.models import Lawyer
+from app.infrastructure.lawyer_model import Lawyer
 
 
 class LawyerRepository:

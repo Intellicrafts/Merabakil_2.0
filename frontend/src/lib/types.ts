@@ -17,6 +17,22 @@ export interface AuthResponse {
   tokens: Tokens;
 }
 
+export interface GoogleNeedsRoleResponse {
+  status: "needs_role";
+  onboarding_token: string;
+  email: string;
+  full_name: string;
+  picture?: string | null;
+}
+
+export type GoogleAuthResult = AuthResponse | GoogleNeedsRoleResponse;
+
+export function isGoogleNeedsRole(
+  result: GoogleAuthResult,
+): result is GoogleNeedsRoleResponse {
+  return "status" in result && result.status === "needs_role";
+}
+
 export interface Page<T> {
   items: T[];
   page: number;

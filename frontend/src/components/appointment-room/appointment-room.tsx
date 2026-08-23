@@ -1,9 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Camera, Mic, MicOff, Paperclip, Phone, PhoneOff, Send, Siren, Video, VideoOff, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Camera, Paperclip, Send, Siren, X } from "lucide-react";
 
+import { CallControlsDock } from "@/components/appointment-room/calls/call-controls-dock";
+import { CallTypePicker } from "@/components/appointment-room/calls/call-type-picker";
+import { IncomingCallOverlay } from "@/components/appointment-room/calls/incoming-call-overlay";
+import { OutgoingCallOverlay } from "@/components/appointment-room/calls/outgoing-call-overlay";
 import { CallStage } from "@/components/appointment-room/call-stage";
 import { CameraCapture } from "@/components/appointment-room/camera-capture";
 import { ChatPane } from "@/components/appointment-room/chat-pane";
@@ -14,6 +18,7 @@ import { VoiceNoteComposer } from "@/components/appointment-room/voice-note-comp
 import { useAppointmentRoomEvents } from "@/hooks/use-appointment-room-events";
 import { useToast } from "@/components/ui/toast";
 import {
+  cancelAppointmentCall,
   fetchRoomToken,
   getAppointment,
   getAppointmentJoinState,
@@ -27,16 +32,23 @@ import {
   recordAppointmentCallEvent,
   requestAppointmentEmergency,
   resolveAppointmentEmergency,
+  respondAppointmentCall,
+  ringAppointmentCall,
   summonAppointmentOpponent,
   uploadAppointmentAttachment,
 } from "@/lib/api";
-import type { AppointmentMessage, AppointmentRecord, JoinStateDto, RoomStreamEvent, SummonAlertPayload } from "@/lib/appointment-types";
-import {
-  playAlertChime,
-  requestNotificationPermission,
-  showBrowserNotification,
-} from "@/lib/room-alerts";
-import { cn } from "@/lib/utils";
+import type {
+  AppointmentMessage,
+  AppointmentRecord,
+  CallMode,
+  CallPhase,
+  IncomingCallPayload,
+  JoinStateDto,
+  RoomStreamEvent,
+  SummonAlertPayload,
+} from "@/lib/appointment-types";
+import { callHub } from "@/lib/call-hub";
+import { playAlertChime, requestNotificationPermission, showBrowserNotification, stopCallRingtone } from "@/lib/room-alerts";
 
 function mergeJoinIntoApt(apt: AppointmentRecord, js: JoinStateDto): AppointmentRecord {
   return {
@@ -96,6 +108,7 @@ interface AppointmentRoomProps {
 
 export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const user = useMemo(() => getStoredUser(), []);
   const userId = user?.user_id ?? "";
@@ -106,10 +119,17 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [callOn, setCallOn] = useState(false);
+  const [callPhase, setCallPhase] = useState<CallPhase>("idle");
+  const [callMode, setCallMode] = useState<CallMode>("video");
+  const [activeCallId, setActiveCallId] = useState<string | null>(null);
+  const [incomingCall, setIncomingCall] = useState<IncomingCallPayload | null>(null);
+  const [callBusy, setCallBusy] = useState(false);
+  const [callElapsed, setCallElapsed] = useState(0);
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
   const [livekitReady, setLivekitReady] = useState(false);
+  const [livekitConfigured, setLivekitConfigured] = useState(false);
+  const [livekitConnectFailed, setLivekitConnectFailed] = useState(false);
   const [typingRemote, setTypingRemote] = useState(false);
   const [showSummon, setShowSummon] = useState(false);
   const [summoning, setSummoning] = useState(false);
@@ -124,6 +144,8 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   const typingTimer = useRef<number | null>(null);
   const typingSent = useRef(false);
   const callStartedAt = useRef<number | null>(null);
+  const ringTimeoutRef = useRef<number | null>(null);
+  const autoAcceptRef = useRef<string | null>(null);
   const sseLive = useRef(false);
   const messagesRef = useRef<AppointmentMessage[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -222,6 +244,49 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         setApt((prev) => (prev ? mergeJoinIntoApt(prev, { ...payload, pending_summon: false }) : prev));
         return;
       }
+      if (event.type === "incoming_call" && event.payload?.call_id) {
+        if (event.payload.caller_user_id === userId) return;
+        stopCallRingtone();
+        void playAlertChime("call");
+        setIncomingCall(event.payload);
+        setCallPhase("incoming_ring");
+        callHub.ingestIncoming(event.payload, { inRoom: true });
+        return;
+      }
+      if (event.type === "call_accepted" && event.payload?.call_id) {
+        if (ringTimeoutRef.current) window.clearTimeout(ringTimeoutRef.current);
+        stopCallRingtone();
+        setIncomingCall(null);
+        if (callPhase === "in_call") return;
+        setActiveCallId(event.payload.call_id);
+        setCallMode(event.payload.mode);
+        if (callPhase === "outgoing_ring" || callPhase === "incoming_ring") {
+          void enterInCall(event.payload.mode, event.payload.call_id);
+        }
+        callHub.onAccepted(event.payload, counterpart);
+        return;
+      }
+      if (
+        event.type === "call_declined" ||
+        event.type === "call_cancelled" ||
+        event.type === "call_missed" ||
+        event.type === "call_ended"
+      ) {
+        if (ringTimeoutRef.current) window.clearTimeout(ringTimeoutRef.current);
+        stopCallRingtone();
+        setIncomingCall(null);
+        if (callPhase === "in_call" && event.type === "call_ended") {
+          void disableCallTracks();
+        } else if (callPhase !== "idle") {
+          setCallPhase("idle");
+          setActiveCallId(null);
+        }
+        callHub.onDeclinedOrCancelled();
+        if (event.type === "call_declined") {
+          toast({ title: "Call declined", description: `${counterpart} is unavailable right now.` });
+        }
+        return;
+      }
       if (event.type === "emergency" || event.type === "ops_update") {
         if (event.payload?.id) {
           setApt(event.payload);
@@ -241,7 +306,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         }
       }
     },
-    [counterpart, syncEmergencyAlert, userId],
+    [callPhase, counterpart, syncEmergencyAlert, toast, userId],
   );
 
   const { connected: sseOn } = useAppointmentRoomEvents(appointmentId, onRoomEvent);
@@ -269,11 +334,25 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           return;
         }
         const token = await fetchRoomToken(appointmentId);
-        setLivekitReady(Boolean(token.configured && token.token && token.url));
+        const configured = Boolean(token.configured && token.token && token.url);
+        setLivekitConfigured(configured);
+        setLivekitConnectFailed(false);
+        setLivekitReady(configured);
         const history = await listAppointmentMessages(appointmentId);
         if (!cancelled) setMessages(history);
-        if (token.configured && token.token && token.url) {
-          await connectLiveKit(token.url, token.token);
+        if (configured && token.token && token.url) {
+          const connected = await connectLiveKit(token.url, token.token);
+          if (!cancelled) {
+            setLivekitReady(connected);
+            setLivekitConnectFailed(!connected);
+            if (!connected) {
+              toast({
+                title: "Could not connect to call service",
+                description: "Chat still works. Check your network or try rejoining the room.",
+                variant: "destructive",
+              });
+            }
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -295,8 +374,24 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId]);
 
-  async function connectLiveKit(url: string, token: string) {
+  async function connectLiveKit(url: string, token: string): Promise<boolean> {
     try {
+      if (
+        typeof window !== "undefined" &&
+        (window as Window & { __E2E_LIVEKIT__?: boolean }).__E2E_LIVEKIT__
+      ) {
+        roomRef.current = {
+          on: () => undefined,
+          connect: async () => undefined,
+          disconnect: async () => undefined,
+          localParticipant: {
+            setCameraEnabled: async () => undefined,
+            setMicrophoneEnabled: async () => undefined,
+            videoTrackPublications: new Map<string, { track?: { mediaStream?: MediaStream } }>(),
+          },
+        };
+        return true;
+      }
       const lk = await import("livekit-client");
       const room = new lk.Room({ adaptiveStream: true, dynacast: true });
       roomRef.current = room;
@@ -323,8 +418,10 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         }
       });
       await room.connect(url, token);
+      return true;
     } catch {
       setLivekitReady(false);
+      return false;
     }
   }
 
@@ -345,6 +442,15 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           } as AppointmentRecord);
         }
         if (!sseOn) setTypingRemote(Boolean(js.opponent_typing));
+        if (
+          js.pending_incoming_call &&
+          js.pending_incoming_call.caller_user_id !== userId &&
+          callPhase === "idle"
+        ) {
+          setIncomingCall(js.pending_incoming_call);
+          setCallPhase("incoming_ring");
+          callHub.ingestIncoming(js.pending_incoming_call, { inRoom: true });
+        }
         if (js.join_state === "expired") expireToDetails();
       } catch {
         /* keep last */
@@ -353,7 +459,43 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     void poll();
     const timer = window.setInterval(() => void poll(), sseOn ? 8000 : 3000);
     return () => window.clearInterval(timer);
-  }, [appointmentId, counterpart, expireToDetails, syncEmergencyAlert, sseOn]);
+  }, [appointmentId, expireToDetails, syncEmergencyAlert, sseOn, userId, callPhase]);
+
+  useEffect(() => {
+    if (callPhase !== "in_call" || !callStartedAt.current) {
+      setCallElapsed(0);
+      return;
+    }
+    const tick = () => {
+      if (!callStartedAt.current) return;
+      setCallElapsed(Math.max(0, Math.round((Date.now() - callStartedAt.current) / 1000)));
+    };
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, [callPhase]);
+
+  useEffect(() => {
+    const acceptId = searchParams.get("acceptCall");
+    if (!acceptId || !livekitReady || autoAcceptRef.current === acceptId) return;
+    autoAcceptRef.current = acceptId;
+    const hub = callHub.getState();
+    const mode =
+      hub.phase !== "idle" && "mode" in hub && hub.callId === acceptId ? hub.mode : incomingCall?.mode ?? "video";
+    void (async () => {
+      await enterInCall(mode, acceptId);
+      setIncomingCall(null);
+      router.replace(`/appointments/${appointmentId}/room`);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [livekitReady, searchParams, appointmentId]);
+
+  useEffect(() => {
+    return () => {
+      if (ringTimeoutRef.current) window.clearTimeout(ringTimeoutRef.current);
+      stopCallRingtone();
+    };
+  }, []);
 
   useEffect(() => {
     if (sseOn) return undefined;
@@ -492,11 +634,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     }
   }
 
-  async function toggleCall() {
-    if (!livekitReady) {
-      toast({ title: "Call unavailable", description: "LiveKit is not configured. Chat still works." });
-      return;
-    }
+  async function disableCallTracks() {
     const room = roomRef.current as
       | {
           localParticipant?: {
@@ -505,28 +643,136 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           };
         }
       | null;
-    if (!callOn) {
-      await room?.localParticipant?.setCameraEnabled?.(!cameraOff);
-      await room?.localParticipant?.setMicrophoneEnabled?.(!muted);
-      const lp = roomRef.current as {
-        localParticipant?: { videoTrackPublications?: Map<string, { track?: { mediaStream?: MediaStream } }> };
-      } | null;
-      lp?.localParticipant?.videoTrackPublications?.forEach((pub) => {
-        if (pub.track?.mediaStream) {
-          localStreamRef.current = pub.track.mediaStream;
-          setLocalStream(pub.track.mediaStream);
-        }
-      });
-      callStartedAt.current = Date.now();
-      void recordAppointmentCallEvent(appointmentId, "started").catch(() => undefined);
-      setCallOn(true);
-    } else {
-      const elapsed = callStartedAt.current ? Math.max(0, Math.round((Date.now() - callStartedAt.current) / 1000)) : 0;
-      callStartedAt.current = null;
-      await room?.localParticipant?.setCameraEnabled?.(false);
-      await room?.localParticipant?.setMicrophoneEnabled?.(false);
+    await room?.localParticipant?.setCameraEnabled?.(false);
+    await room?.localParticipant?.setMicrophoneEnabled?.(false);
+    const elapsed = callStartedAt.current ? Math.max(0, Math.round((Date.now() - callStartedAt.current) / 1000)) : 0;
+    callStartedAt.current = null;
+    if (elapsed > 0) {
       void recordAppointmentCallEvent(appointmentId, "ended", elapsed).catch(() => undefined);
-      setCallOn(false);
+    }
+    setCallPhase("idle");
+    setActiveCallId(null);
+    setCallElapsed(0);
+    callHub.onEnded();
+  }
+
+  async function enterInCall(mode: CallMode, callId: string) {
+    if (!livekitReady) return;
+    const room = roomRef.current as
+      | {
+          localParticipant?: {
+            setCameraEnabled?: (on: boolean) => Promise<void>;
+            setMicrophoneEnabled?: (on: boolean) => Promise<void>;
+            videoTrackPublications?: Map<string, { track?: { mediaStream?: MediaStream } }>;
+          };
+        }
+      | null;
+    setCameraOff(mode === "audio");
+    setMuted(false);
+    await room?.localParticipant?.setMicrophoneEnabled?.(true);
+    await room?.localParticipant?.setCameraEnabled?.(mode === "video");
+    room?.localParticipant?.videoTrackPublications?.forEach((pub) => {
+      if (pub.track?.mediaStream) {
+        localStreamRef.current = pub.track.mediaStream;
+        setLocalStream(pub.track.mediaStream);
+      }
+    });
+    callStartedAt.current = Date.now();
+    setActiveCallId(callId);
+    setCallMode(mode);
+    setCallPhase("in_call");
+    void recordAppointmentCallEvent(appointmentId, "started").catch(() => undefined);
+  }
+
+  async function startCall(mode: CallMode) {
+    if (!livekitReady) {
+      const description = livekitConfigured
+        ? "Call service is configured but not connected. Try leaving and rejoining the room."
+        : "LiveKit is not configured. Chat still works.";
+      toast({ title: "Call unavailable", description });
+      return;
+    }
+    setCallBusy(true);
+    try {
+      const payload = await ringAppointmentCall(appointmentId, mode);
+      const callId = payload.call_id;
+      setCallMode(mode);
+      setActiveCallId(callId);
+      setCallPhase("outgoing_ring");
+      callHub.startOutgoing({
+        appointmentId,
+        callId,
+        mode,
+        counterpartName: counterpart,
+      });
+      if (ringTimeoutRef.current) window.clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = window.setTimeout(() => {
+        void cancelOutgoing(callId);
+        toast({ title: "No answer", description: `${counterpart} did not answer.` });
+      }, 45000);
+    } catch (err) {
+      toast({ title: "Could not start call", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setCallBusy(false);
+    }
+  }
+
+  async function cancelOutgoing(callIdOverride?: string) {
+    const callId = callIdOverride ?? activeCallId;
+    if (!callId || (callPhase !== "outgoing_ring" && !callIdOverride)) return;
+    setCallBusy(true);
+    try {
+      await cancelAppointmentCall(appointmentId, callId);
+    } catch {
+      /* ignore */
+    } finally {
+      if (ringTimeoutRef.current) window.clearTimeout(ringTimeoutRef.current);
+      stopCallRingtone();
+      setCallPhase("idle");
+      setActiveCallId(null);
+      callHub.onDeclinedOrCancelled();
+      setCallBusy(false);
+    }
+  }
+
+  async function acceptIncoming() {
+    if (!incomingCall) return;
+    setCallBusy(true);
+    try {
+      await respondAppointmentCall(appointmentId, incomingCall.call_id, "accept");
+      stopCallRingtone();
+      await enterInCall(incomingCall.mode, incomingCall.call_id);
+      setIncomingCall(null);
+      callHub.onAccepted(incomingCall, counterpart);
+    } catch (err) {
+      toast({ title: "Could not join call", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setCallBusy(false);
+    }
+  }
+
+  async function declineIncoming() {
+    if (!incomingCall) return;
+    setCallBusy(true);
+    try {
+      await respondAppointmentCall(appointmentId, incomingCall.call_id, "decline");
+    } catch {
+      /* ignore */
+    } finally {
+      stopCallRingtone();
+      setIncomingCall(null);
+      setCallPhase("idle");
+      callHub.onDeclinedOrCancelled();
+      setCallBusy(false);
+    }
+  }
+
+  async function endCall() {
+    setCallBusy(true);
+    try {
+      await disableCallTracks();
+    } finally {
+      setCallBusy(false);
     }
   }
 
@@ -625,6 +871,13 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             {present ? "In the room" : "Not present"} · <RoomCountdown endAt={endAt} /> remaining
             {sseOn ? " · Live" : " · Reconnecting"}
+            {livekitReady
+              ? " · Calls available"
+              : livekitConfigured && livekitConnectFailed
+                ? " · Call connect failed"
+                : livekitConfigured
+                  ? " · Connecting calls…"
+                  : " · Chat only"}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -676,10 +929,11 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
-        {callOn && (
+        {callPhase === "in_call" && (
           <div className="mx-auto h-[28vh] max-h-56 w-full max-w-[680px] shrink-0 px-4 md:mx-0 md:h-auto md:max-h-none md:w-[40%] md:min-h-0">
             <CallStage
-              visible={callOn}
+              visible
+              mode={callMode}
               localStream={localStream}
               remoteStream={remoteStreamRef.current}
               counterpartName={counterpart}
@@ -698,36 +952,50 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         </div>
       </div>
 
+      {callPhase === "incoming_ring" && incomingCall ? (
+        <IncomingCallOverlay
+          counterpartName={incomingCall.caller_name}
+          mode={incomingCall.mode}
+          onAccept={() => void acceptIncoming()}
+          onDecline={() => void declineIncoming()}
+          busy={callBusy}
+        />
+      ) : null}
+
+      {callPhase === "outgoing_ring" ? (
+        <OutgoingCallOverlay
+          counterpartName={counterpart}
+          mode={callMode}
+          onCancel={() => void cancelOutgoing()}
+          cancelling={callBusy}
+        />
+      ) : null}
+
       <form
         onSubmit={handleSend}
         className="mx-auto w-full max-w-[680px] shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
       >
-        <div className="mb-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void toggleCall()}
-            className={cn("h-9 rounded-xl px-3 text-[12px] font-semibold", callOn ? "mp-btn-accent" : "mp-btn-primary")}
-          >
-            {callOn ? <PhoneOff className="mr-1 h-3.5 w-3.5" /> : <Phone className="mr-1 h-3.5 w-3.5" />}
-            {callOn ? "End call" : "Call"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void toggleMute()}
-            className="mp-btn-primary h-9 rounded-xl px-3 text-[12px]"
-            disabled={!callOn}
-          >
-            {muted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => void toggleCamera()}
-            className="mp-btn-primary h-9 rounded-xl px-3 text-[12px]"
-            disabled={!callOn}
-          >
-            {cameraOff ? <VideoOff className="h-3.5 w-3.5" /> : <Video className="h-3.5 w-3.5" />}
-          </button>
-        </div>
+        {callPhase === "idle" && livekitReady ? (
+          <CallTypePicker
+            className="mb-2"
+            disabled={callBusy}
+            onAudio={() => void startCall("audio")}
+            onVideo={() => void startCall("video")}
+          />
+        ) : null}
+        {callPhase === "in_call" ? (
+          <CallControlsDock
+            className="mb-2"
+            mode={callMode}
+            muted={muted}
+            cameraOff={cameraOff}
+            elapsedLabel={`${Math.floor(callElapsed / 60)}:${String(callElapsed % 60).padStart(2, "0")}`}
+            onToggleMute={() => void toggleMute()}
+            onToggleCamera={() => void toggleCamera()}
+            onEnd={() => void endCall()}
+            ending={callBusy}
+          />
+        ) : null}
         <div className="flex items-end gap-2 border-t border-black/[0.06] pt-3 dark:border-white/[0.08]">
           <input
             ref={fileRef}
@@ -803,7 +1071,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       )}
       <CameraCapture
         open={cameraOpen}
-        reuseStream={callOn ? localStream : null}
+        reuseStream={callPhase === "in_call" ? localStream : null}
         onClose={() => setCameraOpen(false)}
         onSend={(file, caption) => shareFile(file, "screenshot", caption)}
       />

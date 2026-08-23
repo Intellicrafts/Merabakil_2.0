@@ -18,9 +18,13 @@ from app.api.schemas import (
     AppointmentOut,
     AttachmentOut,
     BookAppointmentRequest,
+    CallCancelRequest,
     CallEventRequest,
+    CallRespondRequest,
+    CallRingRequest,
     EmergencyRequest,
     ExtendRequest,
+    IncomingCallPayload,
     JoinStateOut,
     LawyerMeUpdate,
     LawyerPublic,
@@ -39,16 +43,24 @@ from app.api.schemas import (
 from app.application.summary import LawyerSummaryGenerator
 from app.infrastructure.lawyer_vector_store import get_lawyer_vector_store
 from app.application.appointments import (
+    accept_call,
     book,
+    call_payload,
+    cancel_call,
+    decline_call,
+    end_call,
+    get_active_call,
     join_phase,
     now_ist,
     opponent_typing,
+    pending_incoming_call,
     pending_summon,
     promote_live_if_active,
     refresh_status,
     seconds_until_end,
     seconds_until_start,
     set_typing,
+    start_ring,
 )
 from app.application.livekit_tokens import mint_room_token
 from app.application.matching import score_lawyer
@@ -300,6 +312,47 @@ async def _emit_summon_cleared(appointment_id: uuid.UUID, user_id: uuid.UUID) ->
     await publish_user(str(user_id), {"type": "summon_cleared", "appointment_id": str(appointment_id), "payload": payload})
 
 
+def _incoming_call_payload(session) -> IncomingCallPayload:
+    data = call_payload(session)
+    return IncomingCallPayload(**data)
+
+
+async def _emit_call_event(
+    row: Consultation,
+    event_type: str,
+    session,
+    *,
+    extra_user_ids: list[str] | None = None,
+) -> None:
+    payload = call_payload(session)
+    frame = {"type": event_type, "payload": payload}
+    await publish(str(row.id), frame)
+    await publish_admin({"type": event_type, "appointment_id": str(row.id), "payload": payload})
+    targets = {session.caller_id, session.target_id, *(extra_user_ids or [])}
+    for uid in targets:
+        await publish_user(uid, {"type": event_type, "appointment_id": str(row.id), "payload": payload})
+
+
+async def _emit_incoming_call(row: Consultation, session) -> None:
+    await _emit_call_event(row, "incoming_call", session)
+
+
+async def _emit_call_accepted(row: Consultation, session) -> None:
+    await _emit_call_event(row, "call_accepted", session)
+
+
+async def _emit_call_declined(row: Consultation, session) -> None:
+    await _emit_call_event(row, "call_declined", session)
+
+
+async def _emit_call_cancelled(row: Consultation, session) -> None:
+    await _emit_call_event(row, "call_cancelled", session)
+
+
+async def _emit_call_ended(row: Consultation, session) -> None:
+    await _emit_call_event(row, "call_ended", session)
+
+
 async def _emit_ops_update(
     repo: MarketplaceRepository,
     row: Consultation,
@@ -329,6 +382,7 @@ async def _join_state(
     *,
     pending_summon_override: bool | None = None,
 ) -> JoinStateOut:
+    pending_call = pending_incoming_call(row.id, uid)
     return JoinStateOut(
         appointment_id=str(row.id),
         join_state=join_phase(row),
@@ -345,6 +399,7 @@ async def _join_state(
         emergency_reason=getattr(row, "emergency_reason", None) or "",
         last_summon_at=_iso(row.last_summon_at) if row.summon_for_user_id == uid and row.last_summon_at else None,
         prior_join=await _prior_join(repo, row, uid),
+        pending_incoming_call=IncomingCallPayload(**pending_call) if pending_call else None,
     )
 
 
@@ -926,6 +981,80 @@ async def dismiss_summon(
     return await _join_state(repo, row, uid, pending_summon_override=False)
 
 
+@appointments_router.post("/{appointment_id}/call/ring")
+async def ring_call(
+    appointment_id: uuid.UUID,
+    body: CallRingRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> IncomingCallPayload:
+    repo = MarketplaceRepository(session)
+    row = await _load(repo, appointment_id, user)
+    if join_phase(row) != "joinable":
+        raise HTTPException(status_code=403, detail="Join window is closed")
+    uid = uuid.UUID(user.user_id)
+    target = row.lawyer_user_id if uid == row.citizen_user_id else row.citizen_user_id
+    if uid == target:
+        raise HTTPException(status_code=409, detail="Cannot call yourself")
+    caller_name = row.citizen_display_name if uid == row.citizen_user_id else row.lawyer_display_name
+    try:
+        call_session = start_ring(
+            appointment_id=row.id,
+            caller_id=uid,
+            target_id=target,
+            mode=body.mode,
+            caller_name=caller_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await repo.add_event(row.id, "call_ring", uid, {"mode": body.mode, "call_id": call_session.call_id})
+    await _emit_incoming_call(row, call_session)
+    return _incoming_call_payload(call_session)
+
+
+@appointments_router.post("/{appointment_id}/call/respond")
+async def respond_call(
+    appointment_id: uuid.UUID,
+    body: CallRespondRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> IncomingCallPayload:
+    repo = MarketplaceRepository(session)
+    row = await _load(repo, appointment_id, user)
+    uid = uuid.UUID(user.user_id)
+    try:
+        if body.action == "accept":
+            call_session = accept_call(row.id, body.call_id, uid)
+            await repo.add_event(row.id, "call_accepted", uid, {"call_id": body.call_id})
+            await _emit_call_accepted(row, call_session)
+        else:
+            call_session = decline_call(row.id, body.call_id, uid)
+            await repo.add_event(row.id, "call_declined", uid, {"call_id": body.call_id})
+            await _emit_call_declined(row, call_session)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _incoming_call_payload(call_session)
+
+
+@appointments_router.post("/{appointment_id}/call/cancel")
+async def cancel_call_endpoint(
+    appointment_id: uuid.UUID,
+    body: CallCancelRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> IncomingCallPayload:
+    repo = MarketplaceRepository(session)
+    row = await _load(repo, appointment_id, user)
+    uid = uuid.UUID(user.user_id)
+    try:
+        call_session = cancel_call(row.id, body.call_id, uid)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await repo.add_event(row.id, "call_cancelled", uid, {"call_id": body.call_id})
+    await _emit_call_cancelled(row, call_session)
+    return _incoming_call_payload(call_session)
+
+
 @appointments_router.post("/{appointment_id}/call-event")
 async def record_call_event(
     appointment_id: uuid.UUID,
@@ -944,6 +1073,11 @@ async def record_call_event(
         await repo.add_event(
             row.id, "call_ended", uuid.UUID(user.user_id), {"talk_seconds": body.talk_seconds}
         )
+        active = get_active_call(row.id)
+        if active:
+            ended = end_call(row.id)
+            if ended:
+                await _emit_call_ended(row, ended)
     return {"ok": True, "metrics": metrics}
 
 

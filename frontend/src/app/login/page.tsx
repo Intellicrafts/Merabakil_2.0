@@ -1,18 +1,19 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
 import { AuthDivider } from "@/components/auth/auth-divider";
 import { AuthLayout } from "@/components/auth/auth-layout";
+import { GoogleOneTapPrompt } from "@/components/auth/google-one-tap-prompt";
 import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { login, setSession, syncAdvocateListing } from "@/lib/api";
+import { isGoogleAuthEnabled } from "@/lib/auth/google-flow";
 import { loginRedirectForUser } from "@/lib/permissions";
 
 function LoginForm() {
@@ -22,6 +23,8 @@ function LoginForm() {
   const nextPath = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const googleEnabled = isGoogleAuthEnabled();
 
   const mutation = useMutation({
     mutationFn: () => login(email, password),
@@ -36,6 +39,8 @@ function LoginForm() {
     },
   });
 
+  const displayError = googleError || (mutation.isError ? (mutation.error as Error).message : null);
+
   return (
     <AuthLayout
       title="Welcome back"
@@ -49,13 +54,19 @@ function LoginForm() {
         </>
       }
     >
-      <SocialLoginButtons />
+      {googleEnabled ? <GoogleOneTapPrompt /> : null}
+      <SocialLoginButtons
+        nextPath={nextPath}
+        disabled={mutation.isPending}
+        onError={(message) => setGoogleError(message)}
+      />
       <AuthDivider />
 
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
+          setGoogleError(null);
           mutation.mutate();
         }}
       >
@@ -96,9 +107,9 @@ function LoginForm() {
             Your session expired. Please sign in again to continue.
           </p>
         )}
-        {mutation.isError && (
+        {displayError && (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {(mutation.error as Error).message}
+            {displayError}
           </p>
         )}
 

@@ -7,7 +7,6 @@ test.describe("Legal OS smoke", () => {
     await expect(page.getByRole("heading", { name: /Meet Mera Vakil/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Sign In/i }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Get Started/i }).first()).toBeVisible();
-    await expect(page.getByText(/Platform preview/i)).toBeVisible();
     await expect(page.getByRole("tab", { name: /Chat/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Consult/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Documents/i })).toBeVisible();
@@ -15,6 +14,7 @@ test.describe("Legal OS smoke", () => {
 
   test("login redirects to role dashboard", async ({ page }) => {
     await page.goto("/login");
+    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
     await page.getByLabel(/email/i).fill("admin@legalos.in");
     await page.getByLabel(/password/i).fill("ChangeMe!2026");
     await page.getByRole("button", { name: /sign in/i }).click();

@@ -96,7 +96,7 @@ Keep using the `/svc/*` proxy env from `frontend/.env.public.example`.
 - **Blank page / API errors on phone** — Run `make public` (not raw port-forward of 3000 alone). Confirm `frontend/.env.local` uses `/svc/...` URLs.
 - **Tunnel URL never appears** — Check `data/.public-tunnel.log`; install `cloudflared` manually if download failed.
 - **502 on first visit** — Wait for Next.js compile (~10–30s after tunnel starts).
-- **LiveKit video** — Set `LIVEKIT_URL` to a cloud LiveKit project; local `wss://` will not work through the tunnel unless LiveKit is also public.
+- **LiveKit video** — Set `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` in root `.env` (LiveKit Cloud). See [scripts/livekit-setup.md](../scripts/livekit-setup.md). Same cloud URL works locally and through the tunnel; no frontend env vars needed.
 
 ## Security notes
 

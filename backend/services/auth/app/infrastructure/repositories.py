@@ -13,6 +13,7 @@ from app.infrastructure.models import (
     CitizenProfile,
     EnterpriseProfile,
     LawFirmProfile,
+    OAuthIdentity,
     PasswordResetToken,
     RefreshToken,
     Role,
@@ -33,8 +34,20 @@ class SqlAlchemyUserRepository:
     async def get_by_id(self, user_id: uuid.UUID) -> User | None:
         return await self._session.get(User, user_id)
 
-    async def create(self, *, email: str, full_name: str, hashed_password: str) -> User:
-        user = User(email=email, full_name=full_name, hashed_password=hashed_password)
+    async def create(
+        self,
+        *,
+        email: str,
+        full_name: str,
+        hashed_password: str | None = None,
+        is_verified: bool = False,
+    ) -> User:
+        user = User(
+            email=email,
+            full_name=full_name,
+            hashed_password=hashed_password,
+            is_verified=is_verified,
+        )
         self._session.add(user)
         await self._session.flush()
         return user
@@ -68,6 +81,40 @@ class SqlAlchemyUserRepository:
             select(User).order_by(User.created_at.desc()).offset(offset).limit(limit)
         )
         return list(result.scalars().all()), total
+
+
+class SqlAlchemyOAuthIdentityRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_provider_user(
+        self, *, provider: str, provider_user_id: str
+    ) -> OAuthIdentity | None:
+        result = await self._session.execute(
+            select(OAuthIdentity).where(
+                OAuthIdentity.provider == provider,
+                OAuthIdentity.provider_user_id == provider_user_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        provider: str,
+        provider_user_id: str,
+        email: str | None,
+    ) -> OAuthIdentity:
+        identity = OAuthIdentity(
+            user_id=user_id,
+            provider=provider,
+            provider_user_id=provider_user_id,
+            email=email,
+        )
+        self._session.add(identity)
+        await self._session.flush()
+        return identity
 
 
 class SqlAlchemyRefreshTokenRepository:

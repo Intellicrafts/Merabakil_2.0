@@ -31,8 +31,8 @@ export function DemoCardShell({
 }: DemoCardShellProps) {
   if (variant === "minimal") {
     return (
-      <div className={cn("demo-surface relative w-full select-none", className)}>
-        <div className="relative">{children}</div>
+      <div className={cn("demo-surface relative h-full w-full select-none", className)}>
+        <div className="relative h-full">{children}</div>
       </div>
     );
   }

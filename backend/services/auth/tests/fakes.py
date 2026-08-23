@@ -18,7 +18,7 @@ class FakeUser:
     id: uuid.UUID
     email: str
     full_name: str
-    hashed_password: str
+    hashed_password: str | None
     is_active: bool = True
     is_verified: bool = False
     roles_data: list[FakeRole] = field(default_factory=list)
@@ -33,6 +33,15 @@ class FakeUser:
         for r in self.roles_data:
             codes.update(r.permissions)
         return sorted(codes)
+
+
+@dataclass
+class FakeOAuthIdentity:
+    id: uuid.UUID
+    user_id: uuid.UUID
+    provider: str
+    provider_user_id: str
+    email: str | None
 
 
 from legalos_common.security.rbac import Permission
@@ -80,9 +89,20 @@ class FakeUserRepository:
     async def get_by_id(self, user_id: uuid.UUID) -> FakeUser | None:
         return self.store.get(user_id)
 
-    async def create(self, *, email: str, full_name: str, hashed_password: str) -> FakeUser:
+    async def create(
+        self,
+        *,
+        email: str,
+        full_name: str,
+        hashed_password: str | None = None,
+        is_verified: bool = False,
+    ) -> FakeUser:
         user = FakeUser(
-            id=uuid.uuid4(), email=email, full_name=full_name, hashed_password=hashed_password
+            id=uuid.uuid4(),
+            email=email,
+            full_name=full_name,
+            hashed_password=hashed_password,
+            is_verified=is_verified,
         )
         self.store[user.id] = user
         return user
@@ -102,6 +122,41 @@ class FakeUserRepository:
     async def list_users(self, *, offset: int, limit: int) -> tuple[list[FakeUser], int]:
         users = list(self.store.values())
         return users[offset : offset + limit], len(users)
+
+
+class FakeOAuthIdentityRepository:
+    def __init__(self) -> None:
+        self.store: list[FakeOAuthIdentity] = []
+
+    async def get_by_provider_user(
+        self, *, provider: str, provider_user_id: str
+    ) -> FakeOAuthIdentity | None:
+        return next(
+            (
+                i
+                for i in self.store
+                if i.provider == provider and i.provider_user_id == provider_user_id
+            ),
+            None,
+        )
+
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        provider: str,
+        provider_user_id: str,
+        email: str | None,
+    ) -> FakeOAuthIdentity:
+        identity = FakeOAuthIdentity(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            provider=provider,
+            provider_user_id=provider_user_id,
+            email=email,
+        )
+        self.store.append(identity)
+        return identity
 
 
 class FakeRefreshTokenRepository:

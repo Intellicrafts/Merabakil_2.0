@@ -22,7 +22,7 @@ PUBLIC_ENV = ROOT / "frontend" / ".env.public.example"
 FRONTEND_ENV = ROOT / "frontend" / ".env.local"
 LOCAL_ENV_BACKUP = ROOT / "frontend" / ".env.local.bak"
 TUNNEL_LOG = ROOT / "data" / ".public-tunnel.log"
-PUBLIC_URL_FILE = ROOT / "data" / ".public-url"
+SYNC_GOOGLE_ENV = ROOT / "scripts" / "sync_frontend_google_env.sh"
 
 procs: list[subprocess.Popen] = []
 
@@ -69,6 +69,8 @@ def _apply_public_frontend_env() -> None:
         shutil.copy2(FRONTEND_ENV, LOCAL_ENV_BACKUP)
         print("  Backed up frontend/.env.local → frontend/.env.local.bak", flush=True)
     shutil.copy2(PUBLIC_ENV, FRONTEND_ENV)
+    if SYNC_GOOGLE_ENV.is_file():
+        subprocess.run(["bash", str(SYNC_GOOGLE_ENV)], check=False, cwd=str(ROOT))
     print("  Applied public API proxy env (frontend/.env.local)", flush=True)
 
 

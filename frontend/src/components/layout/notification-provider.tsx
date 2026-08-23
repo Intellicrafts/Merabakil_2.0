@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 
 import { useInboxEvents, type InboxStreamEvent } from "@/hooks/use-inbox-events";
+import type { IncomingCallPayload } from "@/lib/appointment-types";
+import { callHub } from "@/lib/call-hub";
 import { notificationHub } from "@/lib/notification-hub";
 import { requestNotificationPermission } from "@/lib/room-alerts";
 
@@ -52,9 +54,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (event.type === "summon_cleared" && event.appointment_id) {
       notificationHub.clearSummon(event.appointment_id);
     }
+    if (
+      (event.type === "call_cancelled" ||
+        event.type === "call_declined" ||
+        event.type === "call_ended" ||
+        event.type === "call_missed") &&
+      event.appointment_id
+    ) {
+      callHub.onDeclinedOrCancelled();
+    }
   }, []);
 
-  const { connected } = useInboxEvents(handleSummon, handleInboxEvent);
+  const handleIncomingCall = useCallback(
+    (payload: IncomingCallPayload) => {
+      const inRoom = pathname === `/appointments/${payload.appointment_id}/room`;
+      callHub.ingestIncoming(payload, { inRoom });
+    },
+    [pathname],
+  );
+
+  const { connected } = useInboxEvents(handleSummon, handleInboxEvent, handleIncomingCall);
 
   useEffect(() => {
     notificationHub.setInboxConnected(connected);

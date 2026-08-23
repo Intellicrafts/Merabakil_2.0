@@ -5,10 +5,14 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 
 from app.api.deps import enforce_rate_limit, get_auth_service, get_auth_settings
 from app.api.schemas import (
     AuthResponse,
+    GoogleAuthRequest,
+    GoogleCompleteRequest,
+    GoogleNeedsRoleResponse,
     LoginRequest,
     MessageResponse,
     PasswordResetConfirm,
@@ -19,7 +23,7 @@ from app.api.schemas import (
     TokenResponse,
     UserResponse,
 )
-from app.application.use_cases import AuthResult, AuthService
+from app.application.use_cases import AuthResult, AuthService, GoogleNeedsRoleResult
 from legalos_common.api.pagination import Page, PageParams, paginate
 from legalos_common.security.rbac import (
     CurrentUser,
@@ -45,6 +49,15 @@ def _to_auth_response(result: AuthResult) -> AuthResponse:
             access_token=result.tokens.access_token,
             refresh_token=result.tokens.refresh_token,
         ),
+    )
+
+
+def _to_google_needs_role_response(result: GoogleNeedsRoleResult) -> GoogleNeedsRoleResponse:
+    return GoogleNeedsRoleResponse(
+        onboarding_token=result.onboarding_token,
+        email=result.email,
+        full_name=result.full_name,
+        picture=result.picture,
     )
 
 
@@ -79,6 +92,42 @@ async def login(
     service: AuthService = Depends(get_auth_service),
 ) -> AuthResponse:
     result = await service.authenticate(email=body.email, password=body.password)
+    return _to_auth_response(result)
+
+
+@router.post(
+    "/google",
+    dependencies=[Depends(enforce_rate_limit)],
+    summary="Authenticate with Google Identity Services credential",
+)
+async def google_auth(
+    body: GoogleAuthRequest,
+    service: AuthService = Depends(get_auth_service),
+):
+    result = await service.authenticate_with_google(id_token=body.id_token)
+    if isinstance(result, GoogleNeedsRoleResult):
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=_to_google_needs_role_response(result).model_dump(),
+        )
+    return _to_auth_response(result)
+
+
+@router.post(
+    "/google/complete",
+    response_model=AuthResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_rate_limit)],
+    summary="Complete Google registration with role selection",
+)
+async def google_complete(
+    body: GoogleCompleteRequest,
+    service: AuthService = Depends(get_auth_service),
+) -> AuthResponse:
+    result = await service.complete_google_registration(
+        onboarding_token=body.onboarding_token,
+        role=body.role.value,
+    )
     return _to_auth_response(result)
 
 

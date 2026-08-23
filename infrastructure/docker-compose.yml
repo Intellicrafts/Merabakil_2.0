@@ -117,6 +117,8 @@ services:
     environment:
       PORT: "8001"
       RUN_MIGRATIONS: "true"
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
     ports: ["8001:8001"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -254,6 +256,7 @@ services:
       NEXT_PUBLIC_DOCUMENT_API_URL: http://localhost:8005
       NEXT_PUBLIC_RESEARCH_API_URL: http://localhost:8004
       NEXT_PUBLIC_SEARCH_API_URL: http://localhost:8003
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     ports: ["3000:3000"]
     depends_on:
       auth: { condition: service_started }

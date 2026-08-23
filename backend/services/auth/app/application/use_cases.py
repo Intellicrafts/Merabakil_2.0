@@ -3,17 +3,28 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from jose import JWTError
+
 from app.application.ports import (
+    OAuthIdentityRepository,
     PasswordResetRepository,
     RefreshTokenRepository,
     UserRepository,
 )
 from app.config import AuthSettings
+from app.infrastructure.google_oauth import (
+    GOOGLE_PROVIDER,
+    GoogleProfile,
+    create_onboarding_token,
+    decode_onboarding_token,
+    verify_google_id_token,
+)
 from legalos_common.api.errors import ConflictError, NotFoundError, UnauthorizedError
 from legalos_common.security import (
     TokenType,
@@ -24,6 +35,10 @@ from legalos_common.security import (
     verify_password,
 )
 from legalos_common.security.jwt import TokenPayload
+
+logger = logging.getLogger(__name__)
+
+_SELF_SERVICE_ROLES = {"citizen", "advocate", "law_firm", "enterprise"}
 
 
 @dataclass(slots=True)
@@ -43,6 +58,15 @@ class AuthResult:
     tokens: TokenPair
 
 
+@dataclass(slots=True)
+class GoogleNeedsRoleResult:
+    status: str
+    onboarding_token: str
+    email: str
+    full_name: str
+    picture: str | None
+
+
 class AuthService:
     """Implements register/login/refresh/password-reset business rules."""
 
@@ -50,11 +74,13 @@ class AuthService:
         self,
         *,
         users: UserRepository,
+        oauth_identities: OAuthIdentityRepository,
         refresh_tokens: RefreshTokenRepository,
         password_resets: PasswordResetRepository,
         settings: AuthSettings,
     ) -> None:
         self._users = users
+        self._oauth_identities = oauth_identities
         self._refresh_tokens = refresh_tokens
         self._password_resets = password_resets
         self._settings = settings
@@ -83,6 +109,36 @@ class AuthService:
             tokens=tokens,
         )
 
+    async def _login_user(self, user) -> AuthResult:
+        if not user.is_active:
+            raise UnauthorizedError("Account is disabled")
+        if not user.role_names:
+            raise UnauthorizedError("Account setup is incomplete. Please contact support.")
+        tokens = await self._issue_tokens(user)
+        return self._to_result(user, tokens)
+
+    def _verify_google_token(self, id_token_str: str) -> GoogleProfile:
+        client_id = self._settings.google_oauth_client_id
+        if not client_id:
+            raise UnauthorizedError("Google sign-in is not configured")
+        try:
+            return verify_google_id_token(id_token_str, client_id=client_id)
+        except ValueError as exc:
+            raise UnauthorizedError("Invalid Google token") from exc
+
+    async def _link_google_identity(self, user, profile: GoogleProfile) -> None:
+        existing = await self._oauth_identities.get_by_provider_user(
+            provider=GOOGLE_PROVIDER, provider_user_id=profile.sub
+        )
+        if existing is None:
+            await self._oauth_identities.create(
+                user_id=user.id,
+                provider=GOOGLE_PROVIDER,
+                provider_user_id=profile.sub,
+                email=profile.email,
+            )
+            logger.info("google_auth.link user_id=%s", user.id)
+
     # ---- use cases ------------------------------------------------------- #
     async def register(
         self, *, email: str, full_name: str, password: str, role: str = "citizen"
@@ -101,12 +157,85 @@ class AuthService:
 
     async def authenticate(self, *, email: str, password: str) -> AuthResult:
         user = await self._users.get_by_email(email)
-        if user is None or not verify_password(password, user.hashed_password):
+        if user is None or not user.hashed_password:
             raise UnauthorizedError("Invalid email or password")
-        if not user.is_active:
-            raise UnauthorizedError("Account is disabled")
-        tokens = await self._issue_tokens(user)
-        return self._to_result(user, tokens)
+        if not verify_password(password, user.hashed_password):
+            raise UnauthorizedError("Invalid email or password")
+        return await self._login_user(user)
+
+    async def authenticate_with_google(
+        self, *, id_token: str
+    ) -> AuthResult | GoogleNeedsRoleResult:
+        profile = self._verify_google_token(id_token)
+
+        identity = await self._oauth_identities.get_by_provider_user(
+            provider=GOOGLE_PROVIDER, provider_user_id=profile.sub
+        )
+        if identity is not None:
+            user = await self._users.get_by_id(identity.user_id)
+            if user is None:
+                raise UnauthorizedError("Linked account not found")
+            logger.info("google_auth.login user_id=%s", user.id)
+            return await self._login_user(user)
+
+        user = await self._users.get_by_email(profile.email)
+        if user is not None:
+            await self._link_google_identity(user, profile)
+            logger.info("google_auth.link_login user_id=%s", user.id)
+            return await self._login_user(user)
+
+        logger.info("google_auth.needs_role email=%s", profile.email)
+        return GoogleNeedsRoleResult(
+            status="needs_role",
+            onboarding_token=create_onboarding_token(profile),
+            email=profile.email,
+            full_name=profile.full_name,
+            picture=profile.picture,
+        )
+
+    async def complete_google_registration(
+        self, *, onboarding_token: str, role: str
+    ) -> AuthResult:
+        if role not in _SELF_SERVICE_ROLES:
+            raise ConflictError("Invalid role for self-service registration")
+
+        try:
+            payload = decode_onboarding_token(onboarding_token)
+        except JWTError as exc:
+            raise UnauthorizedError("Invalid or expired onboarding token") from exc
+
+        existing_identity = await self._oauth_identities.get_by_provider_user(
+            provider=GOOGLE_PROVIDER, provider_user_id=payload.google_sub
+        )
+        if existing_identity is not None:
+            user = await self._users.get_by_id(existing_identity.user_id)
+            if user is None:
+                raise UnauthorizedError("Linked account not found")
+            return await self._login_user(user)
+
+        if await self._users.get_by_email(payload.email):
+            raise ConflictError("An account with this email already exists")
+
+        user = await self._users.create(
+            email=payload.email,
+            full_name=payload.full_name,
+            hashed_password=None,
+            is_verified=True,
+        )
+        await self._oauth_identities.create(
+            user_id=user.id,
+            provider=GOOGLE_PROVIDER,
+            provider_user_id=payload.google_sub,
+            email=payload.email,
+        )
+        await self._users.assign_roles(user, [role])
+        await self._users.create_role_profile(user, role)
+
+        refreshed = await self._users.get_by_id(user.id)
+        assert refreshed is not None
+        logger.info("google_auth.signup user_id=%s role=%s", refreshed.id, role)
+        tokens = await self._issue_tokens(refreshed)
+        return self._to_result(refreshed, tokens)
 
     async def refresh(self, *, refresh_token: str) -> TokenPair:
         try:
@@ -122,7 +251,6 @@ class AuthService:
         if user is None:
             raise UnauthorizedError("User no longer exists")
 
-        # Rotate: revoke the presented token, issue a fresh pair.
         await self._refresh_tokens.revoke(payload.jti)
         return await self._issue_tokens(user)
 
@@ -130,7 +258,7 @@ class AuthService:
         """Return a reset token (delivered out-of-band in production via email)."""
         user = await self._users.get_by_email(email)
         if user is None:
-            return None  # do not leak account existence
+            return None
         raw_token = secrets.token_urlsafe(32)
         token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
         await self._password_resets.create(

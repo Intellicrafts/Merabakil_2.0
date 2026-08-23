@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
 import { AuthDivider } from "@/components/auth/auth-divider";
@@ -15,21 +15,30 @@ import { Select } from "@/components/ui/select";
 import { register, setSession, syncAdvocateListing } from "@/lib/api";
 import { loginRedirectForUser } from "@/lib/permissions";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("citizen");
+  const [googleError, setGoogleError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => register(email, fullName || email.split("@")[0], password, role),
     onSuccess: async (auth) => {
       setSession(auth);
       await syncAdvocateListing();
+      if (nextPath && nextPath.startsWith("/")) {
+        router.push(nextPath);
+        return;
+      }
       router.push(loginRedirectForUser(auth.user));
     },
   });
+
+  const displayError = googleError || (mutation.isError ? (mutation.error as Error).message : null);
 
   return (
     <AuthLayout
@@ -44,13 +53,18 @@ export default function RegisterPage() {
         </>
       }
     >
-      <SocialLoginButtons />
+      <SocialLoginButtons
+        nextPath={nextPath}
+        disabled={mutation.isPending}
+        onError={(message) => setGoogleError(message)}
+      />
       <AuthDivider />
 
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
+          setGoogleError(null);
           mutation.mutate();
         }}
       >
@@ -97,10 +111,10 @@ export default function RegisterPage() {
           </Select>
         </div>
 
-        {mutation.isError && (
+        {displayError && (
           <div className="space-y-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            <p>{(mutation.error as Error).message}</p>
-            {(mutation.error as Error).message.toLowerCase().includes("already exists") && (
+            <p>{displayError}</p>
+            {displayError.toLowerCase().includes("already exists") && (
               <p>
                 <Link href="/login" className="font-medium underline underline-offset-2">
                   Go to sign in
@@ -115,5 +129,13 @@ export default function RegisterPage() {
         </Button>
       </form>
     </AuthLayout>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }

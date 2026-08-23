@@ -2,7 +2,7 @@ const STACK_KEY = "legalos.nav.stack";
 const SKIP_KEY = "legalos.nav.skipNext";
 const FALLBACK = "/dashboard";
 
-const PUBLIC_PREFIXES = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_PREFIXES = ["/login", "/register", "/forgot-password", "/reset-password", "/auth/onboarding"];
 
 /** Module list routes — top-level destinations after dashboard. */
 const MODULE_ROOTS = [

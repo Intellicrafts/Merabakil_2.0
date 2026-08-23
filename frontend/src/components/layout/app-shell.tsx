@@ -10,6 +10,7 @@ import { BackButton } from "@/components/layout/back-button";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { NotificationProvider } from "@/components/layout/notification-provider";
 import { SummonAlertHost } from "@/components/layout/summon-alert-host";
+import { IncomingCallHost } from "@/components/layout/incoming-call-host";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -69,6 +70,7 @@ function AppTopBar({
   onSignOut: () => void;
   onOpenPalette: () => void;
 }) {
+  const router = useRouter();
   const [modKey, setModKey] = useState("Ctrl");
 
   useEffect(() => {
@@ -148,11 +150,9 @@ function AppTopBar({
             )}
             {user?.roles?.includes("advocate") && (
               <>
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="flex items-center">
-                    <UserCircle className="mr-2 h-4 w-4" />
-                    My profile
-                  </Link>
+                <DropdownMenuItem onClick={() => router.push("/profile")}>
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  My profile
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
@@ -242,6 +242,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onOpenPalette={() => setPaletteOpen(true)}
         />
         <SummonAlertHost />
+        <IncomingCallHost />
         {isHome && (
           <DashboardCommandPalette
             open={paletteOpen}

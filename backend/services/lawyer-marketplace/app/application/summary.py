@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from legalos_common.clients.llm import ChatMessage, LLMClient
 
-from app.infrastructure.models import Lawyer
+from app.infrastructure.lawyer_model import Lawyer
 
 SUMMARY_SYSTEM = """\
 You are a professional legal marketplace editor. Write a concise, structured lawyer profile \

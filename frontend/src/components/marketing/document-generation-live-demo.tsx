@@ -52,7 +52,7 @@ export function DocumentGenerationLiveDemo({
   const doneRef = useRef(false);
 
   const contentHeight = compact
-    ? "h-[220px] sm:h-[260px] lg:h-[280px]"
+    ? "h-full"
     : "h-[250px] sm:h-[280px] sm:space-y-4 md:h-[300px]";
   const clausesToShow = compact ? CLAUSES.slice(0, 3) : CLAUSES;
 
@@ -164,7 +164,7 @@ export function DocumentGenerationLiveDemo({
 
   return (
     <DemoCardShell className={className} {...shellProps}>
-      <div className="space-y-3 sm:space-y-4">
+      <div className={cn(compact ? "demo-compact-stage" : "space-y-3 sm:space-y-4")}>
         <div className={cn(contentHeight, "space-y-3 overflow-hidden")}>
           <div className="ml-auto max-w-[92%] rounded-2xl rounded-br-md bg-gradient-to-br from-slate-800 to-slate-900 px-4 py-3 text-sm text-white demo-msg-in dark:from-slate-100 dark:to-slate-300 dark:text-slate-900">
             {typed || "\u00a0"}
@@ -197,8 +197,10 @@ export function DocumentGenerationLiveDemo({
           {showDoc && (
             <div
               className={cn(
-                "demo-doc-page relative mx-auto rounded-xl border border-dashed border-black/[0.08] px-4 py-3 text-slate-800 dark:border-white/10",
-                compact ? "max-w-[260px] sm:max-w-[280px]" : "max-w-[300px] px-5 py-4",
+                "demo-doc-page relative mx-auto rounded-xl px-4 py-3 text-slate-800 dark:text-slate-200",
+                compact
+                  ? "max-w-[260px] border border-dashed border-black/[0.08] dark:border-transparent sm:max-w-[280px]"
+                  : "max-w-[300px] border border-dashed border-black/[0.08] px-5 py-4 dark:border-white/10",
               )}
             >
               <div className="text-center">
@@ -263,13 +265,6 @@ export function DocumentGenerationLiveDemo({
               {isReady ? <Download className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
             </div>
           </div>
-        )}
-
-        {compact && isReady && (
-          <p className="hidden items-center justify-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 sm:flex">
-            <Check className="h-3.5 w-3.5" />
-            Ready to download
-          </p>
         )}
       </div>
     </DemoCardShell>

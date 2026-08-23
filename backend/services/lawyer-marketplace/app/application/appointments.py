@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -203,6 +204,131 @@ def opponent_typing(appointment_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         key[0] == aid and key[1] != uid and (instant - stamped).total_seconds() <= _TYPING_TTL
         for key, stamped in _TYPING.items()
     )
+
+
+CALL_RING_TTL_SECONDS = 60
+
+
+@dataclass
+class CallSession:
+    call_id: str
+    appointment_id: str
+    caller_id: str
+    target_id: str
+    mode: str
+    status: str
+    caller_name: str
+    started_at: datetime = field(default_factory=now_ist)
+
+
+_ACTIVE_CALLS: dict[str, CallSession] = {}
+
+
+def _purge_expired_calls() -> None:
+    instant = now_ist()
+    expired = [
+        aid
+        for aid, session in _ACTIVE_CALLS.items()
+        if session.status == "ringing"
+        and (instant - _aware(session.started_at)).total_seconds() > CALL_RING_TTL_SECONDS
+    ]
+    for aid in expired:
+        _ACTIVE_CALLS.pop(aid, None)
+
+
+def start_ring(
+    *,
+    appointment_id: uuid.UUID,
+    caller_id: uuid.UUID,
+    target_id: uuid.UUID,
+    mode: str,
+    caller_name: str,
+) -> CallSession:
+    _purge_expired_calls()
+    aid = str(appointment_id)
+    existing = _ACTIVE_CALLS.get(aid)
+    if existing and existing.status in {"ringing", "accepted"}:
+        raise ValueError("A call is already active for this appointment.")
+    session = CallSession(
+        call_id=str(uuid.uuid4()),
+        appointment_id=aid,
+        caller_id=str(caller_id),
+        target_id=str(target_id),
+        mode=mode,
+        status="ringing",
+        caller_name=caller_name,
+    )
+    _ACTIVE_CALLS[aid] = session
+    return session
+
+
+def get_active_call(appointment_id: uuid.UUID) -> CallSession | None:
+    _purge_expired_calls()
+    return _ACTIVE_CALLS.get(str(appointment_id))
+
+
+def pending_incoming_call(appointment_id: uuid.UUID, user_id: uuid.UUID) -> dict | None:
+    session = get_active_call(appointment_id)
+    if not session or session.status != "ringing" or session.target_id != str(user_id):
+        return None
+    return call_payload(session)
+
+
+def call_payload(session: CallSession) -> dict:
+    return {
+        "call_id": session.call_id,
+        "appointment_id": session.appointment_id,
+        "mode": session.mode,
+        "caller_user_id": session.caller_id,
+        "caller_name": session.caller_name,
+        "started_at": _aware(session.started_at).isoformat() if session.started_at else None,
+        "status": session.status,
+    }
+
+
+def accept_call(appointment_id: uuid.UUID, call_id: str, user_id: uuid.UUID) -> CallSession:
+    session = get_active_call(appointment_id)
+    if not session or session.call_id != call_id:
+        raise ValueError("Call not found.")
+    if session.target_id != str(user_id):
+        raise ValueError("Not the call recipient.")
+    if session.status != "ringing":
+        raise ValueError("Call is no longer ringing.")
+    session.status = "accepted"
+    return session
+
+
+def decline_call(appointment_id: uuid.UUID, call_id: str, user_id: uuid.UUID) -> CallSession:
+    session = get_active_call(appointment_id)
+    if not session or session.call_id != call_id:
+        raise ValueError("Call not found.")
+    if session.target_id != str(user_id):
+        raise ValueError("Not the call recipient.")
+    if session.status != "ringing":
+        raise ValueError("Call is no longer ringing.")
+    session.status = "declined"
+    _ACTIVE_CALLS.pop(str(appointment_id), None)
+    return session
+
+
+def cancel_call(appointment_id: uuid.UUID, call_id: str, user_id: uuid.UUID) -> CallSession:
+    session = get_active_call(appointment_id)
+    if not session or session.call_id != call_id:
+        raise ValueError("Call not found.")
+    if session.caller_id != str(user_id):
+        raise ValueError("Only the caller can cancel.")
+    if session.status != "ringing":
+        raise ValueError("Call is no longer ringing.")
+    session.status = "cancelled"
+    _ACTIVE_CALLS.pop(str(appointment_id), None)
+    return session
+
+
+def end_call(appointment_id: uuid.UUID) -> CallSession | None:
+    session = _ACTIVE_CALLS.pop(str(appointment_id), None)
+    if session:
+        session.status = "ended"
+    return session
 
 
 def mint_livekit_token(*, room: str, identity: str, name: str, role: str) -> dict:

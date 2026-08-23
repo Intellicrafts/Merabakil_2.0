@@ -2,6 +2,7 @@ import type {
   AuthResponse,
   Category,
   ConversationTurn,
+  GoogleAuthResult,
   IngestionJob,
   IngestionResult,
   KnowledgeDocument,
@@ -236,6 +237,43 @@ export async function register(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, full_name, password, role }),
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach auth service at ${authServiceUrl()}. Start the backend with: make native`,
+    );
+  }
+  if (!res.ok) return parseError(res);
+  return res.json();
+}
+
+export async function loginWithGoogle(idToken: string): Promise<GoogleAuthResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${authServiceUrl()}/api/v1/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach auth service at ${authServiceUrl()}. Start the backend with: make native`,
+    );
+  }
+  if (!res.ok) return parseError(res);
+  return res.json();
+}
+
+export async function completeGoogleRegistration(
+  onboardingToken: string,
+  role: string,
+): Promise<AuthResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${authServiceUrl()}/api/v1/auth/google/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ onboarding_token: onboardingToken, role }),
     });
   } catch {
     throw new Error(
@@ -1158,6 +1196,40 @@ export async function recordAppointmentCallEvent(
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ type, talk_seconds: talkSeconds }),
+  });
+}
+
+export async function ringAppointmentCall(
+  id: string,
+  mode: "audio" | "video",
+): Promise<import("@/lib/appointment-types").IncomingCallPayload> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/call/ring`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ mode }),
+  });
+}
+
+export async function respondAppointmentCall(
+  id: string,
+  callId: string,
+  action: "accept" | "decline",
+): Promise<import("@/lib/appointment-types").IncomingCallPayload> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/call/respond`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ call_id: callId, action }),
+  });
+}
+
+export async function cancelAppointmentCall(
+  id: string,
+  callId: string,
+): Promise<import("@/lib/appointment-types").IncomingCallPayload> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/call/cancel`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ call_id: callId }),
   });
 }
 

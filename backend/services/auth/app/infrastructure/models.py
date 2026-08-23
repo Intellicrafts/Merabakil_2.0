@@ -75,12 +75,15 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     roles: Mapped[list[Role]] = relationship(
         secondary="user_roles", back_populates="users", lazy="selectin"
+    )
+    oauth_identities: Mapped[list[OAuthIdentity]] = relationship(
+        back_populates="user", lazy="selectin"
     )
 
     @property
@@ -94,6 +97,20 @@ class User(Base, UUIDMixin, TimestampMixin):
             for perm in role.permissions:
                 codes.add(perm.code)
         return sorted(codes)
+
+
+class OAuthIdentity(Base, UUIDMixin, TimestampMixin):
+    __tablename__ = "oauth_identities"
+    __table_args__ = (UniqueConstraint("provider", "provider_user_id", name="uq_oauth_provider_user"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255))
+
+    user: Mapped[User] = relationship(back_populates="oauth_identities")
 
 
 class CitizenProfile(Base, TimestampMixin):

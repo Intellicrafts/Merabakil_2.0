@@ -9,6 +9,7 @@ from app.application.use_cases import AuthService
 from app.config import get_settings
 from app.main import app
 from tests.fakes import (
+    FakeOAuthIdentityRepository,
     FakePasswordResetRepository,
     FakeRefreshTokenRepository,
     FakeUserRepository,
@@ -19,6 +20,7 @@ from tests.fakes import (
 def auth_service() -> AuthService:
     return AuthService(
         users=FakeUserRepository(),
+        oauth_identities=FakeOAuthIdentityRepository(),
         refresh_tokens=FakeRefreshTokenRepository(),
         password_resets=FakePasswordResetRepository(),
         settings=get_settings(),

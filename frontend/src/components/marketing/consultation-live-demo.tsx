@@ -70,7 +70,7 @@ export function ConsultationLiveDemo({
   const doneRef = useRef(false);
 
   const contentHeight = compact
-    ? "h-[220px] sm:h-[260px] lg:h-[280px]"
+    ? "h-full"
     : "h-[250px] sm:h-[280px] md:h-[300px]";
 
   const reducedMotion =
@@ -163,7 +163,7 @@ export function ConsultationLiveDemo({
 
   return (
     <DemoCardShell className={className} {...shellProps}>
-      <div className="space-y-3 sm:space-y-4">
+      <div className={cn(compact ? "demo-compact-stage" : "space-y-3 sm:space-y-4")}>
         <div className={cn(contentHeight, "space-y-3 overflow-hidden")}>
           <div className="ml-auto max-w-[90%] rounded-2xl rounded-br-md bg-gradient-to-br from-slate-800 to-slate-900 px-4 py-2.5 text-sm text-white demo-msg-in dark:from-slate-100 dark:to-slate-300 dark:text-slate-900">
             I need a labour-law advocate in Delhi.
@@ -214,10 +214,12 @@ export function ConsultationLiveDemo({
               </div>
             </div>
           ) : (
-            <div className="space-y-3 demo-msg-in">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">
-                Best match selected
-              </p>
+            <div className="space-y-2.5 demo-msg-in">
+              {!compact && (
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">
+                  Best match selected
+                </p>
+              )}
               <div className="demo-soft-bubble flex items-center gap-3 rounded-2xl p-3 sm:p-4">
                 <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-sm font-semibold text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900 sm:h-14 sm:w-14">
                   {initials(WINNER.name)}
@@ -252,7 +254,7 @@ export function ConsultationLiveDemo({
                 </div>
               </div>
 
-              {showBooked && (
+              {showBooked && !compact && (
                 <div className="demo-msg-in">
                   <span className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-2 text-[12px] font-semibold text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900 sm:text-[13px]">
                     Book consultation

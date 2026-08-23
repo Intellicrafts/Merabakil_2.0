@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -121,6 +123,16 @@ class AppointmentOut(BaseModel):
     prior_join: bool = False
 
 
+class IncomingCallPayload(BaseModel):
+    call_id: str
+    appointment_id: str
+    mode: Literal["audio", "video"]
+    caller_user_id: str
+    caller_name: str
+    started_at: str | None = None
+    status: str = "ringing"
+
+
 class JoinStateOut(BaseModel):
     appointment_id: str
     join_state: str
@@ -137,6 +149,7 @@ class JoinStateOut(BaseModel):
     emergency_reason: str = ""
     last_summon_at: str | None = None
     prior_join: bool = False
+    pending_incoming_call: IncomingCallPayload | None = None
 
 
 class AttachmentOut(BaseModel):
@@ -204,6 +217,19 @@ class LawyerMeUpdate(BaseModel):
 class CallEventRequest(BaseModel):
     type: str = Field(pattern="^(started|ended)$")
     talk_seconds: int = Field(default=0, ge=0, le=86400)
+
+
+class CallRingRequest(BaseModel):
+    mode: Literal["audio", "video"]
+
+
+class CallRespondRequest(BaseModel):
+    call_id: str
+    action: Literal["accept", "decline"]
+
+
+class CallCancelRequest(BaseModel):
+    call_id: str
 
 
 class AdminLawyerPatch(BaseModel):

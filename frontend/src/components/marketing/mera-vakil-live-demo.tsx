@@ -76,7 +76,7 @@ export function MeraVakilLiveDemo({
   const single = typeof onComplete === "function";
   const citations = compact ? scene.citations.slice(0, 2) : scene.citations;
   const contentHeight = compact
-    ? "h-[220px] sm:h-[260px] lg:h-[280px]"
+    ? "h-full"
     : "h-[250px] sm:h-[280px] md:h-[300px]";
 
   const advanceScene = useCallback(() => {
@@ -154,7 +154,7 @@ export function MeraVakilLiveDemo({
 
   return (
     <DemoCardShell className={className} {...shellProps}>
-      <div className="space-y-3 sm:space-y-4">
+      <div className={cn(compact ? "demo-compact-stage" : "space-y-3 sm:space-y-4")}>
         <div className={cn(contentHeight, "space-y-3 overflow-hidden sm:space-y-4")}>
           <div
             key={`user-${sceneIndex}`}
@@ -230,17 +230,6 @@ export function MeraVakilLiveDemo({
             </button>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
               <Sparkles className="h-3.5 w-3.5" />
-            </div>
-          </div>
-        )}
-
-        {compact && (
-          <div className="hidden sm:flex demo-dock-mock items-center gap-2 px-1 py-2">
-            <div className={cn("flex-1 text-xs text-muted-foreground", phase === "user-in" && "demo-input-pulse")}>
-              Ask anything about Indian law…
-            </div>
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
-              <Sparkles className="h-3 w-3" />
             </div>
           </div>
         )}

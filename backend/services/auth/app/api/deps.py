@@ -10,6 +10,7 @@ from app.config import AuthSettings, get_settings
 from app.infrastructure.db import get_session
 from app.infrastructure.rate_limit import RateLimiter
 from app.infrastructure.repositories import (
+    SqlAlchemyOAuthIdentityRepository,
     SqlAlchemyPasswordResetRepository,
     SqlAlchemyRefreshTokenRepository,
     SqlAlchemyUserRepository,
@@ -30,6 +31,7 @@ def get_auth_settings() -> AuthSettings:
 def get_auth_service(session: AsyncSession = Depends(get_session)) -> AuthService:
     return AuthService(
         users=SqlAlchemyUserRepository(session),
+        oauth_identities=SqlAlchemyOAuthIdentityRepository(session),
         refresh_tokens=SqlAlchemyRefreshTokenRepository(session),
         password_resets=SqlAlchemyPasswordResetRepository(session),
         settings=_settings,

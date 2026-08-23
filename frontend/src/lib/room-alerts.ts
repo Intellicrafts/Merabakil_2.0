@@ -1,4 +1,4 @@
-export type AlertVariant = "summon" | "emergency" | "ops";
+export type AlertVariant = "summon" | "emergency" | "ops" | "call";
 
 const MUTE_KEY = "legalos.room-alerts.muted";
 
@@ -38,6 +38,7 @@ export async function playAlertChime(variant: AlertVariant = "summon"): Promise<
     summon: [523.25, 659.25],
     emergency: [440, 554.37],
     ops: [392, 493.88],
+    call: [440, 523.25],
   };
   const [a, b] = tones[variant];
   const now = ac.currentTime;
@@ -71,4 +72,53 @@ export function showBrowserNotification(title: string, body: string, tagId?: str
   } catch {
     /* ignore */
   }
+}
+
+let ringTimer: number | null = null;
+let ringNodes: { osc: OscillatorNode; gain: GainNode }[] = [];
+
+export function stopCallRingtone(): void {
+  if (typeof window !== "undefined" && ringTimer !== null) {
+    window.clearInterval(ringTimer);
+    ringTimer = null;
+  }
+  for (const node of ringNodes) {
+    try {
+      node.osc.stop();
+      node.osc.disconnect();
+      node.gain.disconnect();
+    } catch {
+      /* already stopped */
+    }
+  }
+  ringNodes = [];
+}
+
+export async function playCallRingtone(): Promise<void> {
+  if (!shouldPlaySound()) return;
+  stopCallRingtone();
+  const ac = ctx();
+  if (!ac) return;
+  if (ac.state === "suspended") await ac.resume().catch(() => undefined);
+
+  const pulse = () => {
+    const now = ac.currentTime;
+    for (const [i, freq] of [440, 523.25].entries()) {
+      const gain = ac.createGain();
+      gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.1, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+      const osc = ac.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      osc.start(now + i * 0.08);
+      osc.stop(now + 0.5);
+      ringNodes.push({ osc, gain });
+    }
+  };
+
+  pulse();
+  ringTimer = window.setInterval(pulse, 2200);
 }

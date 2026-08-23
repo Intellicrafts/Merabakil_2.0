@@ -66,6 +66,7 @@ wait_http() {
 
 apply_public_env() {
   cp "$PUBLIC_ENV" "$FRONTEND_ENV"
+  bash "$ROOT/scripts/sync_frontend_google_env.sh"
   green "Applied public API proxy env → frontend/.env.local"
 }
 
@@ -161,6 +162,10 @@ start_tunnel_foreground() {
   green "  Global URL (all services via this one link):"
   echo ""
   echo "    $PUBLIC_URL"
+  echo ""
+  yellow "  Google OAuth: add this to Authorized JavaScript origins:"
+  echo "    $PUBLIC_URL"
+  echo "    (Google Cloud Console → Credentials → your Web client)"
   echo ""
   green "  Register/login/marketplace/research all use /svc/* proxy"
   green "  Login: admin@legalos.in / ChangeMe!2026"

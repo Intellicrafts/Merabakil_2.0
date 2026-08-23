@@ -65,6 +65,19 @@ export interface AppointmentRecord {
   prior_join?: boolean;
 }
 
+export interface IncomingCallPayload {
+  call_id: string;
+  appointment_id: string;
+  mode: CallMode;
+  caller_user_id: string;
+  caller_name: string;
+  started_at?: string | null;
+  status?: string;
+}
+
+export type CallMode = "audio" | "video";
+export type CallPhase = "idle" | "outgoing_ring" | "incoming_ring" | "in_call";
+
 export interface JoinStateDto {
   appointment_id: string;
   join_state: JoinWindow;
@@ -81,6 +94,7 @@ export interface JoinStateDto {
   emergency_reason?: string;
   last_summon_at?: string | null;
   prior_join?: boolean;
+  pending_incoming_call?: IncomingCallPayload | null;
 }
 
 export interface SummonAlertPayload extends JoinStateDto {
@@ -122,7 +136,13 @@ export type RoomStreamEvent =
   | { type: "reaction"; payload: { messageId: string; reactions: Record<string, string[]> } }
   | { type: "emergency"; payload: AppointmentRecord }
   | { type: "ops_update"; payload: AppointmentRecord }
-  | { type: "summon"; payload: SummonAlertPayload };
+  | { type: "summon"; payload: SummonAlertPayload }
+  | { type: "incoming_call"; payload: IncomingCallPayload }
+  | { type: "call_accepted"; payload: IncomingCallPayload }
+  | { type: "call_declined"; payload: IncomingCallPayload }
+  | { type: "call_cancelled"; payload: IncomingCallPayload }
+  | { type: "call_ended"; payload: IncomingCallPayload }
+  | { type: "call_missed"; payload: IncomingCallPayload };
 
 export type AdminOpsEvent =
   | { type: "join"; payload: Record<string, never> }

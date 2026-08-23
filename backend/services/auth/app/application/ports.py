@@ -6,17 +6,38 @@ import uuid
 from datetime import datetime
 from typing import Protocol
 
-from app.infrastructure.models import RefreshToken, User
+from app.infrastructure.models import OAuthIdentity, RefreshToken, User
 
 
 class UserRepository(Protocol):
     async def get_by_email(self, email: str) -> User | None: ...
     async def get_by_id(self, user_id: uuid.UUID) -> User | None: ...
-    async def create(self, *, email: str, full_name: str, hashed_password: str) -> User: ...
+    async def create(
+        self,
+        *,
+        email: str,
+        full_name: str,
+        hashed_password: str | None = None,
+        is_verified: bool = False,
+    ) -> User: ...
     async def assign_roles(self, user: User, role_names: list[str]) -> None: ...
     async def create_role_profile(self, user: User, role_name: str) -> None: ...
     async def update_password(self, user: User, hashed_password: str) -> None: ...
     async def list_users(self, *, offset: int, limit: int) -> tuple[list[User], int]: ...
+
+
+class OAuthIdentityRepository(Protocol):
+    async def get_by_provider_user(
+        self, *, provider: str, provider_user_id: str
+    ) -> OAuthIdentity | None: ...
+    async def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        provider: str,
+        provider_user_id: str,
+        email: str | None,
+    ) -> OAuthIdentity: ...
 
 
 class RefreshTokenRepository(Protocol):

@@ -36,6 +36,7 @@ const ROUTE_RULES: { pattern: RegExp; permission: PermissionCode | null }[] = [
   { pattern: /^\/register$/, permission: null },
   { pattern: /^\/forgot-password$/, permission: null },
   { pattern: /^\/reset-password$/, permission: null },
+  { pattern: /^\/auth\/onboarding/, permission: null },
   { pattern: /^\/dashboard$/, permission: null },
   { pattern: /^\/mera-vakil$/, permission: Permission.RESEARCH_READ },
   { pattern: /^\/research$/, permission: Permission.RESEARCH_READ },

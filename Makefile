@@ -67,7 +67,8 @@ dev: env ## Run locally without Docker (Auth + Search + Research)
 .PHONY: dev-frontend
 dev-frontend: ## Run Next.js frontend (requires backend dev stack)
 	cd frontend && cp -n .env.local.example .env.local 2>/dev/null; \
-	PATH="$$HOME/.local/node/bin:$$PATH" npm install && PATH="$$HOME/.local/node/bin:$$PATH" npm run dev
+	cd .. && bash scripts/sync_frontend_google_env.sh; \
+	cd frontend && PATH="$$HOME/.local/node/bin:$$PATH" npm install && PATH="$$HOME/.local/node/bin:$$PATH" npm run dev
 
 .PHONY: bulk-ingest
 bulk-ingest: ## Incremental ingest of raw-data/ into Qdrant + OpenSearch

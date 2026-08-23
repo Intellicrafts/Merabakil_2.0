@@ -675,6 +675,44 @@
   isolation: isolate;
 }
 
+/* Edgeless showcase — no visible border in dark mode */
+.showcase-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.showcase-tabs {
+  background: hsl(var(--foreground) / 0.03);
+}
+
+.dark .showcase-tabs {
+  background: hsl(var(--foreground) / 0.04);
+  border: none;
+}
+
+.showcase-tab-active {
+  background: hsl(var(--background));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.06);
+}
+
+.dark .showcase-tab-active {
+  background: hsl(var(--foreground) / 0.06);
+  box-shadow: none;
+}
+
+.showcase-progress-track {
+  background: hsl(var(--foreground) / 0.06);
+}
+
+.dark .showcase-progress-track {
+  background: hsl(var(--foreground) / 0.08);
+}
+
+.demo-compact-stage {
+  height: 100%;
+  overflow: hidden;
+}
+
 .showcase-premium-frame::before {
   content: "";
   position: absolute;
@@ -2230,4 +2268,17 @@
   .wave-animate {
     animation: none;
   }
+}
+
+/* Google Sign-In — invisible official button fills premium shell */
+.google-signin-overlay {
+  cursor: pointer;
+}
+
+.google-signin-overlay > div,
+.google-signin-overlay iframe {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 52px !important;
+  margin: 0 !important;
 }

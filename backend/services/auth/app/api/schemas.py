@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
 
 from legalos_common.security.rbac import Role
@@ -17,6 +19,15 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str = Field(min_length=1)
+
+
+class GoogleCompleteRequest(BaseModel):
+    onboarding_token: str = Field(min_length=1)
+    role: Role = Role.CITIZEN
 
 
 class RefreshRequest(BaseModel):
@@ -49,6 +60,14 @@ class UserResponse(BaseModel):
 class AuthResponse(BaseModel):
     user: UserResponse
     tokens: TokenResponse
+
+
+class GoogleNeedsRoleResponse(BaseModel):
+    status: Literal["needs_role"] = "needs_role"
+    onboarding_token: str
+    email: str
+    full_name: str
+    picture: str | None = None
 
 
 class MessageResponse(BaseModel):

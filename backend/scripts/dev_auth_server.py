@@ -27,6 +27,7 @@ from app.main import app  # noqa: E402
 from legalos_common.security.passwords import hash_password  # noqa: E402
 from legalos_common.security.rbac import Permission, Role  # noqa: E402
 from tests.fakes import (  # noqa: E402
+    FakeOAuthIdentityRepository,
     FakePasswordResetRepository,
     FakeRefreshTokenRepository,
     FakeRole,
@@ -40,6 +41,7 @@ CITIZEN_ID = uuid.UUID("00000000-0000-4000-8000-000000000011")
 STATE_FILE = _ROOT / "data" / ".dev-auth-state.json"
 
 _users = FakeUserRepository()
+_oauth = FakeOAuthIdentityRepository()
 _refresh = FakeRefreshTokenRepository()
 _resets = FakePasswordResetRepository()
 
@@ -207,6 +209,18 @@ class PersistingAuthService(AuthService):
         _save_state()
         return result
 
+    async def authenticate_with_google(self, *, id_token: str):
+        result = await super().authenticate_with_google(id_token=id_token)
+        _save_state()
+        return result
+
+    async def complete_google_registration(self, *, onboarding_token: str, role: str):
+        result = await super().complete_google_registration(
+            onboarding_token=onboarding_token, role=role
+        )
+        _save_state()
+        return result
+
 
 _load_state()
 
@@ -214,6 +228,7 @@ _load_state()
 def _svc() -> AuthService:
     return PersistingAuthService(
         users=_users,
+        oauth_identities=_oauth,
         refresh_tokens=_refresh,
         password_resets=_resets,
         settings=get_settings(),
