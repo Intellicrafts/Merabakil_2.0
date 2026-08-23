@@ -11,6 +11,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "python-jose[cryptography]>=3.3.0",
     "qdrant-client>=1.9.0",
+    "python-multipart>=0.0.9",
 ]
 
 [dependency-groups]
