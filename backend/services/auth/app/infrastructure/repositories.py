@@ -42,6 +42,9 @@ class SqlAlchemyUserRepository:
     async def assign_roles(self, user: User, role_names: list[str]) -> None:
         result = await self._session.execute(select(Role).where(Role.name.in_(role_names)))
         roles = list(result.scalars().all())
+        # Refresh the roles attribute asynchronously before assigning to avoid
+        # SQLAlchemy triggering a synchronous lazy load in an async context.
+        await self._session.refresh(user, attribute_names=["roles"])
         user.roles = roles
         await self._session.flush()
 
