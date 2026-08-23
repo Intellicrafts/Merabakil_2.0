@@ -1,0 +1,15 @@
+# ---------------------------------------------------------------------------
+# HTTP-only override — use until SSL cert is ready.
+#
+# Usage:
+#   docker compose \
+#     -f infrastructure/docker-compose.prod.yml \
+#     -f infrastructure/docker-compose.http.yml \
+#     --env-file /opt/merabakil/.env \
+#     up -d
+# ---------------------------------------------------------------------------
+
+services:
+  nginx:
+    volumes:
+      - ./nginx/nginx-http.conf:/etc/nginx/conf.d/default.conf:ro

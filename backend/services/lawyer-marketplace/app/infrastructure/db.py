@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from legalos_common.db import Base
 
-_ROOT = Path(__file__).resolve().parents[5]
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
@@ -22,7 +21,13 @@ def marketplace_dsn() -> str:
         return override
     native = os.getenv("MARKETPLACE_NATIVE", "true").lower() in {"1", "true", "yes"}
     if native:
-        path = _ROOT / "data" / "marketplace.db"
+        # Walk up to find the repo root (dev only; not used in Docker/production)
+        root = Path(__file__).resolve()
+        for _ in range(6):
+            if (root / "data").exists():
+                break
+            root = root.parent
+        path = root / "data" / "marketplace.db"
         path.parent.mkdir(parents=True, exist_ok=True)
         return f"sqlite+aiosqlite:///{path}"
     from legalos_common.config import PostgresSettings

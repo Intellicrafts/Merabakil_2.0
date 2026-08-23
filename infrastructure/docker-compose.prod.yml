@@ -1,0 +1,178 @@
+name: merabakil
+
+# ---------------------------------------------------------------------------
+# Production stack — merabakil.in
+# 7 containers: postgres, redis, auth, search, research, marketplace, frontend
+# + nginx for SSL termination and routing.
+#
+# Usage (on EC2, from repo root):
+#   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env up -d
+# ---------------------------------------------------------------------------
+
+x-build-backend: &build-backend
+  context: ..
+  dockerfile: infrastructure/docker/backend.Dockerfile
+
+x-svc: &svc-defaults
+  restart: always
+  networks: [merabakil]
+
+services:
+  # ── Infrastructure ────────────────────────────────────────────────────────
+
+  postgres:
+    <<: *svc-defaults
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-legalos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-legalos}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-legalos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    <<: *svc-defaults
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Application services ──────────────────────────────────────────────────
+
+  auth:
+    <<: *svc-defaults
+    build:
+      <<: *build-backend
+      args:
+        SERVICE_PATH: services/auth
+        INSTALL_ORCHESTRATOR: "false"
+    image: merabakil/auth:latest
+    env_file: .env
+    environment:
+      RUN_MIGRATIONS: "true"   # alembic upgrade head on every startup
+      RUN_SEED: "true"         # idempotent: seeds roles/permissions if missing
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  search:
+    <<: *svc-defaults
+    build:
+      <<: *build-backend
+      args:
+        SERVICE_PATH: services/search
+        INSTALL_ORCHESTRATOR: "false"
+    image: merabakil/search:latest
+    env_file: .env
+    depends_on:
+      redis:    { condition: service_healthy }
+      auth:     { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 8   # sparse encoder load can take a moment
+
+  research:
+    <<: *svc-defaults
+    build:
+      <<: *build-backend
+      args:
+        SERVICE_PATH: services/research
+        INSTALL_ORCHESTRATOR: "true"
+    image: merabakil/research:latest
+    env_file: .env
+    depends_on:
+      auth:   { condition: service_healthy }
+      search: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  marketplace:
+    <<: *svc-defaults
+    build:
+      <<: *build-backend
+      args:
+        SERVICE_PATH: services/lawyer-marketplace
+        INSTALL_ORCHESTRATOR: "false"
+    image: merabakil/marketplace:latest
+    env_file: .env
+    environment:
+      MARKETPLACE_NATIVE: "false"
+    depends_on:
+      postgres: { condition: service_healthy }
+      auth:     { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  frontend:
+    <<: *svc-defaults
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/frontend.Dockerfile
+    image: merabakil/frontend:latest
+    env_file: .env
+    environment:
+      # Next.js rewrites — point to Docker service names on internal network
+      API_PROXY_AUTH:        "http://auth:8000"
+      API_PROXY_SEARCH:      "http://search:8000"
+      API_PROXY_RESEARCH:    "http://research:8000"
+      API_PROXY_MARKETPLACE: "http://marketplace:8000"
+      API_PROXY_INGESTION:   "http://auth:8000"   # stub — not deployed
+      API_PROXY_DOCUMENT:    "http://auth:8000"   # stub — not deployed
+    depends_on:
+      auth:        { condition: service_healthy }
+      search:      { condition: service_healthy }
+      research:    { condition: service_healthy }
+      marketplace: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  # ── NGINX — SSL termination + routing ────────────────────────────────────
+
+  nginx:
+    <<: *svc-defaults
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      frontend: { condition: service_healthy }
+
+# ── Volumes ───────────────────────────────────────────────────────────────
+
+volumes:
+  pgdata:
+  redisdata:
+
+# ── Networks ──────────────────────────────────────────────────────────────
+
+networks:
+  merabakil:
+    driver: bridge
