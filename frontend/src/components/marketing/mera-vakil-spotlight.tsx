@@ -24,8 +24,8 @@ export function MeraVakilSpotlight() {
             Meet <span className="gradient-text">Saarthi</span>
           </h2>
           <p className="leading-relaxed text-muted-foreground">
-            India's AI legal guide — built for plain-language questions. Whether
-            you're a citizen trying to understand a notice or an advocate researching
+            India&apos;s AI legal guide — built for plain-language questions. Whether
+            you&apos;re a citizen trying to understand a notice or an advocate researching
             precedents, Saarthi gives you grounded, cited answers from Indian law.
           </p>
           <ul className="space-y-2.5 text-sm text-muted-foreground">

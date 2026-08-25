@@ -25,7 +25,7 @@ export function HeroSection() {
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
           <div className="hero-stagger-1 inline-flex items-center gap-2 rounded-full border border-black/[0.07] bg-background/80 px-3 py-1 text-[11px] font-medium sm:backdrop-blur-sm dark:border-white/10">
             <Scale className="h-3 w-3 text-muted-foreground" strokeWidth={1.75} />
-            India's Legal AI Platform
+            India&apos;s Legal AI Platform
           </div>
 
           <div className="hero-stagger-2 mt-4 space-y-3 lg:mt-5">
