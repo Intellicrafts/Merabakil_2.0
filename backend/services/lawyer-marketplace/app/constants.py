@@ -17,3 +17,5 @@ PRESENCE_TTL_SECONDS = 25
 
 PRIORITIES = frozenset({"normal", "urgent", "emergency"})
 EMERGENCY_STATUSES = frozenset({"none", "open", "ack", "resolved"})
+MODERATION_STATUSES = frozenset({"none", "kicked", "suspended"})
+SUSPEND_MINUTES = frozenset({5, 15, 30})

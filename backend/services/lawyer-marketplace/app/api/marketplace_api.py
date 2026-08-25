@@ -30,6 +30,10 @@ from app.api.schemas import (
     LawyerPublic,
     MatchRequest,
     MessageOut,
+    ModerateKickRequest,
+    ModerateSuspendRequest,
+    ModerateUnsuspendRequest,
+    ParticipantModeration,
     PostMessageRequest,
     PriorityRequest,
     ReactionRequest,
@@ -62,11 +66,11 @@ from app.application.appointments import (
     set_typing,
     start_ring,
 )
-from app.application.livekit_tokens import mint_room_token
+from app.application.livekit_tokens import mint_room_token, remove_room_participant
 from app.application.matching import score_lawyer
 from app.application.room_hub import publish, publish_admin, publish_user, subscribe, subscribe_admin, subscribe_user, unsubscribe, unsubscribe_admin, unsubscribe_user
 from app.constants import PRIORITIES
-from app.infrastructure.appointment_models import Consultation
+from app.infrastructure.appointment_models import AppointmentParticipant, Consultation
 from app.infrastructure.appointment_repo import MarketplaceRepository
 from app.infrastructure.db import get_session, session_scope
 from app.infrastructure.file_store import (
@@ -167,6 +171,43 @@ def _is_participant(user: CurrentUser, row: Consultation) -> bool:
     return user.user_id in {str(row.client_id), str(row.lawyer_user_id)} or user.has_role("admin")
 
 
+def _aware_ist(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=now_ist().tzinfo)
+    return value.astimezone(now_ist().tzinfo)
+
+
+def _is_active_suspend(part: AppointmentParticipant | None) -> bool:
+    if part is None or getattr(part, "moderation_status", None) != "suspended":
+        return False
+    until = _aware_ist(getattr(part, "suspended_until", None))
+    if until is None:
+        return True
+    return now_ist() < until
+
+
+def _moderation_out(part: AppointmentParticipant | None) -> ParticipantModeration:
+    if part is None:
+        return ParticipantModeration()
+    status = getattr(part, "moderation_status", None) or "none"
+    until = _aware_ist(getattr(part, "suspended_until", None))
+    if status == "suspended" and until is not None and now_ist() >= until:
+        return ParticipantModeration()
+    return ParticipantModeration(
+        status=status,
+        suspended_until=_iso(until) if status == "suspended" else None,
+        reason=getattr(part, "moderation_reason", None) or "",
+    )
+
+
+def _target_party(row: Consultation, target: str) -> tuple[uuid.UUID, str, str]:
+    if target == "lawyer":
+        return row.lawyer_user_id, "lawyer", row.lawyer_display_name or "Counsel"
+    return row.citizen_user_id, "citizen", row.citizen_display_name or "Citizen"
+
+
 async def _to_appointment(
     repo: MarketplaceRepository,
     row: Consultation,
@@ -184,6 +225,7 @@ async def _to_appointment(
     )
     slug = lawyer.slug if lawyer else None
     citizen_on, lawyer_on = await repo.party_presence(row)
+    parties = await repo.party_participants(row)
     return AppointmentOut(
         id=str(row.id),
         lawyer_id=str(row.lawyer_id),
@@ -221,6 +263,8 @@ async def _to_appointment(
         lawyer_present=lawyer_on,
         last_summon_at=_iso(row.last_summon_at) if row.summon_for_user_id == uid and row.last_summon_at else None,
         prior_join=await _prior_join(repo, row, uid),
+        citizen_moderation=_moderation_out(parties.get(row.citizen_user_id)),
+        lawyer_moderation=_moderation_out(parties.get(row.lawyer_user_id)),
     )
 
 
@@ -689,6 +733,17 @@ async def room_token(
         raise HTTPException(status_code=403, detail="Join window is closed", headers={"X-Join-State": join_phase(row)})
     uid = uuid.UUID(user.user_id)
     role = _role_for(user, row)
+    existing = await repo.participant(row.id, uid)
+    if _is_active_suspend(existing):
+        until = _aware_ist(getattr(existing, "suspended_until", None))
+        detail = "You are temporarily suspended from this conference"
+        if until:
+            detail = f"{detail} until {until.isoformat()}"
+        raise HTTPException(status_code=403, detail=detail)
+    if existing is not None and getattr(existing, "moderation_status", None) == "kicked":
+        existing.moderation_status = "none"
+        existing.moderation_reason = ""
+        existing.suspended_until = None
     if _clear_summon_if_target(row, uid):
         await _emit_summon_cleared(row.id, uid)
     await repo.upsert_participant(row.id, uid, role, bump_join=True)
@@ -1465,6 +1520,111 @@ async def admin_force_summon(
     out = await _join_state(repo, row, uuid.UUID(user.user_id))
     await _emit(row.id, "ops_update", (await _ops_snapshot(repo, row, user)).model_dump())
     return out
+
+
+async def _apply_moderation(
+    repo: MarketplaceRepository,
+    row: Consultation,
+    user: CurrentUser,
+    *,
+    target: str,
+    action: str,
+    reason: str = "",
+    minutes: int | None = None,
+) -> AppointmentOut:
+    target_id, role, target_name = _target_party(row, target)
+    part = await repo.get_or_create_participant(row.id, target_id, role)
+    admin_id = uuid.UUID(user.user_id)
+    until: datetime | None = None
+    if action == "kick":
+        part.moderation_status = "kicked"
+        part.suspended_until = None
+        part.moderation_reason = reason.strip()
+        event_type = "participant_kicked"
+    elif action == "suspend":
+        until = now_ist() + timedelta(minutes=int(minutes or 15))
+        part.moderation_status = "suspended"
+        part.suspended_until = until
+        part.moderation_reason = reason.strip()
+        event_type = "participant_suspended"
+    else:
+        part.moderation_status = "none"
+        part.suspended_until = None
+        part.moderation_reason = ""
+        event_type = "participant_unsuspended"
+    await repo.leave_participant(row.id, target_id)
+    await repo.add_event(
+        row.id,
+        event_type,
+        admin_id,
+        {
+            "target": target,
+            "target_user_id": str(target_id),
+            "reason": reason.strip(),
+            "minutes": minutes,
+        },
+    )
+    room_name = row.livekit_room or f"apt-{row.id}"
+    if action != "unsuspend":
+        await remove_room_participant(room=room_name, identity=str(target_id))
+    out = await _ops_snapshot(repo, row, user)
+    payload = {
+        "action": action,
+        "target": target,
+        "target_user_id": str(target_id),
+        "target_name": target_name,
+        "reason": reason.strip(),
+        "minutes": minutes,
+        "suspended_until": _iso(until),
+        "appointment": out.model_dump(),
+    }
+    await _emit(row.id, "moderation", payload)
+    await _emit(row.id, "ops_update", out.model_dump())
+    return out
+
+
+@admin_router.post("/appointments/{appointment_id}/moderate/kick", response_model=AppointmentOut)
+async def admin_kick_participant(
+    appointment_id: uuid.UUID,
+    body: ModerateKickRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return await _apply_moderation(repo, row, user, target=body.target, action="kick", reason=body.reason)
+
+
+@admin_router.post("/appointments/{appointment_id}/moderate/suspend", response_model=AppointmentOut)
+async def admin_suspend_participant(
+    appointment_id: uuid.UUID,
+    body: ModerateSuspendRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return await _apply_moderation(
+        repo, row, user, target=body.target, action="suspend", reason=body.reason, minutes=body.minutes
+    )
+
+
+@admin_router.post("/appointments/{appointment_id}/moderate/unsuspend", response_model=AppointmentOut)
+async def admin_unsuspend_participant(
+    appointment_id: uuid.UUID,
+    body: ModerateUnsuspendRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return await _apply_moderation(repo, row, user, target=body.target, action="unsuspend")
 
 
 @admin_router.get("/ops-events")

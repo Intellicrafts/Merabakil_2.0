@@ -783,3 +783,60 @@ def test_join_state_includes_pending_incoming_call(client: TestClient) -> None:
     assert join["pending_incoming_call"] is not None
     assert join["pending_incoming_call"]["call_id"] == ring["call_id"]
     assert join["pending_incoming_call"]["mode"] == "video"
+
+
+def test_kick_participant_allows_rejoin(client: TestClient) -> None:
+    from app.application.room_hub import subscribe
+
+    apt_id = _book(client)
+    client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    room_q = subscribe(apt_id)
+    kicked = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/moderate/kick",
+        headers=_auth("admin"),
+        json={"target": "citizen", "reason": "Heated exchange — cooling off."},
+    )
+    assert kicked.status_code == 200, kicked.text
+    body = kicked.json()
+    assert body["citizen_moderation"]["status"] == "kicked"
+    mod_event = room_q.get_nowait()
+    assert mod_event["type"] == "moderation"
+    assert mod_event["payload"]["action"] == "kick"
+    detail = client.get(f"/api/v1/admin/appointments/{apt_id}", headers=_auth("admin")).json()
+    assert "participant_kicked" in [e["type"] for e in detail["events"]]
+    rejoin = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    assert rejoin.status_code == 200, rejoin.text
+
+
+def test_suspend_blocks_room_token_until_unsuspended(client: TestClient) -> None:
+    apt_id = _book(client)
+    client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    suspended = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/moderate/suspend",
+        headers=_auth("admin"),
+        json={"target": "citizen", "minutes": 15, "reason": "Repeated disruption in conference."},
+    )
+    assert suspended.status_code == 200, suspended.text
+    assert suspended.json()["citizen_moderation"]["status"] == "suspended"
+    blocked = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    assert blocked.status_code == 403
+    assert "suspended" in (blocked.json().get("detail") or "").lower()
+    lifted = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/moderate/unsuspend",
+        headers=_auth("admin"),
+        json={"target": "citizen"},
+    )
+    assert lifted.status_code == 200, lifted.text
+    assert lifted.json()["citizen_moderation"]["status"] == "none"
+    rejoin = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    assert rejoin.status_code == 200, rejoin.text
+
+
+def test_non_admin_cannot_moderate(client: TestClient) -> None:
+    apt_id = _book(client)
+    denied = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/moderate/kick",
+        headers=_auth("citizen"),
+        json={"target": "lawyer", "reason": "Should fail"},
+    )
+    assert denied.status_code == 403

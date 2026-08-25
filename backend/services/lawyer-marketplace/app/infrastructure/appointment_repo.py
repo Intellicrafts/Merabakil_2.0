@@ -261,6 +261,33 @@ class MarketplaceRepository:
     async def participant(self, consultation_id: uuid.UUID, user_id: uuid.UUID) -> AppointmentParticipant | None:
         return await self._session.get(AppointmentParticipant, (consultation_id, user_id))
 
+    async def get_or_create_participant(
+        self,
+        consultation_id: uuid.UUID,
+        user_id: uuid.UUID,
+        role: str,
+    ) -> AppointmentParticipant:
+        row = await self.participant(consultation_id, user_id)
+        if row is not None:
+            return row
+        row = AppointmentParticipant(
+            consultation_id=consultation_id,
+            user_id=user_id,
+            role=role,
+            last_seen_at=None,
+            join_count=0,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def party_participants(self, row: Consultation) -> dict[uuid.UUID, AppointmentParticipant]:
+        stmt = select(AppointmentParticipant).where(
+            AppointmentParticipant.consultation_id == row.id,
+            AppointmentParticipant.user_id.in_((row.citizen_user_id, row.lawyer_user_id)),
+        )
+        return {p.user_id: p for p in (await self._session.execute(stmt)).scalars().all()}
+
     async def party_presence(self, row: Consultation) -> tuple[bool, bool]:
         cutoff = datetime.now().astimezone() - timedelta(seconds=PRESENCE_TTL_SECONDS)
         stmt = select(AppointmentParticipant).where(

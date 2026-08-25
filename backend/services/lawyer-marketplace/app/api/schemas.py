@@ -75,6 +75,12 @@ class LawyerPublic(BaseModel):
     ai_recommended: bool = False
 
 
+class ParticipantModeration(BaseModel):
+    status: str = "none"
+    suspended_until: str | None = None
+    reason: str = ""
+
+
 class BookAppointmentRequest(BaseModel):
     lawyer_id: str
     date: str
@@ -121,6 +127,8 @@ class AppointmentOut(BaseModel):
     lawyer_present: bool = False
     last_summon_at: str | None = None
     prior_join: bool = False
+    citizen_moderation: ParticipantModeration = Field(default_factory=lambda: ParticipantModeration())
+    lawyer_moderation: ParticipantModeration = Field(default_factory=lambda: ParticipantModeration())
 
 
 class IncomingCallPayload(BaseModel):
@@ -258,6 +266,21 @@ class ReassignRequest(BaseModel):
 
 class SystemMessageRequest(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
+
+
+class ModerateKickRequest(BaseModel):
+    target: Literal["citizen", "lawyer"]
+    reason: str = Field(default="", max_length=500)
+
+
+class ModerateSuspendRequest(BaseModel):
+    target: Literal["citizen", "lawyer"]
+    minutes: Literal[5, 15, 30]
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class ModerateUnsuspendRequest(BaseModel):
+    target: Literal["citizen", "lawyer"]
 
 
 class AdminEventOut(BaseModel):

@@ -26,6 +26,23 @@ export interface RankedMarketplaceLawyer {
   ai_recommended: boolean;
 }
 
+export interface ModerationState {
+  status: "none" | "kicked" | "suspended" | string;
+  suspended_until?: string | null;
+  reason?: string;
+}
+
+export interface ModerationEventPayload {
+  action: "kick" | "suspend" | "unsuspend" | string;
+  target: "citizen" | "lawyer" | string;
+  target_user_id: string;
+  target_name?: string;
+  reason?: string;
+  minutes?: number | null;
+  suspended_until?: string | null;
+  appointment?: AppointmentRecord;
+}
+
 export interface AppointmentRecord {
   id: string;
   lawyer_id: string;
@@ -63,6 +80,8 @@ export interface AppointmentRecord {
   lawyer_present?: boolean;
   last_summon_at?: string | null;
   prior_join?: boolean;
+  citizen_moderation?: ModerationState;
+  lawyer_moderation?: ModerationState;
 }
 
 export interface IncomingCallPayload {
@@ -142,7 +161,8 @@ export type RoomStreamEvent =
   | { type: "call_declined"; payload: IncomingCallPayload }
   | { type: "call_cancelled"; payload: IncomingCallPayload }
   | { type: "call_ended"; payload: IncomingCallPayload }
-  | { type: "call_missed"; payload: IncomingCallPayload };
+  | { type: "call_missed"; payload: IncomingCallPayload }
+  | { type: "moderation"; payload: ModerationEventPayload };
 
 export type AdminOpsEvent =
   | { type: "join"; payload: Record<string, never> }

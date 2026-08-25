@@ -5,7 +5,7 @@ import { Bell, Siren, Volume2, VolumeX, X } from "lucide-react";
 import { setAlertsMuted, isAlertsMuted } from "@/lib/room-alerts";
 import { cn } from "@/lib/utils";
 
-export type RoomAlertKind = "summon" | "emergency" | "ops_ack" | "ops_message";
+export type RoomAlertKind = "summon" | "emergency" | "ops_ack" | "ops_message" | "moderation";
 
 interface RoomAlertBannerProps {
   kind: RoomAlertKind;
@@ -21,6 +21,7 @@ const STYLES: Record<RoomAlertKind, string> = {
   emergency: "border-amber-500/40 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-950 dark:from-amber-950/40 dark:to-orange-950/30 dark:text-amber-100",
   ops_ack: "border-emerald-500/35 bg-gradient-to-r from-emerald-50 to-slate-50 text-emerald-950 dark:from-emerald-950/30 dark:to-slate-900/40 dark:text-emerald-100",
   ops_message: "border-slate-400/35 bg-gradient-to-r from-slate-100 to-stone-50 text-slate-900 dark:from-white/10 dark:to-white/5 dark:text-zinc-100",
+  moderation: "border-rose-500/35 bg-gradient-to-r from-rose-50 to-orange-50 text-rose-950 dark:from-rose-950/40 dark:to-orange-950/30 dark:text-rose-100",
 };
 
 export function RoomAlertBanner({ kind, title, body, actionLabel, onAction, onDismiss }: RoomAlertBannerProps) {

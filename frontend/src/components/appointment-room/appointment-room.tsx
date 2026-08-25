@@ -46,6 +46,7 @@ import type {
   JoinStateDto,
   RoomStreamEvent,
   SummonAlertPayload,
+  ModerationEventPayload,
 } from "@/lib/appointment-types";
 import { callHub } from "@/lib/call-hub";
 import { playAlertChime, requestNotificationPermission, showBrowserNotification, stopCallRingtone } from "@/lib/room-alerts";
@@ -210,6 +211,20 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     router.replace(`/appointments/${appointmentId}`);
   }, [appointmentId, router]);
 
+  const disconnectConference = useCallback(() => {
+    const room = roomRef.current as { disconnect?: () => Promise<void> } | null;
+    void room?.disconnect?.();
+    roomRef.current = null;
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    localStreamRef.current = null;
+    setLocalStream(null);
+    remoteStreamRef.current = null;
+    if (callPhase === "in_call") {
+      setCallPhase("idle");
+      setActiveCallId(null);
+    }
+  }, [callPhase]);
+
   const onRoomEvent = useCallback(
     (event: RoomStreamEvent) => {
       if (event.type === "message" || event.type === "attachment") {
@@ -287,6 +302,59 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         }
         return;
       }
+      if (event.type === "moderation") {
+        const payload = event.payload as ModerationEventPayload;
+        if (payload.appointment?.id) {
+          setApt(payload.appointment);
+        }
+        const isTarget = payload.target_user_id === userId;
+        if (payload.action === "unsuspend") {
+          if (isTarget) {
+            setActiveAlert(null);
+          }
+          return;
+        }
+        void playAlertChime("ops");
+        if (isTarget) {
+          disconnectConference();
+          void leaveAppointment(appointmentId).catch(() => undefined);
+          if (payload.action === "suspend") {
+            const until = payload.suspended_until
+              ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(
+                  new Date(payload.suspended_until),
+                )
+              : null;
+            setActiveAlert({
+              kind: "moderation",
+              title: "Temporarily suspended by ops",
+              body: until
+                ? `You cannot rejoin this conference until ${until}.${payload.reason ? ` Reason: ${payload.reason}` : ""}`
+                : payload.reason || "An administrator temporarily suspended you from this conference.",
+            });
+          } else {
+            setActiveAlert({
+              kind: "moderation",
+              title: "Removed from conference by ops",
+              body: payload.reason
+                ? `${payload.reason} You may rejoin when ready.`
+                : "An administrator removed you from the conference. You may rejoin when ready.",
+            });
+          }
+          return;
+        }
+        const name = payload.target_name || (payload.target === "lawyer" ? "Counsel" : "Citizen");
+        setActiveAlert({
+          kind: "moderation",
+          title: payload.action === "suspend" ? `${name} suspended by ops` : `${name} removed from conference`,
+          body:
+            payload.reason ||
+            (payload.action === "suspend"
+              ? "Platform ops temporarily suspended this participant."
+              : "Platform ops removed this participant from the conference."),
+        });
+        setJoin((prev) => (prev ? { ...prev, opponent_present: false } : prev));
+        return;
+      }
       if (event.type === "emergency" || event.type === "ops_update") {
         if (event.payload?.id) {
           setApt(event.payload);
@@ -306,7 +374,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         }
       }
     },
-    [callPhase, counterpart, syncEmergencyAlert, toast, userId],
+    [appointmentId, callPhase, counterpart, disconnectConference, syncEmergencyAlert, toast, userId],
   );
 
   const { connected: sseOn } = useAppointmentRoomEvents(appointmentId, onRoomEvent);

@@ -1383,6 +1383,42 @@ export async function adminForceSummon(id: string): Promise<JoinStateDto> {
   });
 }
 
+export async function adminKickParticipant(
+  id: string,
+  target: "citizen" | "lawyer",
+  reason?: string,
+): Promise<AppointmentRecord> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/moderate/kick`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ target, reason: reason ?? "" }),
+  });
+}
+
+export async function adminSuspendParticipant(
+  id: string,
+  target: "citizen" | "lawyer",
+  minutes: 5 | 15 | 30,
+  reason: string,
+): Promise<AppointmentRecord> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/moderate/suspend`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ target, minutes, reason }),
+  });
+}
+
+export async function adminUnsuspendParticipant(
+  id: string,
+  target: "citizen" | "lawyer",
+): Promise<AppointmentRecord> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/moderate/unsuspend`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ target }),
+  });
+}
+
 export async function adminListLawyers(): Promise<RankedMarketplaceLawyer[]> {
   return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/lawyers`);
 }

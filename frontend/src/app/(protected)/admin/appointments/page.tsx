@@ -7,6 +7,7 @@ import { CalendarClock, Circle, Radio, Scale, Siren } from "lucide-react";
 
 import { AttachmentPreview } from "@/components/appointment-room/attachment-preview";
 import { RoomAlertBanner } from "@/components/appointment-room/room-alert-banner";
+import { SosManageModal } from "@/components/admin/sos-manage-modal";
 import { useAdminOpsEvents } from "@/hooks/use-admin-ops-events";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,6 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import {
-  adminAckEmergency,
   adminExtendAppointment,
   adminForceCancelAppointment,
   adminForceCompleteAppointment,
@@ -32,7 +32,6 @@ import {
   adminListAppointments,
   adminListLawyers,
   adminReassignAppointment,
-  adminResolveEmergency,
   adminSetLawyerVerified,
   adminSetPriority,
   adminSystemMessage,
@@ -71,6 +70,7 @@ export default function AdminAppointmentsPage() {
   const [emergencyFilter, setEmergencyFilter] = useState("");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [manageSosId, setManageSosId] = useState<string | null>(null);
   const [sysMsg, setSysMsg] = useState("");
   const [reason, setReason] = useState("");
   const [reassignId, setReassignId] = useState("");
@@ -150,6 +150,7 @@ export default function AdminAppointmentsPage() {
           setFlashEmergencyId(aptId);
           window.setTimeout(() => setFlashEmergencyId(null), 6000);
           setSelectedId((prev) => prev ?? aptId);
+          setManageSosId((prev) => prev ?? aptId);
           if (lastEmergencyFlash.current !== aptId) {
             lastEmergencyFlash.current = aptId;
             toast({
@@ -221,24 +222,6 @@ export default function AdminAppointmentsPage() {
     void queryClient.invalidateQueries({ queryKey: ["admin-appointments"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-appointment"] });
   }
-
-  const ackMut = useMutation({
-    mutationFn: adminAckEmergency,
-    onSuccess: () => {
-      toast({ title: "Emergency acknowledged" });
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Ack failed", description: err.message, variant: "destructive" }),
-  });
-
-  const resolveMut = useMutation({
-    mutationFn: adminResolveEmergency,
-    onSuccess: () => {
-      toast({ title: "Emergency resolved" });
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Resolve failed", description: err.message, variant: "destructive" }),
-  });
 
   const extendMut = useMutation({
     mutationFn: ({ id, minutes }: { id: string; minutes: number }) => adminExtendAppointment(id, minutes),
@@ -316,6 +299,11 @@ export default function AdminAppointmentsPage() {
     onError: (err: Error) => toast({ title: "Priority failed", description: err.message, variant: "destructive" }),
   });
 
+  function openSosManage(id: string) {
+    setSelectedId(id);
+    setManageSosId(id);
+  }
+
   function rowClass(row: AppointmentRecord) {
     if (row.emergency_status === "open") return "border-l-2 border-l-amber-500";
     if (row.emergency_status === "ack") return "border-l-2 border-l-orange-400";
@@ -342,7 +330,7 @@ export default function AdminAppointmentsPage() {
           title="Live SOS request"
           body={`${highlightedSos.citizen_name} ↔ ${highlightedSos.lawyer_name}: ${highlightedSos.emergency_reason || "Help requested in the appointment room."}`}
           actionLabel="Open & manage"
-          onAction={() => setSelectedId(highlightedSos.id)}
+          onAction={() => openSosManage(highlightedSos.id)}
         />
       ) : null}
 
@@ -357,7 +345,7 @@ export default function AdminAppointmentsPage() {
               <button
                 key={row.id}
                 type="button"
-                onClick={() => setSelectedId(row.id)}
+                onClick={() => openSosManage(row.id)}
                 className={cn(
                   "rounded-xl bg-white/80 px-3 py-1.5 text-left text-[12px] shadow-sm hover:bg-white dark:bg-white/10",
                   flashEmergencyId === row.id && "ring-2 ring-amber-500",
@@ -615,16 +603,15 @@ export default function AdminAppointmentsPage() {
                     </Link>
                   )}
                   {(selected.emergency_status === "open" || selected.emergency_status === "ack") && (
-                    <>
-                      {selected.emergency_status === "open" && (
-                        <Button size="sm" className="rounded-xl" disabled={ackMut.isPending} onClick={() => ackMut.mutate(selected.id)}>
-                          Ack emergency
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" className="rounded-xl" disabled={resolveMut.isPending} onClick={() => resolveMut.mutate(selected.id)}>
-                        Resolve
-                      </Button>
-                    </>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl border-amber-500/40 text-amber-900 dark:text-amber-100"
+                      onClick={() => openSosManage(selected.id)}
+                    >
+                      <Siren className="mr-1 h-3.5 w-3.5" />
+                      Manage SOS
+                    </Button>
                   )}
                   <Button size="sm" variant="outline" className="rounded-xl" onClick={() => extendMut.mutate({ id: selected.id, minutes: 5 })}>
                     +5 min
@@ -808,6 +795,8 @@ export default function AdminAppointmentsPage() {
           )}
         </CardContent>
       </Card>
+
+      <SosManageModal appointmentId={manageSosId} onClose={() => setManageSosId(null)} />
     </div>
   );
 }

@@ -67,20 +67,31 @@ def _ensure_sqlite_columns(sync_conn) -> None:
     consult = {
         row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(consultations)").fetchall()
     }
-    if not consult:
-        return
-    for name, decl in (
-        ("priority", "VARCHAR(20) DEFAULT 'normal'"),
-        ("emergency_status", "VARCHAR(20) DEFAULT 'none'"),
-        ("emergency_reason", "TEXT DEFAULT ''"),
-        ("emergency_at", "DATETIME"),
-        ("emergency_ack_at", "DATETIME"),
-        ("emergency_resolved_at", "DATETIME"),
-        ("assigned_admin_user_id", "VARCHAR(36)"),
-        ("ops_note", "TEXT DEFAULT ''"),
-    ):
-        if name not in consult:
-            sync_conn.exec_driver_sql(f"ALTER TABLE consultations ADD COLUMN {name} {decl}")
+    if consult:
+        for name, decl in (
+            ("priority", "VARCHAR(20) DEFAULT 'normal'"),
+            ("emergency_status", "VARCHAR(20) DEFAULT 'none'"),
+            ("emergency_reason", "TEXT DEFAULT ''"),
+            ("emergency_at", "DATETIME"),
+            ("emergency_ack_at", "DATETIME"),
+            ("emergency_resolved_at", "DATETIME"),
+            ("assigned_admin_user_id", "VARCHAR(36)"),
+            ("ops_note", "TEXT DEFAULT ''"),
+        ):
+            if name not in consult:
+                sync_conn.exec_driver_sql(f"ALTER TABLE consultations ADD COLUMN {name} {decl}")
+
+    participants = {
+        row[1] for row in sync_conn.exec_driver_sql("PRAGMA table_info(appointment_participants)").fetchall()
+    }
+    if participants:
+        for name, decl in (
+            ("moderation_status", "VARCHAR(20) DEFAULT 'none'"),
+            ("suspended_until", "DATETIME"),
+            ("moderation_reason", "TEXT DEFAULT ''"),
+        ):
+            if name not in participants:
+                sync_conn.exec_driver_sql(f"ALTER TABLE appointment_participants ADD COLUMN {name} {decl}")
 
 
 async def init_db() -> None:

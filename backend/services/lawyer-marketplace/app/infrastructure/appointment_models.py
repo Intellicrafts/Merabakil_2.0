@@ -111,3 +111,6 @@ class AppointmentParticipant(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_read_message_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True))
     join_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    moderation_status: Mapped[str] = mapped_column(String(20), default="none", nullable=False)
+    suspended_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    moderation_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
