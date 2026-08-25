@@ -9,9 +9,10 @@ import { cn } from "@/lib/utils";
 interface LanguagePickerProps {
   value: string;
   onChange: (code: string) => void;
+  compact?: boolean;
 }
 
-export function LanguagePicker({ value, onChange }: LanguagePickerProps) {
+export function LanguagePicker({ value, onChange, compact = false }: LanguagePickerProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected =
@@ -28,7 +29,7 @@ export function LanguagePicker({ value, onChange }: LanguagePickerProps) {
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={cn("relative", compact && "inline-flex")}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -36,38 +37,58 @@ export function LanguagePicker({ value, onChange }: LanguagePickerProps) {
         aria-haspopup="listbox"
         aria-label="Select read-aloud language"
         className={cn(
-          "group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border px-3.5 py-3 text-left transition-all duration-300",
-          "border-black/[0.06] bg-white/70 shadow-[0_2px_12px_rgba(15,23,42,0.05)] backdrop-blur-md",
-          "hover:border-slate-300/50 hover:bg-white/90 hover:shadow-[0_6px_20px_rgba(15,23,42,0.08)]",
-          "dark:border-white/10 dark:bg-white/[0.06] dark:hover:border-white/20 dark:hover:bg-white/[0.09]",
-          open && "border-slate-400/40 ring-2 ring-slate-400/20 dark:border-white/25",
+          compact
+            ? cn(
+                "flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors",
+                "hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10",
+                "md:h-8 md:w-8",
+                open && "bg-black/[0.05] text-foreground dark:bg-white/10",
+              )
+            : cn(
+                "group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border px-3.5 py-3 text-left transition-all duration-300",
+                "border-black/[0.06] bg-white/70 shadow-[0_2px_12px_rgba(15,23,42,0.05)] backdrop-blur-md",
+                "hover:border-slate-300/50 hover:bg-white/90 hover:shadow-[0_6px_20px_rgba(15,23,42,0.08)]",
+                "dark:border-white/10 dark:bg-white/[0.06] dark:hover:border-white/20 dark:hover:bg-white/[0.09]",
+                open && "border-slate-400/40 ring-2 ring-slate-400/20 dark:border-white/25",
+              ),
         )}
       >
-        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-          <span className="mv-lang-ring absolute inset-0 rounded-full opacity-70" />
-          <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900">
-            <Waves className="h-3.5 w-3.5" />
-          </span>
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Voice language
-          </p>
-          <p className="truncate text-sm font-semibold tracking-tight">{selected.label}</p>
-        </div>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
-            open && "rotate-180",
-          )}
-        />
+        {compact ? (
+          <Waves className="h-[18px] w-[18px] md:h-4 md:w-4" strokeWidth={1.75} />
+        ) : (
+          <>
+            <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+              <span className="mv-lang-ring absolute inset-0 rounded-full opacity-70" />
+              <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900">
+                <Waves className="h-3.5 w-3.5" />
+              </span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Voice language
+              </p>
+              <p className="truncate text-sm font-semibold tracking-tight">{selected.label}</p>
+            </div>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                open && "rotate-180",
+              )}
+            />
+          </>
+        )}
       </button>
 
       {open && (
         <div
           role="listbox"
           aria-label="Read-aloud languages"
-          className="mv-lang-menu absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-56 overflow-y-auto rounded-2xl border border-black/[0.08] bg-white/95 p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/95"
+          className={cn(
+            "mv-lang-menu absolute z-50 max-h-56 overflow-y-auto rounded-2xl border border-black/[0.08] bg-white/95 p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/95",
+            compact
+              ? "bottom-[calc(100%+6px)] right-0 w-56"
+              : "left-0 right-0 top-[calc(100%+6px)]",
+          )}
         >
           {INDIAN_SPEECH_LOCALES.map((locale, idx) => {
             const active = locale.code === value;

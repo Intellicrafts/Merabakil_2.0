@@ -82,8 +82,8 @@ test.describe("Google auth redirects", () => {
       });
     });
 
-    await page.goto("/auth/onboarding/role?next=%2Fresearch");
+    await page.goto("/auth/onboarding/role?next=%2Fmera-vakil");
     await page.getByRole("button", { name: /continue to dashboard/i }).click();
-    await page.waitForURL(/\/research\/?$/);
+    await page.waitForURL(/\/mera-vakil\/?$/);
   });
 });

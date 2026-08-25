@@ -48,63 +48,63 @@ const ALL_MODULES: DashboardModule[] = [
   {
     href: "/mera-vakil",
     title: "Mera Vakil",
-    description: "Conversational legal AI with citations and read-aloud.",
+    description: "Ask a legal question and get cited answers.",
     icon: Sparkles,
     permission: Permission.RESEARCH_READ,
   },
   {
     href: "/research",
     title: "Research Console",
-    description: "Deep grounded legal research with confidence scoring.",
+    description: "Run deep research across statutes and judgments.",
     icon: Search,
     permission: Permission.RESEARCH_READ,
   },
   {
     href: "/lawyer-marketplace",
     title: "Lawyer Marketplace",
-    description: "Browse top lawyers and book consultations.",
+    description: "Find a lawyer and book a consultation.",
     icon: Briefcase,
     permission: Permission.RESEARCH_READ,
   },
   {
     href: "/cases",
     title: "Case Management",
-    description: "Track legal matters, status, and timelines.",
+    description: "Track your matters, status, and next steps.",
     icon: FolderOpen,
     permission: Permission.CASE_READ,
   },
   {
     href: "/courtroom",
     title: "AI Courtroom",
-    description: "Simulate hearings with Judge and Advocate AI — procedural and reviewable.",
+    description: "Rehearse a hearing with Judge and Advocate AI.",
     icon: Gavel,
     permission: Permission.COURTROOM_SIMULATE,
   },
   {
     href: "/documents",
     title: "Documents",
-    description: "Upload, manage, and query your legal documents.",
+    description: "Upload files and ask questions about them.",
     icon: FileText,
     permission: Permission.DOCUMENT_READ,
   },
   {
     href: "/admin/knowledge",
     title: "Knowledge Hub",
-    description: "Ingest and manage firm-wide legal corpora.",
+    description: "Ingest and manage your firm’s legal corpus.",
     icon: Database,
     permission: Permission.KNOWLEDGE_INGEST,
   },
   {
     href: "/admin/users",
     title: "User Management",
-    description: "Manage platform users, roles, and access.",
+    description: "Manage people, roles, and access.",
     icon: Users,
     permission: Permission.USER_MANAGE,
   },
   {
     href: "/admin/appointments",
     title: "Appointment Ops",
-    description: "Oversee bookings, transcripts, and counsel verification.",
+    description: "Oversee bookings, transcripts, and sessions.",
     icon: CalendarClock,
     permission: Permission.USER_MANAGE,
   },
@@ -115,8 +115,8 @@ const ROLE_CONFIG: Record<
   Pick<DashboardConfig, "headline" | "subtitle"> & { moduleHrefs: string[] }
 > = {
   admin: {
-    headline: "Platform control center",
-    subtitle: "Full access to research, documents, knowledge ingestion, and user administration.",
+    headline: "Everything in one place",
+    subtitle: "Pick up counsel, cases, and firm tools.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",
@@ -130,8 +130,8 @@ const ROLE_CONFIG: Record<
     ],
   },
   enterprise: {
-    headline: "Compliance & document operations",
-    subtitle: "Enterprise legal intelligence with document workflows and audit visibility.",
+    headline: "Your legal work, simplified",
+    subtitle: "Documents, research, and counsel when you need them.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",
@@ -141,8 +141,8 @@ const ROLE_CONFIG: Record<
     ],
   },
   law_firm: {
-    headline: "Firm intelligence hub",
-    subtitle: "Research, documents, and knowledge management for your practice.",
+    headline: "Your firm's home",
+    subtitle: "Research, cases, and knowledge — continue where you left off.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",
@@ -154,8 +154,8 @@ const ROLE_CONFIG: Record<
     ],
   },
   advocate: {
-    headline: "Your practice workspace",
-    subtitle: "Research faster, manage documents, and advise clients with grounded citations.",
+    headline: "Ready when you are",
+    subtitle: "Research, cases, and counsel from one calm place.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",
@@ -167,8 +167,8 @@ const ROLE_CONFIG: Record<
   },
   citizen: {
     headline: "Your legal companion",
-    subtitle: "Ask legal questions and explore Indian law with AI-powered guidance.",
-    moduleHrefs: ["/mera-vakil", "/research", "/lawyer-marketplace", "/cases"],
+    subtitle: "Ask a question or pick up where you left off.",
+    moduleHrefs: ["/mera-vakil", "/lawyer-marketplace", "/cases"],
   },
 };
 

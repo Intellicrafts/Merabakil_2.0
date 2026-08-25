@@ -19,6 +19,16 @@ export type PermissionCode = (typeof Permission)[keyof typeof Permission];
 /** Roles that receive courtroom access per platform seed (citizen excluded). */
 const COURTROOM_ROLES = new Set(["advocate", "law_firm", "enterprise"]);
 
+/** Elevated roles that may use Research Console; citizen-only accounts cannot. */
+const RESEARCH_CONSOLE_ROLES = new Set(["admin", "enterprise", "law_firm", "advocate"]);
+
+function isCitizenOnly(
+  user: Pick<AuthUser, "roles"> | null | undefined,
+): boolean {
+  if (!user?.roles?.length) return true;
+  return !user.roles.some((role) => RESEARCH_CONSOLE_ROLES.has(role));
+}
+
 export function hasPermission(
   user: Pick<AuthUser, "roles" | "permissions"> | null | undefined,
   perm: string,
@@ -56,6 +66,7 @@ export function canAccessRoute(
 ): boolean {
   const normalized = path.split("?")[0].replace(/\/$/, "") || "/";
   if (normalized === "/") return true;
+  if (normalized === "/research" && isCitizenOnly(user)) return false;
   const rule = ROUTE_RULES.find((r) => r.pattern.test(normalized));
   if (!rule) return true;
   if (rule.permission === null) return true;

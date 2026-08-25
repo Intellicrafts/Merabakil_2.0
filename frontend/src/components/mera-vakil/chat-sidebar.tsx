@@ -151,14 +151,14 @@ export function ChatSidebar({
 
         <div className="space-y-1 pt-3">
           <Link
-            href="/research"
+            href="/dashboard"
             className={cn(
               "flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/30 hover:text-foreground",
               collapsed && "justify-center px-0",
             )}
           >
             <ArrowLeft className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>Back to console</span>}
+            {!collapsed && <span>Back to home</span>}
           </Link>
 
           {!collapsed && user && (

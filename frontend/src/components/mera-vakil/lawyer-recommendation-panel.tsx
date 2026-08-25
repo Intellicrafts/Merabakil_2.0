@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Scale } from "lucide-react";
 
 import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
 import { LawyerCard } from "@/components/lawyer-marketplace/lawyer-card";
@@ -41,24 +40,30 @@ export function LawyerRecommendationPanel({ lawyers }: LawyerRecommendationPanel
   if (!lawyers.length) return null;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white/40 shadow-[0_2px_10px_rgba(15,23,42,0.04)] backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.03]">
-      <div className="flex items-center gap-2 border-b border-black/[0.05] px-3.5 py-2.5 dark:border-white/10">
-        <Scale className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-        <span className="text-xs font-medium text-muted-foreground">
-          Recommended Lawyers · {lawyers.length} match{lawyers.length !== 1 ? "es" : ""}
+    <section className="space-y-3" aria-label="Recommended lawyers">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          Recommended counsel
+        </p>
+        <span className="text-[11px] tabular-nums text-muted-foreground/70">
+          {lawyers.length} match{lawyers.length !== 1 ? "es" : ""}
         </span>
       </div>
-      <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3">
+
+      <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:thin] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
         {lawyers.map((lawyer, idx) => (
           <LawyerCard
             key={lawyer.id}
             lawyer={toRankedLawyer(lawyer)}
             index={idx}
+            variant="counsel"
+            className="min-w-[min(100%,17rem)] snap-start sm:min-w-0"
             onView={setProfile}
             onBook={setBooking}
           />
         ))}
       </div>
+
       <LawyerProfileDrawer
         lawyer={profile}
         open={Boolean(profile)}
@@ -72,6 +77,6 @@ export function LawyerRecommendationPanel({ lawyers }: LawyerRecommendationPanel
         onClose={() => setBooking(null)}
         onBooked={() => setBooking(null)}
       />
-    </div>
+    </section>
   );
 }

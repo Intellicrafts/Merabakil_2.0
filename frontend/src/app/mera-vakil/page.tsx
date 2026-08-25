@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Moon, PanelRight, Sun, X } from "lucide-react";
+import { Moon, PanelRight, Sun } from "lucide-react";
 
 import { BackButton } from "@/components/layout/back-button";
 import { EmptyState } from "@/components/mera-vakil/empty-state";
@@ -38,7 +38,7 @@ import type { ResearchResponse } from "@/lib/types";
 
 const ContextPanel = dynamic(
   () =>
-    import("@/components/mera-vakil/context-panel").then((m) => ({
+    import("@/components/mera-vakil/counsel-rail").then((m) => ({
       default: m.ContextPanel,
     })),
   { loading: () => <Skeleton className="h-full w-full" /> },
@@ -67,6 +67,7 @@ export default function MeraVakilPage() {
   const [pendingStatus, setPendingStatus] = useState<string | undefined>();
   const [speechLocale, setSpeechLocale] = useState("en-IN");
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [voiceModeOpen, setVoiceModeOpen] = useState(false);
   const [voiceSupported] = useState(() => isVoiceBotSupported());
@@ -273,41 +274,58 @@ export default function MeraVakilPage() {
     });
   }
 
-  async function handleFileUpload(file: File) {
-    if (isUploading || isResearching) return;
-    setIsUploading(true);
-    try {
-      const uploaded = await uploadUserDocument(file, {
-        title: file.name.replace(/\.[^.]+$/, "") || file.name,
-        doc_type: "user_upload",
-      });
-      const documentIdValue = uploaded.document_id;
-      handleDocumentChange(documentIdValue);
+  async function uploadOneDocument(file: File): Promise<string> {
+    const uploaded = await uploadUserDocument(file, {
+      title: file.name.replace(/\.[^.]+$/, "") || file.name,
+      doc_type: "user_upload",
+    });
+    const documentIdValue = uploaded.document_id;
+    handleDocumentChange(documentIdValue);
 
-      let status = uploaded.status;
-      for (let attempt = 0; attempt < 20 && status !== "indexed"; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const doc = await getUserDocument(documentIdValue);
-        status = doc.status;
-        if (status === "failed") break;
-      }
-
-      toast({
-        title: status === "indexed" ? "Document ready" : "Document uploaded",
-        description:
-          status === "indexed"
-            ? `"${file.name}" is indexed. You can now ask questions about it.`
-            : `"${file.name}" is processing. Questions may take a moment to ground.`,
-      });
-    } catch (err) {
-      toast({
-        title: "Upload failed",
-        description: err instanceof Error ? err.message : "Could not upload document",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
+    let status = uploaded.status;
+    for (let attempt = 0; attempt < 20 && status !== "indexed"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const doc = await getUserDocument(documentIdValue);
+      status = doc.status;
+      if (status === "failed") break;
     }
+
+    toast({
+      title: status === "indexed" ? "Document ready" : "Document uploaded",
+      description:
+        status === "indexed"
+          ? `"${file.name}" is indexed. You can now ask questions about it.`
+          : `"${file.name}" is processing. Questions may take a moment to ground.`,
+    });
+    return documentIdValue;
+  }
+
+  async function handleComposerSend(text: string, files: File[]) {
+    if (isResearching) return;
+    let lastDocId = documentId;
+    if (files.length > 0) {
+      setIsUploading(true);
+      try {
+        for (const file of files) {
+          setUploadingFileName(file.name);
+          lastDocId = await uploadOneDocument(file);
+        }
+      } catch (err) {
+        toast({
+          title: "Upload failed",
+          description: err instanceof Error ? err.message : "Could not upload document",
+          variant: "destructive",
+        });
+        throw err;
+      } finally {
+        setIsUploading(false);
+        setUploadingFileName(null);
+      }
+    }
+    const query =
+      text.trim().length >= 3 ? text.trim() : files.length > 0 ? "Review the attached documents." : "";
+    if (query.length < 3) return;
+    await sendMessage(query, { documentId: lastDocId ?? undefined });
   }
 
   function handleStopGeneration() {
@@ -357,16 +375,17 @@ export default function MeraVakilPage() {
 
   async function sendMessage(
     queryText?: string,
-    options?: { editMessageId?: string },
+    options?: { editMessageId?: string; documentId?: string },
   ) {
     const query = (queryText ?? input).trim();
     if (query.length < 3 || isResearching) return;
+    const groundedId = options?.documentId ?? documentId;
 
     let conv = activeConversation;
     if (!conv) {
       conv = createConversation({
         title: deriveTitleFromQuery(query),
-        documentId,
+        documentId: groundedId,
         jurisdiction: jurisdiction || null,
         matterType: activeConversation?.matterType ?? null,
       });
@@ -383,6 +402,7 @@ export default function MeraVakilPage() {
     const priorHistory = toResearchHistory(baseMessages);
     const withUser: ChatConversation = {
       ...conv,
+      documentId: groundedId ?? conv.documentId,
       title: baseMessages.length === 0 ? deriveTitleFromQuery(query) : conv.title,
       messages: [...baseMessages, userMsg],
     };
@@ -483,7 +503,7 @@ export default function MeraVakilPage() {
             });
           },
         },
-        { documentId: documentId ?? undefined, signal: controller.signal, sessionId: activeConversation?.id },
+        { documentId: groundedId ?? undefined, signal: controller.signal, sessionId: activeConversation?.id },
       );
 
       const finalized = createAssistantMessage(result);
@@ -580,15 +600,16 @@ export default function MeraVakilPage() {
       />
 
       {mobilePanelOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Session panel">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Session panel">
           <button
             type="button"
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40"
             onClick={() => setMobilePanelOpen(false)}
-            aria-label="Close panel"
+            aria-label="Dismiss session panel"
           />
-          <div className="absolute right-0 top-0 h-full w-[300px] max-w-[88vw]">
+          <div className="absolute inset-x-0 bottom-0 flex h-[min(85dvh,36rem)] flex-col overflow-hidden rounded-t-[1.5rem] shadow-[0_-16px_48px_rgba(0,0,0,0.28)]">
             <ContextPanel
+              presentation="sheet"
               conversations={conversations}
               activeId={activeConversation?.id ?? null}
               onNewChat={() => {
@@ -613,14 +634,6 @@ export default function MeraVakilPage() {
               onClose={() => setMobilePanelOpen(false)}
             />
           </div>
-          <button
-            type="button"
-            className="absolute left-4 top-4 rounded-full glass p-2"
-            onClick={() => setMobilePanelOpen(false)}
-            aria-label="Close panel"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
       )}
 
@@ -699,14 +712,19 @@ export default function MeraVakilPage() {
           <InputDock
             value={input}
             onChange={setInput}
-            onSubmit={() => sendMessage()}
+            onSend={handleComposerSend}
             disabled={false}
             isPending={isResearching}
             isGenerating={isResearching}
             onStop={handleStopGeneration}
             isUploading={isUploading}
-            onFileSelect={handleFileUpload}
+            uploadingFileName={uploadingFileName}
             onVoiceModeOpen={voiceSupported ? () => setVoiceModeOpen(true) : undefined}
+            onVoiceNoteSend={(transcript) => void sendMessage(transcript)}
+            onVoiceNoteError={(message) =>
+              toast({ title: "Voice note", description: message, variant: "destructive" })
+            }
+            speechLocale={speechLocale}
           />
         </div>
       }

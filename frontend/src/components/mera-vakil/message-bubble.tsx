@@ -1,9 +1,10 @@
 "use client";
 
 import { memo, useEffect, useRef, useState } from "react";
-import { Pencil, Sparkles, X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
+import { AshokaStambh } from "@/components/mera-vakil/ashoka-stambh";
 import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
@@ -135,11 +136,11 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div className="group flex gap-3">
       {showAvatar && (
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900">
-          <Sparkles className="h-3.5 w-3.5" />
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-black/[0.08] dark:ring-white/15">
+          <AshokaStambh size="avatar" className="h-7 w-7" />
         </div>
       )}
-      {!showAvatar && <div className="w-6 shrink-0" aria-hidden />}
+      {!showAvatar && <div className="w-7 shrink-0" aria-hidden />}
 
       <div className="min-w-0 flex-1 space-y-3 pt-0.5">
         {grounding && stillTyping && (

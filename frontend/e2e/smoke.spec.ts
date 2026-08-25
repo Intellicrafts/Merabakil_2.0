@@ -19,7 +19,8 @@ test.describe("Legal OS smoke", () => {
     await page.getByLabel(/password/i).fill("ChangeMe!2026");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/dashboard/);
-    await expect(page.getByText(/Platform control center/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /good (morning|afternoon|evening)/i })).toBeVisible();
+    await expect(page.getByPlaceholder(/ask mera vakil/i)).toBeVisible();
   });
 });
 
@@ -33,7 +34,7 @@ test.describe("Dashboard navigation", () => {
   });
 
   test("module cards render without hydration errors", async ({ page }) => {
-    await expect(page.getByText(/Platform control center/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /good (morning|afternoon|evening)/i })).toBeVisible();
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
     await page.waitForTimeout(500);
@@ -77,6 +78,6 @@ test.describe("Mobile viewport", () => {
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/dashboard/);
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect(page.getByText(/Platform control center/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/ask mera vakil/i)).toBeVisible();
   });
 });
