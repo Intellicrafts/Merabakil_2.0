@@ -17,9 +17,9 @@ const SERVICES = [
   },
   {
     icon: Briefcase,
-    title: "Find a verified lawyer",
+    title: "Connect clients and advocates",
     description:
-      "Browse verified advocates by practice area and location. Book a consultation directly and manage your appointments in one place.",
+      "Citizens find verified lawyers by practice area and book consultations. Advocates receive curated client opportunities matched to their expertise — with a structured case brief before they commit.",
     tag: "Marketplace",
   },
   {

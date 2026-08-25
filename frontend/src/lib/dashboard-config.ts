@@ -154,8 +154,8 @@ const ROLE_CONFIG: Record<
     ],
   },
   advocate: {
-    headline: "Ready when you are",
-    subtitle: "Research, cases, and counsel from one calm place.",
+    headline: "Your practice, organised",
+    subtitle: "Curated case opportunities, deep research, and a structured start for every new matter.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",

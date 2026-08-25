@@ -12,9 +12,9 @@ const ROLES = [
   {
     icon: Scale,
     title: "Advocates",
-    scenario: "My client needs a cited answer by tomorrow.",
+    scenario: "I want quality clients relevant to my practice.",
     description:
-      "Research faster with AI-powered statute and case law search. Draft with precision and advise with confidence — backed by Indian legal sources.",
+      "Receive curated client case opportunities matched to your practice area. Get a structured case brief before you accept — key facts, relevant statutes, and a document checklist — then research, draft, and advise with confidence.",
     gradient: "from-slate-600 to-slate-800",
   },
   {

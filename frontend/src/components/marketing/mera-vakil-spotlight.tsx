@@ -35,11 +35,11 @@ export function MeraVakilSpotlight() {
             </li>
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-              Every answer cites the statute, article, or judgment it&apos;s based on
+              Advocates get a structured case brief — statutes, key facts, and document checklist — before starting a matter
             </li>
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-              Available in English, Hindi, and regional Indian languages
+              Every answer cites the statute, article, or judgment it is based on
             </li>
           </ul>
           <Button asChild className="rounded-full">
