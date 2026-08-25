@@ -43,5 +43,5 @@ export default function MeraVakilLayout({ children }: { children: React.ReactNod
     );
   }
 
-  return <div className="mera-vakil-root no-scrollbar h-screen overflow-hidden">{children}</div>;
+  return <div className="mera-vakil-root no-scrollbar h-[100dvh] overflow-hidden">{children}</div>;
 }
