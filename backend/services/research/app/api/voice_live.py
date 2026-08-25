@@ -114,7 +114,8 @@ If the user agrees (or says "yes", "book it", "haan", "theek hai", or any affirm
 proceed to gather what you need and call book_appointment right away — do not ask for \
 unnecessary confirmation. \
 Rules: \
-- Use the lawyer's id from the find_lawyers result as lawyer_id. \
+- Each lawyer in the find_lawyers result has a [booking_id:UUID] tag — use that UUID \
+  as the lawyer_id parameter when calling book_appointment. Never guess or invent the ID. \
 - Use today's date (provided in the session context below) in YYYY-MM-DD format as date. \
 - Default time_slot to "Immediate" unless the user specifies a time (e.g., "10 AM" → "10:00 AM"). \
 - Derive matter_summary from the conversation so far — a concise one-sentence description of the \
@@ -230,7 +231,10 @@ _TOOL_DECLARATIONS = [
             "properties": {
                 "lawyer_id": {
                     "type": "string",
-                    "description": "UUID of the lawyer from the find_lawyers result.",
+                    "description": (
+                        "UUID of the lawyer — copy the value from the [booking_id:UUID] tag "
+                        "shown in the find_lawyers result. Do not guess or fabricate this value."
+                    ),
                 },
                 "date": {
                     "type": "string",
@@ -371,13 +375,17 @@ async def _run_find_lawyers(
     blocks = []
     for i, l in enumerate(lawyers, 1):
         name = l.get("full_name", "Unknown")
+        lawyer_uuid = l.get("id", "")
         areas = ", ".join(l.get("practice_areas", [])[:3])
         yrs = l.get("years_experience", 0)
         rating = l.get("rating", 0)
         bar = l.get("bar_council_id") or "N/A"
         verified = "✓ Verified" if l.get("is_verified") else ""
         summary = l.get("summary", "").strip()
-        header = f"{i}. {name} — {areas} | {yrs} yrs exp | Rating {rating}/5 {verified} | Bar ID: {bar}"
+        header = (
+            f"{i}. {name} — {areas} | {yrs} yrs exp | Rating {rating}/5 {verified} | Bar ID: {bar}"
+            f" | [booking_id:{lawyer_uuid}]"
+        )
         block = header + (f"\n   {summary}" if summary else "")
         blocks.append(block)
 
