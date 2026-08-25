@@ -6,7 +6,6 @@ import { DashboardActivityRail } from "@/components/dashboard/dashboard-activity
 import { DashboardContinueCard } from "@/components/dashboard/dashboard-continue-card";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardModuleCard } from "@/components/dashboard/dashboard-module-card";
-import { DashboardQuickLaunch } from "@/components/dashboard/dashboard-quick-launch";
 import { useDashboardSnapshot } from "@/hooks/use-dashboard-snapshot";
 import { getStoredUser, syncStoredUser } from "@/lib/api";
 import { getDashboardConfig } from "@/lib/dashboard-config";
@@ -32,20 +31,24 @@ export default function DashboardPage() {
         firstName={firstName}
         config={config}
         ready={snapshot.ready}
-        conversationCount={snapshot.conversations.length}
+        appointmentCount={snapshot.appointments.filter((a) => a.status === "confirmed" || a.status === "live" || a.status === "requested").length}
         openCount={snapshot.openCount}
       />
       <DashboardContinueCard lastCounsel={snapshot.lastCounsel} ready={snapshot.ready} />
-      <DashboardQuickLaunch modules={config.modules} />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]">
-        <section className="dash-card-in hidden md:block" aria-labelledby="tools-heading" style={{ animationDelay: "140ms" }}>
-          <h2 id="tools-heading" className="mb-3 text-[15px] font-semibold tracking-tight">
-            Tools
-          </h2>
+        <section className="dash-card-in" aria-labelledby="workspace-heading" style={{ animationDelay: "140ms" }}>
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <div>
+              <h2 id="workspace-heading" className="text-[15px] font-semibold tracking-tight">
+                Your workspace
+              </h2>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">{config.subtitle}</p>
+            </div>
+          </div>
           {config.modules.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-black/[0.08] py-16 text-center dark:border-white/[0.10]">
-              <p className="text-sm text-muted-foreground">No tools available for your account.</p>
+              <p className="text-sm text-muted-foreground">No services available for your account.</p>
             </div>
           ) : (
             <div className="dash-workspace-grid grid gap-3 sm:grid-cols-2 lg:gap-3.5">

@@ -22,13 +22,13 @@ function formatDate(): string {
   }).format(new Date());
 }
 
-function contextLine(openCount: number, conversationCount: number): string {
+function contextLine(openCount: number, appointmentCount: number): string {
   const parts: string[] = [];
   if (openCount > 0) {
     parts.push(`${openCount} open ${openCount === 1 ? "matter" : "matters"}`);
   }
-  if (conversationCount > 0) {
-    parts.push(`${conversationCount} ${conversationCount === 1 ? "conversation" : "conversations"}`);
+  if (appointmentCount > 0) {
+    parts.push(`${appointmentCount} ${appointmentCount === 1 ? "appointment" : "appointments"}`);
   }
   return parts.join(" · ");
 }
@@ -37,16 +37,16 @@ export function DashboardHero({
   firstName,
   config,
   ready,
-  conversationCount,
+  appointmentCount,
   openCount,
 }: {
   firstName: string;
   config: DashboardConfig;
   ready: boolean;
-  conversationCount: number;
+  appointmentCount: number;
   openCount: number;
 }) {
-  const context = ready ? contextLine(openCount, conversationCount) : "";
+  const context = ready ? contextLine(openCount, appointmentCount) : "";
 
   return (
     <header
