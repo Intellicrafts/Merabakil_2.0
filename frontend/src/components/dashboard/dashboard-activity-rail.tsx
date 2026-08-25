@@ -77,7 +77,7 @@ export function DashboardActivityRail({
             </div>
           ) : recent.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-black/[0.07] px-3 py-4 text-[12px] leading-relaxed text-muted-foreground dark:border-white/[0.10]">
-              No sessions yet. Start a conversation with Mera Vakil to begin.
+              No counsel sessions yet. Ask Mera Vakil to start a brief.
             </p>
           ) : (
             <ul className="space-y-1">
@@ -126,7 +126,7 @@ export function DashboardActivityRail({
             </div>
           ) : upcoming.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-black/[0.07] px-3 py-4 text-[12px] leading-relaxed text-muted-foreground dark:border-white/[0.10]">
-              No active cases. Open a new matter to start tracking.
+              No open matters on the docket.
             </p>
           ) : (
             <ul className="space-y-1">

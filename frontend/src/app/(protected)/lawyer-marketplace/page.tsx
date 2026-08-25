@@ -227,19 +227,19 @@ export default function LawyerMarketplacePage() {
             </div>
           ) : catalogError ? (
             <div className="rounded-2xl border border-dashed border-black/[0.08] py-14 text-center dark:border-white/10">
-              <p className="text-sm font-medium">Unable to load lawyers</p>
-              <p className="mt-1 text-[13px] text-muted-foreground">Please try refreshing the page.</p>
+              <p className="text-sm font-medium">Could not load counsel</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">{catalogError}</p>
             </div>
           ) : lawyers.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-black/[0.08] px-6 py-14 text-center dark:border-white/10">
               <p className="text-sm font-medium">
                 {catalog.length === 0
-                  ? "No lawyers listed yet"
+                  ? "No verified registered advocates yet"
                   : "No lawyers match your filters"}
               </p>
               <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">
                 {catalog.length === 0
-                  ? "Verified lawyers will appear here once they join the platform."
+                  ? "Only advocates who registered in this app and are verified appear here. Ask counsel to sign up with the advocate role."
                   : "Try a broader practice area or clear the search."}
               </p>
             </div>

@@ -44,7 +44,7 @@ function LoginForm() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to your MeraBakil account"
+      subtitle="Sign in to your AI Legal OS account"
       footer={
         <>
           Don&apos;t have an account?{" "}

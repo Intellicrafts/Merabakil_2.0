@@ -94,7 +94,7 @@ export function DashboardAskBar() {
               "dark:bg-white dark:text-slate-900",
             )}
           >
-            <span className="hidden sm:inline">Ask</span>
+            <span className="hidden sm:inline">Open</span>
             <ArrowUpRight className="h-3.5 w-3.5" />
           </button>
         </div>

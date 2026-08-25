@@ -80,7 +80,7 @@ export function DashboardHero({
             className="hidden rounded-full border border-black/[0.06] bg-white/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04] sm:inline-flex"
             title="Indexed Indian statutes and judgments"
           >
-            1,250+ laws indexed
+            Corpus 1,250+
           </span>
           <span className="ml-auto hidden items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 sm:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dash-live-dot" />
