@@ -9,7 +9,6 @@ import type { AppointmentRecord } from "@/lib/appointment-types";
 import {
   lastMessagePreview,
   relativeTime,
-  saveActiveConversationId,
   type ChatConversation,
 } from "@/lib/conversations";
 import { formatDocStatus } from "@/lib/demo-documents";
@@ -188,9 +187,6 @@ export function DashboardActivityRail({
   }, [recent, upcoming, appointments, documents]);
 
   function openEntry(entry: RecentEntry) {
-    if (entry.conversationId) {
-      saveActiveConversationId(entry.conversationId);
-    }
     router.push(entry.href);
   }
 

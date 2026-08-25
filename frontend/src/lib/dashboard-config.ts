@@ -90,7 +90,7 @@ const ALL_MODULES: DashboardModule[] = [
   {
     href: "/admin/knowledge",
     title: "Knowledge Hub",
-    description: "Ingest and manage your firm’s legal corpus.",
+    description: "Build and search your firm’s legal knowledge base.",
     icon: Database,
     permission: Permission.KNOWLEDGE_INGEST,
   },
