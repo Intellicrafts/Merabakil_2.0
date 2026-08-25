@@ -53,10 +53,10 @@ export function FeaturesSection() {
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             Services
           </p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight">
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
             Everything you need to handle a legal matter
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
             From your first question to finding a lawyer, managing your case, and preparing
             for court — one platform covers the full legal journey.
           </p>
@@ -68,7 +68,7 @@ export function FeaturesSection() {
             return (
               <div
                 key={service.title}
-                className="rounded-2xl border border-black/[0.06] bg-white/60 p-6 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]"
+                className="rounded-2xl border border-black/[0.06] bg-white/60 p-4 backdrop-blur-sm sm:p-6 dark:border-white/10 dark:bg-white/[0.04]"
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/[0.06] bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
@@ -79,7 +79,7 @@ export function FeaturesSection() {
                   </span>
                 </div>
                 <h3 className="font-semibold">{service.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-muted-foreground">
                   {service.description}
                 </p>
               </div>
@@ -97,16 +97,16 @@ export function TrustSection() {
       <div className="mx-auto max-w-6xl">
         <div className="grid gap-6 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-slate-50 to-white p-8 dark:border-white/10 dark:from-zinc-900 dark:to-zinc-950 md:grid-cols-3">
           <div className="text-center md:text-left">
-            <p className="text-2xl font-semibold">1,250+</p>
-            <p className="text-sm text-muted-foreground">Indian laws and judgments indexed</p>
+            <p className="text-xl font-semibold sm:text-2xl">1,250+</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">Indian laws and judgments indexed</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-semibold">Every answer</p>
-            <p className="text-sm text-muted-foreground">cites its legal source — no guesswork</p>
+            <p className="text-xl font-semibold sm:text-2xl">Every answer</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">cites its legal source — no guesswork</p>
           </div>
           <div className="text-center md:text-right">
-            <p className="text-2xl font-semibold">Your data</p>
-            <p className="text-sm text-muted-foreground">stays private — secure, role-controlled access</p>
+            <p className="text-xl font-semibold sm:text-2xl">Your data</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">stays private — secure, role-controlled access</p>
           </div>
         </div>
       </div>

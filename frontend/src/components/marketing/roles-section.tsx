@@ -43,10 +43,10 @@ export function RolesSection() {
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             Who it&apos;s for
           </p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight">
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
             Built for every legal situation
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
             Whether you&apos;re a citizen facing a dispute or an enterprise managing compliance —
             MeraBakil gives you the right tools for your role.
           </p>
@@ -58,7 +58,7 @@ export function RolesSection() {
             return (
               <div
                 key={role.title}
-                className="group rounded-2xl border border-black/[0.06] bg-white/50 p-5 shadow-[0_4px_20px_rgba(15,23,42,0.04)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.04]"
+                className="group rounded-2xl border border-black/[0.06] bg-white/50 p-4 shadow-[0_4px_20px_rgba(15,23,42,0.04)] backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(15,23,42,0.08)] sm:p-5 dark:border-white/10 dark:bg-white/[0.04]"
               >
                 <div
                   className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ${role.gradient}`}
@@ -69,7 +69,7 @@ export function RolesSection() {
                 <p className="mt-1.5 text-[12px] italic text-muted-foreground/70">
                   &ldquo;{role.scenario}&rdquo;
                 </p>
-                <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-2.5 line-clamp-4 text-sm leading-relaxed text-muted-foreground">
                   {role.description}
                 </p>
               </div>

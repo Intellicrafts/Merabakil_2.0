@@ -33,7 +33,7 @@ export function HeroSection() {
               Legal clarity for{" "}
               <span className="gradient-text">every Indian</span>
             </h1>
-            <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-muted-foreground lg:mx-0">
+            <p className="mx-auto max-w-sm text-[13px] leading-relaxed text-muted-foreground sm:text-[15px] lg:mx-0">
               Got a legal notice? Facing a dispute? Ask your question in plain
               language and get clear answers — cited from Indian statutes and case law.
             </p>

@@ -7,7 +7,6 @@ import { ArrowUpRight, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   MATTER_TYPES,
-  lastMessagePreview,
   relativeTime,
   type ChatConversation,
 } from "@/lib/conversations";
@@ -87,9 +86,6 @@ export function DashboardContinueCard({
             </span>
           </div>
           <p className="truncate text-[15px] font-semibold tracking-tight">{lastCounsel.title}</p>
-          <p className="mt-0.5 line-clamp-1 text-[13px] text-muted-foreground">
-            {lastMessagePreview(lastCounsel)}
-          </p>
         </div>
       </div>
       <span className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-4 text-[13px] font-semibold text-primary-foreground shadow-sm transition-transform duration-150 group-hover:translate-x-px max-sm:w-full">

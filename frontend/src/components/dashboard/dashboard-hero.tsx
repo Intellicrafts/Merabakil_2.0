@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { MessageSquare } from "lucide-react";
 
 import { DashboardAskBar } from "@/components/dashboard/dashboard-ask-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardConfig } from "@/lib/dashboard-config";
+import type { ChatConversation } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
 
 function getGreeting(): string {
@@ -39,12 +42,14 @@ export function DashboardHero({
   ready,
   appointmentCount,
   openCount,
+  lastCounsel,
 }: {
   firstName: string;
   config: DashboardConfig;
   ready: boolean;
   appointmentCount: number;
   openCount: number;
+  lastCounsel: ChatConversation | null;
 }) {
   const context = ready ? contextLine(openCount, appointmentCount) : "";
 
@@ -68,7 +73,7 @@ export function DashboardHero({
             <h1 className="text-[1.85rem] font-semibold leading-[1.12] tracking-tight sm:text-[2.2rem] md:text-[2.4rem]">
               {getGreeting()}, <span className="gradient-text">{firstName}</span>
             </h1>
-            <p className="max-w-lg text-[15px] leading-relaxed text-muted-foreground">
+            <p className="max-w-lg text-[13px] leading-relaxed text-muted-foreground sm:text-[15px]">
               <span className="font-medium text-foreground/90">{config.headline}</span>
               {" — "}
               {config.subtitle}
@@ -83,6 +88,16 @@ export function DashboardHero({
           </div>
 
           <DashboardAskBar />
+
+          {lastCounsel && (
+            <Link
+              href={`/mera-vakil?c=${lastCounsel.id}`}
+              className="inline-flex h-8 w-fit items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.06] px-3 text-[12px] font-medium text-white/60 transition-colors hover:bg-white/[0.10] hover:text-white/90 dark:border-white/[0.10] dark:text-white/50"
+            >
+              <MessageSquare className="h-3 w-3" />
+              Continue last chat
+            </Link>
+          )}
         </div>
 
         <div

@@ -20,15 +20,15 @@ export function MeraVakilSpotlight() {
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             Your AI legal guide
           </p>
-          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
+          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
             Meet <span className="gradient-text">Saarthi</span>
           </h2>
-          <p className="leading-relaxed text-muted-foreground">
+          <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
             India&apos;s AI legal guide — built for plain-language questions. Whether
             you&apos;re a citizen trying to understand a notice or an advocate researching
             precedents, Saarthi gives you grounded, cited answers from Indian law.
           </p>
-          <ul className="space-y-2.5 text-sm text-muted-foreground">
+          <ul className="space-y-2.5 text-[13px] text-muted-foreground sm:text-sm">
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
               Ask about property disputes, employment rights, consumer protection, and more
