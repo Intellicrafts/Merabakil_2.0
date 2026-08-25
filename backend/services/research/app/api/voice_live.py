@@ -17,6 +17,7 @@ import json
 import logging
 import ssl
 from contextlib import suppress
+from datetime import date as _date
 
 import certifi
 import httpx
@@ -106,6 +107,24 @@ If you need a moment, say something natural like "Let me check on that." or \
 - For finding advocates, use the verified lawyer directory — always, without exception.
 Always cite naturally in speech: "Under Section 138 of the Negotiable Instruments Act..." \
 not "I found that Section 138...". Never read out URLs.
+
+## Booking a consultation — proactive and seamless
+After find_lawyers returns results, always offer to book a consultation immediately. \
+If the user agrees (or says "yes", "book it", "haan", "theek hai", or any affirmative), \
+proceed to gather what you need and call book_appointment right away — do not ask for \
+unnecessary confirmation. \
+Rules: \
+- Use the lawyer's id from the find_lawyers result as lawyer_id. \
+- Use today's date (provided in the session context below) in YYYY-MM-DD format as date. \
+- Default time_slot to "Immediate" unless the user specifies a time (e.g., "10 AM" → "10:00 AM"). \
+- Derive matter_summary from the conversation so far — a concise one-sentence description of the \
+  user's legal situation. Never ask the user to repeat what they already told you. \
+- If the user's name came up naturally in conversation, use it as citizen_name; otherwise \
+  pass an empty string and the system will use their registered name. \
+- After a successful booking, confirm naturally: "Your consultation with [name] has been booked \
+  for today. You will receive a confirmation shortly." \
+- If booking fails (slot taken, lawyer unavailable, etc.), relay the reason plainly and offer \
+  to try another lawyer or a different time.
 
 ## Response style for voice
 - Speak in complete, flowing sentences — avoid bullet points or lists in your spoken response.
@@ -197,10 +216,61 @@ _TOOL_DECLARATIONS = [
             "required": ["practice_areas"],
         },
     },
+    {
+        "name": "book_appointment",
+        "description": (
+            "Book a consultation appointment with a verified lawyer on the platform. "
+            "Call this AFTER find_lawyers has returned results and the user agrees to book. "
+            "Use the lawyer's id from the find_lawyers result. "
+            "Derive matter_summary from the conversation — never ask the user to repeat themselves. "
+            "Default time_slot to 'Immediate' unless the user specifies a time."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "lawyer_id": {
+                    "type": "string",
+                    "description": "UUID of the lawyer from the find_lawyers result.",
+                },
+                "date": {
+                    "type": "string",
+                    "description": (
+                        "Consultation date in YYYY-MM-DD format. "
+                        "Use today's date (provided in session context) unless user specifies otherwise."
+                    ),
+                },
+                "time_slot": {
+                    "type": "string",
+                    "description": (
+                        "'Immediate' for right now, or a specific time like '10:00 AM'. "
+                        "Default to 'Immediate' unless the user specifies a time."
+                    ),
+                },
+                "matter_summary": {
+                    "type": "string",
+                    "description": (
+                        "One-to-two sentence summary of the user's legal matter, "
+                        "derived from the conversation. Minimum 10 characters."
+                    ),
+                },
+                "citizen_name": {
+                    "type": "string",
+                    "description": (
+                        "User's full name if they mentioned it; otherwise pass empty string."
+                    ),
+                },
+            },
+            "required": ["lawyer_id", "date", "time_slot", "matter_summary"],
+        },
+    },
 ]
 
 
-def _setup_msg(voice: str, model: str) -> dict:
+def _setup_msg(voice: str, model: str, today_date: str) -> dict:
+    system_text = (
+        _SYSTEM_PROMPT
+        + f"\n\n## Session context\nToday's date: {today_date} (use this when booking appointments)."
+    )
     return {
         "setup": {
             "model": f"models/{model}",
@@ -215,7 +285,7 @@ def _setup_msg(voice: str, model: str) -> dict:
             # Transcription fields must be at setup level, NOT inside generation_config
             "input_audio_transcription": {},
             "output_audio_transcription": {},
-            "system_instruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
+            "system_instruction": {"parts": [{"text": system_text}]},
             "tools": [{"function_declarations": _TOOL_DECLARATIONS}],
         }
     }
@@ -319,11 +389,72 @@ async def _run_find_lawyers(
     return text, lawyers
 
 
+async def _run_book_appointment(
+    lawyer_id: str,
+    date: str,
+    time_slot: str,
+    matter_summary: str,
+    citizen_name: str,
+    token: str,
+    marketplace_url: str,
+) -> tuple[str, dict | None]:
+    """Book a consultation via the marketplace service and return (gemini_text, appt_dict)."""
+    if not lawyer_id or not date or not time_slot or len(matter_summary) < 10:
+        return (
+            "I need a few more details — specifically the lawyer, date, time, and a brief "
+            "description of your matter — before I can book the appointment.",
+            None,
+        )
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            resp = await client.post(
+                f"{marketplace_url}/api/v1/appointments",
+                json={
+                    "lawyer_id": lawyer_id,
+                    "date": date,
+                    "time_slot": time_slot,
+                    "matter_summary": matter_summary,
+                    "source": "ai_match",
+                    "citizen_name": citizen_name or "",
+                },
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            resp.raise_for_status()
+            appt: dict = resp.json()
+    except httpx.HTTPStatusError as exc:
+        detail = ""
+        with suppress(Exception):
+            detail = exc.response.json().get("detail", "")
+        logger.warning("voice_live book_appointment http_error=%s detail=%s", exc, detail)
+        return f"I wasn't able to book the appointment: {detail or 'please try again shortly.'}.", None
+    except Exception as exc:
+        logger.warning("voice_live book_appointment error=%s", exc)
+        return "The booking service is temporarily unavailable. Please try again in a moment.", None
+
+    lawyer_name = appt.get("lawyer_name", "the advocate")
+    slot = appt.get("time_slot", time_slot)
+    appt_date = appt.get("date", date)
+    status = appt.get("status", "requested")
+
+    if status == "confirmed":
+        text = (
+            f"Your consultation with {lawyer_name} has been confirmed for {appt_date} at {slot}. "
+            "You will receive a confirmation shortly. Is there anything else I can help you with?"
+        )
+    else:
+        text = (
+            f"Your consultation request with {lawyer_name} has been sent for {appt_date} at {slot}. "
+            "They will confirm your appointment shortly. Is there anything else I can help you with?"
+        )
+    return text, appt
+
+
 async def _handle_tool_call(
     gemini_ws: websockets.WebSocketClientProtocol,
     client_ws: WebSocket,
     tool_call: dict,
     user_id: str,
+    token: str,
     tavily_key: str,
     marketplace_url: str,
 ) -> None:
@@ -361,6 +492,19 @@ async def _handle_tool_call(
             if lawyers:
                 with suppress(Exception):
                     await client_ws.send_json({"type": "lawyer_results", "lawyers": lawyers})
+        elif fn_name == "book_appointment":
+            result, appt = await _run_book_appointment(
+                lawyer_id=fn_args.get("lawyer_id", ""),
+                date=fn_args.get("date", ""),
+                time_slot=fn_args.get("time_slot", "Immediate"),
+                matter_summary=fn_args.get("matter_summary", ""),
+                citizen_name=fn_args.get("citizen_name", ""),
+                token=token,
+                marketplace_url=marketplace_url,
+            )
+            if appt:
+                with suppress(Exception):
+                    await client_ws.send_json({"type": "appointment_booked", "appointment": appt})
         else:
             result = f"Unknown tool: {fn_name}"
 
@@ -423,7 +567,8 @@ async def voice_live(
             ssl=_SSL_CTX,
         ) as gemini_ws:
             # ── Setup ───────────────────────────────────────────────────────
-            await gemini_ws.send(json.dumps(_setup_msg(voice, live_model)))
+            today_date = _date.today().strftime("%Y-%m-%d")
+            await gemini_ws.send(json.dumps(_setup_msg(voice, live_model, today_date)))
             try:
                 first = json.loads(await gemini_ws.recv())
             except Exception as exc:
@@ -551,7 +696,7 @@ async def voice_live(
                             speaking_signalled = False
                             await _handle_tool_call(
                                 gemini_ws, websocket, msg["toolCall"],
-                                user_id, tavily_key, marketplace_url,
+                                user_id, token, tavily_key, marketplace_url,
                             )
                             continue
 

@@ -369,6 +369,7 @@ export function InputDock({
         "px-3 pt-1.5",
         "pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]",
         "md:px-6 md:pb-6 md:pt-2",
+        "will-change-[transform]",
       )}
     >
       <div

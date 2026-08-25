@@ -17,6 +17,7 @@ from legalos_common.rag.guardrails import OutputGuardrail
 from legalos_orchestrator.agent.citation_merger import merge_citations
 from legalos_orchestrator.agent.graph import AgentGraph, build_system_message
 from legalos_orchestrator.agent.state import LegalAgentState
+from legalos_orchestrator.agent.tools.booking_tool import build_book_appointment_tool
 from legalos_orchestrator.agent.tools.kb_tool import build_kb_tool
 from legalos_orchestrator.agent.tools.lawyer_tool import build_lawyer_tool
 from legalos_orchestrator.agent.tools.web_tool import build_web_tool
@@ -140,6 +141,7 @@ def _build_agent_state(state: OrchestratorState) -> LegalAgentState:
         kb_results=[],
         web_results=[],
         lawyer_results=[],
+        appointment_result=None,
     )
 
 
@@ -192,10 +194,12 @@ class LegalOrchestrator:
         kb_tool = build_kb_tool(retriever)
         web_tool = build_web_tool(tavily_api_key=llm_settings.tavily_api_key)
         lawyer_tool = build_lawyer_tool(llm_settings.marketplace_base_url)
+        book_appointment_tool = build_book_appointment_tool(llm_settings.marketplace_base_url)
         self._agent_graph = AgentGraph(
             kb_tool=kb_tool,
             web_tool=web_tool,
             lawyer_tool=lawyer_tool,
+            book_appointment_tool=book_appointment_tool,
             llm_model=llm_settings.llm_model,
             llm_api_key=llm_settings.llm_api_key,
             llm_base_url=llm_settings.llm_base_url,
@@ -250,6 +254,7 @@ class LegalOrchestrator:
         kb_results: list = []
         web_results: list = []
         lawyer_results: list = []
+        appointment_result: dict | None = None
 
         try:
             async for event in self._agent_graph.astream_events(initial):
@@ -261,6 +266,8 @@ class LegalOrchestrator:
                         yield _sse("status", {"stage": "research", "message": "Searching legal sources…"})
                     elif "get_lawyer" in name:
                         yield _sse("status", {"stage": "lawyer", "message": "Finding matching lawyers…"})
+                    elif "book_appointment" in name:
+                        yield _sse("status", {"stage": "booking", "message": "Booking your consultation…"})
                     elif "web" in name:
                         yield _sse("status", {"stage": "web", "message": "Checking recent developments…"})
 
@@ -283,6 +290,7 @@ class LegalOrchestrator:
                     kb_results = output.get("kb_results", [])
                     web_results = output.get("web_results", [])
                     lawyer_results = output.get("lawyer_results", [])
+                    appointment_result = output.get("appointment_result")
 
         except Exception as exc:
             logger.error("Agent graph error: %s", exc)
@@ -303,8 +311,13 @@ class LegalOrchestrator:
         images = await _attach_web_images(state.query)
         result = _build_result(state, answer, kb_results, cited_web, citations, suggestions, images)
         serialised = result.model_dump(mode="json")
+        payload: dict = {}
         if lawyer_results:
-            serialised["specialist_payload"] = {"lawyers": lawyer_results}
+            payload["lawyers"] = lawyer_results
+        if appointment_result:
+            payload["appointment"] = appointment_result
+        if payload:
+            serialised["specialist_payload"] = payload
         # citations fires first so the UI can render sources before the done event.
         yield _sse("citations", serialised)
         yield _sse("done", serialised)
@@ -331,6 +344,8 @@ class LegalOrchestrator:
 
         kb_results = final_state.get("kb_results", [])
         web_results = final_state.get("web_results", [])
+        lawyer_results_ns = final_state.get("lawyer_results", [])
+        appointment_result_ns = final_state.get("appointment_result")
         citations, cited_web = merge_citations(answer, kb_results, web_results)
 
         guardrail_result = OutputGuardrail().validate(answer, max_valid_citations=len(citations))
@@ -338,7 +353,15 @@ class LegalOrchestrator:
 
         suggestions = _suggest(state.query, kb_results, web_results)
         images = await _attach_web_images(state.query)
-        return _build_result(state, answer, kb_results, cited_web, citations, suggestions, images)
+        result = _build_result(state, answer, kb_results, cited_web, citations, suggestions, images)
+        payload_ns: dict = {}
+        if lawyer_results_ns:
+            payload_ns["lawyers"] = lawyer_results_ns
+        if appointment_result_ns:
+            payload_ns["appointment"] = appointment_result_ns
+        if payload_ns:
+            result = result.model_copy(update={"specialist_payload": payload_ns})
+        return result
 
     async def run(
         self, query: str, *, jurisdiction_hint: str | None = None, user_token: str | None = None

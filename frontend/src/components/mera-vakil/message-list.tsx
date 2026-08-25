@@ -60,6 +60,25 @@ export function MessageList({
     });
   }, [messages, isPending, streamingMessageId, isGenerating]);
 
+  // Keep last message pinned when the container resizes (keyboard open/close on mobile)
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    let raf: number | null = null;
+    const observer = new ResizeObserver(() => {
+      if (raf != null) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
+      });
+    });
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      if (raf != null) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   const showSuggestions =
     !isPending &&
     !streamingMessageId &&

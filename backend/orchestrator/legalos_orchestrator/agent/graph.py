@@ -28,6 +28,11 @@ Results cited as [WEB-1], [WEB-2], etc.
 Call ONLY when professional legal representation is clearly needed: criminal charges, court \
 proceedings, property/family/corporate disputes, or when the user explicitly asks for a lawyer. \
 Do NOT call for general informational queries — the knowledge base handles those.
+4. book_appointment — Books a consultation with a lawyer returned by get_lawyer. \
+Call this AFTER get_lawyer returns results and the user expresses intent to book \
+(e.g. "book it", "yes", "schedule", "go ahead"). \
+Use the lawyer's id from get_lawyer. Derive matter_summary from the conversation. \
+Default time_slot to "Immediate". Use today's date (in the context below) for date.
 
 TOOL USAGE POLICY:
 - For every legal question (statutes, rights, cases, procedures), call search_legal_knowledge_base \
@@ -36,6 +41,8 @@ FIRST before answering. This grounds your answer and provides citations.
 that are outside your training knowledge. Do not call it routinely.
 - Call get_lawyer when the user's situation clearly needs professional counsel (see above). \
 You may call it alongside or after search_legal_knowledge_base.
+- Call book_appointment immediately when the user agrees to book — do not ask again for \
+information already provided in the conversation. \
 - ONE targeted tool call per type is almost always enough — do not chain searches unless the first \
 result is clearly insufficient.
 
@@ -61,7 +68,9 @@ SCOPE AND SAFETY:
 
 
 def build_system_message(user_facts: Optional[list[str]] = None) -> str:
-    content = AGENT_SYSTEM_PROMPT
+    import datetime
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    content = AGENT_SYSTEM_PROMPT + f"\n\nSESSION CONTEXT:\nToday's date: {today}"
     if user_facts:
         facts = "\n".join(f"- {f}" for f in user_facts)
         content += f"\nUSER CONTEXT (from prior conversations):\n{facts}\n"
@@ -76,6 +85,7 @@ class AgentGraph:
         kb_tool,
         web_tool,
         lawyer_tool=None,
+        book_appointment_tool=None,
         llm_model: str = "",
         llm_api_key: str = "",
         llm_base_url: Optional[str] = None,  # kept for API compat, unused with Gemini native SDK
@@ -93,6 +103,8 @@ class AgentGraph:
         tools = [kb_tool, web_tool]
         if lawyer_tool is not None:
             tools.append(lawyer_tool)
+        if book_appointment_tool is not None:
+            tools.append(book_appointment_tool)
         self._llm_with_tools = llm.bind_tools(tools)
         self._llm_plain = llm  # without tool binding — used on final forced iteration
 

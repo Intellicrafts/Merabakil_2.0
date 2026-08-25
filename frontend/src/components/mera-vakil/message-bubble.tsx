@@ -5,6 +5,7 @@ import { Pencil, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
 import { AshokaStambh } from "@/components/mera-vakil/ashoka-stambh";
+import { AppointmentConfirmationCard } from "@/components/mera-vakil/appointment-confirmation-card";
 import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
@@ -132,6 +133,7 @@ export const MessageBubble = memo(function MessageBubble({
   const displayContent = message.content;
   const showAvatar = !(stillTyping && !message.content);
   const lawyers = (research?.specialist_payload?.lawyers ?? []) as LawyerMatchResult[];
+  const appointment = research?.specialist_payload?.appointment as Record<string, unknown> | undefined;
 
   return (
     <div className="group flex gap-3">
@@ -195,6 +197,7 @@ export const MessageBubble = memo(function MessageBubble({
             )}
 
             {lawyers.length > 0 && <LawyerRecommendationPanel lawyers={lawyers} />}
+            {appointment && <AppointmentConfirmationCard appointment={appointment} />}
 
             {research.disclaimer && (
               <p className="mv-msg-disclaimer">{research.disclaimer}</p>

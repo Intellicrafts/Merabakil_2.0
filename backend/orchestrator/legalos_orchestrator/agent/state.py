@@ -28,3 +28,4 @@ class LegalAgentState(MessagesState):
     kb_results: Annotated[list, operator.add]      # list[RetrievedSource]
     web_results: Annotated[list, operator.add]     # list[WebSearchResult]
     lawyer_results: Annotated[list, operator.add]  # list[LawyerMatchResult] from get_lawyer tool
+    appointment_result: Optional[dict]             # AppointmentOut dict from book_appointment tool

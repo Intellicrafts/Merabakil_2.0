@@ -15,6 +15,15 @@ export interface VoiceMessage {
   content: string;
 }
 
+export interface VoiceBookedAppointment {
+  id: string;
+  lawyer_name: string;
+  date: string;
+  time_slot: string;
+  status: string;
+  matter_summary: string;
+}
+
 export function isVoiceBotSupported(): boolean {
   if (typeof window === "undefined") return false;
   return (
@@ -37,6 +46,7 @@ export interface UseVoiceBotResult {
   permissionDenied: boolean;
   voiceMessages: VoiceMessage[];
   lawyerResults: LawyerMatchResult[];
+  lastBooking: VoiceBookedAppointment | null;
   startListening: () => void;
   interrupt: () => void;
   stop: () => void;
@@ -71,6 +81,7 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
   const [permissionDenied, setPermission] = useState(false);
   const [voiceMessages, setVoiceMessages] = useState<VoiceMessage[]>([]);
   const [lawyerResults, setLawyerResults] = useState<LawyerMatchResult[]>([]);
+  const [lastBooking, setLastBooking]   = useState<VoiceBookedAppointment | null>(null);
 
   const wsRef        = useRef<WebSocket | null>(null);
 
@@ -281,6 +292,7 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
           const msg = JSON.parse(e.data as string) as {
             type: string; value?: string; text?: string; message?: string; role?: string;
             lawyers?: LawyerMatchResult[];
+            appointment?: VoiceBookedAppointment;
           };
           switch (msg.type) {
             case "state":
@@ -312,6 +324,11 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
             case "lawyer_results":
               if (msg.lawyers?.length) {
                 setLawyerResults(msg.lawyers);
+              }
+              break;
+            case "appointment_booked":
+              if (msg.appointment) {
+                setLastBooking(msg.appointment);
               }
               break;
             case "error":
@@ -352,6 +369,7 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
       setTranscript("");
       setVoiceMessages([]);
       setLawyerResults([]);
+      setLastBooking(null);
       connectRef.current();
     } else {
       stop();
@@ -386,5 +404,5 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
     playCtxRef.current = null;
   }, [stop]);
 
-  return { botState, transcript, amplitude, permissionDenied, voiceMessages, lawyerResults, startListening: connect, interrupt, stop };
+  return { botState, transcript, amplitude, permissionDenied, voiceMessages, lawyerResults, lastBooking, startListening: connect, interrupt, stop };
 }
