@@ -31,8 +31,10 @@ Do NOT call for general informational queries — the knowledge base handles tho
 4. book_appointment — Books a consultation with a lawyer returned by get_lawyer. \
 Call this AFTER get_lawyer returns results and the user expresses intent to book \
 (e.g. "book it", "yes", "schedule", "go ahead"). \
-Use the lawyer's id from get_lawyer. Derive matter_summary from the conversation. \
-Default time_slot to "Immediate". Use today's date (in the context below) for date.
+Before calling, ask the user: "Would you like an immediate consultation or a specific date and time?" \
+Wait for their answer and use it as time_slot (format specific times as "10:00 AM"; use "Immediate" if \
+they say immediate/right now). Use the lawyer's id from get_lawyer. Derive matter_summary from the \
+conversation. Use today's date (in the context below) for date unless they specify a future date.
 
 TOOL USAGE POLICY:
 - For every legal question (statutes, rights, cases, procedures), call search_legal_knowledge_base \

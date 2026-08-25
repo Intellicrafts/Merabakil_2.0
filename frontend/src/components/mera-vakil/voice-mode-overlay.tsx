@@ -202,38 +202,33 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEn
         </div>
       )}
 
-      {/* Lawyer results strip — appears when AI surfaces advocates */}
+      {/* Lawyer bubbles — appears when AI surfaces advocates */}
       {lawyerResults.length > 0 && (
         <div className="shrink-0 px-5 pb-2">
-          <p className="mb-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
+          <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
             Recommended advocates
           </p>
-          <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
+          <div className="flex flex-wrap justify-center gap-2">
             {lawyerResults.map((lawyer) => (
-              <div
+              <button
                 key={lawyer.id}
-                className="flex min-w-[min(100%,15rem)] shrink-0 flex-col gap-2.5 rounded-2xl bg-white/[0.07] p-3.5 ring-1 ring-white/[0.10]"
+                type="button"
+                onClick={() => onBookLawyer?.(lawyer)}
+                className="flex items-center gap-2.5 rounded-full bg-white/[0.08] px-3.5 py-2 ring-1 ring-white/[0.12] transition-all hover:bg-white/[0.15] hover:ring-white/[0.22] active:scale-[0.97]"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-[13px] font-semibold text-white/80">
-                    {lawyer.full_name.charAt(0)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold text-white/90">{lawyer.full_name}</p>
-                    <p className="truncate text-[11px] text-white/45">
-                      {lawyer.practice_areas[0] ?? "Advocate"}{lawyer.jurisdictions[0] ? ` · ${lawyer.jurisdictions[0]}` : ""}
-                    </p>
-                  </div>
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white/80">
+                  {lawyer.full_name.charAt(0)}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onBookLawyer?.(lawyer)}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2 text-[12px] font-semibold text-white/80 transition-colors hover:bg-white/[0.18] hover:text-white active:scale-[0.97]"
-                >
-                  <CalendarPlus className="h-3.5 w-3.5" />
-                  Book consultation
-                </button>
-              </div>
+                <div className="text-left">
+                  <p className="text-[12px] font-semibold leading-tight text-white/90">
+                    {lawyer.full_name.split(" ")[0]}
+                  </p>
+                  <p className="text-[10px] leading-tight text-white/40">
+                    {lawyer.practice_areas[0] ?? "Advocate"}
+                  </p>
+                </div>
+                <CalendarPlus className="ml-0.5 h-3 w-3 text-white/35" />
+              </button>
             ))}
           </div>
         </div>

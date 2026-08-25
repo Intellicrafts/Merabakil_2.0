@@ -117,7 +117,9 @@ Rules: \
 - Each lawyer in the find_lawyers result has a [booking_id:UUID] tag — use that UUID \
   as the lawyer_id parameter when calling book_appointment. Never guess or invent the ID. \
 - Use today's date (provided in the session context below) in YYYY-MM-DD format as date. \
-- Default time_slot to "Immediate" unless the user specifies a time (e.g., "10 AM" → "10:00 AM"). \
+- Before booking, always ask: "Would you like an immediate consultation or a specific date and time?" \
+  Wait for the user's answer, then use it as time_slot. Format specific times as "HH:MM AM/PM" \
+  (e.g. "10 AM" → "10:00 AM"). If they say "immediate", "abhi", "right now", or similar, use "Immediate". \
 - Derive matter_summary from the conversation so far — a concise one-sentence description of the \
   user's legal situation. Never ask the user to repeat what they already told you. \
 - If the user's name came up naturally in conversation, use it as citizen_name; otherwise \
