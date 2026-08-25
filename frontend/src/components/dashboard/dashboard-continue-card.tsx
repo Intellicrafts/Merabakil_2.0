@@ -9,7 +9,6 @@ import {
   MATTER_TYPES,
   lastMessagePreview,
   relativeTime,
-  saveActiveConversationId,
   type ChatConversation,
 } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
@@ -55,8 +54,7 @@ export function DashboardContinueCard({
   const matter = MATTER_TYPES.find((m) => m.id === lastCounsel.matterType);
 
   function resume() {
-    saveActiveConversationId(lastCounsel!.id);
-    router.push("/mera-vakil");
+    router.push(`/mera-vakil?c=${lastCounsel!.id}`);
   }
 
   return (

@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   lastMessagePreview,
   relativeTime,
-  saveActiveConversationId,
   type ChatConversation,
 } from "@/lib/conversations";
 import type { LegalCase } from "@/lib/types";
@@ -28,8 +27,7 @@ export function DashboardActivityRail({
   const [expanded, setExpanded] = useState(false);
 
   function openCounsel(id: string) {
-    saveActiveConversationId(id);
-    router.push("/mera-vakil");
+    router.push(`/mera-vakil?c=${id}`);
   }
 
   return (

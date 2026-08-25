@@ -8,6 +8,18 @@ import type { DashboardModule } from "@/lib/dashboard-config";
 import { getModuleMeta } from "@/lib/dashboard-meta";
 import { cn } from "@/lib/utils";
 
+const MODULE_CTA: Record<string, string> = {
+  "/mera-vakil": "Start counsel",
+  "/research": "Open research",
+  "/lawyer-marketplace": "Find lawyers",
+  "/cases": "View cases",
+  "/documents": "View documents",
+  "/courtroom": "Enter courtroom",
+  "/admin/knowledge": "Manage corpus",
+  "/admin/users": "Manage users",
+  "/admin/appointments": "View appointments",
+};
+
 export function DashboardModuleCard({
   mod,
   index = 0,
@@ -17,6 +29,7 @@ export function DashboardModuleCard({
 }) {
   const Icon = mod.icon;
   const meta = getModuleMeta(mod.href);
+  const cta = MODULE_CTA[mod.href] ?? "Open workspace";
   const delayMs = 140 + index * 55;
 
   return (
@@ -78,7 +91,7 @@ export function DashboardModuleCard({
 
       <div className="relative mt-5 flex items-center justify-between border-t border-black/[0.05] pt-3.5 dark:border-white/[0.06]">
         <span className="text-[11px] font-semibold text-muted-foreground transition-colors group-hover:text-foreground">
-          Open workspace
+          {cta}
         </span>
         <span className="flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.06] bg-black/[0.02] transition-all duration-200 group-hover:bg-slate-900 group-hover:text-white dark:border-white/[0.08] dark:bg-white/[0.04] dark:group-hover:bg-white dark:group-hover:text-slate-900">
           <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-px group-hover:translate-x-px" />

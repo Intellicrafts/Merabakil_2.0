@@ -102,8 +102,11 @@ export function DashboardHero({
           </div>
 
           <div className="flex flex-wrap gap-2 sm:hidden">
-            {ready
-              ? kpis.map((item) => (
+            {!ready
+              ? Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-24 rounded-full" />
+                ))
+              : kpis.filter((k) => k.value !== "0").map((item) => (
                   <span
                     key={item.label}
                     className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.06] bg-white/60 px-3 py-1.5 text-[11px] dark:border-white/[0.08] dark:bg-white/[0.04]"
@@ -111,31 +114,32 @@ export function DashboardHero({
                     <span className="text-muted-foreground">{item.label}</span>
                     <span className="font-semibold tabular-nums">{item.value}</span>
                   </span>
-                ))
-              : Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-8 w-24 rounded-full" />
                 ))}
           </div>
 
-          <dl className="hidden shrink-0 divide-x divide-black/[0.06] overflow-hidden rounded-2xl border border-black/[0.06] bg-white/60 shadow-[0_4px_20px_rgba(15,23,42,0.04)] dark:divide-white/[0.08] dark:border-white/[0.08] dark:bg-white/[0.04] sm:flex">
-            {ready
-              ? kpis.map((item) => (
-                  <div key={item.label} className="min-w-[76px] px-4 py-3.5 text-center lg:min-w-[88px] lg:px-5">
-                    <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                      {item.label}
-                    </dt>
-                    <dd className="mt-1 text-sm font-semibold tabular-nums tracking-tight">
-                      {item.value}
-                    </dd>
-                  </div>
-                ))
-              : Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="min-w-[76px] px-4 py-3.5 lg:min-w-[88px] lg:px-5">
-                    <Skeleton className="mx-auto h-2.5 w-12" />
-                    <Skeleton className="mx-auto mt-2 h-4 w-8" />
-                  </div>
-                ))}
-          </dl>
+          {!ready ? (
+            <div className="hidden shrink-0 divide-x divide-black/[0.06] overflow-hidden rounded-2xl border border-black/[0.06] bg-white/60 dark:divide-white/[0.08] dark:border-white/[0.08] dark:bg-white/[0.04] sm:flex">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="min-w-[76px] px-4 py-3.5 lg:min-w-[88px] lg:px-5">
+                  <Skeleton className="mx-auto h-2.5 w-12" />
+                  <Skeleton className="mx-auto mt-2 h-4 w-8" />
+                </div>
+              ))}
+            </div>
+          ) : kpis.some((k) => k.value !== "0") ? (
+            <dl className="hidden shrink-0 divide-x divide-black/[0.06] overflow-hidden rounded-2xl border border-black/[0.06] bg-white/60 shadow-[0_4px_20px_rgba(15,23,42,0.04)] dark:divide-white/[0.08] dark:border-white/[0.08] dark:bg-white/[0.04] sm:flex">
+              {kpis.filter((k) => k.value !== "0").map((item) => (
+                <div key={item.label} className="min-w-[76px] px-4 py-3.5 text-center lg:min-w-[88px] lg:px-5">
+                  <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    {item.label}
+                  </dt>
+                  <dd className="mt-1 text-sm font-semibold tabular-nums tracking-tight">
+                    {item.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
         </div>
       </div>
     </header>

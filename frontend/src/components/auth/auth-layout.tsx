@@ -53,7 +53,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
         </div>
 
         <p className="relative text-xs text-white/50 dark:text-slate-600">
-          © Bakilat Legal OS · Informational only, not legal advice
+          © MeraBakil · Informational only, not legal advice
         </p>
       </div>
 
