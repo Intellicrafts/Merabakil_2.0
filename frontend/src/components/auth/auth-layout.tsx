@@ -30,7 +30,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
               <Scale className="h-5 w-5" />
             </div>
-            <span className="text-lg font-semibold tracking-tight">AI Legal OS</span>
+            <span className="text-lg font-semibold tracking-tight">MeraBakil</span>
           </Link>
         </div>
 
@@ -40,15 +40,14 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             Mera Vakil · India&apos;s AI Legal Counsel
           </div>
           <h1 className="max-w-md text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
-            Enterprise legal intelligence for citizens, advocates, and firms.
+            Legal guidance for every Indian — citizens, advocates, and firms.
           </h1>
           <p className="max-w-sm text-sm leading-relaxed text-white/75 dark:text-slate-700">
-            Grounded research, document intelligence, and conversational legal guidance —
-            built for the Indian legal ecosystem.
+            Ask legal questions in plain language, research with cited sources, find the right lawyer, and manage your documents — all in one place.
           </p>
           <div className="flex items-center gap-2 text-xs text-white/60 dark:text-slate-600">
             <Shield className="h-3.5 w-3.5" />
-            RBAC · Citations · Secure by design
+            Role-based access · Verified citations · Secure by design
           </div>
         </div>
 
@@ -62,7 +61,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
         <div className="flex items-center justify-between px-6 py-4 lg:absolute lg:right-0 lg:top-0 lg:z-10 lg:px-8">
           <Link href="/" className="inline-flex items-center gap-2 lg:hidden">
             <Scale className="h-5 w-5" />
-            <span className="font-semibold">AI Legal OS</span>
+            <span className="font-semibold">MeraBakil</span>
           </Link>
           <Button
             variant="ghost"

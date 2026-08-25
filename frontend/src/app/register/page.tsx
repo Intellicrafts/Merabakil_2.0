@@ -102,7 +102,7 @@ function RegisterForm() {
             id="full_name"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            placeholder="Jane Advocate"
+            placeholder="Your full name"
             autoComplete="name"
           />
         </div>

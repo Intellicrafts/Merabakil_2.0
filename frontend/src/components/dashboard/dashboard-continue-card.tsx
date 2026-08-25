@@ -39,9 +39,9 @@ export function DashboardContinueCard({
         style={{ animationDelay: "80ms" }}
       >
         <div>
-          <p className="text-[13px] font-semibold tracking-tight">Start your first counsel session</p>
+          <p className="text-[13px] font-semibold tracking-tight">Start a conversation with Mera Vakil</p>
           <p className="mt-0.5 text-[12px] text-muted-foreground">
-            Ask a legal question with grounded citations.
+            Ask any legal question — answers backed by Indian law and case citations.
           </p>
         </div>
         <span className="flex h-8 w-8 items-center justify-center rounded-full border border-black/[0.06] text-muted-foreground transition-colors group-hover:bg-slate-900 group-hover:text-white dark:border-white/[0.08] dark:group-hover:bg-white dark:group-hover:text-slate-900">

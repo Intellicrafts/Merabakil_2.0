@@ -6,9 +6,9 @@ import { BookOpen, Clock, Shield, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TRUST_ITEMS = [
-  { icon: Shield, text: "Enterprise RBAC" },
-  { icon: BookOpen, text: "Indian legal corpus" },
-  { icon: Sparkles, text: "Citation-grounded AI" },
+  { icon: Shield, text: "Enterprise-grade security" },
+  { icon: BookOpen, text: "1,250+ Indian laws & judgments" },
+  { icon: Sparkles, text: "Cited, verifiable answers" },
 ] as const;
 
 export function DashboardTrustBar({ className }: { className?: string }) {

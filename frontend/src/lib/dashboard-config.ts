@@ -48,63 +48,63 @@ const ALL_MODULES: DashboardModule[] = [
   {
     href: "/mera-vakil",
     title: "Mera Vakil",
-    description: "Conversational legal AI with citations and read-aloud.",
+    description: "Chat with India's AI legal counsel — cited answers, voice support, document understanding.",
     icon: Sparkles,
     permission: Permission.RESEARCH_READ,
   },
   {
     href: "/research",
     title: "Research Console",
-    description: "Deep grounded legal research with confidence scoring.",
+    description: "Research Indian law with AI precision — grounded in statutes, judgments, and cited sources.",
     icon: Search,
     permission: Permission.RESEARCH_READ,
   },
   {
     href: "/lawyer-marketplace",
     title: "Lawyer Marketplace",
-    description: "Browse top lawyers and book consultations.",
+    description: "Find verified lawyers by practice area, book consultations, and manage appointments.",
     icon: Briefcase,
     permission: Permission.RESEARCH_READ,
   },
   {
     href: "/cases",
     title: "Case Management",
-    description: "Track legal matters, status, and timelines.",
+    description: "Track your legal matters, monitor status updates, and keep all case details in one place.",
     icon: FolderOpen,
     permission: Permission.CASE_READ,
   },
   {
     href: "/courtroom",
     title: "AI Courtroom",
-    description: "Simulate hearings with Judge and Advocate AI — procedural and reviewable.",
+    description: "Practice hearings with an AI Judge and Advocate — structured, recorded, and reviewable.",
     icon: Gavel,
     permission: Permission.COURTROOM_SIMULATE,
   },
   {
     href: "/documents",
     title: "Documents",
-    description: "Upload, manage, and query your legal documents.",
+    description: "Upload, organise, and query your legal documents — contracts, notices, evidence, and more.",
     icon: FileText,
     permission: Permission.DOCUMENT_READ,
   },
   {
     href: "/admin/knowledge",
     title: "Knowledge Hub",
-    description: "Ingest and manage firm-wide legal corpora.",
+    description: "Build and manage your firm's legal knowledge base — ingest documents for AI-powered search.",
     icon: Database,
     permission: Permission.KNOWLEDGE_INGEST,
   },
   {
     href: "/admin/users",
     title: "User Management",
-    description: "Manage platform users, roles, and access.",
+    description: "Manage platform users, assign roles, and control access permissions.",
     icon: Users,
     permission: Permission.USER_MANAGE,
   },
   {
     href: "/admin/appointments",
     title: "Appointment Ops",
-    description: "Oversee bookings, transcripts, and counsel verification.",
+    description: "Oversee consultation bookings, review transcripts, and verify counsel.",
     icon: CalendarClock,
     permission: Permission.USER_MANAGE,
   },
@@ -115,8 +115,8 @@ const ROLE_CONFIG: Record<
   Pick<DashboardConfig, "headline" | "subtitle"> & { moduleHrefs: string[] }
 > = {
   admin: {
-    headline: "Platform control center",
-    subtitle: "Full access to research, documents, knowledge ingestion, and user administration.",
+    headline: "Platform control centre",
+    subtitle: "Full access to all modules — research, documents, knowledge ingestion, users, and appointments.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",
@@ -130,8 +130,8 @@ const ROLE_CONFIG: Record<
     ],
   },
   enterprise: {
-    headline: "Compliance & document operations",
-    subtitle: "Enterprise legal intelligence with document workflows and audit visibility.",
+    headline: "Your organisation's legal intelligence",
+    subtitle: "Stay compliant, manage legal documents, and get AI-powered guidance on Indian law.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",
@@ -141,8 +141,8 @@ const ROLE_CONFIG: Record<
     ],
   },
   law_firm: {
-    headline: "Firm intelligence hub",
-    subtitle: "Research, documents, and knowledge management for your practice.",
+    headline: "Your firm's legal intelligence hub",
+    subtitle: "Research precedents, manage case documents, and build a searchable knowledge base for your practice.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",
@@ -155,7 +155,7 @@ const ROLE_CONFIG: Record<
   },
   advocate: {
     headline: "Your practice workspace",
-    subtitle: "Research faster, manage documents, and advise clients with grounded citations.",
+    subtitle: "Research faster, draft with precision, and advise clients backed by cited Indian law.",
     moduleHrefs: [
       "/mera-vakil",
       "/courtroom",
@@ -167,7 +167,7 @@ const ROLE_CONFIG: Record<
   },
   citizen: {
     headline: "Your legal companion",
-    subtitle: "Ask legal questions and explore Indian law with AI-powered guidance.",
+    subtitle: "Ask any legal question in plain language and get clear, cited answers on Indian law.",
     moduleHrefs: ["/mera-vakil", "/research", "/lawyer-marketplace", "/cases"],
   },
 };
