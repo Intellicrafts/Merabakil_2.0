@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mera Vakil — Legal AI for India",
-  description: "Mera Vakil: Indian legal AI with grounded answers, live citations, and expert consultation.",
+  title: "MeraBakil — Legal guidance for every Indian",
+  description: "MeraBakil: India's legal AI platform — cited answers, verified lawyers, and case management grounded in Indian law.",
 };
 
 export const viewport: Viewport = {

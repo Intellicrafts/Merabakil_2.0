@@ -37,7 +37,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
         <div className="relative space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium dark:bg-black/10">
             <Sparkles className="h-3.5 w-3.5" />
-            Mera Vakil · India&apos;s AI Legal Counsel
+            MeraBakil · India&apos;s Legal AI Platform
           </div>
           <h1 className="max-w-md text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
             Legal guidance for every Indian — citizens, advocates, and firms.

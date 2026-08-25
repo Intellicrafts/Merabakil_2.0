@@ -88,8 +88,8 @@ function AppTopBar({
             <Scale className="h-3.5 w-3.5 text-foreground/80" strokeWidth={1.75} />
           </div>
           <div className="hidden sm:block">
-            <p className="text-[13px] font-semibold leading-none tracking-tight">AI Legal OS</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">India</p>
+            <p className="text-[13px] font-semibold leading-none tracking-tight">MeraBakil</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">Legal guidance for India</p>
           </div>
         </Link>
 

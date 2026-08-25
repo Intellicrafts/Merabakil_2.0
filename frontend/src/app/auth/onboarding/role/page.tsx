@@ -44,7 +44,7 @@ function RoleOnboardingForm() {
   return (
     <AuthLayout
       title="Choose your account type"
-      subtitle="Select how you'll use AI Legal OS — you can update profile details later"
+      subtitle="Select how you'll use MeraBakil — you can update your profile details later"
     >
       <div className="mb-6 flex items-center gap-3 rounded-2xl border border-black/[0.08] bg-white/60 p-4 dark:border-white/10 dark:bg-white/[0.05]">
         {context.picture ? (
