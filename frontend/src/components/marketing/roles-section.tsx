@@ -4,30 +4,34 @@ const ROLES = [
   {
     icon: User,
     title: "Citizens",
+    scenario: "I received a legal notice. What do I do?",
     description:
-      "Understand your rights, explore legal questions, and get clear guidance grounded in Indian law.",
-    gradient: "from-slate-600 to-slate-800",
+      "Understand your rights, get plain-language answers about your situation, and find verified lawyers for your matter — no legal background needed.",
+    gradient: "from-blue-600 to-blue-800",
   },
   {
     icon: Scale,
     title: "Advocates",
+    scenario: "My client needs a cited answer by tomorrow.",
     description:
-      "Accelerate research, review documents, and deliver citation-backed advice to clients faster.",
-    gradient: "from-zinc-600 to-zinc-800",
+      "Research faster with AI-powered statute and case law search. Draft with precision and advise with confidence — backed by Indian legal sources.",
+    gradient: "from-slate-600 to-slate-800",
   },
   {
     icon: Building2,
     title: "Law Firms",
+    scenario: "We're managing 30 active matters across the team.",
     description:
-      "Centralize firm knowledge, manage cases and documents, and scale legal intelligence across teams.",
-    gradient: "from-gray-600 to-gray-800",
+      "Centralise case management, build a firm knowledge base, and equip every team member with AI-powered research tools — in one workspace.",
+    gradient: "from-zinc-600 to-zinc-800",
   },
   {
     icon: Shield,
-    title: "Enterprise",
+    title: "Enterprises",
+    scenario: "We need to comply with the DPDP Act. Where do we start?",
     description:
-      "Compliance workflows, document operations, and audit-ready legal research for in-house teams.",
-    gradient: "from-slate-700 to-slate-900",
+      "Get AI-powered compliance guidance, review contracts, manage legal documents, and understand regulatory obligations relevant to your business.",
+    gradient: "from-emerald-700 to-emerald-900",
   },
 ];
 
@@ -37,12 +41,14 @@ export function RolesSection() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-12 text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Built for every legal stakeholder
+            Who it&apos;s for
           </p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight">Role-based intelligence</h2>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight">
+            Built for every legal situation
+          </h2>
           <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-            From citizens seeking clarity to enterprises managing compliance — one platform,
-            tailored access.
+            Whether you&apos;re a citizen facing a dispute or an enterprise managing compliance —
+            MeraBakil gives you the right tools for your role.
           </p>
         </div>
 
@@ -60,7 +66,10 @@ export function RolesSection() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <h3 className="font-semibold">{role.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-1.5 text-[12px] italic text-muted-foreground/70">
+                  &ldquo;{role.scenario}&rdquo;
+                </p>
+                <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
                   {role.description}
                 </p>
               </div>

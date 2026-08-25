@@ -18,28 +18,28 @@ export function MeraVakilSpotlight() {
       <div className="relative mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
         <div className="space-y-5">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Flagship product
+            Your AI legal counsel
           </p>
           <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
             Meet <span className="gradient-text">Mera Vakil</span>
           </h2>
           <p className="leading-relaxed text-muted-foreground">
-            A conversational legal AI built for India. Ask questions in plain language, get
-            grounded answers with citations from statutes, constitution articles, and case
-            law — streamed in real time like a modern AI assistant.
+            India's first AI legal counsel designed for plain-language questions. Whether
+            you're a citizen trying to understand a notice or an advocate researching
+            precedents — Mera Vakil gives you grounded, cited answers from Indian law.
           </p>
           <ul className="space-y-2.5 text-sm text-muted-foreground">
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-              Multi-turn legal conversations with memory
+              Ask about property disputes, employment rights, consumer protection, and more
             </li>
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-              Read-aloud in Indian English and regional languages
+              Every answer cites the statute, article, or judgment it&apos;s based on
             </li>
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-              Confidence scoring and expandable source grounding
+              Available in English, Hindi, and regional Indian languages
             </li>
           </ul>
           <Button asChild className="rounded-full">

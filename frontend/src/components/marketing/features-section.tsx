@@ -1,30 +1,47 @@
-import { Database, FileText, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { Briefcase, FileText, Gavel, MessageSquare, Scale, Search } from "lucide-react";
 
-const FEATURES = [
+const SERVICES = [
   {
-    icon: Sparkles,
-    title: "Mera Vakil Chat",
-    description: "Conversational legal AI with streaming answers, citations, and read-aloud.",
+    icon: MessageSquare,
+    title: "Ask any legal question",
+    description:
+      "Get cited answers on property rights, employment law, consumer protection, criminal procedure, and more — explained in plain language.",
+    tag: "Mera Vakil",
   },
   {
     icon: Search,
-    title: "Research Console",
-    description: "Deep legal research with confidence metrics and specialist analysis.",
+    title: "Research Indian law",
+    description:
+      "Search across the Indian Constitution, IPC, CrPC, consumer protection acts, and thousands of Supreme Court and High Court judgments.",
+    tag: "Research",
+  },
+  {
+    icon: Briefcase,
+    title: "Find a verified lawyer",
+    description:
+      "Browse verified advocates by practice area and location. Book a consultation directly and manage your appointments in one place.",
+    tag: "Marketplace",
   },
   {
     icon: FileText,
-    title: "Document Hub",
-    description: "Upload, index, and query your own legal documents with scoped research.",
+    title: "Track your legal matters",
+    description:
+      "Stay on top of active cases, next steps, and key dates. Keep all matter details, documents, and updates organised in one place.",
+    tag: "Case Management",
   },
   {
-    icon: Database,
-    title: "Knowledge Hub",
-    description: "Ingest and manage firm-wide legal corpora with admin controls.",
+    icon: Scale,
+    title: "Manage your documents",
+    description:
+      "Upload contracts, legal notices, evidence, and correspondence. Query your documents with AI and share securely with your lawyer.",
+    tag: "Documents",
   },
   {
-    icon: ShieldCheck,
-    title: "Enterprise RBAC",
-    description: "Role-based permissions for citizens, advocates, firms, and administrators.",
+    icon: Gavel,
+    title: "Practice before a hearing",
+    description:
+      "Advocates can rehearse oral arguments with an AI judge and opposing counsel — with real-time transcripts and formal written feedback.",
+    tag: "AI Courtroom",
   },
 ];
 
@@ -34,23 +51,36 @@ export function FeaturesSection() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-12 text-center">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Platform
+            Services
           </p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight">Everything you need</h2>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight">
+            Everything you need to handle a legal matter
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+            From your first question to finding a lawyer, managing your case, and preparing
+            for court — one platform covers the full legal journey.
+          </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((feature) => {
-            const Icon = feature.icon;
+          {SERVICES.map((service) => {
+            const Icon = service.icon;
             return (
               <div
-                key={feature.title}
+                key={service.title}
                 className="rounded-2xl border border-black/[0.06] bg-white/60 p-6 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]"
               >
-                <Icon className="mb-3 h-5 w-5 text-slate-600 dark:text-slate-300" />
-                <h3 className="font-semibold">{feature.title}</h3>
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/[0.06] bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
+                    <Icon className="h-[18px] w-[18px] text-slate-600 dark:text-slate-300" strokeWidth={1.75} />
+                  </div>
+                  <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:bg-white/[0.06]">
+                    {service.tag}
+                  </span>
+                </div>
+                <h3 className="font-semibold">{service.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {feature.description}
+                  {service.description}
                 </p>
               </div>
             );
@@ -68,15 +98,15 @@ export function TrustSection() {
         <div className="grid gap-6 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-slate-50 to-white p-8 dark:border-white/10 dark:from-zinc-900 dark:to-zinc-950 md:grid-cols-3">
           <div className="text-center md:text-left">
             <p className="text-2xl font-semibold">1,250+</p>
-            <p className="text-sm text-muted-foreground">Legal corpus chunks indexed</p>
+            <p className="text-sm text-muted-foreground">Indian laws and judgments indexed</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-semibold">Grounded</p>
-            <p className="text-sm text-muted-foreground">Citations on every research answer</p>
+            <p className="text-2xl font-semibold">Every answer</p>
+            <p className="text-sm text-muted-foreground">cites its legal source — no guesswork</p>
           </div>
           <div className="text-center md:text-right">
-            <p className="text-2xl font-semibold">Secure</p>
-            <p className="text-sm text-muted-foreground">JWT auth · RBAC · Audit-ready</p>
+            <p className="text-2xl font-semibold">Your data</p>
+            <p className="text-sm text-muted-foreground">stays private — secure, role-controlled access</p>
           </div>
         </div>
       </div>

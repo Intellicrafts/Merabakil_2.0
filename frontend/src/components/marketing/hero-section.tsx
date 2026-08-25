@@ -1,8 +1,16 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Briefcase, FileText, Home, Scale, Shield } from "lucide-react";
 
 import { ModuleFeatureShowcase } from "@/components/marketing/module-feature-showcase";
 import { Button } from "@/components/ui/button";
+
+const LEGAL_SCENARIOS = [
+  { icon: FileText, label: "Legal notice received" },
+  { icon: Home, label: "Property dispute" },
+  { icon: Briefcase, label: "Employment issue" },
+  { icon: Shield, label: "Consumer complaint" },
+  { icon: Scale, label: "Contract review" },
+];
 
 export function HeroSection() {
   return (
@@ -16,17 +24,18 @@ export function HeroSection() {
       <div className="relative mx-auto grid w-full max-w-6xl items-center gap-6 lg:grid-cols-[1fr_1.05fr] lg:gap-10">
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
           <div className="hero-stagger-1 inline-flex items-center gap-2 rounded-full border border-black/[0.07] bg-background/80 px-3 py-1 text-[11px] font-medium sm:backdrop-blur-sm dark:border-white/10">
-            <Sparkles className="h-3 w-3 text-muted-foreground" />
-            Mera Vakil
+            <Scale className="h-3 w-3 text-muted-foreground" strokeWidth={1.75} />
+            India's Legal AI Platform
           </div>
 
-          <div className="hero-stagger-2 mt-4 space-y-2.5 lg:mt-5">
+          <div className="hero-stagger-2 mt-4 space-y-3 lg:mt-5">
             <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight md:text-5xl lg:text-[3.25rem]">
-              Meet{" "}
-              <span className="gradient-text">Mera Vakil</span>
+              Legal clarity for{" "}
+              <span className="gradient-text">every Indian</span>
             </h1>
-            <p className="mx-auto max-w-xs text-[15px] leading-relaxed text-muted-foreground lg:mx-0 lg:max-w-sm">
-              Indian legal AI with grounded answers and citations.
+            <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-muted-foreground lg:mx-0">
+              Got a legal notice? Facing a dispute? Ask your question in plain
+              language and get clear answers — cited from Indian statutes and case law.
             </p>
           </div>
 
@@ -37,13 +46,30 @@ export function HeroSection() {
               className="rounded-full bg-gradient-to-r from-slate-800 to-slate-900 px-7 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
             >
               <Link href="/register">
-                Get Started
+                Get legal guidance
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="rounded-full">
               <Link href="/login">Sign In</Link>
             </Button>
+          </div>
+
+          <div className="hero-stagger-4 mt-7 lg:mt-9">
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+              Common situations we help with
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 lg:justify-start">
+              {LEGAL_SCENARIOS.map(({ icon: Icon, label }) => (
+                <span
+                  key={label}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.07] bg-white/60 px-3 py-1.5 text-[12px] text-muted-foreground backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]"
+                >
+                  <Icon className="h-3 w-3 shrink-0" strokeWidth={1.75} />
+                  {label}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 

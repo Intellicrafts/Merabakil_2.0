@@ -10,10 +10,10 @@ import { initTheme, toggleTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "#mera-vakil", label: "Mera Vakil" },
-  { href: "#roles", label: "For You" },
-  { href: "#features", label: "Platform" },
-  { href: "#trust", label: "Trust" },
+  { href: "#mera-vakil", label: "How it works" },
+  { href: "#roles", label: "Who it's for" },
+  { href: "#features", label: "Services" },
+  { href: "#trust", label: "Why MeraBakil" },
 ];
 
 interface MarketingShellProps {
@@ -39,8 +39,8 @@ export function MarketingShell({ children }: MarketingShellProps) {
               <Scale className="h-4 w-4" />
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-semibold tracking-tight">Mera Vakil</p>
-              <p className="text-[10px] text-muted-foreground">Legal AI for India</p>
+              <p className="text-sm font-semibold tracking-tight">MeraBakil</p>
+              <p className="text-[10px] text-muted-foreground">Legal guidance for India</p>
             </div>
           </Link>
 
