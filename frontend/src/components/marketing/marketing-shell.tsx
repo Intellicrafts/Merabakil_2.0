@@ -40,7 +40,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
             </div>
             <div className="hidden sm:block">
               <p className="text-sm font-semibold tracking-tight">MeraBakil</p>
-              <p className="text-[10px] text-muted-foreground">Legal guidance for India</p>
+              <p className="text-[10px] text-muted-foreground">Your Legal Saarthi</p>
             </div>
           </Link>
 

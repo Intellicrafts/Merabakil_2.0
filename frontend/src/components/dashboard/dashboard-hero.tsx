@@ -92,7 +92,7 @@ export function DashboardHero({
           {lastCounsel && (
             <Link
               href={`/mera-vakil?c=${lastCounsel.id}`}
-              className="inline-flex h-8 w-fit items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.06] px-3 text-[12px] font-medium text-white/60 transition-colors hover:bg-white/[0.10] hover:text-white/90 dark:border-white/[0.10] dark:text-white/50"
+              className="inline-flex h-8 w-fit items-center gap-1.5 rounded-full border border-black/[0.08] bg-black/[0.04] px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-black/[0.07] hover:text-foreground dark:border-white/[0.12] dark:bg-white/[0.06] dark:text-white/60 dark:hover:bg-white/[0.10] dark:hover:text-white/90"
             >
               <MessageSquare className="h-3 w-3" />
               Continue last chat

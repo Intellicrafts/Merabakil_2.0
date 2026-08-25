@@ -13,7 +13,7 @@ export function FooterSection() {
               </div>
               <span className="font-semibold tracking-tight">MeraBakil</span>
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">Legal guidance for every Indian</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">Your Legal Saarthi</p>
           </div>
 
           <nav className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground md:justify-end">

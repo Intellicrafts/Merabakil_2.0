@@ -89,7 +89,7 @@ function AppTopBar({
           </div>
           <div className="hidden sm:block">
             <p className="text-[13px] font-semibold leading-none tracking-tight">MeraBakil</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">Legal guidance for India</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">Your Legal Saarthi</p>
           </div>
         </Link>
 
