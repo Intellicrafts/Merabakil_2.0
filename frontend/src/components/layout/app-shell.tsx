@@ -27,7 +27,7 @@ import type { AuthUser } from "@/lib/types";
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Home",
   "/research": "Research Console",
-  "/lawyer-marketplace": "Lawyer Marketplace",
+  "/lawyer-marketplace": "Find an Advocate",
   "/appointments": "Appointments",
   "/cases": "Case Management",
   "/documents": "Documents",

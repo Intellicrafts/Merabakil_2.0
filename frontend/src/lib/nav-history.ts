@@ -21,7 +21,7 @@ export function resolveRouteLabel(pathname: string): string {
   if (pathname === "/dashboard" || pathname === "/") return "Home";
   if (pathname === "/research") return "Research";
   if (pathname === "/lawyer-marketplace") return "Marketplace";
-  if (pathname === "/mera-vakil") return "Mera Vakil";
+  if (pathname === "/mera-vakil") return "Saarthi";
   if (pathname.startsWith("/cases")) return "Cases";
   if (pathname.startsWith("/documents")) return "Documents";
   if (pathname.startsWith("/courtroom")) return "AI Courtroom";

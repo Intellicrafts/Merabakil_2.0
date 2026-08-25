@@ -78,10 +78,10 @@ export function PremiumModal({ open, onClose }: PremiumModalProps) {
             </div>
             <div>
               <p className="text-[11px] font-medium uppercase tracking-widest text-white/60 dark:text-slate-600">
-                Bakilat Legal OS
+                MeraBakil
               </p>
               <h2 id="premium-modal-title" className="text-xl font-semibold tracking-tight">
-                Mera Vakil Premium
+                Saarthi Premium
               </h2>
             </div>
           </div>

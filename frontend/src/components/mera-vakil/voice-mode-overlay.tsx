@@ -105,7 +105,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEn
       {/* Top bar */}
       <div className="flex shrink-0 items-center justify-between px-5 py-4">
         <span className="select-none text-[10px] font-semibold uppercase tracking-[0.22em] text-white/20">
-          Mera Vakil · Voice
+          Saarthi · Voice
         </span>
         <button
           type="button"

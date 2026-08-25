@@ -55,7 +55,7 @@ async function exportAnswerPdf(el: HTMLElement, title: string) {
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(10);
   pdf.setTextColor(71, 85, 105);
-  pdf.text("Mera Vakil  ·  Counsel note", margin, 12);
+  pdf.text("Saarthi  ·  Counsel note", margin, 12);
   pdf.setFontSize(8);
   pdf.text(title.slice(0, 90), margin, 17);
   const top = 22;

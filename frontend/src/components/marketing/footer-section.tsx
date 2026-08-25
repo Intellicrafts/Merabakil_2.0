@@ -24,10 +24,10 @@ export function FooterSection() {
               Get Started
             </Link>
             <Link href="/mera-vakil" className="hover:text-foreground">
-              Mera Vakil
+              Saarthi
             </Link>
             <Link href="/lawyer-marketplace" className="hover:text-foreground">
-              Find a Lawyer
+              Find an Advocate
             </Link>
           </nav>
         </div>

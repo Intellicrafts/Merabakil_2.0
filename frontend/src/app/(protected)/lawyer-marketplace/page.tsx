@@ -9,7 +9,6 @@ import {
   LawyerFilters,
   type LawyerFilterState,
 } from "@/components/lawyer-marketplace/lawyer-filters";
-import { LiveMatchPanel } from "@/components/lawyer-marketplace/live-match/live-match-panel";
 import { LawyerProfileDrawer } from "@/components/lawyer-marketplace/lawyer-profile-drawer";
 import { MarketplaceHero } from "@/components/lawyer-marketplace/marketplace-hero";
 import { TopMatchesStrip } from "@/components/lawyer-marketplace/top-matches-strip";
@@ -40,7 +39,6 @@ export default function LawyerMarketplacePage() {
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [profileLawyer, setProfileLawyer] = useState<RankedLawyer | null>(null);
   const [bookingLawyer, setBookingLawyer] = useState<RankedLawyer | null>(null);
-  const [bookingSource, setBookingSource] = useState<"ai_match" | "manual">("manual");
   const [appointmentsVersion, setAppointmentsVersion] = useState(0);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
@@ -159,18 +157,8 @@ export default function LawyerMarketplacePage() {
       ? Math.round(lawyers.reduce((s, l) => s + l.match_score, 0) / lawyers.length)
       : 0;
 
-  function bookManual(lawyer: RankedLawyer) {
-    setBookingSource("manual");
-    setBookingLawyer(lawyer);
-  }
-
-  function bookMatch(lawyer: RankedLawyer) {
-    setBookingSource("ai_match");
-    setBookingLawyer(lawyer);
-  }
-
   return (
-    <div className="mx-auto w-full max-w-[1120px] space-y-5 pb-6 md:space-y-6 md:pb-8">
+    <div className="mx-auto w-full max-w-[1120px] space-y-4 pb-6 md:space-y-5 md:pb-8">
       <MarketplaceHero
         counselCount={catalog.length}
         verifiedCount={verifiedCount}
@@ -188,32 +176,30 @@ export default function LawyerMarketplacePage() {
             value="lawyers"
             className="min-h-8 flex-1 rounded-xl px-4 text-[12px] font-semibold sm:flex-none"
           >
-            Top Lawyers
+            Find an Advocate
           </TabsTrigger>
           <TabsTrigger
             value="appointments"
             className="min-h-8 flex-1 rounded-xl px-4 text-[12px] font-semibold sm:flex-none"
           >
-            Appointments
+            My Consultations
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="lawyers" className="mt-4 space-y-5">
-          <LiveMatchPanel catalog={catalog} onView={setProfileLawyer} onBook={bookMatch} />
-
           <LawyerFilters value={filters} onChange={setFilters} />
 
           <TopMatchesStrip
             lawyers={lawyers}
             onView={setProfileLawyer}
-            onBook={bookManual}
+            onBook={(l) => setBookingLawyer(l)}
           />
 
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Browse · {lawyers.length}
+              All Advocates ({lawyers.length})
             </h2>
-            <p className="text-[11px] text-muted-foreground/70">By {filters.sort}</p>
+            <p className="text-[11px] text-muted-foreground/70">Sorted by {filters.sort}</p>
           </div>
 
           {catalogLoading ? (
@@ -227,19 +213,19 @@ export default function LawyerMarketplacePage() {
             </div>
           ) : catalogError ? (
             <div className="rounded-2xl border border-dashed border-black/[0.08] py-14 text-center dark:border-white/10">
-              <p className="text-sm font-medium">Unable to load lawyers</p>
+              <p className="text-sm font-medium">Unable to load advocates</p>
               <p className="mt-1 text-[13px] text-muted-foreground">Please try refreshing the page.</p>
             </div>
           ) : lawyers.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-black/[0.08] px-6 py-14 text-center dark:border-white/10">
               <p className="text-sm font-medium">
                 {catalog.length === 0
-                  ? "No lawyers listed yet"
-                  : "No lawyers match your filters"}
+                  ? "No advocates listed yet"
+                  : "No advocates match your filters"}
               </p>
               <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">
                 {catalog.length === 0
-                  ? "Verified lawyers will appear here once they join the platform."
+                  ? "Verified advocates will appear here once they join the platform."
                   : "Try a broader practice area or clear the search."}
               </p>
             </div>
@@ -251,7 +237,7 @@ export default function LawyerMarketplacePage() {
                   lawyer={lawyer}
                   index={index}
                   onView={setProfileLawyer}
-                  onBook={bookManual}
+                  onBook={(l) => setBookingLawyer(l)}
                 />
               ))}
             </div>
@@ -278,13 +264,13 @@ export default function LawyerMarketplacePage() {
         lawyer={profileLawyer}
         open={Boolean(profileLawyer)}
         onClose={() => setProfileLawyer(null)}
-        onBook={bookManual}
+        onBook={(l) => setBookingLawyer(l)}
       />
 
       <BookingDialog
         lawyer={bookingLawyer}
         open={Boolean(bookingLawyer)}
-        source={bookingSource}
+        source="manual"
         onClose={() => setBookingLawyer(null)}
         onBooked={() => {
           setAppointmentsVersion((v) => v + 1);

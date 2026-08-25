@@ -18,15 +18,15 @@ export function MeraVakilSpotlight() {
       <div className="relative mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
         <div className="space-y-5">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Your AI legal counsel
+            Your AI legal guide
           </p>
           <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
-            Meet <span className="gradient-text">Mera Vakil</span>
+            Meet <span className="gradient-text">Saarthi</span>
           </h2>
           <p className="leading-relaxed text-muted-foreground">
-            India's first AI legal counsel designed for plain-language questions. Whether
+            India's AI legal guide — built for plain-language questions. Whether
             you're a citizen trying to understand a notice or an advocate researching
-            precedents — Mera Vakil gives you grounded, cited answers from Indian law.
+            precedents, Saarthi gives you grounded, cited answers from Indian law.
           </p>
           <ul className="space-y-2.5 text-sm text-muted-foreground">
             <li className="flex items-start gap-2">
@@ -44,7 +44,7 @@ export function MeraVakilSpotlight() {
           </ul>
           <Button asChild className="rounded-full">
             <Link href="/register">
-              Try Mera Vakil
+              Ask Saarthi
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>

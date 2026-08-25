@@ -277,7 +277,7 @@ export function ContextPanel({
           <div className="mb-3 flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Mera Vakil · {panelLabel}
+                Saarthi · {panelLabel}
               </p>
               <div className="mt-1.5 flex items-center gap-2">
                 <span className="relative flex h-1.5 w-1.5">

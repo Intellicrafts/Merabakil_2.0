@@ -47,8 +47,8 @@ const ROLE_PRIORITY: PrimaryRole[] = [
 const ALL_MODULES: DashboardModule[] = [
   {
     href: "/mera-vakil",
-    title: "Mera Vakil",
-    description: "Ask a legal question and get cited answers.",
+    title: "Saarthi",
+    description: "Your AI legal counsel — ask any question, get cited answers.",
     icon: Sparkles,
     permission: Permission.RESEARCH_READ,
   },
@@ -61,8 +61,8 @@ const ALL_MODULES: DashboardModule[] = [
   },
   {
     href: "/lawyer-marketplace",
-    title: "Lawyer Marketplace",
-    description: "Find a lawyer and book a consultation.",
+    title: "Find an Advocate",
+    description: "Connect with a verified advocate and book a consultation.",
     icon: Briefcase,
     permission: Permission.RESEARCH_READ,
   },

@@ -87,7 +87,7 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
 
       <div className="mt-5 max-w-md text-center">
         <h2 className="text-[1.7rem] font-semibold tracking-tight">
-          <span className="gradient-text">Mera Vakil</span>
+          <span className="gradient-text">Saarthi</span>
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-[13.5px] leading-relaxed text-muted-foreground">
           {subtitle}

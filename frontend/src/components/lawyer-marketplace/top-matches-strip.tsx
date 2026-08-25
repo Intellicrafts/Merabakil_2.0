@@ -18,15 +18,15 @@ export function TopMatchesStrip({ lawyers, onView, onBook }: TopMatchesStripProp
   if (top.length === 0) return null;
 
   return (
-    <section className="mp-card-enter space-y-2.5" aria-label="Top matches" style={{ animationDelay: "40ms" }}>
+    <section className="mp-card-enter space-y-2.5" aria-label="Recommended for you" style={{ animationDelay: "40ms" }}>
       <div className="flex items-center justify-between gap-2 px-0.5">
         <div className="flex items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Top matches
+            Recommended for you
           </h2>
         </div>
-        <p className="text-[11px] text-muted-foreground/70">AI ranked</p>
+        <p className="text-[11px] text-muted-foreground/70">Based on your activity</p>
       </div>
 
       <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 no-scrollbar snap-x snap-mandatory">

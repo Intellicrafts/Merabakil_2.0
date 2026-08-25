@@ -99,13 +99,16 @@ export const LawyerCard = memo(function LawyerCard({
 
           <span
             className={cn(
-              "shrink-0 tabular-nums",
+              "shrink-0 text-right",
               counsel
                 ? "text-[11px] font-medium text-muted-foreground"
                 : "rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-700 dark:bg-zinc-800 dark:text-zinc-200",
             )}
           >
-            {lawyer.match_score}%
+            <span className="tabular-nums">{lawyer.match_score}%</span>
+            {!counsel && (
+              <span className="ml-0.5 font-normal text-muted-foreground"> match</span>
+            )}
           </span>
         </div>
 
@@ -119,7 +122,7 @@ export const LawyerCard = memo(function LawyerCard({
             )}
           >
             <Sparkles className="h-2.5 w-2.5" />
-            {counsel ? "Suggested match" : "AI pick"}
+            {counsel ? "Strong match" : "Recommended"}
           </div>
         )}
 

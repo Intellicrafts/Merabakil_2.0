@@ -8,9 +8,9 @@ import { getModuleMeta } from "@/lib/dashboard-meta";
 import { cn } from "@/lib/utils";
 
 const MODULE_CTA: Record<string, string> = {
-  "/mera-vakil": "Ask a question",
+  "/mera-vakil": "Ask Saarthi",
   "/research": "Start research",
-  "/lawyer-marketplace": "Find a lawyer",
+  "/lawyer-marketplace": "Find an advocate",
   "/cases": "View matters",
   "/courtroom": "Enter courtroom",
   "/documents": "Open documents",

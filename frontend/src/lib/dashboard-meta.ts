@@ -20,11 +20,11 @@ export interface DashboardModuleMeta {
 
 export const MODULE_META: Record<string, DashboardModuleMeta> = {
   "/mera-vakil": {
-    tag: "AI Counsel",
+    tag: "Saarthi AI",
     features: ["Cited answers", "Voice support", "Multi-language"],
     tint: "mera-vakil",
     imageSrc: "/dashboard/mera-vakil-hero.svg",
-    shortLabel: "Mera Vakil",
+    shortLabel: "Saarthi",
   },
   "/research": {
     tag: "Research",
@@ -34,11 +34,11 @@ export const MODULE_META: Record<string, DashboardModuleMeta> = {
     shortLabel: "Research",
   },
   "/lawyer-marketplace": {
-    tag: "Marketplace",
-    features: ["Verified lawyers", "Book instantly", "AI matching"],
+    tag: "Find an Advocate",
+    features: ["Verified advocates", "Book instantly", "AI matching"],
     tint: "marketplace",
     imageSrc: "/dashboard/marketplace-hero.svg",
-    shortLabel: "Lawyers",
+    shortLabel: "Advocates",
   },
   "/cases": {
     tag: "Case Management",

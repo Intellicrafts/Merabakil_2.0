@@ -55,6 +55,19 @@ export function HeroSection() {
             </Button>
           </div>
 
+          <div className="mt-4 flex items-center justify-center gap-2 lg:justify-start">
+            <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-200 dark:to-slate-400">
+              <Scale className="h-2.5 w-2.5 text-white dark:text-slate-900" strokeWidth={2} />
+            </div>
+            <p className="text-[12px] text-muted-foreground">
+              Powered by{" "}
+              <Link href="/login" className="font-semibold text-foreground hover:underline underline-offset-2">
+                Saarthi
+              </Link>
+              {" "}— India&apos;s AI legal guide
+            </p>
+          </div>
+
           <div className="hero-stagger-4 mt-7 lg:mt-9">
             <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
               Common situations we help with

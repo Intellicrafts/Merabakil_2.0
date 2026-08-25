@@ -30,10 +30,10 @@ export function DashboardAskBar({ className }: { className?: string }) {
       aria-labelledby="ask-bar-heading"
     >
       <h2 id="ask-bar-heading" className="sr-only">
-        Ask Mera Vakil
+        Ask Saarthi
       </h2>
       <label htmlFor="dashboard-ask" className="sr-only">
-        Ask Mera Vakil
+        Ask Saarthi
       </label>
       <div
         className={cn(
@@ -48,7 +48,7 @@ export function DashboardAskBar({ className }: { className?: string }) {
           id="dashboard-ask"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Ask Mera Vakil…"
+          placeholder="Ask Saarthi…"
           autoComplete="off"
           className="min-h-11 min-w-0 flex-1 bg-transparent text-[15px] tracking-tight outline-none placeholder:text-muted-foreground/70 sm:min-h-10"
         />

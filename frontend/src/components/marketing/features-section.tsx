@@ -6,7 +6,7 @@ const SERVICES = [
     title: "Ask any legal question",
     description:
       "Get cited answers on property rights, employment law, consumer protection, criminal procedure, and more — explained in plain language.",
-    tag: "Mera Vakil",
+    tag: "Saarthi",
   },
   {
     icon: Search,

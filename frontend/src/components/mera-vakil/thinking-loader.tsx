@@ -33,7 +33,7 @@ export function ThinkingLoader({ message }: ThinkingLoaderProps) {
       className="flex items-center gap-3.5"
       role="status"
       aria-live="polite"
-      aria-label="Mera Vakil is thinking"
+      aria-label="Saarthi is thinking"
     >
       <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
         <div className="spinner-glow absolute inset-0 rounded-full bg-gradient-to-br from-slate-500/40 to-slate-700/40 blur-md" />

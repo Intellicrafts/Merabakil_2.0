@@ -147,7 +147,7 @@ export function MeraVakilLiveDemo({
     : {
         variant: "full" as const,
         icon: <Sparkles className="h-4 w-4 spark-twinkle" />,
-        title: "Mera Vakil",
+        title: "Saarthi",
         subtitle: "Your AI legal counsel",
         footer: "Grounded answers · Live citations · Indian legal corpus",
       };

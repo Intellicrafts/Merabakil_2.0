@@ -70,8 +70,8 @@ export function ChatSidebar({
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold tracking-tight">Mera Vakil</p>
-              <p className="truncate text-[11px] text-muted-foreground">AI Legal Counsel</p>
+              <p className="truncate text-[13px] font-semibold tracking-tight">Saarthi</p>
+              <p className="truncate text-[11px] text-muted-foreground">Your AI legal guide</p>
             </div>
           )}
         </div>
