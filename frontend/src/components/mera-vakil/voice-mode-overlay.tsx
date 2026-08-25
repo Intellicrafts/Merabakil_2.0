@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { CalendarPlus, X } from "lucide-react";
 
 import { useVoiceBot, type VoiceBotState, type VoiceMessage } from "@/hooks/use-voice-bot";
 import type { LawyerMatchResult } from "@/lib/types";
@@ -12,6 +12,7 @@ interface VoiceModeOverlayProps {
   onClose: () => void;
   speechLocale: string;
   onConversationEnd?: (messages: VoiceMessage[], lawyers: LawyerMatchResult[]) => void;
+  onBookLawyer?: (lawyer: LawyerMatchResult) => void;
 }
 
 // Blob gradient per state
@@ -57,7 +58,7 @@ const BLOB_DURATION: Record<VoiceBotState, string> = {
   speaking: "2s",
 };
 
-export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEnd }: VoiceModeOverlayProps) {
+export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEnd, onBookLawyer }: VoiceModeOverlayProps) {
   const { botState, transcript, amplitude, permissionDenied, voiceMessages, lawyerResults, interrupt, stop } =
     useVoiceBot({ open, speechLocale });
 
@@ -189,6 +190,43 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEn
           )}
         </button>
       </div>
+
+      {/* Lawyer results strip — appears when AI surfaces advocates */}
+      {lawyerResults.length > 0 && (
+        <div className="shrink-0 px-5 pb-2">
+          <p className="mb-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
+            Recommended advocates
+          </p>
+          <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none]">
+            {lawyerResults.map((lawyer) => (
+              <div
+                key={lawyer.id}
+                className="flex min-w-[min(100%,15rem)] shrink-0 flex-col gap-2.5 rounded-2xl bg-white/[0.07] p-3.5 ring-1 ring-white/[0.10]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-[13px] font-semibold text-white/80">
+                    {lawyer.full_name.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-semibold text-white/90">{lawyer.full_name}</p>
+                    <p className="truncate text-[11px] text-white/45">
+                      {lawyer.practice_areas[0] ?? "Advocate"}{lawyer.jurisdictions[0] ? ` · ${lawyer.jurisdictions[0]}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onBookLawyer?.(lawyer)}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2 text-[12px] font-semibold text-white/80 transition-colors hover:bg-white/[0.18] hover:text-white active:scale-[0.97]"
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" />
+                  Book consultation
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Bottom — label + transcript + close */}
       <div className="flex shrink-0 flex-col items-center gap-5 pb-12 pt-2">

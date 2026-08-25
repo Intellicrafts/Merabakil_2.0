@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Moon, PanelRight, Sun } from "lucide-react";
 
 import { BackButton } from "@/components/layout/back-button";
+import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
 import { EmptyState } from "@/components/mera-vakil/empty-state";
 import { InputDock } from "@/components/mera-vakil/input-dock";
 import { MeraVakilShell } from "@/components/mera-vakil/mera-vakil-shell";
@@ -12,7 +13,7 @@ import { MessageList } from "@/components/mera-vakil/message-list";
 import { PremiumModal } from "@/components/mera-vakil/premium-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
-import type { LawyerMatchResult } from "@/lib/types";
+
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
@@ -34,7 +35,7 @@ import {
   type ChatMessage,
   type MatterType,
 } from "@/lib/conversations";
-import type { ResearchResponse } from "@/lib/types";
+import type { LawyerMatchResult, LawyerProfile, ResearchResponse } from "@/lib/types";
 
 const ContextPanel = dynamic(
   () =>
@@ -70,6 +71,7 @@ export default function MeraVakilPage() {
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [voiceModeOpen, setVoiceModeOpen] = useState(false);
+  const [voiceBookingLawyer, setVoiceBookingLawyer] = useState<LawyerProfile | null>(null);
   const [voiceSupported] = useState(() => isVoiceBotSupported());
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -587,16 +589,43 @@ export default function MeraVakilPage() {
     localStorage.setItem(THEME_KEY, next ? "dark" : "light");
   }
 
+  function matchResultToProfile(lawyer: LawyerMatchResult): LawyerProfile {
+    return {
+      id: lawyer.id,
+      slug: lawyer.slug,
+      full_name: lawyer.full_name,
+      bar_council_id: lawyer.bar_council_id ?? "",
+      practice_areas: lawyer.practice_areas,
+      city: lawyer.city ?? lawyer.jurisdictions[0] ?? "India",
+      jurisdictions: lawyer.jurisdictions,
+      languages: lawyer.languages,
+      years_experience: lawyer.years_experience,
+      rating: lawyer.rating,
+      review_count: lawyer.rating_count,
+      verified: lawyer.is_verified,
+      hourly_rate_inr: lawyer.hourly_rate,
+      bio: lawyer.summary,
+    };
+  }
+
   const hasMessages = (activeConversation?.messages.length ?? 0) > 0;
 
   return (
     <>
       <PremiumModal open={premiumOpen} onClose={() => setPremiumOpen(false)} />
+      <BookingDialog
+        lawyer={voiceBookingLawyer}
+        open={Boolean(voiceBookingLawyer)}
+        source="ai_match"
+        onClose={() => setVoiceBookingLawyer(null)}
+        onBooked={() => setVoiceBookingLawyer(null)}
+      />
       <VoiceModeOverlay
         open={voiceModeOpen}
         onClose={() => setVoiceModeOpen(false)}
         speechLocale={speechLocale}
         onConversationEnd={handleVoiceConversationEnd}
+        onBookLawyer={(lawyer) => setVoiceBookingLawyer(matchResultToProfile(lawyer))}
       />
 
       {mobilePanelOpen && (
