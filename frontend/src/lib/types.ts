@@ -302,6 +302,38 @@ export interface RoomToken {
   room: string;
 }
 
+export type TransactionType =
+  | "TOP_UP"
+  | "CHATBOT_USAGE"
+  | "APPOINTMENT_BOOKING"
+  | "APPOINTMENT_REFUND"
+  | "ADVOCATE_EARNING";
+
+export interface WalletBalance {
+  user_id: string;
+  balance: string;
+  currency: string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  wallet_id: string;
+  user_id: string;
+  transaction_type: TransactionType;
+  amount: string;
+  balance_after: string;
+  description: string;
+  reference_id: string | null;
+  created_at: string;
+}
+
+export interface WalletTransactionList {
+  items: WalletTransaction[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 export type CaseStatus = "open" | "in_progress" | "closed";
 
 export interface CaseTimelineEvent {

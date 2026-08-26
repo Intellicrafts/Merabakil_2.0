@@ -12,6 +12,9 @@ import type {
   UploadDocumentResponse,
   UserDocument,
   AuthUser,
+  WalletBalance,
+  WalletTransaction,
+  WalletTransactionList,
 } from "@/lib/types";
 import type {
   CourtroomActionsRequestPayload,
@@ -30,6 +33,7 @@ import type {
 
 import {
   authServiceUrl,
+  billingServiceUrl,
   documentServiceUrl,
   ingestionServiceUrl,
   marketplaceServiceUrl,
@@ -1432,5 +1436,32 @@ export async function adminSetLawyerVerified(
     headers: authHeaders(),
     body: JSON.stringify({ is_verified: isVerified }),
   });
+}
+
+export async function getWalletBalance(): Promise<WalletBalance> {
+  return apiFetch<WalletBalance>(`${billingServiceUrl()}/api/v1/wallet/me`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function topUpWallet(
+  amount: number,
+  description = "Manual top-up",
+): Promise<WalletTransaction> {
+  return apiFetch<WalletTransaction>(`${billingServiceUrl()}/api/v1/wallet/me/top-up`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ amount, description }),
+  });
+}
+
+export async function listWalletTransactions(
+  page = 1,
+  size = 20,
+): Promise<WalletTransactionList> {
+  return apiFetch<WalletTransactionList>(
+    `${billingServiceUrl()}/api/v1/wallet/me/transactions?page=${page}&size=${size}`,
+    { headers: authHeaders() },
+  );
 }
 

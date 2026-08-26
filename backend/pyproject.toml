@@ -9,6 +9,7 @@ members = [
     "libs/legalos_common",
     "orchestrator",
     "services/auth",
+    "services/billing",
     "services/knowledge-ingestion",
     "services/search",
     "services/research",

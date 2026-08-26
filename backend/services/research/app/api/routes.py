@@ -52,6 +52,17 @@ from legalos_orchestrator.schemas import ConversationMessage, OrchestratorState,
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/research", tags=["research"])
 
+from decimal import Decimal as _Decimal  # noqa: E402
+from app.config import get_settings as _get_settings  # noqa: E402
+from app.infrastructure.billing_client import BillingClient as _BillingClient  # noqa: E402
+
+_research_settings = _get_settings()
+_billing = _BillingClient(
+    _research_settings.billing_service_url,
+    _research_settings.billing_internal_secret,
+)
+_CHATBOT_FEE = _Decimal(_research_settings.chatbot_query_fee_inr)
+
 
 def _build_state(
     body: ResearchRequest,
@@ -110,6 +121,12 @@ async def _run_research(state: OrchestratorState) -> ResearchResponse:
                 assistant_content=result.answer,
                 cited_chunk_ids=[c.document_id for c in result.citations],
             )
+        )
+
+    if state.user_id and _CHATBOT_FEE > _Decimal("0"):
+        import asyncio
+        asyncio.create_task(
+            _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE)
         )
 
     return ResearchResponse(

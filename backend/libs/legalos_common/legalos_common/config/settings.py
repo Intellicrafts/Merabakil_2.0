@@ -129,6 +129,9 @@ class CommonSettings(BaseSettings):
     contract_review_service_url: str = "http://localhost:8008"
     litigation_service_url: str = "http://localhost:8009"
     corpus_registry_path: str = "data/corpus_registry.yaml"
+    billing_service_url: str = "http://localhost:8020"
+    billing_internal_secret: str = "change-me"
+    chatbot_query_fee_inr: str = "2.00"
 
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)

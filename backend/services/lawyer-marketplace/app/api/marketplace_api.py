@@ -92,6 +92,12 @@ _common_settings = get_common_settings()
 _llm = build_llm_client(_common_settings.llm)
 _summary_generator = LawyerSummaryGenerator(_llm)
 
+from app.infrastructure.billing_client import BillingClient  # noqa: E402
+_billing = BillingClient(
+    _common_settings.billing_service_url,
+    _common_settings.billing_internal_secret,
+)
+
 
 def _is_indexable(lawyer: Lawyer) -> bool:
     """Profile is complete enough to generate an AI summary and index for matching."""
@@ -611,6 +617,22 @@ async def create_appointment(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    booking_amount = lawyer.hourly_rate or 0
+    if booking_amount > 0:
+        from decimal import Decimal
+        try:
+            await _billing.deduct_for_booking(
+                user_id=uuid.UUID(user.user_id),
+                amount=Decimal(str(booking_amount)),
+                consultation_id=row.id,
+            )
+            row.metrics = {**(row.metrics or {}), "booking_amount": str(booking_amount)}
+        except Exception as exc:
+            if hasattr(exc, "response") and getattr(exc.response, "status_code", None) == 402:
+                raise HTTPException(status_code=402, detail="Insufficient wallet balance to book this appointment") from exc
+            logger.warning("billing_deduct_failed consultation_id=%s error=%s", row.id, exc)
+
     return await _to_appointment(repo, row, user, lawyer=lawyer)
 
 
@@ -703,6 +725,18 @@ async def cancel_appointment(
         raise HTTPException(status_code=400, detail="Appointment already closed")
     row.status = "cancelled"
     await repo.add_event(row.id, "cancelled", uuid.UUID(user.user_id), {})
+
+    booking_amount_str = (row.metrics or {}).get("booking_amount")
+    if booking_amount_str:
+        from decimal import Decimal
+        asyncio.create_task(
+            _billing.credit_refund(
+                user_id=row.citizen_user_id,
+                amount=Decimal(booking_amount_str),
+                consultation_id=row.id,
+            )
+        )
+
     return await _to_appointment(repo, row, user)
 
 
@@ -1337,6 +1371,18 @@ async def admin_force_complete(
         uuid.UUID(user.user_id),
         {"admin": True, "reason": body.reason.strip()},
     )
+
+    booking_amount_str = (row.metrics or {}).get("booking_amount")
+    if booking_amount_str:
+        from decimal import Decimal
+        asyncio.create_task(
+            _billing.credit_advocate_earning(
+                advocate_user_id=row.lawyer_user_id,
+                amount=Decimal(booking_amount_str),
+                consultation_id=row.id,
+            )
+        )
+
     out = await _ops_snapshot(repo, row, user)
     await _emit(row.id, "ops_update", out.model_dump())
     return out

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Moon, Scale, Sun, UserCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { LogOut, Moon, Scale, Sun, UserCircle, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { DashboardCommandPalette } from "@/components/dashboard/dashboard-command-palette";
@@ -20,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { clearSession, getStoredUser } from "@/lib/api";
+import { clearSession, getStoredUser, getWalletBalance } from "@/lib/api";
 import { initTheme, toggleTheme } from "@/lib/theme";
 import type { AuthUser } from "@/lib/types";
 
@@ -36,6 +37,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/users": "User Management",
   "/admin/appointments": "Appointment Ops",
   "/profile": "My Profile",
+  "/wallet": "My Wallet",
 };
 
 function resolvePageTitle(pathname: string): string {
@@ -56,6 +58,7 @@ function AppTopBar({
   dark,
   pageTitle,
   isHome,
+  walletBalance,
   onToggleTheme,
   onGoHome,
   onGoToProfile,
@@ -66,6 +69,7 @@ function AppTopBar({
   dark: boolean;
   pageTitle: string;
   isHome: boolean;
+  walletBalance: string | null;
   onToggleTheme: () => void;
   onGoHome: () => void;
   onGoToProfile: () => void;
@@ -118,6 +122,14 @@ function AppTopBar({
           </button>
         )}
         <NotificationBell />
+        <Link
+          href="/wallet"
+          className="hidden items-center gap-1.5 rounded-lg border border-black/[0.06] bg-white/50 px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground dark:border-white/[0.10] dark:bg-white/[0.05] dark:hover:bg-white/[0.08] sm:flex"
+          aria-label="My wallet"
+        >
+          <Wallet className="h-3.5 w-3.5" />
+          {walletBalance ?? "₹—"}
+        </Link>
         <Button
           variant="ghost"
           size="sm"
@@ -175,6 +187,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [dark, setDark] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const { data: walletData } = useQuery({
+    queryKey: ["wallet-balance"],
+    queryFn: getWalletBalance,
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const walletBalance = walletData
+    ? new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(parseFloat(walletData.balance))
+    : null;
 
   const isHome = pathname === "/dashboard";
   const isRoom = pathname.startsWith("/appointments") && pathname.endsWith("/room");
@@ -237,6 +260,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           dark={dark}
           pageTitle={pageTitle}
           isHome={isHome}
+          walletBalance={walletBalance}
           onToggleTheme={handleToggleTheme}
           onGoHome={() => router.push("/dashboard")}
           onGoToProfile={() => router.push("/profile")}

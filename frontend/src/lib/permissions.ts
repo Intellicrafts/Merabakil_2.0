@@ -58,6 +58,7 @@ const ROUTE_RULES: { pattern: RegExp; permission: PermissionCode | null }[] = [
   { pattern: /^\/admin\/knowledge$/, permission: Permission.KNOWLEDGE_INGEST },
   { pattern: /^\/admin\/users$/, permission: Permission.USER_MANAGE },
   { pattern: /^\/admin\/appointments$/, permission: Permission.USER_MANAGE },
+  { pattern: /^\/wallet$/, permission: Permission.RESEARCH_READ },
 ];
 
 export function canAccessRoute(

@@ -66,3 +66,11 @@ export function documentServiceUrl(): string {
     "/svc/document",
   );
 }
+
+export function billingServiceUrl(): string {
+  return resolveServiceUrl(
+    process.env.NEXT_PUBLIC_BILLING_API_URL,
+    "http://localhost:8020",
+    "/svc/billing",
+  );
+}

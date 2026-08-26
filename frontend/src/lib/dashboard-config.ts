@@ -9,6 +9,7 @@ import {
   Search,
   Sparkles,
   Users,
+  Wallet,
 } from "lucide-react";
 
 import type { AuthUser } from "@/lib/types";
@@ -108,6 +109,13 @@ const ALL_MODULES: DashboardModule[] = [
     icon: CalendarClock,
     permission: Permission.USER_MANAGE,
   },
+  {
+    href: "/wallet",
+    title: "My Wallet",
+    description: "View your balance, top up funds, and track transactions.",
+    icon: Wallet,
+    permission: Permission.RESEARCH_READ,
+  },
 ];
 
 const ROLE_CONFIG: Record<
@@ -127,6 +135,7 @@ const ROLE_CONFIG: Record<
       "/admin/knowledge",
       "/admin/users",
       "/admin/appointments",
+      "/wallet",
     ],
   },
   enterprise: {
@@ -138,6 +147,7 @@ const ROLE_CONFIG: Record<
       "/research",
       "/lawyer-marketplace",
       "/documents",
+      "/wallet",
     ],
   },
   law_firm: {
@@ -151,6 +161,7 @@ const ROLE_CONFIG: Record<
       "/cases",
       "/documents",
       "/admin/knowledge",
+      "/wallet",
     ],
   },
   advocate: {
@@ -163,12 +174,13 @@ const ROLE_CONFIG: Record<
       "/lawyer-marketplace",
       "/cases",
       "/documents",
+      "/wallet",
     ],
   },
   citizen: {
     headline: "Your legal companion",
     subtitle: "Ask a question or pick up where you left off.",
-    moduleHrefs: ["/mera-vakil", "/lawyer-marketplace", "/cases"],
+    moduleHrefs: ["/mera-vakil", "/lawyer-marketplace", "/cases", "/wallet"],
   },
 };
 
