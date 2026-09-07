@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import uuid
 
+from legalos_common.logging import get_logger
+
+logger = get_logger(__name__)
+
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,10 +113,19 @@ async def upload_document(
         metadata={"visibility": visibility},
     )
     if container.ingestion is not None:
-        await container.ingestion.trigger(
-            payload=payload,
-            user_token=credentials.credentials,
-        )
+        try:
+            await container.ingestion.trigger(
+                payload=payload,
+                user_token=credentials.credentials,
+            )
+        except Exception as exc:
+            # File is safely stored in MinIO; ingestion failure keeps status="processing"
+            # but must not roll back the upload or return an error to the client.
+            logger.warning(
+                "ingestion_trigger_failed document_id=%s error=%s",
+                doc.id,
+                exc,
+            )
 
     return UploadDocumentResponse(
         document_id=str(doc.id),
