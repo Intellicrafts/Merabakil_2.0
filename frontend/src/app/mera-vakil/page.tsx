@@ -920,6 +920,7 @@ export default function MeraVakilPage() {
               readAloudActiveId={readAloud.state.activeMessageId}
               onReadAloudToggle={handleReadAloudToggle}
               onReadAloudStop={handleReadAloudStop}
+              caseId={draftCaseId}
             />
           )}
 

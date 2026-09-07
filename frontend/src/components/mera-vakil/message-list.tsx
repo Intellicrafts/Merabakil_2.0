@@ -27,6 +27,7 @@ interface MessageListProps {
   readAloudActiveId?: string | null;
   onReadAloudToggle?: (messageId: string, content: string) => void;
   onReadAloudStop?: () => void;
+  caseId?: string | null;
 }
 
 export function MessageList({
@@ -47,6 +48,7 @@ export function MessageList({
   readAloudActiveId,
   onReadAloudToggle,
   onReadAloudStop,
+  caseId,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
@@ -132,6 +134,7 @@ export function MessageList({
               readAloudActiveId={readAloudActiveId}
               onReadAloudToggle={onReadAloudToggle}
               onReadAloudStop={onReadAloudStop}
+              caseId={caseId}
             />
           );
         })}

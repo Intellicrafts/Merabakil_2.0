@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 interface LawyerRecommendationPanelProps {
   lawyers: LawyerMatchResult[];
+  caseId?: string | null;
 }
 
 function toRankedLawyer(lawyer: LawyerMatchResult): RankedLawyer {
@@ -99,7 +100,7 @@ function LawyerBubble({ lawyer, index, onView, onBook }: LawyerBubbleProps) {
   );
 }
 
-export function LawyerRecommendationPanel({ lawyers }: LawyerRecommendationPanelProps) {
+export function LawyerRecommendationPanel({ lawyers, caseId }: LawyerRecommendationPanelProps) {
   const [profile, setProfile] = useState<RankedLawyer | null>(null);
   const [booking, setBooking] = useState<RankedLawyer | null>(null);
 
@@ -138,6 +139,7 @@ export function LawyerRecommendationPanel({ lawyers }: LawyerRecommendationPanel
         lawyer={booking}
         open={Boolean(booking)}
         source="ai_match"
+        caseId={caseId}
         onClose={() => setBooking(null)}
         onBooked={() => setBooking(null)}
       />

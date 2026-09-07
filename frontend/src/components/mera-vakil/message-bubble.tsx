@@ -31,6 +31,7 @@ interface MessageBubbleProps {
   readAloudActiveId?: string | null;
   onReadAloudToggle?: (messageId: string, content: string) => void;
   onReadAloudStop?: () => void;
+  caseId?: string | null;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -48,6 +49,7 @@ export const MessageBubble = memo(function MessageBubble({
   readAloudActiveId = null,
   onReadAloudToggle,
   onReadAloudStop,
+  caseId,
 }: MessageBubbleProps) {
   const [editText, setEditText] = useState(message.content);
   const [groundingOpen, setGroundingOpen] = useState(false);
@@ -196,7 +198,7 @@ export const MessageBubble = memo(function MessageBubble({
               <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} initialOpen />
             )}
 
-            {lawyers.length > 0 && <LawyerRecommendationPanel lawyers={lawyers} />}
+            {lawyers.length > 0 && <LawyerRecommendationPanel lawyers={lawyers} caseId={caseId} />}
             {appointment && <AppointmentConfirmationCard appointment={appointment} />}
 
             {research.disclaimer && (
