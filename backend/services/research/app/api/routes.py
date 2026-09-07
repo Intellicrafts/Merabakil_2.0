@@ -30,6 +30,11 @@ from app.api.schemas import (
     ResearchResponse,
     TtsRequest,
 )
+from app.api.deps import (
+    chat_rate_limit,
+    courtroom_rate_limit,
+    tts_rate_limit,
+)
 from app.application.courtroom_actions import build_courtroom_actions
 from app.application.courtroom_agents import run_agentic_hearing_turn
 from app.application.courtroom_turn import build_courtroom_turn
@@ -152,7 +157,7 @@ async def _run_research(state: OrchestratorState) -> ResearchResponse:
 )
 async def research(
     body: ResearchRequest,
-    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    current_user: CurrentUser = Depends(chat_rate_limit),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> ResearchResponse:
     container = get_container()
@@ -180,7 +185,7 @@ async def research(
 async def research_document(
     document_id: uuid.UUID,
     body: ResearchRequest,
-    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    current_user: CurrentUser = Depends(chat_rate_limit),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> ResearchResponse:
     container = get_container()
@@ -207,7 +212,7 @@ async def research_document(
 )
 async def research_stream(
     body: ResearchRequest,
-    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    current_user: CurrentUser = Depends(chat_rate_limit),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> StreamingResponse:
     import asyncio
@@ -289,7 +294,7 @@ async def research_stream(
 async def research_document_stream(
     document_id: uuid.UUID,
     body: ResearchRequest,
-    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    current_user: CurrentUser = Depends(chat_rate_limit),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> StreamingResponse:
     import asyncio
@@ -437,7 +442,7 @@ async def _tts_byte_stream(text: str, *, voice: str) -> AsyncIterator[bytes]:
 )
 async def courtroom_actions(
     body: CourtroomActionsRequest,
-    _: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    _: CurrentUser = Depends(courtroom_rate_limit),
 ) -> CourtroomActionsResponse:
     container = get_container()
     return await build_courtroom_actions(container.llm, body)
@@ -450,7 +455,7 @@ async def courtroom_actions(
 )
 async def courtroom_turn(
     body: CourtroomTurnRequest,
-    _: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    _: CurrentUser = Depends(courtroom_rate_limit),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> CourtroomTurnResponse:
     container = get_container()
@@ -469,7 +474,7 @@ async def courtroom_turn(
 )
 async def courtroom_agent_turn(
     body: CourtroomAgentTurnRequest,
-    _: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    _: CurrentUser = Depends(courtroom_rate_limit),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> CourtroomAgentTurnResponse:
     container = get_container()
@@ -614,7 +619,7 @@ async def courtroom_agent_turn(
 )
 async def tts_stream(
     body: TtsRequest,
-    _: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    _: CurrentUser = Depends(tts_rate_limit),
 ) -> StreamingResponse:
     prepared = prepare_speech_text(body.text)
     if not prepared:

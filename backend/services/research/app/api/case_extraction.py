@@ -9,6 +9,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.deps import extraction_rate_limit
 from app.config import get_settings
 from app.infrastructure.container import get_container
 from app.infrastructure.llm_json import complete_json
@@ -68,7 +69,7 @@ class CaseBriefExtraction(BaseModel):
 )
 async def extract_case_brief(
     session_id: str,
-    user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+    user: CurrentUser = Depends(extraction_rate_limit),
 ) -> CaseBriefExtraction:
     container = get_container()
 

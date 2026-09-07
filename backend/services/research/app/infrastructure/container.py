@@ -47,6 +47,7 @@ class Container:
 
         # Memory layer — uses platform Redis + Qdrant
         redis_client = self._build_redis(settings.redis_url)
+        self.redis = redis_client  # exposed for rate limiting
         qdrant_client = AsyncQdrantClient(url=settings.qdrant.qdrant_url)
         summarizer = ConversationSummarizer(self.llm)
         ltm = LongTermMemory(

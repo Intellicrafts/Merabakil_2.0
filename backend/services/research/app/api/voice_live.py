@@ -30,6 +30,7 @@ from jose import JWTError
 from app.infrastructure.container import get_container
 from legalos_common.clients.web_search import search_web_text
 from legalos_common.security.jwt import TokenType, decode_token
+from legalos_common.security.rate_limit import check_rate_limit
 
 logger = logging.getLogger(__name__)
 voice_router = APIRouter(prefix="/api/v1/research", tags=["voice"])
@@ -555,6 +556,19 @@ async def voice_live(
     logger.info("voice_live: session started user=%s", user_id)
 
     container = get_container()
+    try:
+        await check_rate_limit(
+            container.redis,
+            key=f"rate:voice:{user_id}",
+            limit=5,
+            window_seconds=60,
+        )
+    except Exception as exc:
+        # check_rate_limit raises HTTPException on limit exceeded — translate to WS close
+        if hasattr(exc, "status_code") and exc.status_code == 429:
+            await websocket.send_json({"type": "error", "message": "Too many voice sessions. Please wait a moment."})
+            await websocket.close(code=4029, reason="Rate limit exceeded")
+            return
     llm_cfg = container.settings.llm
     api_key: str = llm_cfg.llm_api_key
     live_model: str = llm_cfg.voice_live_model

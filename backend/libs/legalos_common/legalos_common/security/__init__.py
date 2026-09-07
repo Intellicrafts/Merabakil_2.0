@@ -1,4 +1,5 @@
 from legalos_common.security.encryption import AESCipher
+from legalos_common.security.rate_limit import check_rate_limit
 from legalos_common.security.jwt import (
     TokenPayload,
     TokenType,
@@ -19,6 +20,7 @@ from legalos_common.security.rbac import (
 
 __all__ = [
     "AESCipher",
+    "check_rate_limit",
     "CurrentUser",
     "Permission",
     "Role",
