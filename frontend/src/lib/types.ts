@@ -334,7 +334,8 @@ export interface WalletTransactionList {
   size: number;
 }
 
-export type CaseStatus = "open" | "in_progress" | "closed";
+export type CaseStatus = "draft" | "open" | "in_progress" | "closed";
+export type CaseSource = "manual" | "saarthi";
 
 export interface CaseTimelineEvent {
   id: string;
@@ -343,8 +344,25 @@ export interface CaseTimelineEvent {
   at: string;
 }
 
+export interface AiBrief {
+  problem_summary?: string;
+  key_facts?: string[];
+  parties?: {
+    client?: { name?: string; role?: string };
+    opponent?: { name?: string; type?: string };
+  };
+  jurisdiction?: string;
+  practice_area?: string;
+  legal_issues?: string[];
+  recommended_actions?: string[];
+  urgency?: "low" | "medium" | "high";
+  extracted_at?: string;
+  session_id?: string;
+}
+
 export interface LegalCase {
   id: string;
+  owner_id?: string;
   title: string;
   description: string;
   case_number: string;
@@ -352,8 +370,37 @@ export interface LegalCase {
   jurisdiction: string;
   practice_area: string;
   status: CaseStatus;
+  source?: CaseSource;
+  session_id?: string | null;
+  ai_brief?: AiBrief;
   created_at: string;
   updated_at: string;
   timeline: CaseTimelineEvent[];
   linked_appointment_id?: string | null;
+}
+
+export interface CaseShare {
+  id: string;
+  case_id: string;
+  shared_by_user_id: string;
+  lawyer_user_id: string;
+  message: string;
+  shared_at: string;
+  revoked_at: string | null;
+}
+
+export interface CaseBriefExtraction {
+  case_title: string;
+  problem_summary: string;
+  key_facts: string[];
+  parties: {
+    client?: { name?: string; role?: string };
+    opponent?: { name?: string; type?: string };
+  };
+  jurisdiction: string | null;
+  practice_area: string | null;
+  legal_issues: string[];
+  recommended_actions: string[];
+  urgency: "low" | "medium" | "high";
+  confidence: number;
 }

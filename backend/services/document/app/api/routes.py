@@ -39,6 +39,7 @@ def _to_response(doc) -> DocumentResponse:
         chunk_count=doc.chunk_count,
         content_type=doc.content_type,
         created_at=doc.created_at,
+        case_id=str(doc.case_id) if doc.case_id else None,
     )
 
 
@@ -53,6 +54,7 @@ async def upload_document(
     doc_type: str = Form(...),
     jurisdiction: str | None = Form(None),
     visibility: str = Form("private"),
+    case_id: str | None = Form(None),
     file: UploadFile = File(...),
     user: CurrentUser = Depends(require_permissions(Permission.DOCUMENT_WRITE.value)),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
@@ -67,6 +69,13 @@ async def upload_document(
     raw = await file.read()
     if not raw:
         raise ValidationFailedError("Uploaded file is empty")
+
+    parsed_case_id: uuid.UUID | None = None
+    if case_id:
+        try:
+            parsed_case_id = uuid.UUID(case_id)
+        except ValueError:
+            raise ValidationFailedError("case_id must be a valid UUID")
 
     container = get_container()
     owner_id = uuid.UUID(user.user_id)
@@ -84,6 +93,7 @@ async def upload_document(
         content_type=file.content_type,
         owner_id=owner_id,
         visibility=visibility,
+        case_id=parsed_case_id,
     )
     await session.flush()
 
@@ -112,6 +122,7 @@ async def upload_document(
         visibility=doc.visibility,
         status=doc.status,
         source_uri=source_uri,
+        case_id=str(doc.case_id) if doc.case_id else None,
     )
 
 
@@ -121,18 +132,43 @@ async def upload_document(
     summary="List documents owned by the current user",
 )
 async def list_documents(
+    case_id: str | None = None,
     params: PageParams = Depends(PageParams.as_query),
     user: CurrentUser = Depends(require_permissions(Permission.DOCUMENT_READ.value)),
     repo: DocumentRepository = Depends(get_document_repository),
 ) -> Page[DocumentResponse]:
     owner_id = uuid.UUID(user.user_id)
+    parsed_case_id: uuid.UUID | None = None
+    if case_id:
+        try:
+            parsed_case_id = uuid.UUID(case_id)
+        except ValueError:
+            raise ValidationFailedError("case_id must be a valid UUID")
     docs, total = await repo.list_for_owner(
         owner_id=owner_id,
         offset=params.offset,
         limit=params.size,
+        case_id=parsed_case_id,
     )
     items = [_to_response(d) for d in docs]
     return paginate(items, total, params)
+
+
+@router.get(
+    "/case/{case_id}",
+    response_model=list[DocumentResponse],
+    summary="List documents for a case (owner or linked lawyer via consultation)",
+)
+async def list_case_documents(
+    case_id: uuid.UUID,
+    user: CurrentUser = Depends(require_permissions(Permission.DOCUMENT_READ.value)),
+    repo: DocumentRepository = Depends(get_document_repository),
+) -> list[DocumentResponse]:
+    docs = await repo.list_for_case(
+        case_id=case_id,
+        requester_id=uuid.UUID(user.user_id),
+    )
+    return [_to_response(d) for d in docs]
 
 
 @router.get(

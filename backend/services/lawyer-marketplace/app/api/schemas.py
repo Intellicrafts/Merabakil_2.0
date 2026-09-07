@@ -88,6 +88,7 @@ class BookAppointmentRequest(BaseModel):
     matter_summary: str = Field(min_length=10)
     source: str = "manual"
     citizen_name: str = "Citizen"
+    case_id: str | None = None
 
 
 class AppointmentOut(BaseModel):
@@ -129,6 +130,7 @@ class AppointmentOut(BaseModel):
     prior_join: bool = False
     citizen_moderation: ParticipantModeration = Field(default_factory=lambda: ParticipantModeration())
     lawyer_moderation: ParticipantModeration = Field(default_factory=lambda: ParticipantModeration())
+    case_id: str | None = None
 
 
 class IncomingCallPayload(BaseModel):

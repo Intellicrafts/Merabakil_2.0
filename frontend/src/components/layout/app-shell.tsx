@@ -62,6 +62,7 @@ function AppTopBar({
   onToggleTheme,
   onGoHome,
   onGoToProfile,
+  onGoToWallet,
   onSignOut,
   onOpenPalette,
 }: {
@@ -73,6 +74,7 @@ function AppTopBar({
   onToggleTheme: () => void;
   onGoHome: () => void;
   onGoToProfile: () => void;
+  onGoToWallet: () => void;
   onSignOut: () => void;
   onOpenPalette: () => void;
 }) {
@@ -162,14 +164,21 @@ function AppTopBar({
               </>
             )}
             {user?.roles?.includes("advocate") && (
-              <>
-                <DropdownMenuItem onClick={onGoToProfile}>
-                  <UserCircle className="mr-2 h-4 w-4" />
-                  My profile
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
+              <DropdownMenuItem onClick={onGoToProfile}>
+                <UserCircle className="mr-2 h-4 w-4" />
+                My profile
+              </DropdownMenuItem>
             )}
+            <DropdownMenuItem onClick={onGoToWallet}>
+              <Wallet className="mr-2 h-4 w-4" />
+              <span>Wallet</span>
+              {walletBalance && (
+                <span className="ml-auto text-[11px] font-medium text-muted-foreground">
+                  {walletBalance}
+                </span>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem destructive onClick={onSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
@@ -264,6 +273,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           onToggleTheme={handleToggleTheme}
           onGoHome={() => router.push("/dashboard")}
           onGoToProfile={() => router.push("/profile")}
+          onGoToWallet={() => router.push("/wallet")}
           onSignOut={handleSignOut}
           onOpenPalette={() => setPaletteOpen(true)}
         />

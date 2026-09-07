@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
-import { createCase } from "@/lib/cases-store";
+import { createCase } from "@/lib/api";
 import { PRACTICE_AREAS } from "@/lib/mock/lawyers";
 import type { LegalCase } from "@/lib/types";
 
@@ -27,6 +27,7 @@ export function CaseFormDialog({ open, onClose, onCreated }: CaseFormDialogProps
   const [court, setCourt] = useState("");
   const [jurisdiction, setJurisdiction] = useState("");
   const [practiceArea, setPracticeArea] = useState<string>(PRACTICE_AREAS[0]);
+  const [loading, setLoading] = useState(false);
 
   if (!open) return null;
 
@@ -44,28 +45,33 @@ export function CaseFormDialog({ open, onClose, onCreated }: CaseFormDialogProps
     onClose();
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !caseNumber.trim() || !court.trim()) {
-      toast({
-        title: "Missing fields",
-        description: "Title, case number, and court are required.",
-        variant: "destructive",
-      });
+    if (!title.trim()) {
+      toast({ title: "Title is required", variant: "destructive" });
       return;
     }
-    const item = createCase({
-      title,
-      description,
-      case_number: caseNumber,
-      court,
-      jurisdiction,
-      practice_area: practiceArea,
-    });
-    toast({ title: "Case created", variant: "success" });
-    reset();
-    onCreated(item);
-    onClose();
+    setLoading(true);
+    try {
+      const item = await createCase({
+        title,
+        description,
+        case_number: caseNumber,
+        court,
+        jurisdiction,
+        practice_area: practiceArea,
+        status: "open",
+        source: "manual",
+      });
+      toast({ title: "Case created", variant: "success" });
+      reset();
+      onCreated(item);
+      onClose();
+    } catch {
+      toast({ title: "Failed to create case", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -120,7 +126,6 @@ export function CaseFormDialog({ open, onClose, onCreated }: CaseFormDialogProps
                 value={caseNumber}
                 onChange={(e) => setCaseNumber(e.target.value)}
                 className="h-11 rounded-xl"
-                required
               />
             </div>
             <div className="space-y-1.5">
@@ -130,7 +135,6 @@ export function CaseFormDialog({ open, onClose, onCreated }: CaseFormDialogProps
                 value={court}
                 onChange={(e) => setCourt(e.target.value)}
                 className="h-11 rounded-xl"
-                required
               />
             </div>
           </div>
@@ -160,8 +164,8 @@ export function CaseFormDialog({ open, onClose, onCreated }: CaseFormDialogProps
               </Select>
             </div>
           </div>
-          <Button type="submit" className="min-h-11 w-full rounded-xl">
-            Create case
+          <Button type="submit" className="min-h-11 w-full rounded-xl" disabled={loading}>
+            {loading ? "Creating…" : "Create case"}
           </Button>
         </form>
       </div>

@@ -67,9 +67,10 @@ interface BookingDialogProps {
   onClose: () => void;
   onBooked: () => void;
   source?: "ai_match" | "manual";
+  caseId?: string | null;
 }
 
-export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manual" }: BookingDialogProps) {
+export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manual", caseId }: BookingDialogProps) {
   const { toast } = useToast();
   const today = useMemo(() => localToday(), [open]);
   const [date, setDate] = useState(today);
@@ -154,6 +155,7 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
         matter_summary: matter.trim(),
         source,
         citizen_name: user?.full_name ?? "Citizen",
+        case_id: caseId ?? null,
       });
       toast({
         title: "Consultation booked",

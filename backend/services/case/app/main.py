@@ -1,5 +1,4 @@
-"""Research Service ASGI application."""
-
+"""Case Service ASGI application."""
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -7,11 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.case_extraction import extraction_router
 from app.api.routes import router
-from app.api.voice_live import voice_router
 from app.config import get_settings
-from app.infrastructure.container import init_container
 from legalos_common.api import (
     RequestContextMiddleware,
     build_health_router,
@@ -22,7 +18,6 @@ from legalos_common.telemetry import setup_telemetry
 
 settings = get_settings()
 configure_logging(settings.service_name, settings.log_level)
-init_container(settings)
 
 
 @asynccontextmanager
@@ -31,11 +26,9 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="AI Legal OS - Research Service",
+    title="AI Legal OS - Case Service",
     version="0.1.0",
-    description=(
-        "Grounded legal research orchestrating intent, jurisdiction, retrieval and reasoning."
-    ),
+    description="Case management, AI brief storage, and sharing.",
     lifespan=lifespan,
 )
 
@@ -53,5 +46,3 @@ setup_telemetry(app, settings)
 
 app.include_router(build_health_router(settings.service_name))
 app.include_router(router)
-app.include_router(voice_router)
-app.include_router(extraction_router)

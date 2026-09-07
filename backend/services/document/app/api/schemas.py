@@ -15,6 +15,7 @@ class DocumentResponse(BaseModel):
     chunk_count: int
     content_type: str | None = None
     created_at: datetime | None = None
+    case_id: str | None = None
 
 
 class UploadDocumentResponse(BaseModel):
@@ -25,3 +26,4 @@ class UploadDocumentResponse(BaseModel):
     visibility: str
     status: str
     source_uri: str | None = None
+    case_id: str | None = None

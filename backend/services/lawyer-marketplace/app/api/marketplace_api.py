@@ -271,6 +271,7 @@ async def _to_appointment(
         prior_join=await _prior_join(repo, row, uid),
         citizen_moderation=_moderation_out(parties.get(row.citizen_user_id)),
         lawyer_moderation=_moderation_out(parties.get(row.lawyer_user_id)),
+        case_id=str(row.case_id) if getattr(row, "case_id", None) else None,
     )
 
 
@@ -618,6 +619,12 @@ async def create_appointment(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    if body.case_id:
+        try:
+            row.case_id = uuid.UUID(body.case_id)
+        except ValueError:
+            pass
+
     booking_amount = lawyer.hourly_rate or 0
     if booking_amount > 0:
         from decimal import Decimal
@@ -640,14 +647,16 @@ async def create_appointment(
 async def list_appointments(
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    case_id: str | None = None,
 ) -> list[AppointmentOut]:
     repo = MarketplaceRepository(session)
     uid = uuid.UUID(user.user_id)
+    parsed_case_id = uuid.UUID(case_id) if case_id else None
     lawyer_row = await repo.get_lawyer_by_user(uid)
     as_lawyer = lawyer_row is not None or user.has_role("advocate")
-    rows = await repo.list_consultations_for_user(uid, as_lawyer=as_lawyer)
+    rows = await repo.list_consultations_for_user(uid, as_lawyer=as_lawyer, case_id=parsed_case_id)
     if as_lawyer and not rows:
-        rows = await repo.list_consultations_for_user(uid, as_lawyer=False)
+        rows = await repo.list_consultations_for_user(uid, as_lawyer=False, case_id=parsed_case_id)
     out: list[AppointmentOut] = []
     for row in rows:
         lawyer = await repo.get_lawyer(row.lawyer_id)
@@ -710,6 +719,26 @@ async def confirm_appointment(
         row.status = "confirmed"
         row.confirmed_at = now_ist()
         await repo.add_event(row.id, "confirmed", uuid.UUID(user.user_id), {})
+    return await _to_appointment(repo, row, user)
+
+
+@appointments_router.post("/{appointment_id}/reject", response_model=AppointmentOut)
+async def reject_appointment(
+    appointment_id: uuid.UUID,
+    body: ReasonRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await _load(repo, appointment_id, user)
+    if user.user_id != str(row.lawyer_user_id):
+        raise HTTPException(status_code=403, detail="Only counsel can reject an appointment request")
+    if row.status != "requested":
+        raise HTTPException(status_code=400, detail="Only pending appointments can be rejected")
+    row.status = "cancelled"
+    row.metrics = {**(row.metrics or {}), "rejection_reason": body.reason.strip(), "rejected_by": "lawyer"}
+    await repo.add_event(row.id, "rejected", uuid.UUID(user.user_id), {"reason": body.reason.strip()})
+    publish_user(str(row.citizen_user_id), {"type": "appointment_rejected", "appointment_id": str(row.id), "reason": body.reason.strip()})
     return await _to_appointment(repo, row, user)
 
 

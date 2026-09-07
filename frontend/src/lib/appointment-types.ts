@@ -82,6 +82,7 @@ export interface AppointmentRecord {
   prior_join?: boolean;
   citizen_moderation?: ModerationState;
   lawyer_moderation?: ModerationState;
+  case_id?: string | null;
 }
 
 export interface IncomingCallPayload {

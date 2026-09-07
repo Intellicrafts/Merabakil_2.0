@@ -17,7 +17,7 @@ import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
-import { streamResearch, uploadUserDocument, getUserDocument } from "@/lib/api";
+import { streamResearch, uploadUserDocument, getUserDocument, extractCaseBrief, createCase, updateCaseApi } from "@/lib/api";
 import { consumeMeraVakilPrefill } from "@/lib/courtroom/session-store";
 import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
 import {
@@ -83,6 +83,77 @@ export default function MeraVakilPage() {
   const [hydrated, setHydrated] = useState(false);
   const readAloud = useReadAloud(speechLocale);
 
+  // Draft case ID keyed by session (conversation) ID
+  const [isResearching, setIsResearching] = useState(false);
+  const [draftCaseId, setDraftCaseId] = useState<string | null>(null);
+  const [lastExtractedTurnCount, setLastExtractedTurnCount] = useState(0);
+  const extractingRef = useRef(false);
+
+  // Auto-extract case brief after every 3rd turn (3, 6, 9, ...)
+  const totalMessageCount = activeConversation?.messages.length ?? 0;
+  const sessionId = activeConversation?.id ?? null;
+
+  useEffect(() => {
+    if (!sessionId) return;
+    if (totalMessageCount < 10) return;
+    if (totalMessageCount <= lastExtractedTurnCount) return;
+    const nextThreshold = Math.floor(totalMessageCount / 10) * 10;
+    if (nextThreshold <= lastExtractedTurnCount) return;
+    if (extractingRef.current) return;
+    if (isResearching) return;
+
+    extractingRef.current = true;
+    setLastExtractedTurnCount(nextThreshold);
+
+    void (async () => {
+      try {
+        const brief = await extractCaseBrief(sessionId);
+        const ai_brief = {
+          problem_summary: brief.problem_summary,
+          key_facts: brief.key_facts,
+          parties: brief.parties,
+          jurisdiction: brief.jurisdiction,
+          practice_area: brief.practice_area,
+          legal_issues: brief.legal_issues,
+          recommended_actions: brief.recommended_actions,
+          urgency: brief.urgency,
+          extracted_at: new Date().toISOString(),
+          session_id: sessionId,
+        };
+
+        let caseId = draftCaseId;
+        if (!caseId) {
+          const created = await createCase({
+            title: brief.case_title,
+            description: brief.problem_summary,
+            practice_area: brief.practice_area ?? "",
+            jurisdiction: brief.jurisdiction ?? "",
+            status: "draft",
+            source: "saarthi",
+            session_id: sessionId,
+            ai_brief: ai_brief as Record<string, unknown>,
+          });
+          caseId = created.id;
+          setDraftCaseId(caseId);
+        } else {
+          await updateCaseApi(caseId, {
+            title: brief.case_title,
+            ai_brief: ai_brief as Record<string, unknown>,
+          });
+        }
+
+        toast({
+          title: "Case brief prepared",
+          description: "Your AI case brief is ready. Visit Case Management to review it.",
+        });
+      } catch {
+        // Extraction failure is silent — don't interrupt the user
+      } finally {
+        extractingRef.current = false;
+      }
+    })();
+  }, [totalMessageCount, sessionId, isResearching]);
+
   useEffect(() => {
     const all = loadConversations();
     setConversations(all);
@@ -113,8 +184,6 @@ export default function MeraVakilPage() {
   const documentId = activeConversation?.documentId ?? null;
   const jurisdiction = activeConversation?.jurisdiction ?? "";
 
-  const [isResearching, setIsResearching] = useState(false);
-
   const latestResearch = useMemo(
     () =>
       activeConversation?.messages
@@ -128,7 +197,53 @@ export default function MeraVakilPage() {
     saveSpeechLocale(code);
   }
 
+  const runFinalExtraction = useCallback(async (sid: string, currentDraftCaseId: string | null) => {
+    if (extractingRef.current) return;
+    extractingRef.current = true;
+    try {
+      const brief = await extractCaseBrief(sid);
+      const ai_brief = {
+        problem_summary: brief.problem_summary,
+        key_facts: brief.key_facts,
+        parties: brief.parties,
+        jurisdiction: brief.jurisdiction,
+        practice_area: brief.practice_area,
+        legal_issues: brief.legal_issues,
+        recommended_actions: brief.recommended_actions,
+        urgency: brief.urgency,
+        extracted_at: new Date().toISOString(),
+        session_id: sid,
+        is_final: true,
+      };
+      if (!currentDraftCaseId) {
+        await createCase({
+          title: brief.case_title,
+          description: brief.problem_summary,
+          practice_area: brief.practice_area ?? "",
+          jurisdiction: brief.jurisdiction ?? "",
+          status: "draft",
+          source: "saarthi",
+          session_id: sid,
+          ai_brief: ai_brief as Record<string, unknown>,
+        });
+      } else {
+        await updateCaseApi(currentDraftCaseId, {
+          title: brief.case_title,
+          ai_brief: ai_brief as Record<string, unknown>,
+        });
+      }
+    } catch {
+      // Silent — don't block the user flow
+    } finally {
+      extractingRef.current = false;
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleNewChat() {
+    // Fire final extraction for the session that's ending
+    if (sessionId && totalMessageCount >= 10) {
+      void runFinalExtraction(sessionId, draftCaseId);
+    }
     const conv = createConversation({
       documentId,
       jurisdiction: jurisdiction || null,
@@ -139,6 +254,8 @@ export default function MeraVakilPage() {
     setStreamingMessageId(null);
     setPendingStatus(undefined);
     setEditingMessageId(null);
+    setDraftCaseId(null);
+    setLastExtractedTurnCount(0);
   }
 
   function handleVoiceConversationEnd(messages: VoiceMessage[], lawyers: LawyerMatchResult[]) {
@@ -197,6 +314,11 @@ export default function MeraVakilPage() {
     upsertConversation(updated);
     setConversations(loadConversations());
     setActiveConversation(updated);
+
+    // Final extraction when voice session ends (>= 10 messages)
+    if (updated.messages.length >= 10) {
+      void runFinalExtraction(updated.id, draftCaseId);
+    }
   }
 
   function handleSelectConversation(id: string) {
@@ -207,6 +329,8 @@ export default function MeraVakilPage() {
       setStreamingMessageId(null);
       setPendingStatus(undefined);
       setEditingMessageId(null);
+      setDraftCaseId(null);
+      setLastExtractedTurnCount(0);
     }
   }
 
@@ -617,6 +741,7 @@ export default function MeraVakilPage() {
         lawyer={voiceBookingLawyer}
         open={Boolean(voiceBookingLawyer)}
         source="ai_match"
+        caseId={draftCaseId}
         onClose={() => setVoiceBookingLawyer(null)}
         onBooked={() => setVoiceBookingLawyer(null)}
       />

@@ -1,5 +1,8 @@
 import type {
   AuthResponse,
+  CaseBriefExtraction,
+  CaseShare,
+  CaseStatus,
   Category,
   ConversationTurn,
   GoogleAuthResult,
@@ -7,6 +10,7 @@ import type {
   IngestionResult,
   KnowledgeDocument,
   KnowledgeGraph,
+  LegalCase,
   Page,
   ResearchResponse,
   UploadDocumentResponse,
@@ -34,6 +38,7 @@ import type {
 import {
   authServiceUrl,
   billingServiceUrl,
+  caseServiceUrl,
   documentServiceUrl,
   ingestionServiceUrl,
   marketplaceServiceUrl,
@@ -400,10 +405,38 @@ export async function reindexKnowledgeSource(
 export async function listUserDocuments(
   page = 1,
   size = 20,
+  caseId?: string | null,
 ): Promise<Page<UserDocument>> {
-  return apiFetch(`${documentServiceUrl()}/api/v1/documents?page=${page}&size=${size}`, {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (caseId) params.set("case_id", caseId);
+  return apiFetch(`${documentServiceUrl()}/api/v1/documents?${params}`, {
     headers: authHeaders(),
   });
+}
+
+export async function listCaseDocuments(caseId: string): Promise<UserDocument[]> {
+  return apiFetch<UserDocument[]>(`${documentServiceUrl()}/api/v1/documents/case/${encodeURIComponent(caseId)}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function uploadCaseDocument(
+  caseId: string,
+  file: File,
+  meta: { title: string; doc_type: string },
+): Promise<UserDocument> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", meta.title);
+  form.append("doc_type", meta.doc_type);
+  form.append("case_id", caseId);
+
+  const res = await authorizedFetch(`${documentServiceUrl()}/api/v1/documents/upload`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) return parseError(res);
+  return res.json();
 }
 
 export async function getUserDocument(documentId: string): Promise<UserDocument> {
@@ -1049,6 +1082,7 @@ export async function bookAppointment(body: {
   matter_summary: string;
   source?: "ai_match" | "manual";
   citizen_name?: string;
+  case_id?: string | null;
 }): Promise<AppointmentRecord> {
   return apiFetch<AppointmentRecord>(`${marketplaceServiceUrl()}/api/v1/appointments`, {
     method: "POST",
@@ -1059,6 +1093,12 @@ export async function bookAppointment(body: {
 
 export async function listAppointments(): Promise<AppointmentRecord[]> {
   return apiFetch<AppointmentRecord[]>(`${marketplaceServiceUrl()}/api/v1/appointments`);
+}
+
+export async function listAppointmentsByCaseId(caseId: string): Promise<AppointmentRecord[]> {
+  return apiFetch<AppointmentRecord[]>(
+    `${marketplaceServiceUrl()}/api/v1/appointments?case_id=${encodeURIComponent(caseId)}`,
+  );
 }
 
 export async function getAppointment(id: string): Promise<AppointmentRecord> {
@@ -1080,6 +1120,14 @@ export async function cancelAppointment(id: string): Promise<AppointmentRecord> 
   return apiFetch<AppointmentRecord>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/cancel`, {
     method: "POST",
     headers: authHeaders(),
+  });
+}
+
+export async function rejectAppointment(id: string, reason: string): Promise<AppointmentRecord> {
+  return apiFetch<AppointmentRecord>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/reject`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
   });
 }
 
@@ -1462,6 +1510,101 @@ export async function listWalletTransactions(
   return apiFetch<WalletTransactionList>(
     `${billingServiceUrl()}/api/v1/wallet/me/transactions?page=${page}&size=${size}`,
     { headers: authHeaders() },
+  );
+}
+
+// ── Case Service ─────────────────────────────────────────────────────────────
+
+export async function createCase(data: {
+  title: string;
+  description?: string;
+  case_number?: string;
+  court?: string;
+  jurisdiction?: string;
+  practice_area?: string;
+  status?: string;
+  source?: string;
+  session_id?: string | null;
+  ai_brief?: Record<string, unknown>;
+}): Promise<LegalCase> {
+  return apiFetch<LegalCase>(`${caseServiceUrl()}/api/v1/cases`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listCasesApi(
+  status?: CaseStatus | null,
+  page = 1,
+  size = 20,
+): Promise<Page<LegalCase>> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (status) params.set("status_filter", status);
+  return apiFetch<Page<LegalCase>>(`${caseServiceUrl()}/api/v1/cases?${params}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function listCasesSharedWithMe(
+  page = 1,
+  size = 20,
+): Promise<Page<LegalCase>> {
+  return apiFetch<Page<LegalCase>>(
+    `${caseServiceUrl()}/api/v1/cases/shared-with-me?page=${page}&size=${size}`,
+    { headers: authHeaders() },
+  );
+}
+
+export async function getCaseApi(id: string): Promise<LegalCase> {
+  return apiFetch<LegalCase>(`${caseServiceUrl()}/api/v1/cases/${id}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function updateCaseApi(
+  id: string,
+  patch: Partial<{
+    title: string;
+    description: string;
+    case_number: string;
+    court: string;
+    jurisdiction: string;
+    practice_area: string;
+    status: string;
+    ai_brief: Record<string, unknown>;
+  }>,
+): Promise<LegalCase> {
+  return apiFetch<LegalCase>(`${caseServiceUrl()}/api/v1/cases/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function shareCase(
+  id: string,
+  lawyerUserId: string,
+  message = "",
+): Promise<CaseShare> {
+  return apiFetch<CaseShare>(`${caseServiceUrl()}/api/v1/cases/${id}/share`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ lawyer_user_id: lawyerUserId, message }),
+  });
+}
+
+export async function revokeShare(id: string, lawyerUserId: string): Promise<void> {
+  return apiFetch<void>(
+    `${caseServiceUrl()}/api/v1/cases/${id}/share/${lawyerUserId}`,
+    { method: "DELETE", headers: authHeaders() },
+  );
+}
+
+export async function extractCaseBrief(sessionId: string): Promise<CaseBriefExtraction> {
+  return apiFetch<CaseBriefExtraction>(
+    `${researchServiceUrl()}/api/v1/research/sessions/${sessionId}/extract-case`,
+    { method: "POST", headers: authHeaders() },
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Sparkles } from "lucide-react";
 
 import { CaseStatusBadge } from "@/components/cases/case-status-badge";
 import {
@@ -58,12 +58,17 @@ export function CaseTable({ cases }: CaseTableProps) {
               )}
             >
               <div className="flex items-start justify-between gap-2">
-                <p className="font-semibold tracking-tight">{item.title}</p>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {item.source === "saarthi" && (
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                  )}
+                  <p className="truncate font-semibold tracking-tight">{item.title}</p>
+                </div>
                 <CaseStatusBadge status={item.status} />
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{item.case_number}</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                {item.court} · {item.practice_area}
+                {item.court ? `${item.court} · ` : ""}{item.practice_area}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Updated {formatUpdated(item.updated_at)}
@@ -79,8 +84,6 @@ export function CaseTable({ cases }: CaseTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead>Case #</TableHead>
-              <TableHead>Court</TableHead>
               <TableHead>Practice area</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Updated</TableHead>
@@ -90,13 +93,16 @@ export function CaseTable({ cases }: CaseTableProps) {
             {cases.map((item) => (
               <TableRow key={item.id} className="cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">
                 <TableCell>
-                  <Link href={`/cases/${item.id}`} className="font-medium hover:underline">
+                  <Link href={`/cases/${item.id}`} className="flex items-center gap-1.5 font-medium hover:underline">
+                    {item.source === "saarthi" && (
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                    )}
                     {item.title}
                   </Link>
                 </TableCell>
-                <TableCell className="text-muted-foreground">{item.case_number}</TableCell>
-                <TableCell className="text-muted-foreground">{item.court}</TableCell>
-                <TableCell className="text-muted-foreground">{item.practice_area}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {item.practice_area || "—"}
+                </TableCell>
                 <TableCell>
                   <CaseStatusBadge status={item.status} />
                 </TableCell>

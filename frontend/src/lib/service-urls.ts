@@ -74,3 +74,11 @@ export function billingServiceUrl(): string {
     "/svc/billing",
   );
 }
+
+export function caseServiceUrl(): string {
+  return resolveServiceUrl(
+    process.env.NEXT_PUBLIC_CASE_API_URL,
+    "http://localhost:8011",
+    "/svc/case",
+  );
+}

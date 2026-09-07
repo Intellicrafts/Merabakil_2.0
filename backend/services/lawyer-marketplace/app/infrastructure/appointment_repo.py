@@ -193,11 +193,19 @@ class MarketplaceRepository:
     async def get_consultation(self, consultation_id: uuid.UUID) -> Consultation | None:
         return await self._session.get(Consultation, consultation_id)
 
-    async def list_consultations_for_user(self, user_id: uuid.UUID, *, as_lawyer: bool) -> list[Consultation]:
+    async def list_consultations_for_user(
+        self,
+        user_id: uuid.UUID,
+        *,
+        as_lawyer: bool,
+        case_id: uuid.UUID | None = None,
+    ) -> list[Consultation]:
         if as_lawyer:
             stmt = select(Consultation).where(Consultation.lawyer_user_id == user_id)
         else:
             stmt = select(Consultation).where(Consultation.client_id == user_id)
+        if case_id is not None:
+            stmt = stmt.where(Consultation.case_id == case_id)
         stmt = stmt.order_by(Consultation.scheduled_at.desc())
         return list((await self._session.execute(stmt)).scalars().all())
 
