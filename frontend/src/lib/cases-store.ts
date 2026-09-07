@@ -96,6 +96,7 @@ export function updateCaseStatus(id: string, status: CaseStatus): LegalCase {
 
   const now = new Date().toISOString();
   const labels: Record<CaseStatus, string> = {
+    draft: "Case saved as draft",
     open: "Status set to open",
     in_progress: "Status set to in progress",
     closed: "Case closed",
