@@ -55,6 +55,8 @@ ROLE_PERMISSIONS: dict[Role, list[Permission]] = {
         Permission.RESEARCH_READ,
         Permission.SEARCH_READ,
         Permission.CASE_READ,
+        Permission.DOCUMENT_READ,
+        Permission.DOCUMENT_WRITE,
     ],
 }
 
