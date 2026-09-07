@@ -15,10 +15,12 @@ from legalos_common.logging import get_logger
 
 logger = get_logger(__name__)
 
-ROOT = Path(__file__).resolve().parents[5]  # repo root from .../app/application/
-# backend/services/knowledge-ingestion/app/application -> parents[4] is backend, [5] is root
-# Actually: application(0)->app(1)->knowledge-ingestion(2)->services(3)->backend(4)->root(5)
-# Wait: Path(__file__).parents[0]=application, [1]=app, [2]=knowledge-ingestion, [3]=services, [4]=backend, [5]=repo root. OK.
+try:
+    # Dev: application(0)->app(1)->knowledge-ingestion(2)->services(3)->backend(4)->repo(5)
+    ROOT = Path(__file__).resolve().parents[5]
+except IndexError:
+    # Docker: service is at /app/service/ — corpus scripts not available in container
+    ROOT = Path("/app")
 
 
 class ReindexDocumentUseCase:
