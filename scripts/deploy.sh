@@ -14,7 +14,16 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEPLOY_DIR="/opt/merabakil"
-COMPOSE="docker compose -f $REPO_DIR/infrastructure/docker-compose.prod.yml -f $REPO_DIR/infrastructure/docker-compose.selfsigned.yml --env-file $REPO_DIR/infrastructure/.env"
+
+# Use Let's Encrypt cert if available, otherwise fall back to self-signed overlay
+LE_CERT="/etc/letsencrypt/live/merabakil.in/fullchain.pem"
+if [ -f "$LE_CERT" ]; then
+    echo "==> Using Let's Encrypt certificate."
+    COMPOSE="docker compose -f $REPO_DIR/infrastructure/docker-compose.prod.yml --env-file $REPO_DIR/infrastructure/.env"
+else
+    echo "==> Let's Encrypt cert not found — using self-signed certificate."
+    COMPOSE="docker compose -f $REPO_DIR/infrastructure/docker-compose.prod.yml -f $REPO_DIR/infrastructure/docker-compose.selfsigned.yml --env-file $REPO_DIR/infrastructure/.env"
+fi
 
 # ── Find .env — accept it in-repo or at /opt/merabakil/.env ──────────────
 REPO_ENV="$REPO_DIR/infrastructure/.env"
@@ -65,9 +74,13 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Deploy complete!"
 echo ""
-VM_IP=$(curl -sf http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip -H 'Metadata-Flavor: Google' 2>/dev/null || hostname -I | awk '{print $1}')
-echo "  App is live at: https://$VM_IP"
-echo "  (Accept the browser security warning for self-signed cert)"
+if [ -f "$LE_CERT" ]; then
+    echo "  App is live at: https://merabakil.in"
+else
+    VM_IP=$(curl -sf http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip -H 'Metadata-Flavor: Google' 2>/dev/null || hostname -I | awk '{print $1}')
+    echo "  App is live at: https://$VM_IP"
+    echo "  (Accept the browser security warning for self-signed cert)"
+fi
 echo ""
 echo "  Check container status:  docker compose -f $REPO_DIR/infrastructure/docker-compose.prod.yml ps"
 echo "  View logs:               docker compose -f $REPO_DIR/infrastructure/docker-compose.prod.yml logs -f"

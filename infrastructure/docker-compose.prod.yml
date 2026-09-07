@@ -2,10 +2,11 @@ name: merabakil
 
 # ---------------------------------------------------------------------------
 # Production stack — merabakil.in
-# 7 containers: postgres, redis, auth, search, research, marketplace, frontend
+# 9 containers: postgres, redis, auth, search, research, marketplace,
+#               case, document, frontend
 # + nginx for SSL termination and routing.
 #
-# Usage (on EC2, from repo root):
+# Usage (on GCP, from repo root):
 #   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env up -d
 # ---------------------------------------------------------------------------
 
@@ -125,6 +126,42 @@ services:
       timeout: 5s
       retries: 6
 
+  case:
+    <<: *svc-defaults
+    build:
+      <<: *build-backend
+      args:
+        SERVICE_PATH: services/case
+        INSTALL_ORCHESTRATOR: "false"
+    image: merabakil/case:latest
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      auth:     { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  document:
+    <<: *svc-defaults
+    build:
+      <<: *build-backend
+      args:
+        SERVICE_PATH: services/document
+        INSTALL_ORCHESTRATOR: "false"
+    image: merabakil/document:latest
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      auth:     { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
   frontend:
     <<: *svc-defaults
     build:
@@ -140,13 +177,16 @@ services:
       API_PROXY_SEARCH:      "http://search:8000"
       API_PROXY_RESEARCH:    "http://research:8000"
       API_PROXY_MARKETPLACE: "http://marketplace:8000"
+      API_PROXY_CASE:        "http://case:8000"
+      API_PROXY_DOCUMENT:    "http://document:8000"
       API_PROXY_INGESTION:   "http://auth:8000"   # stub — not deployed
-      API_PROXY_DOCUMENT:    "http://auth:8000"   # stub — not deployed
     depends_on:
       auth:        { condition: service_healthy }
       search:      { condition: service_healthy }
       research:    { condition: service_healthy }
       marketplace: { condition: service_healthy }
+      case:        { condition: service_healthy }
+      document:    { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))\""]
       interval: 15s
