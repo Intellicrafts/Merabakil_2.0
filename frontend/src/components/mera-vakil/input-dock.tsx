@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AudioLines, FileUp, Loader2, Mic, Send, X } from "lucide-react";
 
 import { collectSpeechTranscript, waitForSpeechEnd } from "@/lib/speech-transcript";
+import type { AttachedDocument } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
 
 interface InputDockProps {
@@ -16,6 +17,8 @@ interface InputDockProps {
   onStop?: () => void;
   isUploading?: boolean;
   uploadingFileName?: string | null;
+  attachedDocuments?: AttachedDocument[];
+  onDetachDocument?: (id: string) => void;
   onVoiceModeOpen?: () => void;
   onVoiceNoteSend?: (transcript: string) => void;
   onVoiceNoteError?: (message: string) => void;
@@ -152,6 +155,8 @@ export function InputDock({
   onStop,
   isUploading,
   uploadingFileName,
+  attachedDocuments = [],
+  onDetachDocument,
   onVoiceModeOpen,
   onVoiceNoteSend,
   onVoiceNoteError,
@@ -385,6 +390,32 @@ export function InputDock({
             "border-amber-800/30 shadow-[0_8px_32px_rgba(120,53,15,0.12),0_0_0_3px_rgba(120,53,15,0.08)] dark:border-amber-500/35 dark:shadow-[0_10px_36px_rgba(0,0,0,0.45),0_0_0_3px_rgba(217,119,6,0.12)]",
         )}
       >
+        {attachedDocuments.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5 px-1 pt-0.5" aria-label="Documents in context">
+            {attachedDocuments.map((doc) => (
+              <li
+                key={doc.id}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-amber-800/20 bg-amber-50/60 py-1 pl-2.5 pr-1 text-[12px] text-amber-900 dark:border-amber-500/20 dark:bg-amber-900/10 dark:text-amber-300"
+                title="This document is in context for this conversation"
+              >
+                <FileUp className="h-3 w-3 shrink-0 opacity-70" />
+                <span className="max-w-[9.5rem] truncate font-medium">{doc.name}</span>
+                {onDetachDocument && (
+                  <button
+                    type="button"
+                    onClick={() => onDetachDocument(doc.id)}
+                    disabled={isGenerating}
+                    className="flex h-6 w-6 items-center justify-center rounded-full opacity-60 hover:bg-amber-800/10 hover:opacity-100 disabled:opacity-30 dark:hover:bg-amber-400/10"
+                    aria-label={`Remove ${doc.name} from context`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
         {pendingFiles.length > 0 && (
           <ul className="flex flex-wrap gap-1.5 px-1 pt-0.5" aria-label="Attached files">
             {pendingFiles.map((file, index) => {

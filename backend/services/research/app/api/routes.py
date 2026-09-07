@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel
 
 from app.api.schemas import (
     CourtroomActionsRequest,
@@ -77,6 +78,7 @@ def _build_state(
     document_id: str | None = None,
     server_history: list[ConversationMessage] | None = None,
     user_facts: list[str] | None = None,
+    session_document_ids: list[str] | None = None,
 ) -> OrchestratorState:
     scope = ResearchScope.DOCUMENT if document_id or body.scope is ResearchScope.DOCUMENT else body.scope
     filters = body.search_filters()
@@ -99,6 +101,7 @@ def _build_state(
         search_filters=filters,
         history=history,
         user_facts=user_facts or [],
+        session_document_ids=session_document_ids or [],
     )
 
 
@@ -242,12 +245,21 @@ async def research_stream(
             ] or None
             user_facts = memory_result.long_term_facts
 
+        # Load documents attached to this session (uploaded via Saarthi)
+        session_doc_ids: list[str] = []
+        if body.session_id:
+            try:
+                session_doc_ids = await container.session_documents.get(body.session_id)
+            except Exception:
+                pass
+
         state = _build_state(
             body,
             credentials=credentials,
             current_user=current_user,
             server_history=history,
             user_facts=user_facts,
+            session_document_ids=session_doc_ids,
         )
         state = state.model_copy(update={"route": route})
 
@@ -367,6 +379,38 @@ async def research_document_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+class _AttachDocumentRequest(BaseModel):
+    document_id: str
+
+
+@router.post(
+    "/sessions/{session_id}/documents",
+    summary="Attach an uploaded document to a Saarthi session (adds to LLM context)",
+)
+async def attach_session_document(
+    session_id: str,
+    body: _AttachDocumentRequest,
+    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+) -> dict:
+    container = get_container()
+    await container.session_documents.attach(session_id, body.document_id)
+    doc_ids = await container.session_documents.get(session_id)
+    return {"session_id": session_id, "document_ids": doc_ids}
+
+
+@router.get(
+    "/sessions/{session_id}/documents",
+    summary="List documents attached to a Saarthi session",
+)
+async def get_session_documents(
+    session_id: str,
+    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+) -> dict:
+    container = get_container()
+    doc_ids = await container.session_documents.get(session_id)
+    return {"session_id": session_id, "document_ids": doc_ids}
 
 
 async def _maybe_rewrite_for_speech(text: str, *, rewrite: bool, language: str) -> str:

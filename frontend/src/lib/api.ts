@@ -491,6 +491,20 @@ function parseSseBlock(block: string): { event: string; data: string } | null {
   return data ? { event, data } : null;
 }
 
+export async function attachDocumentToSession(
+  sessionId: string,
+  documentId: string,
+): Promise<void> {
+  await authorizedFetch(
+    `${researchServiceUrl()}/api/v1/research/sessions/${sessionId}/documents`,
+    {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ document_id: documentId }),
+    },
+  );
+}
+
 export async function streamResearch(
   query: string,
   jurisdiction: string | undefined,
@@ -498,6 +512,8 @@ export async function streamResearch(
   handlers: ResearchStreamHandlers,
   options?: { documentId?: string; signal?: AbortSignal; sessionId?: string },
 ): Promise<ResearchResponse> {
+  // documentId triggers exclusive document-scoped search (e.g. document detail page).
+  // Saarthi chat uses server-side session documents instead — do not pass documentId there.
   const path = options?.documentId
     ? `/api/v1/research/document/${options.documentId}/stream`
     : "/api/v1/research/stream";

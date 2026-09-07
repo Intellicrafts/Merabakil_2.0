@@ -42,11 +42,17 @@ export interface ChatMessage {
   revealedChars?: number;
 }
 
+export interface AttachedDocument {
+  id: string;
+  name: string;
+}
+
 export interface ChatConversation {
   id: string;
   title: string;
   messages: ChatMessage[];
   documentId: string | null;
+  attachedDocuments: AttachedDocument[];
   jurisdiction: string | null;
   matterType?: MatterType;
   pinned?: boolean;
@@ -99,7 +105,7 @@ export function saveActiveConversationId(id: string | null): void {
 
 export function createConversation(
   partial?: Partial<
-    Pick<ChatConversation, "title" | "documentId" | "jurisdiction" | "matterType">
+    Pick<ChatConversation, "title" | "documentId" | "attachedDocuments" | "jurisdiction" | "matterType">
   >,
 ): ChatConversation {
   const now = new Date().toISOString();
@@ -108,6 +114,7 @@ export function createConversation(
     title: partial?.title ?? "New conversation",
     messages: [],
     documentId: partial?.documentId ?? null,
+    attachedDocuments: partial?.attachedDocuments ?? [],
     jurisdiction: partial?.jurisdiction ?? null,
     matterType: partial?.matterType ?? null,
     pinned: false,

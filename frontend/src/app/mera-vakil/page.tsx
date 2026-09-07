@@ -17,7 +17,7 @@ import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
-import { streamResearch, uploadUserDocument, getUserDocument, extractCaseBrief, createCase, updateCaseApi } from "@/lib/api";
+import { streamResearch, uploadUserDocument, getUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession } from "@/lib/api";
 import { consumeMeraVakilPrefill } from "@/lib/courtroom/session-store";
 import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
 import {
@@ -31,6 +31,7 @@ import {
   togglePinConversation,
   upsertConversation,
   toResearchHistory,
+  type AttachedDocument,
   type ChatConversation,
   type ChatMessage,
   type MatterType,
@@ -418,21 +419,6 @@ export default function MeraVakilPage() {
     });
   }
 
-  function handleDocumentChange(id: string | null) {
-    setActiveConversation((prev) => {
-      if (!prev) {
-        const conv = createConversation({ documentId: id, jurisdiction: jurisdiction || null });
-        upsertConversation(conv);
-        setConversations(loadConversations());
-        return conv;
-      }
-      const updated = { ...prev, documentId: id };
-      upsertConversation(updated);
-      setConversations(loadConversations());
-      return updated;
-    });
-  }
-
   function handleJurisdictionChange(value: string) {
     setActiveConversation((prev) => {
       if (!prev) {
@@ -454,7 +440,19 @@ export default function MeraVakilPage() {
       doc_type: "user_upload",
     });
     const documentIdValue = uploaded.document_id;
-    handleDocumentChange(documentIdValue);
+
+    // Register document with the current session for server-side context enrichment
+    setActiveConversation((prev) => {
+      if (!prev) return prev;
+      const newDoc: AttachedDocument = { id: documentIdValue, name: file.name };
+      const already = prev.attachedDocuments?.some((d) => d.id === documentIdValue);
+      if (already) return prev;
+      const updated = { ...prev, attachedDocuments: [...(prev.attachedDocuments ?? []), newDoc] };
+      upsertConversation(updated);
+      return updated;
+    });
+    // Fire-and-forget — attach doc to session in Redis so all LLM calls include it
+    void attachDocumentToSession(sessionId ?? "", documentIdValue).catch(() => {});
 
     let status = uploaded.status;
     for (let attempt = 0; attempt < 20 && status !== "indexed"; attempt += 1) {
@@ -468,7 +466,7 @@ export default function MeraVakilPage() {
       title: status === "indexed" ? "Document ready" : "Document uploaded",
       description:
         status === "indexed"
-          ? `"${file.name}" is indexed. You can now ask questions about it.`
+          ? `"${file.name}" is indexed and in context for this conversation.`
           : `"${file.name}" is processing. Questions may take a moment to ground.`,
     });
     return documentIdValue;
@@ -476,13 +474,12 @@ export default function MeraVakilPage() {
 
   async function handleComposerSend(text: string, files: File[]) {
     if (isResearching) return;
-    let lastDocId = documentId;
     if (files.length > 0) {
       setIsUploading(true);
       try {
         for (const file of files) {
           setUploadingFileName(file.name);
-          lastDocId = await uploadOneDocument(file);
+          await uploadOneDocument(file);
         }
       } catch (err) {
         toast({
@@ -499,7 +496,7 @@ export default function MeraVakilPage() {
     const query =
       text.trim().length >= 3 ? text.trim() : files.length > 0 ? "Review the attached documents." : "";
     if (query.length < 3) return;
-    await sendMessage(query, { documentId: lastDocId ?? undefined });
+    await sendMessage(query);
   }
 
   function handleStopGeneration() {
@@ -549,17 +546,15 @@ export default function MeraVakilPage() {
 
   async function sendMessage(
     queryText?: string,
-    options?: { editMessageId?: string; documentId?: string },
+    options?: { editMessageId?: string },
   ) {
     const query = (queryText ?? input).trim();
     if (query.length < 3 || isResearching) return;
-    const groundedId = options?.documentId ?? documentId;
 
     let conv = activeConversation;
     if (!conv) {
       conv = createConversation({
         title: deriveTitleFromQuery(query),
-        documentId: groundedId,
         jurisdiction: jurisdiction || null,
         matterType: activeConversation?.matterType ?? null,
       });
@@ -576,7 +571,6 @@ export default function MeraVakilPage() {
     const priorHistory = toResearchHistory(baseMessages);
     const withUser: ChatConversation = {
       ...conv,
-      documentId: groundedId ?? conv.documentId,
       title: baseMessages.length === 0 ? deriveTitleFromQuery(query) : conv.title,
       messages: [...baseMessages, userMsg],
     };
@@ -677,7 +671,7 @@ export default function MeraVakilPage() {
             });
           },
         },
-        { documentId: groundedId ?? undefined, signal: controller.signal, sessionId: activeConversation?.id },
+        { signal: controller.signal, sessionId: conv.id },
       );
 
       const finalized = createAssistantMessage(result);
@@ -921,6 +915,15 @@ export default function MeraVakilPage() {
             onStop={handleStopGeneration}
             isUploading={isUploading}
             uploadingFileName={uploadingFileName}
+            attachedDocuments={activeConversation?.attachedDocuments ?? []}
+            onDetachDocument={(id) => {
+              setActiveConversation((prev) => {
+                if (!prev) return prev;
+                const updated = { ...prev, attachedDocuments: (prev.attachedDocuments ?? []).filter((d) => d.id !== id) };
+                upsertConversation(updated);
+                return updated;
+              });
+            }}
             onVoiceModeOpen={voiceSupported ? () => setVoiceModeOpen(true) : undefined}
             onVoiceNoteSend={(transcript) => void sendMessage(transcript)}
             onVoiceNoteError={(message) =>

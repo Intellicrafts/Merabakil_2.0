@@ -10,6 +10,7 @@ from app.infrastructure.memory import (
     MemoryManager,
     SessionMemory,
 )
+from app.infrastructure.memory.session_documents import SessionDocuments
 from app.infrastructure.search_retriever import HttpSearchRetriever
 from app.infrastructure.specialist_clients import HttpSpecialistClient
 from legalos_common.clients import build_embedding_client, build_llm_client, build_tts_client
@@ -48,6 +49,7 @@ class Container:
         # Memory layer — uses platform Redis + Qdrant
         redis_client = self._build_redis(settings.redis_url)
         self.redis = redis_client  # exposed for rate limiting
+        self.session_documents = SessionDocuments(redis_client)
         qdrant_client = AsyncQdrantClient(url=settings.qdrant.qdrant_url)
         summarizer = ConversationSummarizer(self.llm)
         ltm = LongTermMemory(
