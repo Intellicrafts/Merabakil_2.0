@@ -12,7 +12,6 @@ const MODULE_CTA: Record<string, string> = {
   "/research": "Start research",
   "/lawyer-marketplace": "Find an advocate",
   "/cases": "View matters",
-  "/courtroom": "Enter courtroom",
   "/documents": "Open documents",
   "/admin/knowledge": "Manage corpus",
   "/admin/users": "Manage users",

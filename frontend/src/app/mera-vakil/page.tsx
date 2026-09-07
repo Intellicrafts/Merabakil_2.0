@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
 import { streamResearch, uploadUserDocument, getUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
-import { consumeMeraVakilPrefill } from "@/lib/courtroom/session-store";
+import { FEATURES } from "@/lib/features";
+import { consumeMeraVakilPrefill } from "@/lib/prefill-store";
 import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
 import {
   createAssistantMessage,
@@ -103,6 +104,7 @@ export default function MeraVakilPage() {
   useEffect(() => { totalMessageCountRef.current = totalMessageCount; }, [totalMessageCount]);
 
   useEffect(() => {
+    if (!FEATURES.CASE_BRIEF) return;
     if (!sessionId) return;
     if (totalMessageCount < 10) return;
     if (totalMessageCount <= lastExtractedTurnCount) return;
@@ -217,6 +219,7 @@ export default function MeraVakilPage() {
   }
 
   const runFinalExtraction = useCallback(async (sid: string, currentDraftCaseId: string | null) => {
+    if (!FEATURES.CASE_BRIEF) return;
     if (extractingRef.current) return;
     extractingRef.current = true;
     try {
@@ -801,21 +804,25 @@ export default function MeraVakilPage() {
   return (
     <>
       <PremiumModal open={premiumOpen} onClose={() => setPremiumOpen(false)} />
-      <BookingDialog
-        lawyer={voiceBookingLawyer}
-        open={Boolean(voiceBookingLawyer)}
-        source="ai_match"
-        caseId={draftCaseId}
-        onClose={() => setVoiceBookingLawyer(null)}
-        onBooked={() => setVoiceBookingLawyer(null)}
-      />
-      <VoiceModeOverlay
-        open={voiceModeOpen}
-        onClose={() => setVoiceModeOpen(false)}
-        speechLocale={speechLocale}
-        onConversationEnd={handleVoiceConversationEnd}
-        onBookLawyer={(lawyer) => setVoiceBookingLawyer(matchResultToProfile(lawyer))}
-      />
+      {FEATURES.BOOKING && (
+        <BookingDialog
+          lawyer={voiceBookingLawyer}
+          open={Boolean(voiceBookingLawyer)}
+          source="ai_match"
+          caseId={draftCaseId}
+          onClose={() => setVoiceBookingLawyer(null)}
+          onBooked={() => setVoiceBookingLawyer(null)}
+        />
+      )}
+      {FEATURES.VOICE && (
+        <VoiceModeOverlay
+          open={voiceModeOpen}
+          onClose={() => setVoiceModeOpen(false)}
+          speechLocale={speechLocale}
+          onConversationEnd={handleVoiceConversationEnd}
+          onBookLawyer={FEATURES.BOOKING ? (lawyer) => setVoiceBookingLawyer(matchResultToProfile(lawyer)) : undefined}
+        />
+      )}
 
       {mobilePanelOpen && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Session panel">
@@ -948,7 +955,7 @@ export default function MeraVakilPage() {
               });
               if (sessionId) void detachDocumentFromSession(sessionId, id).catch(() => {});
             }}
-            onVoiceModeOpen={voiceSupported ? () => setVoiceModeOpen(true) : undefined}
+            onVoiceModeOpen={FEATURES.VOICE && voiceSupported ? () => setVoiceModeOpen(true) : undefined}
             onVoiceNoteSend={(transcript) => void sendMessage(transcript)}
             onVoiceNoteError={(message) =>
               toast({ title: "Voice note", description: message, variant: "destructive" })

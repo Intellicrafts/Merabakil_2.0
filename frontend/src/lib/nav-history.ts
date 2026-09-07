@@ -11,7 +11,6 @@ const MODULE_ROOTS = [
   "/lawyer-marketplace",
   "/cases",
   "/documents",
-  "/courtroom",
   "/admin/knowledge",
   "/admin/users",
   "/admin/appointments",
@@ -24,7 +23,6 @@ export function resolveRouteLabel(pathname: string): string {
   if (pathname === "/mera-vakil") return "Saarthi";
   if (pathname.startsWith("/cases")) return "Cases";
   if (pathname.startsWith("/documents")) return "Documents";
-  if (pathname.startsWith("/courtroom")) return "AI Courtroom";
   if (pathname.startsWith("/admin/knowledge")) return "Knowledge Hub";
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/appointments")) return "Appointments";

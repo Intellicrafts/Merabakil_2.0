@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 
-import { setMeraVakilPrefill } from "@/lib/courtroom/session-store";
+import { setMeraVakilPrefill } from "@/lib/prefill-store";
 import { cn } from "@/lib/utils";
 
 export function DashboardAskBar({ className }: { className?: string }) {

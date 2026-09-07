@@ -22,7 +22,6 @@ from app.api.schemas import (
     CallEventRequest,
     CallRespondRequest,
     CallRingRequest,
-    EmergencyRequest,
     ExtendRequest,
     IncomingCallPayload,
     JoinStateOut,
@@ -1206,58 +1205,6 @@ async def _ops_snapshot(
     return await _to_appointment(repo, row, user, lawyer=lawyer)
 
 
-@appointments_router.post("/{appointment_id}/emergency", response_model=AppointmentOut)
-async def request_emergency(
-    appointment_id: uuid.UUID,
-    body: EmergencyRequest,
-    user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> AppointmentOut:
-    repo = MarketplaceRepository(session)
-    row = await _load(repo, appointment_id, user)
-    if user.has_role("admin"):
-        raise HTTPException(status_code=403, detail="Only appointment parties can request help")
-    instant = now_ist()
-    row.priority = "emergency"
-    row.emergency_status = "open"
-    row.emergency_reason = body.reason.strip()
-    row.emergency_at = instant
-    row.emergency_ack_at = None
-    row.emergency_resolved_at = None
-    row.assigned_admin_user_id = None
-    actor = uuid.UUID(user.user_id)
-    await repo.add_event(
-        row.id,
-        "emergency_opened",
-        actor,
-        {"reason": row.emergency_reason, "role": _role_for(user, row)},
-    )
-    out = await _ops_snapshot(repo, row, user)
-    await _emit(row.id, "emergency", out.model_dump())
-    await _emit(row.id, "ops_update", out.model_dump())
-    return out
-
-
-@appointments_router.post("/{appointment_id}/emergency/resolve", response_model=AppointmentOut)
-async def party_resolve_emergency(
-    appointment_id: uuid.UUID,
-    user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> AppointmentOut:
-    repo = MarketplaceRepository(session)
-    row = await _load(repo, appointment_id, user)
-    if user.has_role("admin"):
-        raise HTTPException(status_code=403, detail="Use admin resolve")
-    if row.emergency_status not in {"open", "ack"}:
-        raise HTTPException(status_code=400, detail="No active emergency")
-    row.emergency_status = "resolved"
-    row.emergency_resolved_at = now_ist()
-    await repo.add_event(row.id, "emergency_resolved", uuid.UUID(user.user_id), {"by": "party"})
-    out = await _ops_snapshot(repo, row, user)
-    await _emit(row.id, "emergency", out.model_dump())
-    await _emit(row.id, "ops_update", out.model_dump())
-    return out
-
 
 @appointments_router.get("/{appointment_id}/transcript", response_model=TranscriptOut)
 async def transcript(
@@ -1416,49 +1363,6 @@ async def admin_force_complete(
     await _emit(row.id, "ops_update", out.model_dump())
     return out
 
-
-@admin_router.post("/appointments/{appointment_id}/emergency/ack", response_model=AppointmentOut)
-async def admin_ack_emergency(
-    appointment_id: uuid.UUID,
-    user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> AppointmentOut:
-    repo = MarketplaceRepository(session)
-    row = await repo.get_consultation(appointment_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-    if row.emergency_status not in {"open", "ack"}:
-        raise HTTPException(status_code=400, detail="No active emergency")
-    admin_id = uuid.UUID(user.user_id)
-    row.emergency_status = "ack"
-    row.emergency_ack_at = now_ist()
-    row.assigned_admin_user_id = admin_id
-    await repo.add_event(row.id, "emergency_acked", admin_id, {})
-    out = await _ops_snapshot(repo, row, user)
-    await _emit(row.id, "emergency", out.model_dump())
-    await _emit(row.id, "ops_update", out.model_dump())
-    return out
-
-
-@admin_router.post("/appointments/{appointment_id}/emergency/resolve", response_model=AppointmentOut)
-async def admin_resolve_emergency(
-    appointment_id: uuid.UUID,
-    user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> AppointmentOut:
-    repo = MarketplaceRepository(session)
-    row = await repo.get_consultation(appointment_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Appointment not found")
-    if row.emergency_status not in {"open", "ack"}:
-        raise HTTPException(status_code=400, detail="No active emergency")
-    row.emergency_status = "resolved"
-    row.emergency_resolved_at = now_ist()
-    await repo.add_event(row.id, "emergency_resolved", uuid.UUID(user.user_id), {"by": "admin"})
-    out = await _ops_snapshot(repo, row, user)
-    await _emit(row.id, "emergency", out.model_dump())
-    await _emit(row.id, "ops_update", out.model_dump())
-    return out
 
 
 @admin_router.post("/appointments/{appointment_id}/priority", response_model=AppointmentOut)

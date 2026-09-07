@@ -10,7 +10,7 @@ import { ResearchQueryDock } from "@/components/research/research-query-dock";
 import { ResearchSourcesPanel } from "@/components/research/research-sources-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { streamResearch } from "@/lib/api";
-import { consumeResearchPrefill } from "@/lib/courtroom/session-store";
+import { consumeResearchPrefill } from "@/lib/prefill-store";
 import { loadResearchHistory, saveResearchHistory } from "@/lib/research-history";
 import type { ResearchResponse } from "@/lib/types";
 

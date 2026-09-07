@@ -250,10 +250,6 @@ class ReasonRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
 
-class EmergencyRequest(BaseModel):
-    reason: str = Field(min_length=3, max_length=500)
-
-
 class PriorityRequest(BaseModel):
     priority: str = Field(pattern="^(normal|urgent|emergency)$")
 

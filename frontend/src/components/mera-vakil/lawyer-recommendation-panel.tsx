@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
 import { LawyerProfileDrawer } from "@/components/lawyer-marketplace/lawyer-profile-drawer";
+import { FEATURES } from "@/lib/features";
 import type { RankedLawyer } from "@/lib/marketplace-store";
 import type { LawyerMatchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -87,14 +88,16 @@ function LawyerBubble({ lawyer, index, onView, onBook }: LawyerBubbleProps) {
         ) : (
           <span />
         )}
-        <button
-          type="button"
-          onClick={onBook}
-          className="flex items-center gap-1 rounded-lg bg-slate-900 px-2 py-1 text-[10.5px] font-semibold text-white transition-colors hover:bg-slate-700 active:scale-[0.97] dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-        >
-          <CalendarPlus className="h-2.5 w-2.5" />
-          Book
-        </button>
+        {FEATURES.BOOKING && (
+          <button
+            type="button"
+            onClick={onBook}
+            className="flex items-center gap-1 rounded-lg bg-slate-900 px-2 py-1 text-[10.5px] font-semibold text-white transition-colors hover:bg-slate-700 active:scale-[0.97] dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+          >
+            <CalendarPlus className="h-2.5 w-2.5" />
+            Book
+          </button>
+        )}
       </div>
     </div>
   );
@@ -135,14 +138,16 @@ export function LawyerRecommendationPanel({ lawyers, caseId }: LawyerRecommendat
         onClose={() => setProfile(null)}
         onBook={setBooking}
       />
-      <BookingDialog
-        lawyer={booking}
-        open={Boolean(booking)}
-        source="ai_match"
-        caseId={caseId}
-        onClose={() => setBooking(null)}
-        onBooked={() => setBooking(null)}
-      />
+      {FEATURES.BOOKING && (
+        <BookingDialog
+          lawyer={booking}
+          open={Boolean(booking)}
+          source="ai_match"
+          caseId={caseId}
+          onClose={() => setBooking(null)}
+          onBooked={() => setBooking(null)}
+        />
+      )}
     </section>
   );
 }

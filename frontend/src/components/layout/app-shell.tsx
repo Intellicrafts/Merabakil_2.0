@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { clearSession, getStoredUser, getWalletBalance } from "@/lib/api";
+import { FEATURES } from "@/lib/features";
 import { initTheme, toggleTheme } from "@/lib/theme";
 import type { AuthUser } from "@/lib/types";
 
@@ -29,10 +30,9 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Home",
   "/research": "Research Console",
   "/lawyer-marketplace": "Find an Advocate",
-  "/appointments": "Appointments",
+  "/appointments": "My Consultations",
   "/cases": "Case Management",
   "/documents": "Documents",
-  "/courtroom": "AI Courtroom",
   "/admin/knowledge": "Knowledge Hub",
   "/admin/users": "User Management",
   "/admin/appointments": "Appointment Ops",
@@ -46,7 +46,6 @@ function resolvePageTitle(pathname: string): string {
   if (pathname.startsWith("/appointments")) return "Appointment details";
   if (pathname.startsWith("/cases")) return "Case Management";
   if (pathname.startsWith("/documents")) return "Documents";
-  if (pathname.startsWith("/courtroom")) return "AI Courtroom";
   if (pathname.startsWith("/admin/knowledge")) return "Knowledge Hub";
   if (pathname.startsWith("/admin/users")) return "User Management";
   if (pathname.startsWith("/admin/appointments")) return "Appointment Ops";
@@ -124,14 +123,16 @@ function AppTopBar({
           </button>
         )}
         <NotificationBell />
-        <Link
-          href="/wallet"
-          className="hidden items-center gap-1.5 rounded-lg border border-black/[0.06] bg-white/50 px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground dark:border-white/[0.10] dark:bg-white/[0.05] dark:hover:bg-white/[0.08] sm:flex"
-          aria-label="My wallet"
-        >
-          <Wallet className="h-3.5 w-3.5" />
-          {walletBalance ?? "₹—"}
-        </Link>
+        {FEATURES.WALLET && (
+          <Link
+            href="/wallet"
+            className="hidden items-center gap-1.5 rounded-lg border border-black/[0.06] bg-white/50 px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground dark:border-white/[0.10] dark:bg-white/[0.05] dark:hover:bg-white/[0.08] sm:flex"
+            aria-label="My wallet"
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            {walletBalance ?? "₹—"}
+          </Link>
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -169,15 +170,17 @@ function AppTopBar({
                 My profile
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onClick={onGoToWallet}>
-              <Wallet className="mr-2 h-4 w-4" />
-              <span>Wallet</span>
-              {walletBalance && (
-                <span className="ml-auto text-[11px] font-medium text-muted-foreground">
-                  {walletBalance}
-                </span>
-              )}
-            </DropdownMenuItem>
+            {FEATURES.WALLET && (
+              <DropdownMenuItem onClick={onGoToWallet}>
+                <Wallet className="mr-2 h-4 w-4" />
+                <span>Wallet</span>
+                {walletBalance && (
+                  <span className="ml-auto text-[11px] font-medium text-muted-foreground">
+                    {walletBalance}
+                  </span>
+                )}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem destructive onClick={onSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
@@ -202,6 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryFn: getWalletBalance,
     staleTime: 60_000,
     retry: false,
+    enabled: FEATURES.WALLET,
   });
 
   const walletBalance = walletData

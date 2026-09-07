@@ -69,7 +69,12 @@ export function DashboardHero({
       <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(260px,380px)] lg:gap-10">
         <div className="space-y-5 sm:space-y-6">
           <div className="space-y-2.5">
-            <p className="text-[13px] text-muted-foreground">{formatDate()}</p>
+            <div className="flex items-center gap-2.5">
+              <p className="text-[13px] text-muted-foreground">{formatDate()}</p>
+              <span className="inline-flex items-center rounded-full border border-black/[0.08] bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground dark:border-white/[0.10] dark:bg-white/[0.05]">
+                Closed Beta
+              </span>
+            </div>
             <h1 className="text-[1.85rem] font-semibold leading-[1.12] tracking-tight sm:text-[2.2rem] md:text-[2.4rem]">
               {getGreeting()}, <span className="gradient-text">{firstName}</span>
             </h1>

@@ -5,7 +5,6 @@ import {
   Database,
   FileText,
   FolderOpen,
-  Gavel,
   Search,
   Sparkles,
   Users,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 
 import type { AuthUser } from "@/lib/types";
+import { FEATURES } from "@/lib/features";
 import { Permission, hasPermission } from "@/lib/permissions";
 
 export type PrimaryRole =
@@ -28,6 +28,7 @@ export interface DashboardModule {
   description: string;
   icon: LucideIcon;
   permission: string;
+  feature?: boolean;
 }
 
 export interface DashboardConfig {
@@ -52,6 +53,7 @@ const ALL_MODULES: DashboardModule[] = [
     description: "Your AI legal counsel — ask any question, get cited answers.",
     icon: Sparkles,
     permission: Permission.RESEARCH_READ,
+    feature: FEATURES.SAARTHI,
   },
   {
     href: "/research",
@@ -59,6 +61,7 @@ const ALL_MODULES: DashboardModule[] = [
     description: "Run deep research across statutes and judgments.",
     icon: Search,
     permission: Permission.RESEARCH_READ,
+    feature: FEATURES.RESEARCH_CONSOLE,
   },
   {
     href: "/lawyer-marketplace",
@@ -66,6 +69,7 @@ const ALL_MODULES: DashboardModule[] = [
     description: "Connect with a verified advocate and book a consultation.",
     icon: Briefcase,
     permission: Permission.RESEARCH_READ,
+    feature: FEATURES.MARKETPLACE,
   },
   {
     href: "/cases",
@@ -73,13 +77,7 @@ const ALL_MODULES: DashboardModule[] = [
     description: "Track your matters, status, and next steps.",
     icon: FolderOpen,
     permission: Permission.CASE_READ,
-  },
-  {
-    href: "/courtroom",
-    title: "AI Courtroom",
-    description: "Rehearse a hearing with Judge and Advocate AI.",
-    icon: Gavel,
-    permission: Permission.COURTROOM_SIMULATE,
+    feature: FEATURES.CASES,
   },
   {
     href: "/documents",
@@ -87,6 +85,14 @@ const ALL_MODULES: DashboardModule[] = [
     description: "Upload files and ask questions about them.",
     icon: FileText,
     permission: Permission.DOCUMENT_READ,
+  },
+  {
+    href: "/appointments",
+    title: "My Consultations",
+    description: "View and manage your upcoming and past appointments.",
+    icon: CalendarClock,
+    permission: Permission.RESEARCH_READ,
+    feature: FEATURES.BOOKING,
   },
   {
     href: "/admin/knowledge",
@@ -115,6 +121,7 @@ const ALL_MODULES: DashboardModule[] = [
     description: "View your balance, top up funds, and track transactions.",
     icon: Wallet,
     permission: Permission.RESEARCH_READ,
+    feature: FEATURES.WALLET,
   },
 ];
 
@@ -123,11 +130,10 @@ const ROLE_CONFIG: Record<
   Pick<DashboardConfig, "headline" | "subtitle"> & { moduleHrefs: string[] }
 > = {
   admin: {
-    headline: "Everything in one place",
-    subtitle: "Pick up counsel, cases, and firm tools.",
+    headline: "Admin console",
+    subtitle: "Manage users, appointments, and platform configuration.",
     moduleHrefs: [
       "/mera-vakil",
-      "/courtroom",
       "/research",
       "/lawyer-marketplace",
       "/cases",
@@ -139,11 +145,10 @@ const ROLE_CONFIG: Record<
     ],
   },
   enterprise: {
-    headline: "Your legal work, simplified",
-    subtitle: "Documents, research, and counsel when you need them.",
+    headline: "Legal counsel, simplified",
+    subtitle: "AI-powered guidance and expert advocates when you need them.",
     moduleHrefs: [
       "/mera-vakil",
-      "/courtroom",
       "/research",
       "/lawyer-marketplace",
       "/documents",
@@ -151,11 +156,10 @@ const ROLE_CONFIG: Record<
     ],
   },
   law_firm: {
-    headline: "Your firm's home",
-    subtitle: "Research, cases, and knowledge — continue where you left off.",
+    headline: "Early access for your firm",
+    subtitle: "Research, find advocates, and manage your matters.",
     moduleHrefs: [
       "/mera-vakil",
-      "/courtroom",
       "/research",
       "/lawyer-marketplace",
       "/cases",
@@ -165,21 +169,18 @@ const ROLE_CONFIG: Record<
     ],
   },
   advocate: {
-    headline: "Your practice, organised",
-    subtitle: "Curated case opportunities, deep research, and a structured start for every new matter.",
+    headline: "Your client pipeline",
+    subtitle: "Find new cases, manage consultations, and grow your practice.",
     moduleHrefs: [
       "/mera-vakil",
-      "/courtroom",
-      "/research",
-      "/lawyer-marketplace",
+      "/appointments",
       "/cases",
-      "/documents",
       "/wallet",
     ],
   },
   citizen: {
-    headline: "Your legal companion",
-    subtitle: "Ask a question or pick up where you left off.",
+    headline: "Welcome to the beta",
+    subtitle: "AI-powered legal guidance and verified advocates, at your fingertips.",
     moduleHrefs: ["/mera-vakil", "/lawyer-marketplace", "/cases", "/wallet"],
   },
 };
@@ -203,6 +204,7 @@ export function getDashboardConfig(
   const modules = roleMeta.moduleHrefs
     .map((href) => ALL_MODULES.find((m) => m.href === href))
     .filter((m): m is DashboardModule => Boolean(m))
+    .filter((m) => m.feature !== false)
     .filter((m) => hasPermission(user, m.permission));
 
   return {

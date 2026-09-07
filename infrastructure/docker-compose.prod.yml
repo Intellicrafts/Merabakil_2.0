@@ -208,7 +208,17 @@ services:
       context: ..
       dockerfile: infrastructure/docker/frontend.Dockerfile
       args:
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID:          ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+        NEXT_PUBLIC_FEATURE_SAARTHI:           ${NEXT_PUBLIC_FEATURE_SAARTHI:-true}
+        NEXT_PUBLIC_FEATURE_VOICE:             ${NEXT_PUBLIC_FEATURE_VOICE:-true}
+        NEXT_PUBLIC_FEATURE_CASE_BRIEF:        ${NEXT_PUBLIC_FEATURE_CASE_BRIEF:-true}
+        NEXT_PUBLIC_FEATURE_CASES:             ${NEXT_PUBLIC_FEATURE_CASES:-true}
+        NEXT_PUBLIC_FEATURE_RESEARCH_CONSOLE:  ${NEXT_PUBLIC_FEATURE_RESEARCH_CONSOLE:-true}
+        NEXT_PUBLIC_FEATURE_MARKETPLACE:       ${NEXT_PUBLIC_FEATURE_MARKETPLACE:-true}
+        NEXT_PUBLIC_FEATURE_AI_MATCHING:       ${NEXT_PUBLIC_FEATURE_AI_MATCHING:-true}
+        NEXT_PUBLIC_FEATURE_BOOKING:           ${NEXT_PUBLIC_FEATURE_BOOKING:-true}
+        NEXT_PUBLIC_FEATURE_ROOM:              ${NEXT_PUBLIC_FEATURE_ROOM:-true}
+        NEXT_PUBLIC_FEATURE_WALLET:            ${NEXT_PUBLIC_FEATURE_WALLET:-true}
     image: merabakil/frontend:latest
     env_file: .env
     environment:

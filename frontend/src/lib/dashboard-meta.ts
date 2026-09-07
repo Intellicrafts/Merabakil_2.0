@@ -5,7 +5,6 @@ export type ModuleTintKey =
   | "cases"
   | "documents"
   | "knowledge"
-  | "courtroom"
   | "users";
 
 export interface DashboardModuleMeta {
@@ -51,13 +50,6 @@ export const MODULE_META: Record<string, DashboardModuleMeta> = {
     features: ["Upload & query", "AI-powered search", "Secure storage"],
     tint: "documents",
     shortLabel: "Docs",
-  },
-  "/courtroom": {
-    tag: "Simulation",
-    features: ["Practice hearings", "AI judge feedback", "Transcript"],
-    tint: "courtroom",
-    imageSrc: "/courtroom/courtroom-hero.svg",
-    shortLabel: "Courtroom",
   },
   "/admin/knowledge": {
     tag: "Knowledge Base",

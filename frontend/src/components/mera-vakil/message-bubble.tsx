@@ -13,6 +13,7 @@ import { ResearchMetadataPanel } from "@/components/mera-vakil/research-metadata
 import { Button } from "@/components/ui/button";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
 import type { ChatMessage } from "@/lib/conversations";
+import { FEATURES } from "@/lib/features";
 import type { LawyerMatchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -198,7 +199,7 @@ export const MessageBubble = memo(function MessageBubble({
               <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} initialOpen />
             )}
 
-            {lawyers.length > 0 && <LawyerRecommendationPanel lawyers={lawyers} caseId={caseId} />}
+            {lawyers.length > 0 && FEATURES.AI_MATCHING && <LawyerRecommendationPanel lawyers={lawyers} caseId={caseId} />}
             {appointment && <AppointmentConfirmationCard appointment={appointment} />}
 
             {research.disclaimer && (

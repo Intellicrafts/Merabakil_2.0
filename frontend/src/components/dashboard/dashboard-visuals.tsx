@@ -89,7 +89,6 @@ function tintClass(tint: ModuleTintKey): string {
     cases: "bg-emerald-400/20 dark:bg-emerald-300/12",
     documents: "bg-violet-400/20 dark:bg-violet-300/12",
     knowledge: "bg-indigo-400/20 dark:bg-indigo-300/12",
-    courtroom: "bg-amber-700/15 dark:bg-amber-600/10",
     users: "bg-rose-400/18 dark:bg-rose-300/10",
   };
   return map[tint];
@@ -147,15 +146,6 @@ function motifPaths(tint: ModuleTintKey) {
           <ellipse cx="60" cy="36" rx="28" ry="10" stroke="currentColor" strokeWidth="3" />
           <path d="M32 36v36c0 6 12 10 28 10s28-4 28-10V36" stroke="currentColor" strokeWidth="3" fill="none" />
           <path d="M32 54c0 6 12 10 28 10s28-4 28-10" stroke="currentColor" strokeWidth="2.5" fill="none" />
-        </>
-      );
-    case "courtroom":
-      return (
-        <>
-          <path d="M30 88h60" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-          <path d="M42 88V52h36v36" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" fill="none" />
-          <path d="M60 28v24M48 40h24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-          <circle cx="60" cy="26" r="5" fill="currentColor" />
         </>
       );
     case "users":

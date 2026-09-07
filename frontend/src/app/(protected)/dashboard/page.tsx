@@ -35,9 +35,13 @@ export default function DashboardPage() {
       <section className="dash-card-in" aria-labelledby="workspace-heading" style={{ animationDelay: "140ms" }}>
         <div className="mb-4">
           <h2 id="workspace-heading" className="text-[15px] font-semibold tracking-tight">
-            Your workspace
+            Available in this release
           </h2>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">{config.subtitle}</p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            Closed beta ·{" "}
+            {config.modules.length}{" "}
+            {config.modules.length === 1 ? "feature" : "features"} available in your account
+          </p>
         </div>
         {config.modules.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-black/[0.08] py-16 text-center dark:border-white/[0.10]">

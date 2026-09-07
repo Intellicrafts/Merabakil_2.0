@@ -69,14 +69,3 @@ async def extraction_rate_limit(
     return current_user
 
 
-async def courtroom_rate_limit(
-    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
-) -> CurrentUser:
-    container = get_container()
-    await check_rate_limit(
-        container.redis,
-        key=f"rate:courtroom:{current_user.user_id}",
-        limit=10,
-        window_seconds=60,
-    )
-    return current_user
