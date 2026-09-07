@@ -14,6 +14,7 @@ const nextConfig = {
     const marketplace = process.env.API_PROXY_MARKETPLACE ?? "http://127.0.0.1:8010";
     const ingestion = process.env.API_PROXY_INGESTION ?? "http://127.0.0.1:8002";
     const document = process.env.API_PROXY_DOCUMENT ?? "http://127.0.0.1:8005";
+    const caseService = process.env.API_PROXY_CASE ?? "http://127.0.0.1:8011";
     return [
       { source: "/svc/auth/:path*", destination: `${auth}/:path*` },
       { source: "/svc/search/:path*", destination: `${search}/:path*` },
@@ -21,6 +22,7 @@ const nextConfig = {
       { source: "/svc/marketplace/:path*", destination: `${marketplace}/:path*` },
       { source: "/svc/ingestion/:path*", destination: `${ingestion}/:path*` },
       { source: "/svc/document/:path*", destination: `${document}/:path*` },
+      { source: "/svc/case/:path*", destination: `${caseService}/:path*` },
     ];
   },
 };

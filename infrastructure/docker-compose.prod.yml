@@ -2,9 +2,8 @@ name: merabakil
 
 # ---------------------------------------------------------------------------
 # Production stack — merabakil.in
-# 9 containers: postgres, redis, auth, search, research, marketplace,
-#               case, document, frontend
-# + nginx for SSL termination and routing.
+# 12 containers: postgres, redis, minio, auth, search, research, marketplace,
+#                case, document, ingestion, frontend, nginx
 #
 # Usage (on GCP, from repo root):
 #   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env up -d
@@ -46,6 +45,21 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  minio:
+    <<: *svc-defaults
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - uploadsdata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
   # ── Application services ──────────────────────────────────────────────────
 
@@ -153,9 +167,35 @@ services:
         INSTALL_ORCHESTRATOR: "false"
     image: merabakil/document:latest
     env_file: .env
+    environment:
+      S3_ENDPOINT_URL: "http://minio:9000"
+      INGESTION_SERVICE_URL: "http://ingestion:8000"
+    depends_on:
+      postgres:   { condition: service_healthy }
+      auth:       { condition: service_healthy }
+      minio:      { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  ingestion:
+    <<: *svc-defaults
+    build:
+      <<: *build-backend
+      args:
+        SERVICE_PATH: services/knowledge-ingestion
+        INSTALL_ORCHESTRATOR: "false"
+    image: merabakil/ingestion:latest
+    env_file: .env
+    environment:
+      S3_ENDPOINT_URL: "http://minio:9000"
     depends_on:
       postgres: { condition: service_healthy }
       auth:     { condition: service_healthy }
+      search:   { condition: service_healthy }
+      minio:    { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 15s
@@ -179,7 +219,7 @@ services:
       API_PROXY_MARKETPLACE: "http://marketplace:8000"
       API_PROXY_CASE:        "http://case:8000"
       API_PROXY_DOCUMENT:    "http://document:8000"
-      API_PROXY_INGESTION:   "http://auth:8000"   # stub — not deployed
+      API_PROXY_INGESTION:   "http://ingestion:8000"
     depends_on:
       auth:        { condition: service_healthy }
       search:      { condition: service_healthy }
@@ -187,6 +227,7 @@ services:
       marketplace: { condition: service_healthy }
       case:        { condition: service_healthy }
       document:    { condition: service_healthy }
+      ingestion:   { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000',r=>process.exit(r.statusCode<400?0:1)).on('error',()=>process.exit(1))\""]
       interval: 15s
@@ -212,6 +253,7 @@ services:
 volumes:
   pgdata:
   redisdata:
+  uploadsdata:    # MinIO object storage — persists uploaded documents on VM disk
 
 # ── Networks ──────────────────────────────────────────────────────────────
 

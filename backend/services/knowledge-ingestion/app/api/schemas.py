@@ -62,6 +62,22 @@ class ReindexSourceRequest(BaseModel):
     force: bool = True
 
 
+class IngestFromStorageRequest(BaseModel):
+    """Trigger ingestion for a file already saved in object storage (MinIO/S3).
+
+    Called by the document service after it stores a file, so the ingestion
+    service can read the bytes, chunk, embed, and index the document.
+    """
+
+    storage_key: str = Field(min_length=1)
+    document_id: str | None = None
+    title: str = Field(min_length=1, max_length=500)
+    doc_type: str = Field(min_length=1, max_length=120)
+    jurisdiction: str | None = None
+    content_type: str | None = None
+    owner_id: str | None = None
+
+
 class CategoryResponse(BaseModel):
     folder: str
     doc_type: str

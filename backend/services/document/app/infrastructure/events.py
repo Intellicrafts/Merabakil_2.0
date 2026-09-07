@@ -58,12 +58,15 @@ class HttpIngestionClient:
         payload: IngestionRequestedEvent,
         user_token: str,
     ) -> None:
-        url = f"{self._base_url}/api/v1/knowledge/documents"
+        url = f"{self._base_url}/api/v1/knowledge/documents/from-storage"
         body = {
+            "storage_key": payload.storage_key,
+            "document_id": str(payload.document_id) if payload.document_id else None,
             "title": payload.title or "Uploaded document",
             "doc_type": payload.doc_type,
-            "text": f"[ingestion from document service: {payload.document_id}]",
             "jurisdiction": payload.jurisdiction,
+            "content_type": payload.content_type,
+            "owner_id": payload.owner_id,
         }
         headers = {"Authorization": f"Bearer {user_token}"}
         resp = await self._get_client().post(url, json=body, headers=headers)

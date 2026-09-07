@@ -15,6 +15,7 @@ from app.api.schemas import (
     DocumentSummary,
     IngestionJobResponse,
     IngestionResultResponse,
+    IngestFromStorageRequest,
     IngestStructuredRequest,
     IngestTextRequest,
     KnowledgeGraphResponse,
@@ -224,6 +225,38 @@ async def ingest_file(
         status_code=status.HTTP_201_CREATED,
         content=_to_response(result).model_dump(mode="json"),
     )
+
+
+@router.post(
+    "/documents/from-storage",
+    response_model=IngestionResultResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ingest a file already saved in object storage (called by document service)",
+)
+async def ingest_from_storage(
+    body: IngestFromStorageRequest,
+    user: CurrentUser = Depends(require_permissions(Permission.DOCUMENT_WRITE.value)),
+    use_case: IngestDocumentUseCase = Depends(build_ingest_use_case),
+) -> IngestionResultResponse:
+    container = get_container()
+    try:
+        raw = await container.s3.get_object(body.storage_key)
+    except Exception as exc:
+        raise ValidationFailedError(f"Could not read file from storage: {exc}") from exc
+
+    source_uri = f"s3://{container.s3.bucket}/{body.storage_key}"
+    owner_id = uuid.UUID(body.owner_id) if body.owner_id else uuid.UUID(user.user_id)
+    result = await use_case.execute(
+        raw=raw,
+        title=body.title,
+        doc_type=body.doc_type,
+        jurisdiction=body.jurisdiction,
+        content_type=body.content_type,
+        source_uri=source_uri,
+        storage_key=body.storage_key,
+        owner_id=owner_id,
+    )
+    return _to_response(result)
 
 
 @router.get(
