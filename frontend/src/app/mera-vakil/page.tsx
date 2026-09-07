@@ -93,6 +93,14 @@ export default function MeraVakilPage() {
   const totalMessageCount = activeConversation?.messages.length ?? 0;
   const sessionId = activeConversation?.id ?? null;
 
+  // Refs so cleanup/unmount handlers can read latest values without stale closures
+  const sessionIdRef = useRef<string | null>(sessionId);
+  const draftCaseIdRef = useRef<string | null>(draftCaseId);
+  const totalMessageCountRef = useRef<number>(totalMessageCount);
+  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+  useEffect(() => { draftCaseIdRef.current = draftCaseId; }, [draftCaseId]);
+  useEffect(() => { totalMessageCountRef.current = totalMessageCount; }, [totalMessageCount]);
+
   useEffect(() => {
     if (!sessionId) return;
     if (totalMessageCount < 10) return;
@@ -237,6 +245,46 @@ export default function MeraVakilPage() {
     } finally {
       extractingRef.current = false;
     }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On mount: pick up any pending extraction saved when the user closed the tab
+  useEffect(() => {
+    const raw = localStorage.getItem("pending_extraction");
+    if (!raw) return;
+    localStorage.removeItem("pending_extraction");
+    try {
+      const { sessionId: sid, draftCaseId: cid } = JSON.parse(raw) as {
+        sessionId: string;
+        draftCaseId: string | null;
+      };
+      if (sid) void runFinalExtraction(sid, cid);
+    } catch {
+      // Malformed entry — ignore
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On unmount (SPA navigation away) + tab close → trigger final extraction
+  useEffect(() => {
+    function handleBeforeUnload() {
+      const sid = sessionIdRef.current;
+      const count = totalMessageCountRef.current;
+      const cid = draftCaseIdRef.current;
+      if (sid && count >= 10) {
+        // Store for pickup on next load (async fetch unreliable on tab close)
+        localStorage.setItem("pending_extraction", JSON.stringify({ sessionId: sid, draftCaseId: cid }));
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      // SPA navigation: component unmounts but JS context stays alive — fetch completes
+      const sid = sessionIdRef.current;
+      const count = totalMessageCountRef.current;
+      const cid = draftCaseIdRef.current;
+      if (sid && count >= 10) {
+        void runFinalExtraction(sid, cid);
+      }
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleNewChat() {
