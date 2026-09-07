@@ -1,7 +1,7 @@
 """Extend cases table with AI brief fields; add case_shares table.
 
 Revision ID: 0012_case_brief
-Revises: 0011_wallet
+Revises: 0012_merge_heads
 Create Date: 2026-08-27
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0012_case_brief"
-down_revision: str | None = "0011_wallet"
+down_revision: str | None = "0012_merge_heads"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
