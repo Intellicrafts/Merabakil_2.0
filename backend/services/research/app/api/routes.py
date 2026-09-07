@@ -413,6 +413,20 @@ async def get_session_documents(
     return {"session_id": session_id, "document_ids": doc_ids}
 
 
+@router.delete(
+    "/sessions/{session_id}/documents/{document_id}",
+    status_code=204,
+    summary="Remove a document from a Saarthi session's context",
+)
+async def detach_session_document(
+    session_id: str,
+    document_id: str,
+    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
+) -> None:
+    container = get_container()
+    await container.session_documents.remove(session_id, document_id)
+
+
 async def _maybe_rewrite_for_speech(text: str, *, rewrite: bool, language: str) -> str:
     locale = get_speech_locale(language)
     if not rewrite:

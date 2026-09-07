@@ -505,6 +505,16 @@ export async function attachDocumentToSession(
   );
 }
 
+export async function detachDocumentFromSession(
+  sessionId: string,
+  documentId: string,
+): Promise<void> {
+  await authorizedFetch(
+    `${researchServiceUrl()}/api/v1/research/sessions/${sessionId}/documents/${documentId}`,
+    { method: "DELETE", headers: authHeaders() },
+  );
+}
+
 export async function streamResearch(
   query: string,
   jurisdiction: string | undefined,

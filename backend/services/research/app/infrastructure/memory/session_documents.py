@@ -6,9 +6,9 @@ Each session maps to a Redis SET of document_id strings.
 
 from __future__ import annotations
 
-import logging
+from legalos_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _KEY = "research:session:{session_id}:docs"
 _TTL = 7200  # match session memory TTL
@@ -38,3 +38,12 @@ class SessionDocuments:
         except Exception as exc:
             logger.warning("session_docs_get_failed session=%s error=%s", session_id, exc)
             return []
+
+    async def remove(self, session_id: str, document_id: str) -> None:
+        if not self._redis or not session_id:
+            return
+        key = _KEY.format(session_id=session_id)
+        try:
+            await self._redis.srem(key, document_id)
+        except Exception as exc:
+            logger.warning("session_docs_remove_failed session=%s error=%s", session_id, exc)

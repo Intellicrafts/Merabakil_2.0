@@ -17,7 +17,7 @@ import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
-import { streamResearch, uploadUserDocument, getUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession } from "@/lib/api";
+import { streamResearch, uploadUserDocument, getUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
 import { consumeMeraVakilPrefill } from "@/lib/courtroom/session-store";
 import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
 import {
@@ -144,6 +144,13 @@ export default function MeraVakilPage() {
           });
           caseId = created.id;
           setDraftCaseId(caseId);
+          // Persist so returning to this conversation doesn't create a duplicate case
+          setActiveConversation((prev) => {
+            if (!prev) return prev;
+            const updated = { ...prev, draftCaseId: caseId };
+            upsertConversation(updated);
+            return updated;
+          });
         } else {
           await updateCaseApi(caseId, {
             title: brief.case_title,
@@ -169,7 +176,10 @@ export default function MeraVakilPage() {
     const convId = new URLSearchParams(window.location.search).get("c");
     if (convId) {
       const found = all.find((c) => c.id === convId);
-      if (found) setActiveConversation(found);
+      if (found) {
+        setActiveConversation(found);
+        setDraftCaseId(found.draftCaseId ?? null);
+      }
     }
     const stored = localStorage.getItem(THEME_KEY);
     const prefersDark = stored === "dark";
@@ -378,7 +388,7 @@ export default function MeraVakilPage() {
       setStreamingMessageId(null);
       setPendingStatus(undefined);
       setEditingMessageId(null);
-      setDraftCaseId(null);
+      setDraftCaseId(conv.draftCaseId ?? null);
       setLastExtractedTurnCount(0);
     }
   }
@@ -434,14 +444,16 @@ export default function MeraVakilPage() {
     });
   }
 
-  async function uploadOneDocument(file: File): Promise<string> {
+  async function uploadOneDocument(file: File, targetSessionId: string | null): Promise<string> {
     const uploaded = await uploadUserDocument(file, {
       title: file.name.replace(/\.[^.]+$/, "") || file.name,
       doc_type: "user_upload",
     });
     const documentIdValue = uploaded.document_id;
 
-    // Register document with the current session for server-side context enrichment
+    // Register document with the current session for server-side context enrichment.
+    // Use targetSessionId (passed explicitly) so this works even before the first message
+    // creates an activeConversation in React state.
     setActiveConversation((prev) => {
       if (!prev) return prev;
       const newDoc: AttachedDocument = { id: documentIdValue, name: file.name };
@@ -451,8 +463,9 @@ export default function MeraVakilPage() {
       upsertConversation(updated);
       return updated;
     });
-    // Fire-and-forget — attach doc to session in Redis so all LLM calls include it
-    void attachDocumentToSession(sessionId ?? "", documentIdValue).catch(() => {});
+    if (targetSessionId) {
+      void attachDocumentToSession(targetSessionId, documentIdValue).catch(() => {});
+    }
 
     let status = uploaded.status;
     for (let attempt = 0; attempt < 20 && status !== "indexed"; attempt += 1) {
@@ -475,11 +488,20 @@ export default function MeraVakilPage() {
   async function handleComposerSend(text: string, files: File[]) {
     if (isResearching) return;
     if (files.length > 0) {
+      // Ensure a conversation exists before uploading so docs can be attached to a real session ID.
+      // If the user uploads on a fresh page (no prior messages), we create the conversation now.
+      let uploadTargetConv = activeConversation;
+      if (!uploadTargetConv) {
+        uploadTargetConv = createConversation({ jurisdiction: jurisdiction || null, matterType: null });
+        setActiveConversation(uploadTargetConv);
+        upsertConversation(uploadTargetConv);
+        setConversations(loadConversations());
+      }
       setIsUploading(true);
       try {
         for (const file of files) {
           setUploadingFileName(file.name);
-          await uploadOneDocument(file);
+          await uploadOneDocument(file, uploadTargetConv.id);
         }
       } catch (err) {
         toast({
@@ -923,6 +945,7 @@ export default function MeraVakilPage() {
                 upsertConversation(updated);
                 return updated;
               });
+              if (sessionId) void detachDocumentFromSession(sessionId, id).catch(() => {});
             }}
             onVoiceModeOpen={voiceSupported ? () => setVoiceModeOpen(true) : undefined}
             onVoiceNoteSend={(transcript) => void sendMessage(transcript)}

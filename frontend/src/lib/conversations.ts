@@ -53,6 +53,7 @@ export interface ChatConversation {
   messages: ChatMessage[];
   documentId: string | null;
   attachedDocuments: AttachedDocument[];
+  draftCaseId?: string | null;
   jurisdiction: string | null;
   matterType?: MatterType;
   pinned?: boolean;
