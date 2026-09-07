@@ -17,7 +17,7 @@ DEPLOY_DIR="/opt/merabakil"
 
 # Use Let's Encrypt cert if available, otherwise fall back to self-signed overlay
 LE_CERT="/etc/letsencrypt/live/merabakil.in/fullchain.pem"
-if [ -f "$LE_CERT" ]; then
+if sudo test -f "$LE_CERT" 2>/dev/null; then
     echo "==> Using Let's Encrypt certificate."
     COMPOSE="docker compose -f $REPO_DIR/infrastructure/docker-compose.prod.yml --env-file $REPO_DIR/infrastructure/.env"
 else
@@ -74,7 +74,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Deploy complete!"
 echo ""
-if [ -f "$LE_CERT" ]; then
+if sudo test -f "$LE_CERT" 2>/dev/null; then
     echo "  App is live at: https://merabakil.in"
 else
     VM_IP=$(curl -sf http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip -H 'Metadata-Flavor: Google' 2>/dev/null || hostname -I | awk '{print $1}')
