@@ -114,14 +114,33 @@ async def _resolve_session_documents(
         except Exception:
             redis_ids = []
     doc_ids = _merge_doc_ids(redis_ids, body.document_ids)
-    excerpt = ""
-    if doc_ids:
+    if not doc_ids:
+        return [], ""
+
+    cache_key = "research:doctext:" + ",".join(sorted(doc_ids))
+    if container.redis:
         try:
-            excerpt = await container.document_texts.fetch_excerpts(
-                doc_ids, user_token=credentials.credentials
-            )
-        except Exception as exc:
-            logger.warning("session_document_text_failed error=%s", exc)
+            cached = await container.redis.get(cache_key)
+            if cached:
+                text = cached.decode() if isinstance(cached, bytes) else cached
+                return doc_ids, text
+        except Exception:
+            pass
+
+    excerpt = ""
+    try:
+        excerpt = await container.document_texts.fetch_excerpts(
+            doc_ids, user_token=credentials.credentials
+        )
+    except Exception as exc:
+        logger.warning("session_document_text_failed error=%s", exc)
+
+    if excerpt and container.redis:
+        try:
+            await container.redis.set(cache_key, excerpt, ex=7200)
+        except Exception:
+            pass
+
     return doc_ids, excerpt
 
 
@@ -251,9 +270,10 @@ async def research_stream(
         # HTTP 200 + first event reach browser in ~10ms — before any LLM or memory work
         yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
 
-        route_result, memory_result = await asyncio.gather(
+        route_result, memory_result, doc_result = await asyncio.gather(
             container.router.classify(body.query),
             container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
+            _resolve_session_documents(body, credentials),
             return_exceptions=True,
         )
         route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
@@ -268,7 +288,11 @@ async def research_stream(
             ] or None
             user_facts = memory_result.long_term_facts
 
-        session_doc_ids, session_doc_text = await _resolve_session_documents(body, credentials)
+        if isinstance(doc_result, Exception) or doc_result is None:
+            session_doc_ids, session_doc_text = [], ""
+        else:
+            session_doc_ids, session_doc_text = doc_result
+
         if session_doc_text and route == QueryRoute.CONVERSATIONAL:
             route = QueryRoute.LEGAL
 
@@ -338,9 +362,10 @@ async def research_document_stream(
     async def generator() -> AsyncIterator[str]:
         yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
 
-        route_result, memory_result = await asyncio.gather(
+        route_result, memory_result, doc_result = await asyncio.gather(
             container.router.classify(body.query),
             container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
+            _resolve_session_documents(body, credentials),
             return_exceptions=True,
         )
         route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
@@ -355,7 +380,11 @@ async def research_document_stream(
             ] or None
             user_facts = memory_result.long_term_facts
 
-        session_doc_ids, session_doc_text = await _resolve_session_documents(body, credentials)
+        if isinstance(doc_result, Exception) or doc_result is None:
+            session_doc_ids, session_doc_text = [], ""
+        else:
+            session_doc_ids, session_doc_text = doc_result
+
         if session_doc_text and route == QueryRoute.CONVERSATIONAL:
             route = QueryRoute.LEGAL
         scoped_ids = _merge_doc_ids(session_doc_ids, [str(document_id)])

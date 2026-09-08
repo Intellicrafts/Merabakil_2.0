@@ -33,7 +33,7 @@ class MemoryManager:
         )
         if user_id:
             ltm_task = asyncio.create_task(
-                self._ltm.retrieve_relevant(user_id, query)
+                asyncio.wait_for(self._ltm.retrieve_relevant(user_id, query), timeout=0.8)
             )
             results = await asyncio.gather(session_task, ltm_task, return_exceptions=True)
             history = results[0] if not isinstance(results[0], Exception) else []
