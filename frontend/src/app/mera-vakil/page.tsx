@@ -180,7 +180,7 @@ export default function MeraVakilPage() {
   useEffect(() => {
     const all = loadConversations();
     setConversations(all);
-    const convId = new URLSearchParams(window.location.search).get("c") || loadActiveConversationId();
+    const convId = new URLSearchParams(window.location.search).get("c");
     if (convId) {
       const found = all.find((c) => c.id === convId);
       if (found) {
