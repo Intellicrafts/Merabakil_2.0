@@ -582,7 +582,7 @@ async def match_lawyers(
 
     # Fallback: score and rank from SQL
     logger.info("match_lawyers source=sql practice_areas=%s", body.practice_areas)
-    lawyers = await repo.list_lawyers(verified_only=False, city=body.city)
+    lawyers = await repo.list_lawyers(verified_only=True, city=body.city)
     ranked = [
         (lawyer, score_lawyer(lawyer, practice_areas=body.practice_areas, city=body.city))
         for lawyer in lawyers
