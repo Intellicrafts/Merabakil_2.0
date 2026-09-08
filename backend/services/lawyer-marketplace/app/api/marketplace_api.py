@@ -83,7 +83,7 @@ from app.infrastructure.file_store import (
 from app.infrastructure.lawyer_model import Lawyer
 from legalos_common.clients.llm import build_llm_client
 from legalos_common.config import get_common_settings
-from legalos_common.security.rbac import CurrentUser, get_current_user, require_roles
+from legalos_common.security.rbac import CurrentUser, Role, get_current_user, require_roles
 
 logger = logging.getLogger(__name__)
 
@@ -594,7 +594,7 @@ async def match_lawyers(
 @appointments_router.post("", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)
 async def create_appointment(
     body: BookAppointmentRequest,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_roles(Role.CITIZEN.value)),
     session: AsyncSession = Depends(get_session),
 ) -> AppointmentOut:
     repo = MarketplaceRepository(session)
