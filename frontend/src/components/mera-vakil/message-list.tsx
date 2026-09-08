@@ -118,6 +118,7 @@ export function MessageList({
   return (
     <div
       ref={scrollRef}
+      data-chat-thread
       className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-8 md:px-6"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-8">

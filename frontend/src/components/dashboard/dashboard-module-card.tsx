@@ -30,7 +30,7 @@ export function DashboardModuleCard({ mod }: { mod: DashboardModule }) {
         "group relative flex flex-col gap-3.5 overflow-hidden rounded-2xl px-4 py-4 sm:px-5 sm:py-5",
         "border border-black/[0.06] bg-white",
         "shadow-[0_1px_3px_rgba(15,23,42,0.05)]",
-        "transition-all duration-200 hover:-translate-y-px hover:border-primary/20 hover:shadow-[0_10px_28px_rgba(15,23,42,0.07)]",
+        "transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-primary/20 hover:shadow-[0_10px_28px_rgba(15,23,42,0.07)]",
         "active:scale-[0.99]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2",
         "dark:border-white/[0.08] dark:bg-zinc-900 dark:hover:border-primary/30",

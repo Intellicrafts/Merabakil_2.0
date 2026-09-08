@@ -37,7 +37,7 @@ export function ChatFileCard({
   size?: number;
   contentType?: string;
   onOpen?: () => void;
-  tone?: "light" | "onDark";
+  tone?: "light" | "onDark" | "user";
 }) {
   const kind = fileKind(name, contentType);
   const label = kind === "pdf" ? "PDF" : kind === "word" ? "Word" : kind === "sheet" ? "CSV" : "Text";
@@ -49,20 +49,31 @@ export function ChatFileCard({
         "flex max-w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors",
         tone === "onDark"
           ? "border-white/15 bg-white/10 text-white hover:bg-white/15"
-          : "border-black/[0.07] bg-white shadow-sm hover:border-amber-800/25 dark:border-white/10 dark:bg-zinc-900 dark:hover:border-amber-500/30",
+          : tone === "user"
+            ? "border-slate-300/55 bg-white/80 text-slate-700 shadow-none hover:bg-white dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-200 dark:hover:bg-white/[0.09]"
+            : "border-black/[0.07] bg-white shadow-sm hover:border-amber-800/25 dark:border-white/10 dark:bg-zinc-900 dark:hover:border-amber-500/30",
       )}
     >
       <span
         className={cn(
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-          tone === "onDark" ? "bg-white/10" : "bg-amber-50 dark:bg-amber-950/40",
+          tone === "onDark"
+            ? "bg-white/10"
+            : tone === "user"
+              ? "bg-slate-100 dark:bg-white/10"
+              : "bg-amber-50 dark:bg-amber-950/40",
         )}
       >
         <KindIcon kind={kind} />
       </span>
       <span className="min-w-0">
         <span className="block truncate text-[12.5px] font-medium">{name}</span>
-        <span className={cn("block text-[11px]", tone === "onDark" ? "text-white/70" : "text-muted-foreground")}>
+        <span
+          className={cn(
+            "block text-[11px]",
+            tone === "onDark" ? "text-white/70" : "text-muted-foreground",
+          )}
+        >
           {label}
           {typeof size === "number" ? ` · ${formatFileSize(size)}` : ""}
         </span>

@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LogOut, Moon, Sun, UserCircle, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { ProfileAvatar } from "@/components/auth/profile-avatar";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { DashboardCommandPalette } from "@/components/dashboard/dashboard-command-palette";
 import { BackButton } from "@/components/layout/back-button";
@@ -23,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { clearSession, getStoredUser, getWalletBalance } from "@/lib/api";
+import { readAvatarUrl } from "@/lib/avatar";
+import { markNavigationStart } from "@/lib/navigation-feedback";
 import { FEATURES } from "@/lib/features";
 import { initTheme, toggleTheme } from "@/lib/theme";
 import type { AuthUser } from "@/lib/types";
@@ -144,9 +147,11 @@ function AppTopBar({
 
         <DropdownMenu>
           <DropdownMenuTrigger className="ml-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.06]">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full border border-black/[0.08] bg-white/50 text-[11px] font-semibold dark:border-white/[0.10] dark:bg-white/[0.06]">
-              {user?.full_name?.charAt(0) ?? "?"}
-            </div>
+            <ProfileAvatar
+              src={readAvatarUrl()}
+              name={user?.full_name ?? "User"}
+              className="h-7 w-7"
+            />
             <div className="hidden text-left md:block">
               <p className="text-[13px] font-medium leading-none">{user?.full_name ?? "User"}</p>
               <p className="mt-0.5 text-[10px] capitalize text-muted-foreground">
@@ -274,9 +279,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           isHome={isHome}
           walletBalance={walletBalance}
           onToggleTheme={handleToggleTheme}
-          onGoHome={() => router.push("/dashboard")}
-          onGoToProfile={() => router.push("/profile")}
-          onGoToWallet={() => router.push("/wallet")}
+          onGoHome={() => {
+            markNavigationStart();
+            router.push("/dashboard");
+          }}
+          onGoToProfile={() => {
+            markNavigationStart();
+            router.push("/profile");
+          }}
+          onGoToWallet={() => {
+            markNavigationStart();
+            router.push("/wallet");
+          }}
           onSignOut={handleSignOut}
           onOpenPalette={() => setPaletteOpen(true)}
         />
@@ -298,7 +312,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 : "flex-1 px-5 pb-10 pt-2 md:px-8"
           }
         >
-          {children}
+          <div className={isRoom ? "flex min-h-0 flex-1 flex-col" : "page-enter"}>
+            {children}
+          </div>
         </main>
       </div>
     </div>

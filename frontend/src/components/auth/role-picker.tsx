@@ -57,10 +57,10 @@ export function RolePicker({ value, onChange, disabled = false }: RolePickerProp
             disabled={disabled}
             onClick={() => onChange(role.id)}
             className={cn(
-              "group flex flex-col items-start gap-3 rounded-2xl border p-4 text-left transition-all",
-              "border-black/[0.08] bg-white/70 hover:border-primary/40 hover:shadow-sm",
+              "group flex flex-col items-start gap-2.5 rounded-2xl border p-3.5 text-left transition-colors duration-150",
+              "border-black/[0.08] bg-white hover:border-primary/40",
               "dark:border-white/10 dark:bg-zinc-900/80 dark:hover:border-primary/50",
-              selected && "border-primary ring-2 ring-primary/20 shadow-sm",
+              selected && "border-primary bg-primary/[0.04] ring-2 ring-primary/20",
               disabled && "pointer-events-none opacity-60",
             )}
           >

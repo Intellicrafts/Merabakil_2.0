@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardModuleCard } from "@/components/dashboard/dashboard-module-card";
 import { useDashboardSnapshot } from "@/hooks/use-dashboard-snapshot";
@@ -9,8 +10,12 @@ import { getDashboardConfig } from "@/lib/dashboard-config";
 import type { AuthUser } from "@/lib/types";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const snapshot = useDashboardSnapshot();
+
+  const config = getDashboardConfig(user);
+  const firstName = user?.full_name?.split(" ")[0] ?? "there";
 
   useEffect(() => {
     setUser(getStoredUser());
@@ -19,8 +24,11 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const config = getDashboardConfig(user);
-  const firstName = user?.full_name?.split(" ")[0] ?? "there";
+  useEffect(() => {
+    for (const mod of config.modules) {
+      router.prefetch(mod.href);
+    }
+  }, [config.modules, router]);
 
   return (
     <div className="mx-auto w-full max-w-[1120px] space-y-5 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:space-y-6 md:px-0 md:pb-12 md:pt-2">
@@ -32,7 +40,7 @@ export default function DashboardPage() {
         openCount={snapshot.openCount}
         lastCounsel={snapshot.lastCounsel}
       />
-      <section className="dash-card-in" aria-labelledby="workspace-heading" style={{ animationDelay: "140ms" }}>
+      <section className="dash-card-in" aria-labelledby="workspace-heading">
         <div className="mb-4">
           <h2 id="workspace-heading" className="text-[15px] font-semibold tracking-tight">
             Available in this release

@@ -16,9 +16,7 @@ export function GoogleOneTapPrompt() {
     }
 
     showGoogleOneTap().catch(() => {
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(ONE_TAP_DISMISSED_KEY, "1");
-      }
+      /* Transient GIS/FedCM failures should not permanently hide One Tap. */
     });
   }, []);
 

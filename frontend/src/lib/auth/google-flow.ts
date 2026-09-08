@@ -8,6 +8,7 @@ import {
   setSession,
   syncAdvocateListing,
 } from "@/lib/api";
+import { storeAvatarUrl } from "@/lib/avatar";
 import { loginRedirectForUser } from "@/lib/permissions";
 import type { AuthResponse, GoogleAuthResult } from "@/lib/types";
 import { isGoogleNeedsRole } from "@/lib/types";
@@ -63,6 +64,7 @@ export async function handleGoogleAuthResult(
   nextPath?: string | null,
 ): Promise<void> {
   if (isGoogleNeedsRole(result)) {
+    storeAvatarUrl(result.picture);
     storeGoogleOnboarding({
       onboarding_token: result.onboarding_token,
       email: result.email,

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 
+import { markNavigationStart } from "@/lib/navigation-feedback";
 import { setMeraVakilPrefill } from "@/lib/prefill-store";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,7 @@ export function DashboardAskBar({ className }: { className?: string }) {
   function openCounsel(text: string) {
     const trimmed = text.trim();
     if (trimmed) setMeraVakilPrefill(trimmed);
+    markNavigationStart();
     router.push("/mera-vakil");
   }
 

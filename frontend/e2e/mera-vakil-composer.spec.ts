@@ -146,10 +146,13 @@ test.describe("Mera Vakil composer", () => {
     await page.goto("/mera-vakil");
 
     await expect(page.getByRole("heading", { name: /^Saarthi$/i })).toBeVisible();
-    await expect(page.getByRole("img", { name: /Mera Bakil/i }).first()).toBeVisible();
+    await expect(page.getByLabel("Saarthi")).toBeVisible();
     await expect(page.getByText(/Namaste/i)).toHaveCount(0);
     await expect(page.getByText("→")).toHaveCount(0);
-    await expect(page.getByText(/Ask a legal question\. Receive cited guidance\./i)).toBeVisible();
+    await expect(page.getByText(/Ask a legal question\. Receive cited guidance\./i)).toHaveCount(0);
+    await expect(page.getByText("Mera Bakil")).toHaveCount(0);
+    await expect(page.getByText("Legal Help. Made Simple.")).toHaveCount(0);
+    await expect(page.getByText(/Premium — unlimited queries/i)).toHaveCount(0);
 
     const suggestions = page.locator('[aria-label="Suggested questions"]');
     await expect(suggestions.getByRole("button", { name: "Know my rights" })).toBeVisible();

@@ -93,7 +93,8 @@ export async function ensureGoogleIdentityReady(): Promise<boolean> {
       callback: (response) => {
         if (response.credential) dispatchCredential(response.credential);
       },
-      use_fedcm_for_prompt: true,
+      // FedCM is flaky on localhost / embedded browsers; GIS button still works.
+      use_fedcm_for_prompt: false,
       auto_select: false,
     });
     initialized = true;

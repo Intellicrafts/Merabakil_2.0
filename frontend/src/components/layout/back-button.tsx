@@ -11,6 +11,7 @@ import {
   peekBackPath,
   resolveSmartFallback,
 } from "@/lib/nav-history";
+import { markNavigationStart } from "@/lib/navigation-feedback";
 import { cn } from "@/lib/utils";
 
 interface BackButtonProps {
@@ -32,6 +33,7 @@ export function BackButton({ className, fallbackHref, showLabel = true }: BackBu
 
   function handleBack() {
     markNavigatingBack();
+    markNavigationStart();
     const href = consumeBackPath(pathname, smartFallback);
     router.push(href);
   }

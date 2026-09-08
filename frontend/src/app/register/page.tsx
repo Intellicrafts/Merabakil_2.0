@@ -89,14 +89,14 @@ function RegisterForm() {
       <AuthDivider />
 
       <form
-        className="space-y-4"
+        className="space-y-3.5"
         onSubmit={(e) => {
           e.preventDefault();
           setGoogleError(null);
           mutation.mutate();
         }}
       >
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="full_name">Full name</Label>
           <Input
             id="full_name"
@@ -104,9 +104,10 @@ function RegisterForm() {
             onChange={(e) => setFullName(e.target.value)}
             placeholder="Jane Advocate"
             autoComplete="name"
+            className="h-11 rounded-xl"
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input
             id="email"
@@ -116,9 +117,10 @@ function RegisterForm() {
             placeholder="you@example.com"
             required
             autoComplete="email"
+            className="h-11 rounded-xl"
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="password">Password</Label>
           <Input
             id="password"
@@ -127,6 +129,7 @@ function RegisterForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="new-password"
+            className="h-11 rounded-xl"
           />
         </div>
 
@@ -186,7 +189,7 @@ function RegisterForm() {
           </div>
         )}
 
-        <Button type="submit" className="w-full rounded-xl" size="lg" disabled={mutation.isPending}>
+        <Button type="submit" className="h-11 w-full rounded-xl" size="lg" disabled={mutation.isPending}>
           {mutation.isPending ? "Creating account…" : "Create account"}
         </Button>
       </form>

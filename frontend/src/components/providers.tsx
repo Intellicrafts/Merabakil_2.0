@@ -6,6 +6,7 @@ import { useState } from "react";
 import { FaviconLinks } from "@/components/brand/favicon-links";
 import { PwaRegister } from "@/components/brand/pwa-register";
 import { NavTracker } from "@/components/layout/nav-tracker";
+import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { ToastProvider } from "@/components/ui/toast";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ToastProvider>
         <FaviconLinks />
         <PwaRegister />
+        <NavigationProgress />
         <NavTracker />
         {children}
       </ToastProvider>

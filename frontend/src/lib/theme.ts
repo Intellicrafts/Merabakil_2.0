@@ -2,7 +2,9 @@ export const THEME_KEY = "legalos.theme";
 
 export function loadTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light";
-  return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored === "dark" || stored === "light") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export function applyTheme(dark: boolean): void {

@@ -4,8 +4,8 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Pencil, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
-import { BrandLogo } from "@/components/brand/brand-logo";
 import { ChatFileCard } from "@/components/mera-vakil/chat-file-card";
+import { SaarthiMark } from "@/components/mera-vakil/saarthi-mark";
 import { DocumentPreviewDialog, type PreviewTarget } from "@/components/mera-vakil/document-preview-dialog";
 import { AppointmentConfirmationCard } from "@/components/mera-vakil/appointment-confirmation-card";
 import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
@@ -17,7 +17,6 @@ import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
 import type { ChatMessage } from "@/lib/conversations";
 import { FEATURES } from "@/lib/features";
 import type { LawyerMatchResult } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -125,16 +124,18 @@ export const MessageBubble = memo(function MessageBubble({
                     name={file.name}
                     size={file.size}
                     contentType={file.contentType}
-                    tone="onDark"
+                    tone="user"
                     onOpen={() => setPreview(file)}
                   />
                 </li>
               ))}
             </ul>
           )}
-          <div className="rounded-2xl rounded-br-md bg-slate-900 px-4 py-2.5 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900">
-            <p className="text-[13.5px] leading-relaxed">{message.content}</p>
-          </div>
+          {message.content ? (
+            <div className="mv-user-bubble">
+              <p>{message.content}</p>
+            </div>
+          ) : null}
           <DocumentPreviewDialog target={preview} onClose={() => setPreview(null)} />
           {onStartEdit && !isPending && (
             <button
@@ -161,11 +162,12 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div className="group flex gap-3">
       {showAvatar && (
-        <div className="mt-0.5 h-7 w-7 shrink-0">
-          <BrandLogo variant="mark" className="h-7 w-7" />
-        </div>
+        <SaarthiMark
+          state={stillTyping ? "streaming" : "idle"}
+          className="mt-0.5 h-8 w-8 shrink-0"
+        />
       )}
-      {!showAvatar && <div className="w-7 shrink-0" aria-hidden />}
+      {!showAvatar && <div className="w-8 shrink-0" aria-hidden />}
 
       <div className="min-w-0 flex-1 space-y-3 pt-0.5">
         {grounding && stillTyping && (
@@ -173,7 +175,7 @@ export const MessageBubble = memo(function MessageBubble({
             Grounding authorities…
           </p>
         )}
-        <div className="mv-brief-surface text-[13.5px] leading-[1.7] text-foreground/90">
+        <div className="mv-assistant-surface">
           <Markdown
             content={displayContent}
             onCitationClick={onCitationClick}

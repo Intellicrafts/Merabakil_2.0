@@ -14,6 +14,7 @@ import {
   relativeTime,
 } from "@/lib/conversations";
 import { getDashboardConfig } from "@/lib/dashboard-config";
+import { markNavigationStart } from "@/lib/navigation-feedback";
 import type { AuthUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -169,6 +170,7 @@ export function DashboardCommandPalette({
 
   function select(item: PaletteItem) {
     close();
+    markNavigationStart();
     router.push(item.href);
   }
 

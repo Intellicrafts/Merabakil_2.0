@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -12,7 +12,7 @@ import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { login, setSession, syncAdvocateListing } from "@/lib/api";
+import { login, probeAuthService, setSession, syncAdvocateListing } from "@/lib/api";
 import { isGoogleAuthEnabled } from "@/lib/auth/google-flow";
 import { loginRedirectForUser } from "@/lib/permissions";
 
@@ -24,7 +24,12 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [googleError, setGoogleError] = useState<string | null>(null);
+  const [authOffline, setAuthOffline] = useState(false);
   const googleEnabled = isGoogleAuthEnabled();
+
+  useEffect(() => {
+    void probeAuthService().then((ok) => setAuthOffline(!ok));
+  }, []);
 
   const mutation = useMutation({
     mutationFn: () => login(email, password),
@@ -63,14 +68,14 @@ function LoginForm() {
       <AuthDivider />
 
       <form
-        className="space-y-4"
+        className="space-y-3.5"
         onSubmit={(e) => {
           e.preventDefault();
           setGoogleError(null);
           mutation.mutate();
         }}
       >
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input
             id="email"
@@ -80,9 +85,10 @@ function LoginForm() {
             placeholder="you@example.com"
             required
             autoComplete="email"
+            className="h-11 rounded-xl"
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">Password</Label>
             <Link
@@ -99,6 +105,7 @@ function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
+            className="h-11 rounded-xl"
           />
         </div>
 
@@ -107,13 +114,18 @@ function LoginForm() {
             Your session expired. Please sign in again to continue.
           </p>
         )}
+        {authOffline && (
+          <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+            Auth service is offline. From the project root run: make native
+          </p>
+        )}
         {displayError && (
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {displayError}
           </p>
         )}
 
-        <Button type="submit" className="w-full rounded-xl" size="lg" disabled={mutation.isPending}>
+        <Button type="submit" className="mt-1 h-11 w-full rounded-xl" size="lg" disabled={mutation.isPending}>
           {mutation.isPending ? "Signing in…" : "Sign in"}
         </Button>
       </form>

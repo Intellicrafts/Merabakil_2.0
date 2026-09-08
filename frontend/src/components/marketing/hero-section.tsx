@@ -1,16 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, Briefcase, FileText, Home, Scale, Shield } from "lucide-react";
+import { ArrowRight, Scale } from "lucide-react";
 
 import { ModuleFeatureShowcase } from "@/components/marketing/module-feature-showcase";
 import { Button } from "@/components/ui/button";
-
-const LEGAL_SCENARIOS = [
-  { icon: FileText, label: "Legal notice received" },
-  { icon: Home, label: "Property dispute" },
-  { icon: Briefcase, label: "Employment issue" },
-  { icon: Shield, label: "Consumer complaint" },
-  { icon: Scale, label: "Contract review" },
-];
 
 export function HeroSection() {
   return (
@@ -33,9 +25,8 @@ export function HeroSection() {
               Legal clarity for{" "}
               <span className="gradient-text">every Indian</span>
             </h1>
-            <p className="mx-auto max-w-sm text-[13px] leading-relaxed text-muted-foreground sm:text-[15px] lg:mx-0">
-              Got a legal notice? Facing a dispute? Ask your question in plain
-              language and get clear answers — cited from Indian statutes and case law.
+            <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-muted-foreground lg:mx-0">
+              Ask in plain language. Get answers cited from Indian law.
             </p>
           </div>
 
@@ -55,35 +46,6 @@ export function HeroSection() {
             </Button>
           </div>
 
-          <div className="mt-4 flex items-center justify-center gap-2 lg:justify-start">
-            <div className="flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-slate-700 to-slate-900 dark:from-slate-200 dark:to-slate-400">
-              <Scale className="h-2.5 w-2.5 text-white dark:text-slate-900" strokeWidth={2} />
-            </div>
-            <p className="text-[12px] text-muted-foreground">
-              Powered by{" "}
-              <Link href="/login" className="font-semibold text-foreground hover:underline underline-offset-2">
-                Saarthi
-              </Link>
-              {" "}— India&apos;s AI legal guide
-            </p>
-          </div>
-
-          <div className="hero-stagger-4 mt-7 lg:mt-9">
-            <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
-              Common situations we help with
-            </p>
-            <div className="flex flex-wrap justify-center gap-2 lg:justify-start">
-              {LEGAL_SCENARIOS.map(({ icon: Icon, label }) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.07] bg-white/60 px-3 py-1.5 text-[12px] text-muted-foreground backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.04]"
-                >
-                  <Icon className="h-3 w-3 shrink-0" strokeWidth={1.75} />
-                  {label}
-                </span>
-              ))}
-            </div>
-          </div>
         </div>
 
         <div className="hero-stagger-5 w-full lg:max-w-none">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Badge } from "@/components/ui/badge";
@@ -30,32 +30,38 @@ export function SocialLoginButtons({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const googleEnabled = isGoogleAuthEnabled();
+  const onErrorRef = useRef(onError);
+  const nextPathRef = useRef(nextPath);
+  const disabledRef = useRef(disabled);
+  const loadingRef = useRef(loading);
+  onErrorRef.current = onError;
+  nextPathRef.current = nextPath;
+  disabledRef.current = disabled;
+  loadingRef.current = loading;
 
   useEffect(() => {
     if (!googleEnabled) return;
 
-    const unsubscribe = subscribeGoogleCredential(async (credential) => {
-      if (disabled || loading) return;
+    return subscribeGoogleCredential(async (credential) => {
+      if (disabledRef.current || loadingRef.current) return;
       setLoading(true);
       try {
-        await handleGoogleCredential(credential, router, nextPath);
+        await handleGoogleCredential(credential, router, nextPathRef.current);
       } catch (err) {
         const message = (err as Error).message || "Google sign-in failed.";
         if (message.toLowerCase().includes("origin") || message.toLowerCase().includes("oauth")) {
-          onError?.(`${message} ${getGoogleOriginHint()}`);
+          onErrorRef.current?.(`${message} ${getGoogleOriginHint()}`);
         } else {
-          onError?.(message);
+          onErrorRef.current?.(message);
         }
       } finally {
         setLoading(false);
       }
     });
-
-    return unsubscribe;
-  }, [googleEnabled, router, nextPath, onError, disabled]);
+  }, [googleEnabled, router]);
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-2">
       {googleEnabled ? (
         <GoogleSignInButton
           disabled={disabled}
@@ -67,7 +73,7 @@ export function SocialLoginButtons({
       <button
         type="button"
         disabled
-        className="relative flex w-full items-center justify-center gap-2.5 rounded-2xl border border-black/[0.08] bg-white/60 px-4 py-3 text-sm font-medium text-foreground/80 opacity-70 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.05]"
+        className="relative flex h-12 w-full items-center justify-center gap-2.5 rounded-2xl border border-black/[0.08] bg-white text-sm font-medium text-foreground/70 opacity-70 dark:border-white/10 dark:bg-white/[0.06]"
         aria-label="Continue with X (coming soon)"
       >
         <XIcon />

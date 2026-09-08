@@ -49,6 +49,7 @@ test.describe("Google auth UI", () => {
 
     await page.goto("/auth/onboarding/role");
     await expect(page.getByRole("heading", { name: /choose your account type/i })).toBeVisible();
+    await expect(page.getByRole("img", { name: /new google user profile photo/i })).toBeVisible();
     await page.getByRole("button", { name: /^Advocate/i }).click();
     await page.getByRole("button", { name: /continue to dashboard/i }).click();
     await page.waitForURL(/\/dashboard\/?$/);

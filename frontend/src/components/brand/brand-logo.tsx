@@ -27,6 +27,26 @@ function tagClass(force?: "light" | "dark") {
   return "text-muted-foreground";
 }
 
+export function AppIcon({
+  className,
+  alt = "",
+}: {
+  className?: string;
+  alt?: string;
+}) {
+  return (
+    <img
+      src="/brand/app-icon-192.png"
+      alt={alt}
+      draggable={false}
+      className={cn(
+        "aspect-square rounded-[22%] object-cover shadow-[0_1px_2px_rgba(15,23,42,0.16)] ring-1 ring-black/[0.06] dark:ring-white/10",
+        className,
+      )}
+    />
+  );
+}
+
 export function BrandMark({
   className,
   force,
@@ -69,21 +89,10 @@ export function BrandLogo({
   size?: BrandLogoSize;
   alt?: string;
 }) {
-  if (variant === "app") {
-    return (
-      <img
-        src="/brand/app-icon-192.png"
-        alt={alt}
-        draggable={false}
-        className={cn("h-full w-full rounded-xl object-contain", className)}
-      />
-    );
-  }
-
-  if (variant === "mark") {
+  if (variant === "app" || variant === "mark") {
     return (
       <span className={cn("inline-flex items-center justify-center", className)} role="img" aria-label={alt}>
-        <BrandMark force={force} className="h-full w-full" />
+        <AppIcon alt="" className="h-full w-full" />
       </span>
     );
   }
@@ -95,7 +104,7 @@ export function BrandLogo({
       role="img"
       aria-label={alt}
     >
-      <BrandMark force={force} className={cn(scale.mark, "w-auto")} />
+      <AppIcon alt="" className={cn(scale.mark, "w-auto")} />
       <span className="flex min-w-0 flex-col justify-center leading-none">
         <span className={cn("font-semibold tracking-tight", scale.title, titleClass(force))}>Mera Bakil</span>
         <span className={cn("mt-1 font-medium tracking-[0.01em]", scale.tag, tagClass(force))}>

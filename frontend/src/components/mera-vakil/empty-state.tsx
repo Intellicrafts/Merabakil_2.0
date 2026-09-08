@@ -1,14 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Crown, X } from "lucide-react";
-
-import { BrandLogo } from "@/components/brand/brand-logo";
 import { getStoredUser } from "@/lib/api";
 import { getPrimaryRole, type PrimaryRole } from "@/lib/dashboard-config";
 import { cn } from "@/lib/utils";
-
-const PREMIUM_DISMISS_KEY = "mera-vakil.premium-banner-dismissed";
 
 const QUICK_ACTIONS_BY_ROLE: Record<PrimaryRole, { title: string; prompt: string }[]> = {
   citizen: [
@@ -43,59 +37,37 @@ const QUICK_ACTIONS_BY_ROLE: Record<PrimaryRole, { title: string; prompt: string
   ],
 };
 
-const ROLE_SUBTITLES: Record<PrimaryRole, string> = {
-  citizen: "Ask a legal question. Receive cited guidance.",
-  advocate: "Research, draft, and cite with confidence.",
-  law_firm: "Firm research, precedents, and knowledge in one place.",
-  enterprise: "Compliance and legal intelligence for your organisation.",
-  admin: "Research, draft, and administer from one desk.",
-};
-
 interface EmptyStateProps {
   onQuickAction: (prompt: string) => void;
-  onOpenPremium: () => void;
 }
 
-export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
-  const [premiumDismissed, setPremiumDismissed] = useState(false);
-  const [bannerVisible, setBannerVisible] = useState(true);
-  const [bannerFading, setBannerFading] = useState(false);
-
+export function EmptyState({ onQuickAction }: EmptyStateProps) {
   const role = getPrimaryRole(getStoredUser());
   const quickActions = QUICK_ACTIONS_BY_ROLE[role];
-  const subtitle = ROLE_SUBTITLES[role];
-
-  useEffect(() => {
-    setPremiumDismissed(localStorage.getItem(PREMIUM_DISMISS_KEY) === "true");
-  }, []);
-
-  function dismissPremiumBanner(e: React.MouseEvent) {
-    e.stopPropagation();
-    setBannerFading(true);
-    setTimeout(() => {
-      setPremiumDismissed(true);
-      setBannerVisible(false);
-      localStorage.setItem(PREMIUM_DISMISS_KEY, "true");
-    }, 200);
-  }
-
-  const showBanner = !premiumDismissed && bannerVisible;
 
   return (
     <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-10">
-      <BrandLogo variant="wordmark" size="lg" />
-
-      <div className="mt-5 max-w-md text-center">
-        <h2 className="text-[1.7rem] font-semibold tracking-tight">
-          <span className="gradient-text">Saarthi</span>
-        </h2>
-        <p className="mx-auto mt-2 max-w-sm text-[13.5px] leading-relaxed text-muted-foreground">
-          {subtitle}
-        </p>
+      <div className="saarthi-welcome" aria-label="Saarthi">
+        <div className="saarthi-welcome-mark">
+          <span className="saarthi-welcome-glow" aria-hidden />
+          <span className="saarthi-welcome-ring" aria-hidden />
+          <span className="saarthi-welcome-ring saarthi-welcome-ring-slow" aria-hidden />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/app-icon-192.png"
+            alt=""
+            width={192}
+            height={192}
+            draggable={false}
+            className="saarthi-welcome-icon"
+          />
+          <span className="saarthi-welcome-sheen" aria-hidden />
+        </div>
+        <h1 className="saarthi-welcome-title">Saarthi</h1>
       </div>
 
       <div
-        className="mt-8 grid w-full max-w-md grid-cols-2 gap-2"
+        className="mt-10 grid w-full max-w-md grid-cols-2 gap-2"
         aria-label="Suggested questions"
       >
         {quickActions.map((action) => (
@@ -104,43 +76,15 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
             type="button"
             onClick={() => onQuickAction(action.prompt)}
             className={cn(
-              "rounded-xl border border-black/[0.07] bg-white px-3.5 py-3 text-left text-[13px] font-medium leading-snug text-foreground/90",
-              "shadow-[0_1px_0_rgba(255,255,255,0.8)_inset] transition-colors",
-              "hover:border-amber-800/25 hover:bg-amber-50/70 hover:text-foreground",
-              "dark:border-white/[0.10] dark:bg-zinc-900 dark:shadow-none",
-              "dark:hover:border-amber-500/30 dark:hover:bg-amber-500/[0.06]",
+              "rounded-xl border border-black/[0.06] bg-transparent px-3.5 py-3 text-left text-[13px] font-medium leading-snug text-foreground/80",
+              "transition-colors hover:border-black/[0.12] hover:bg-black/[0.02] hover:text-foreground",
+              "dark:border-white/[0.08] dark:hover:border-white/[0.16] dark:hover:bg-white/[0.03]",
             )}
           >
             {action.title}
           </button>
         ))}
       </div>
-
-      {showBanner && (
-        <div
-          className={cn(
-            "mt-8 flex w-full max-w-md items-center justify-between gap-3 transition-opacity duration-200",
-            bannerFading && "opacity-0",
-          )}
-        >
-          <button
-            type="button"
-            onClick={onOpenPremium}
-            className="flex min-w-0 items-center gap-2 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Crown className="h-3.5 w-3.5 shrink-0 text-amber-800/70 dark:text-amber-500/80" />
-            <span className="truncate">Premium — unlimited queries</span>
-          </button>
-          <button
-            type="button"
-            onClick={dismissPremiumBanner}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
-            aria-label="Dismiss premium note"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }

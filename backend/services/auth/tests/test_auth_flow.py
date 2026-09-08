@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from app.application.use_cases import AuthService, GoogleNeedsRoleResult
+from app.config import AuthSettings
 from app.infrastructure.google_oauth import GoogleProfile
 from legalos_common.api.errors import ConflictError, UnauthorizedError
 
@@ -257,3 +258,9 @@ async def test_api_google_complete(mock_verify, client, auth_service: AuthServic
     body = resp.json()
     assert body["user"]["email"] == "api.google@example.com"
     assert body["tokens"]["access_token"]
+
+
+def test_google_client_id_falls_back_to_next_public(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NEXT_PUBLIC_GOOGLE_CLIENT_ID", "fallback.apps.googleusercontent.com")
+    settings = AuthSettings(google_oauth_client_id="")
+    assert settings.google_oauth_client_id == "fallback.apps.googleusercontent.com"

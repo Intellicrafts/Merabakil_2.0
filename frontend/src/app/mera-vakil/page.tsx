@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/mera-vakil/empty-state";
 import { InputDock } from "@/components/mera-vakil/input-dock";
 import { MeraVakilShell } from "@/components/mera-vakil/mera-vakil-shell";
 import { MessageList } from "@/components/mera-vakil/message-list";
-import { PremiumModal } from "@/components/mera-vakil/premium-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
 
@@ -76,7 +75,6 @@ export default function MeraVakilPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
-  const [premiumOpen, setPremiumOpen] = useState(false);
   const [voiceModeOpen, setVoiceModeOpen] = useState(false);
   const [voiceBookingLawyer, setVoiceBookingLawyer] = useState<LawyerProfile | null>(null);
   const [voiceSupported] = useState(() => isVoiceBotSupported());
@@ -851,7 +849,6 @@ export default function MeraVakilPage() {
 
   return (
     <>
-      <PremiumModal open={premiumOpen} onClose={() => setPremiumOpen(false)} />
       {FEATURES.BOOKING && (
         <BookingDialog
           lawyer={voiceBookingLawyer}
@@ -952,14 +949,11 @@ export default function MeraVakilPage() {
               <Skeleton className="h-20 w-[85%] rounded-2xl" />
             </div>
           ) : !hasMessages && !isResearching ? (
-            <EmptyState
-              onQuickAction={(prompt) => sendMessage(prompt)}
-              onOpenPremium={() => setPremiumOpen(true)}
-            />
+            <EmptyState onQuickAction={(prompt) => sendMessage(prompt)} />
           ) : (
             <MessageList
               messages={activeConversation?.messages ?? []}
-              isPending={isResearching && Boolean(pendingStatus)}
+              isPending={isResearching && !streamingMessageId}
               pendingMessage={pendingStatus}
               streamingMessageId={streamingMessageId}
               isGenerating={isResearching}

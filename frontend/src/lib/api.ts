@@ -28,6 +28,7 @@ import type {
   RoomTokenResponse,
 } from "@/lib/appointment-types";
 
+import { clearAvatarUrl } from "@/lib/avatar";
 import {
   authServiceUrl,
   billingServiceUrl,
@@ -79,6 +80,7 @@ export function clearSession(): void {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
+  clearAvatarUrl();
 }
 
 function redirectToLogin(reason = "session-expired"): void {
@@ -166,6 +168,13 @@ export async function syncStoredUser(): Promise<AuthUser | null> {
   }
 }
 
+const AUTH_OFFLINE_MESSAGE =
+  "Auth service is offline. From the project root run: make native";
+
+function isProxyOrOfflineStatus(status: number): boolean {
+  return status === 502 || status === 503 || status === 504;
+}
+
 async function parseError(res: Response): Promise<never> {
   let message = `Request failed (${res.status})`;
   try {
@@ -184,7 +193,10 @@ async function parseError(res: Response): Promise<never> {
   } catch {
     /* ignore */
   }
-  if (res.status === 401) {
+  if (isProxyOrOfflineStatus(res.status) || (res.status === 500 && message.startsWith("Request failed"))) {
+    throw new Error(AUTH_OFFLINE_MESSAGE);
+  }
+  if (res.status === 401 && message.startsWith("Request failed")) {
     message = "Invalid email or password.";
   } else if (res.status === 409) {
     message =
@@ -193,6 +205,21 @@ async function parseError(res: Response): Promise<never> {
         : message;
   }
   throw new Error(message);
+}
+
+async function postAuthJson<T>(path: string, body: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${authServiceUrl()}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(AUTH_OFFLINE_MESSAGE);
+  }
+  if (!res.ok) return parseError(res);
+  return res.json();
 }
 
 function authHeaders(json = true): HeadersInit {
@@ -210,21 +237,17 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export async function login(email: string, password: string): Promise<AuthResponse> {
-  let res: Response;
+export async function probeAuthService(): Promise<boolean> {
   try {
-    res = await fetch(`${authServiceUrl()}/api/v1/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    const res = await fetch(`${authServiceUrl()}/health`, { cache: "no-store" });
+    return res.ok;
   } catch {
-    throw new Error(
-      `Cannot reach auth service at ${authServiceUrl()}. Start the backend with: make native`,
-    );
+    return false;
   }
-  if (!res.ok) return parseError(res);
-  return res.json();
+}
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  return postAuthJson<AuthResponse>("/api/v1/auth/login", { email, password });
 }
 
 export async function register(
@@ -233,57 +256,26 @@ export async function register(
   password: string,
   role: string,
 ): Promise<AuthResponse> {
-  let res: Response;
-  try {
-    res = await fetch(`${authServiceUrl()}/api/v1/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, full_name, password, role }),
-    });
-  } catch {
-    throw new Error(
-      `Cannot reach auth service at ${authServiceUrl()}. Start the backend with: make native`,
-    );
-  }
-  if (!res.ok) return parseError(res);
-  return res.json();
+  return postAuthJson<AuthResponse>("/api/v1/auth/register", {
+    email,
+    full_name,
+    password,
+    role,
+  });
 }
 
 export async function loginWithGoogle(idToken: string): Promise<GoogleAuthResult> {
-  let res: Response;
-  try {
-    res = await fetch(`${authServiceUrl()}/api/v1/auth/google`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id_token: idToken }),
-    });
-  } catch {
-    throw new Error(
-      `Cannot reach auth service at ${authServiceUrl()}. Start the backend with: make native`,
-    );
-  }
-  if (!res.ok) return parseError(res);
-  return res.json();
+  return postAuthJson<GoogleAuthResult>("/api/v1/auth/google", { id_token: idToken });
 }
 
 export async function completeGoogleRegistration(
   onboardingToken: string,
   role: string,
 ): Promise<AuthResponse> {
-  let res: Response;
-  try {
-    res = await fetch(`${authServiceUrl()}/api/v1/auth/google/complete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ onboarding_token: onboardingToken, role }),
-    });
-  } catch {
-    throw new Error(
-      `Cannot reach auth service at ${authServiceUrl()}. Start the backend with: make native`,
-    );
-  }
-  if (!res.ok) return parseError(res);
-  return res.json();
+  return postAuthJson<AuthResponse>("/api/v1/auth/google/complete", {
+    onboarding_token: onboardingToken,
+    role,
+  });
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
