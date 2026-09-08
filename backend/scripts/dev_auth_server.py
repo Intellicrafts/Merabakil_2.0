@@ -108,24 +108,10 @@ def _advocate_user() -> FakeUser:
 
 
 def _ensure_demo_users() -> None:
-    by_email = {u.email: u for u in _users.store.values()}
-    if "citizen@legalos.in" not in by_email and CITIZEN_ID not in _users.store:
-        _users.store[CITIZEN_ID] = _citizen_user()
-    if "advocate@legalos.in" not in by_email and ADVOCATE_ID not in _users.store:
-        _users.store[ADVOCATE_ID] = _advocate_user()
-    _grant_citizen_document_perms()
-
-
-def _grant_citizen_document_perms() -> None:
-    needed = {Permission.DOCUMENT_READ.value, Permission.DOCUMENT_WRITE.value}
-    for user in _users.store.values():
-        if user.email != "citizen@legalos.in":
-            continue
-        for role in user.roles_data:
-            have = set(role.permissions)
-            missing = needed - have
-            if missing:
-                role.permissions = [*role.permissions, *sorted(missing)]
+    # Always overwrite demo users so permission changes take effect without
+    # manually deleting the state file.
+    _users.store[CITIZEN_ID] = _citizen_user()
+    _users.store[ADVOCATE_ID] = _advocate_user()
 
 
 def _save_state() -> None:

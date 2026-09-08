@@ -9,21 +9,22 @@ from legalos_common.clients.tts import TTSClient, build_tts_client
 from legalos_common.clients.neo4j import Neo4jClient
 from legalos_common.clients.opensearch import OpenSearchClient
 from legalos_common.clients.qdrant import QdrantVectorClient
-from legalos_common.clients.s3 import S3Storage
+from legalos_common.clients.s3 import S3Storage, build_storage
 from legalos_common.clients.storage import LocalFileStorage, ObjectStore
 
 __all__ = [
     "ChatMessage",
     "EmbeddingClient",
     "LLMClient",
+    "LocalFileStorage",
     "Neo4jClient",
+    "ObjectStore",
     "OpenSearchClient",
     "QdrantVectorClient",
     "S3Storage",
-    "LocalFileStorage",
-    "ObjectStore",
     "TTSClient",
     "build_embedding_client",
     "build_llm_client",
+    "build_storage",
     "build_tts_client",
 ]

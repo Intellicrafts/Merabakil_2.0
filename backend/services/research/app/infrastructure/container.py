@@ -52,7 +52,10 @@ class Container:
         self.redis = redis_client  # exposed for rate limiting
         self.session_documents = SessionDocuments(redis_client)
         self.document_texts = DocumentTextClient(settings.document_service_url)
-        qdrant_client = AsyncQdrantClient(url=settings.qdrant.qdrant_url)
+        qdrant_client = AsyncQdrantClient(
+            url=settings.qdrant.qdrant_url,
+            api_key=settings.qdrant.qdrant_api_key or None,
+        )
         summarizer = ConversationSummarizer(self.llm)
         ltm = LongTermMemory(
             qdrant_client,
@@ -103,5 +106,5 @@ def init_container(settings: ResearchSettings) -> Container:
 
 def get_container() -> Container:
     if _container is None:
-        raise RuntimeError("Container not initialised")
+        raise RuntimeError("Container not initialised — call init_container() first")
     return _container

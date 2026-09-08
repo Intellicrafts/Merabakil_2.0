@@ -11,7 +11,7 @@ from app.api.case_extraction import extraction_router
 from app.api.routes import router
 from app.api.voice_live import voice_router
 from app.config import get_settings
-from app.infrastructure.container import init_container
+from app.infrastructure.container import get_container, init_container
 from legalos_common.api import (
     RequestContextMiddleware,
     build_health_router,
@@ -27,7 +27,10 @@ init_container(settings)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    container = get_container()
+    await container.startup()
     yield
+    await container.shutdown()
 
 
 app = FastAPI(

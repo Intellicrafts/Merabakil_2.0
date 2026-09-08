@@ -33,6 +33,7 @@ def bootstrap_dev_env(root: Path | None = None) -> Path:
     os.environ["NEO4J_URI"] = "bolt://localhost:7687"
     os.environ["OPENSEARCH_URL"] = "http://localhost:9200"
     os.environ["KAFKA_BOOTSTRAP_SERVERS"] = "localhost:9092"
-    os.environ["S3_ENDPOINT_URL"] = "http://localhost:9000"
+    # Respect .env value (empty → LocalFileStorage); fall back to MinIO if not set.
+    os.environ.setdefault("S3_ENDPOINT_URL", "http://localhost:9000")
 
     return base
