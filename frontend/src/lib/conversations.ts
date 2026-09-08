@@ -32,12 +32,20 @@ export const JURISDICTION_OPTIONS = [
   "Gujarat",
 ] as const;
 
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  size: number;
+  contentType: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatMessageRole;
   content: string;
   createdAt: string;
   research?: ResearchResponse;
+  attachments?: ChatAttachment[];
   /** For typewriter effect: how many chars of answer are revealed */
   revealedChars?: number;
 }
@@ -45,6 +53,8 @@ export interface ChatMessage {
 export interface AttachedDocument {
   id: string;
   name: string;
+  size?: number;
+  contentType?: string;
 }
 
 export interface ChatConversation {
@@ -159,12 +169,13 @@ export function deleteConversation(id: string): void {
   if (loadActiveConversationId() === id) saveActiveConversationId(null);
 }
 
-export function createUserMessage(content: string): ChatMessage {
+export function createUserMessage(content: string, attachments?: ChatAttachment[]): ChatMessage {
   return {
     id: generateId(),
     role: "user",
     content,
     createdAt: new Date().toISOString(),
+    attachments: attachments?.length ? attachments : undefined,
   };
 }
 

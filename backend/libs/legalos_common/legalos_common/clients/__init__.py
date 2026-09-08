@@ -10,6 +10,7 @@ from legalos_common.clients.neo4j import Neo4jClient
 from legalos_common.clients.opensearch import OpenSearchClient
 from legalos_common.clients.qdrant import QdrantVectorClient
 from legalos_common.clients.s3 import S3Storage
+from legalos_common.clients.storage import LocalFileStorage, ObjectStore
 
 __all__ = [
     "ChatMessage",
@@ -19,6 +20,8 @@ __all__ = [
     "OpenSearchClient",
     "QdrantVectorClient",
     "S3Storage",
+    "LocalFileStorage",
+    "ObjectStore",
     "TTSClient",
     "build_embedding_client",
     "build_llm_client",

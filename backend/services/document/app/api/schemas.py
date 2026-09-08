@@ -27,3 +27,14 @@ class UploadDocumentResponse(BaseModel):
     status: str
     source_uri: str | None = None
     case_id: str | None = None
+    page_count: int | None = None
+    filename: str | None = None
+
+
+class DocumentTextResponse(BaseModel):
+    document_id: str
+    title: str
+    status: str
+    page_count: int | None = None
+    text: str
+    filename: str | None = None

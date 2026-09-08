@@ -73,6 +73,8 @@ def _citizen_user() -> FakeUser:
                     Permission.RESEARCH_READ.value,
                     Permission.SEARCH_READ.value,
                     Permission.CASE_READ.value,
+                    Permission.DOCUMENT_READ.value,
+                    Permission.DOCUMENT_WRITE.value,
                 ],
             )
         ],
@@ -111,6 +113,19 @@ def _ensure_demo_users() -> None:
         _users.store[CITIZEN_ID] = _citizen_user()
     if "advocate@legalos.in" not in by_email and ADVOCATE_ID not in _users.store:
         _users.store[ADVOCATE_ID] = _advocate_user()
+    _grant_citizen_document_perms()
+
+
+def _grant_citizen_document_perms() -> None:
+    needed = {Permission.DOCUMENT_READ.value, Permission.DOCUMENT_WRITE.value}
+    for user in _users.store.values():
+        if user.email != "citizen@legalos.in":
+            continue
+        for role in user.roles_data:
+            have = set(role.permissions)
+            missing = needed - have
+            if missing:
+                role.permissions = [*role.permissions, *sorted(missing)]
 
 
 def _save_state() -> None:

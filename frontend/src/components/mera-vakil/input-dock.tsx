@@ -3,9 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AudioLines, FileUp, Loader2, Mic, Send, X } from "lucide-react";
 
+import { ChatFileCard } from "@/components/mera-vakil/chat-file-card";
 import { collectSpeechTranscript, waitForSpeechEnd } from "@/lib/speech-transcript";
 import type { AttachedDocument } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
+
+export type UploadStage = "uploading" | "reading" | "ready" | "failed";
+
+export interface UploadProgress {
+  fileName: string;
+  percent: number;
+  stage: UploadStage;
+  startedAt?: number;
+}
 
 interface InputDockProps {
   value: string;
@@ -17,6 +27,7 @@ interface InputDockProps {
   onStop?: () => void;
   isUploading?: boolean;
   uploadingFileName?: string | null;
+  uploadProgress?: UploadProgress | null;
   attachedDocuments?: AttachedDocument[];
   onDetachDocument?: (id: string) => void;
   onVoiceModeOpen?: () => void;
@@ -29,7 +40,9 @@ const MIN_ROWS = 1;
 const MAX_ROWS = 6;
 const LINE_HEIGHT = 24;
 const ACCEPTED_TYPES = ".pdf,.doc,.docx,.txt,.csv,.md";
+const ACCEPTED_EXT = [".pdf", ".doc", ".docx", ".txt", ".csv", ".md"];
 const MAX_FILES = 5;
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const MAX_NOTE_SECONDS = 60;
 const WAVE_BARS = 14;
 
@@ -51,12 +64,6 @@ function getSpeechRecognition(): SpeechRecCtor | null {
   if (typeof window === "undefined") return null;
   const w = window as Window & { SpeechRecognition?: SpeechRecCtor; webkitSpeechRecognition?: SpeechRecCtor };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatClock(total: number): string {
@@ -155,6 +162,7 @@ export function InputDock({
   onStop,
   isUploading,
   uploadingFileName,
+  uploadProgress,
   attachedDocuments = [],
   onDetachDocument,
   onVoiceModeOpen,
@@ -170,6 +178,7 @@ export function InputDock({
   const [elapsed, setElapsed] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [fileHint, setFileHint] = useState<string | null>(null);
+  const [uploadElapsed, setUploadElapsed] = useState(0);
 
   const tickRef = useRef<number | null>(null);
   const recognitionRef = useRef<SpeechRecInstance | null>(null);
@@ -191,6 +200,17 @@ export function InputDock({
   useEffect(() => {
     adjustHeight();
   }, [value, adjustHeight]);
+
+  useEffect(() => {
+    if (!uploadProgress || uploadProgress.stage === "ready" || uploadProgress.stage === "failed") {
+      return;
+    }
+    const started = uploadProgress.startedAt ?? Date.now();
+    const tick = () => setUploadElapsed(Math.max(0, Math.round((Date.now() - started) / 1000)));
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [uploadProgress]);
 
   const clearTimers = useCallback(() => {
     if (tickRef.current) {
@@ -326,6 +346,19 @@ export function InputDock({
     setPendingFiles((prev) => {
       const next = [...prev];
       for (const file of incoming) {
+        const ext = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
+        if (!ACCEPTED_EXT.includes(ext)) {
+          setFileHint("Use PDF, Word, text, CSV, or Markdown.");
+          continue;
+        }
+        if (file.size === 0) {
+          setFileHint("Empty files cannot be uploaded.");
+          continue;
+        }
+        if (file.size > MAX_FILE_BYTES) {
+          setFileHint("Each file must be 15 MB or smaller.");
+          continue;
+        }
         if (next.length >= MAX_FILES) {
           setFileHint(`You can attach up to ${MAX_FILES} files.`);
           break;
@@ -347,10 +380,11 @@ export function InputDock({
     const text = value.trim();
     if (text.length < 3 && pendingFiles.length === 0) return;
     const files = pendingFiles;
+    setPendingFiles([]);
     try {
       await onSend(text, files);
-      setPendingFiles([]);
     } catch {
+      setPendingFiles(files);
       /* keep staged files so the user can retry */
     }
   }
@@ -417,34 +451,59 @@ export function InputDock({
         )}
 
         {pendingFiles.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5 px-1 pt-0.5" aria-label="Attached files">
-            {pendingFiles.map((file, index) => {
-              const uploading = uploadingFileName === file.name;
-              return (
-                <li
-                  key={fileKey(file)}
-                  className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-black/[0.07] bg-black/[0.03] py-1 pl-2.5 pr-1 text-[12px] dark:border-white/[0.10] dark:bg-white/[0.05]"
-                >
-                  {uploading ? (
-                    <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />
-                  ) : (
-                    <FileUp className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  )}
-                  <span className="max-w-[9.5rem] truncate font-medium">{file.name}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{formatFileSize(file.size)}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(index)}
-                    disabled={busy || isGenerating || recording}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-black/[0.06] hover:text-foreground disabled:opacity-40 dark:hover:bg-white/10"
-                    aria-label={`Remove ${file.name}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="space-y-2 px-1 pt-0.5">
+            {uploadProgress && (
+              <div
+                className="rounded-xl border border-amber-800/15 bg-gradient-to-r from-amber-50/90 to-white px-3 py-2.5 dark:border-amber-500/20 dark:from-amber-950/40 dark:to-zinc-900"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="mb-1.5 flex items-center justify-between gap-3 text-[11px]">
+                  <span className="truncate font-medium text-amber-950 dark:text-amber-100">
+                    {uploadProgress.stage === "uploading" && "Uploading"}
+                    {uploadProgress.stage === "reading" && "Reading document"}
+                    {uploadProgress.stage === "ready" && "Ready"}
+                    {uploadProgress.stage === "failed" && "Could not process"}
+                    {` · ${uploadProgress.fileName}`}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-amber-800 dark:text-amber-300">
+                    {uploadProgress.percent}%
+                    {uploadElapsed > 0 ? ` · ${uploadElapsed}s` : ""}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-amber-900/10 dark:bg-amber-200/10">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-800 to-amber-600 transition-[width] duration-200 ease-out dark:from-amber-500 dark:to-amber-400"
+                    style={{ width: `${Math.max(4, uploadProgress.percent)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            <ul className="flex flex-wrap gap-2" aria-label="Attached files">
+              {pendingFiles.map((file, index) => {
+                const uploading = uploadingFileName === file.name || uploadProgress?.fileName === file.name;
+                return (
+                  <li key={fileKey(file)} className="relative">
+                    <ChatFileCard name={file.name} size={file.size} contentType={file.type} />
+                    {uploading && (
+                      <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-800 text-white shadow dark:bg-amber-500">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeFile(index)}
+                      disabled={busy || isGenerating || recording}
+                      className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-black/10 bg-white text-muted-foreground shadow-sm hover:text-foreground disabled:opacity-40 dark:border-white/15 dark:bg-zinc-800"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
 
         <input
@@ -520,7 +579,7 @@ export function InputDock({
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               placeholder="Describe your matter…"
-              disabled={disabled || isUploading}
+              disabled={disabled}
               className={cn(
                 "max-h-[150px] min-h-[44px] flex-1 resize-none bg-transparent py-2 leading-6 placeholder:text-muted-foreground/80 focus:outline-none",
                 "text-base md:min-h-[40px] md:py-1.5 md:text-[13.5px]",

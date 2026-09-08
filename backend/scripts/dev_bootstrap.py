@@ -22,6 +22,9 @@ def bootstrap_dev_env(root: Path | None = None) -> Path:
     os.environ["SEARCH_SERVICE_URL"] = "http://localhost:8003"
     os.environ["AUTH_SERVICE_URL"] = "http://localhost:8001"
     os.environ["RESEARCH_SERVICE_URL"] = "http://localhost:8004"
+    os.environ["DOCUMENT_SERVICE_URL"] = "http://localhost:8005"
+    os.environ["MARKETPLACE_SERVICE_URL"] = "http://localhost:8010"
+    os.environ.setdefault("INGESTION_SERVICE_URL", "http://localhost:8002")
     # Docker Compose uses service DNS names; native processes talk to localhost.
     os.environ["POSTGRES_HOST"] = "localhost"
     os.environ["REDIS_URL"] = "redis://localhost:6379/0"

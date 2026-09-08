@@ -7,7 +7,7 @@ const CITIZEN_USER = {
   email: "citizen@legalos.in",
   full_name: "Citizen User",
   roles: ["citizen"],
-  permissions: ["research:read", "search:read", "case:read", "document:read"],
+  permissions: ["research:read", "search:read", "case:read", "document:read", "document:write"],
 };
 
 function mockAccessToken() {
@@ -145,7 +145,8 @@ test.describe("Mera Vakil composer", () => {
     await loginCitizen(page);
     await page.goto("/mera-vakil");
 
-    await expect(page.getByRole("heading", { name: /^Mera Vakil$/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Saarthi$/i })).toBeVisible();
+    await expect(page.getByRole("img", { name: /Mera Bakil/i }).first()).toBeVisible();
     await expect(page.getByText(/Namaste/i)).toHaveCount(0);
     await expect(page.getByText("→")).toHaveCount(0);
     await expect(page.getByText(/Ask a legal question\. Receive cited guidance\./i)).toBeVisible();
@@ -211,13 +212,11 @@ test.describe("Mera Vakil composer", () => {
     await mockResearch(page, captured);
     await page.route("**/api/v1/documents/upload", async (route) => {
       await route.fulfill({
-        json: { document_id: "doc-e2e-1", title: "notes", status: "indexed" },
+        json: { document_id: "doc-e2e-1", title: "notes", status: "ready", filename: "notice.pdf" },
       });
     });
-    await page.route("**/api/v1/documents/doc-e2e-1", async (route) => {
-      await route.fulfill({
-        json: { document_id: "doc-e2e-1", title: "notes", status: "indexed" },
-      });
+    await page.route("**/api/v1/research/sessions/**/documents", async (route) => {
+      await route.fulfill({ json: { session_id: "s", document_ids: ["doc-e2e-1"] } });
     });
 
     await loginCitizen(page);
@@ -256,6 +255,7 @@ test.describe("Mera Vakil composer", () => {
     await expect(
       page.getByLabel("Chat conversation").getByText("Review the attached documents."),
     ).toBeVisible();
+    await expect(page.getByRole("button", { name: /^notice\.pdf/ })).toBeVisible();
     await expect.poll(() => captured.query).toBe("Review the attached documents.");
   });
 
@@ -278,7 +278,7 @@ test.describe("Mera Vakil composer", () => {
     });
     await loginCitizen(page);
     await page.goto("/mera-vakil");
-    await expect(page.getByRole("heading", { name: /^Mera Vakil$/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Saarthi$/i })).toBeVisible();
 
     const rail = page.getByLabel("Session tools and history");
     await expect(rail.getByRole("button", { name: "New chat" })).toBeVisible();
@@ -310,6 +310,70 @@ test.describe("Mera Vakil composer", () => {
     await expect(sheet.getByLabel("Conversation history")).toBeVisible();
     await sheet.getByRole("button", { name: "New chat" }).click();
     await expect(sheet).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: /^Mera Vakil$/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Saarthi$/i })).toBeVisible();
+  });
+
+  test("export PDF downloads a branded counsel report", async ({ page }) => {
+    const now = new Date().toISOString();
+    await page.addInitScript(
+      ({ stamp }) => {
+        const conv = {
+          id: "e2e-pdf",
+          title: "Deposit dispute",
+          messages: [
+            {
+              id: "u1",
+              role: "user",
+              content: "What notice can I send for an unpaid security deposit in Delhi?",
+              createdAt: stamp,
+            },
+            {
+              id: "a1",
+              role: "assistant",
+              content: "## Summary\nSend a written demand under the Delhi Rent Control Act.",
+              createdAt: stamp,
+              research: {
+                query: "What notice can I send for an unpaid security deposit in Delhi?",
+                intent: "legal_research",
+                jurisdiction: { country: "IN", level: "national", confidence: 1 },
+                answer: "## Summary\nSend a written demand under the Delhi Rent Control Act.",
+                sources: [{ title: "Delhi Rent Control Act, 1958", citation: "s.14", content: "", score: 1, chunk_id: "c1", document_id: "d1", retrieval: "dense" }],
+                web_sources: [],
+                web_images: [],
+                suggestions: [],
+                citations: [],
+                confidence: { retrieval_strength: 0.8, source_agreement: 0.8, coverage: 0.8, overall: 0.8 },
+                trace: [],
+                specialist_payload: {},
+                disclaimer: "This is informational only and is not legal advice.",
+              },
+            },
+          ],
+          documentId: null,
+          attachedDocuments: [],
+          jurisdiction: "Delhi",
+          matterType: "property",
+          pinned: false,
+          createdAt: stamp,
+          updatedAt: stamp,
+        };
+        localStorage.setItem("legalos.meravakil.conversations", JSON.stringify([conv]));
+        localStorage.setItem("legalos.meravakil.active-id", "e2e-pdf");
+      },
+      { stamp: now },
+    );
+    await loginCitizen(page);
+    await page.goto("/mera-vakil");
+    await expect(page.getByText("Delhi Rent Control Act")).toBeVisible();
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export PDF" }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/Saarthi-Counsel-Report-\d{8}\.pdf/);
+    const path = await download.path();
+    expect(path).toBeTruthy();
+    const fs = await import("node:fs");
+    const bytes = fs.readFileSync(path!);
+    expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
+    expect(bytes.length).toBeGreaterThan(2000);
   });
 });

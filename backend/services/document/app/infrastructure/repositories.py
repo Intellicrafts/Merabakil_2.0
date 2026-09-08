@@ -107,3 +107,21 @@ class DocumentRepository:
     async def update_metadata(self, doc: Document, metadata: dict[str, Any]) -> None:
         doc.doc_metadata = {**doc.doc_metadata, **metadata}
         await self._session.flush()
+
+    async def update_extraction(
+        self,
+        doc: Document,
+        *,
+        status: str,
+        page_count: int | None,
+        extract_key: str | None,
+        extracted_text: str,
+        error: str | None = None,
+    ) -> None:
+        meta = {**(doc.doc_metadata or {}), "extract_key": extract_key}
+        if error:
+            meta["extract_error"] = error
+        doc.status = status
+        doc.page_count = page_count
+        doc.doc_metadata = meta
+        await self._session.flush()

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Moon, Scale, Shield, Sparkles, Sun } from "lucide-react";
+import { Moon, Shield, Sparkles, Sun } from "lucide-react";
 
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import { initTheme, toggleTheme } from "@/lib/theme";
 
@@ -26,11 +27,8 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
       {/* Brand panel */}
       <div className="relative hidden overflow-hidden bg-[#0f172a] px-10 py-12 text-white lg:flex lg:w-[44%] lg:flex-col lg:justify-between">
         <div className="relative">
-          <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-              <Scale className="h-5 w-5" />
-            </div>
-            <span className="text-lg font-semibold tracking-tight">MeraBakil</span>
+          <Link href="/" className="inline-flex items-center" aria-label="Mera Bakil home">
+            <BrandLogo variant="wordmark" size="lg" force="dark" />
           </Link>
         </div>
 
@@ -60,8 +58,8 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
       {/* Form panel */}
       <div className="relative flex flex-1 flex-col">
         <div className="flex items-center justify-between px-6 py-4 lg:absolute lg:right-0 lg:top-0 lg:z-10 lg:px-8">
-          <Link href="/" className="inline-flex items-center gap-2 lg:hidden">
-            <Scale className="h-5 w-5" />
+          <Link href="/" className="inline-flex items-center gap-2 lg:hidden" aria-label="Mera Bakil home">
+            <BrandLogo variant="mark" className="h-7 w-7" />
             <span className="font-semibold">MeraBakil</span>
           </Link>
           <Button

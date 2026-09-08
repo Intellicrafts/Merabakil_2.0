@@ -76,6 +76,9 @@ def main() -> None:
     procs.append(_start([PY, os.path.join(SCRIPTS, "dev_marketplace_server.py")]))
     _wait_url("http://localhost:8010/health", timeout_sec=30, label="Marketplace")
 
+    procs.append(_start([PY, os.path.join(SCRIPTS, "dev_document_server.py")]))
+    _wait_url("http://localhost:8005/health", timeout_sec=30, label="Document")
+
     procs.append(_start(["npm", "run", "dev"], cwd=os.path.join(ROOT, "frontend")))
     _wait_url("http://localhost:3000/login", timeout_sec=60, label="Frontend")
 
@@ -83,7 +86,8 @@ def main() -> None:
     print("  Login:     admin@legalos.in / ChangeMe!2026")
     print("  Citizen:   citizen@legalos.in / ChangeMe!2026")
     print("  Advocate:  advocate@legalos.in / ChangeMe!2026")
-    print("  Marketplace: http://localhost:3000/lawyer-marketplace\n")
+    print("  Marketplace: http://localhost:3000/lawyer-marketplace")
+    print("  Documents:  http://localhost:8005/docs\n")
     print("  Press Ctrl+C to stop.\n")
 
     signal.signal(signal.SIGINT, _shutdown)

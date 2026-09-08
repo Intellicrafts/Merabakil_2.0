@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Moon, Scale, Sun, UserCircle, Wallet } from "lucide-react";
+import { LogOut, Moon, Sun, UserCircle, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { DashboardCommandPalette } from "@/components/dashboard/dashboard-command-palette";
 import { BackButton } from "@/components/layout/back-button";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -88,10 +89,8 @@ function AppTopBar({
       <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
         {!isHome && <BackButton />}
 
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/[0.08] bg-white/50 dark:border-white/[0.10] dark:bg-white/[0.06]">
-            <Scale className="h-3.5 w-3.5 text-foreground/80" strokeWidth={1.75} />
-          </div>
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5" aria-label="Mera Bakil home">
+          <BrandLogo variant="mark" className="h-7 w-7" />
           <div className="hidden sm:block">
             <p className="text-[13px] font-semibold leading-none tracking-tight">MeraBakil</p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">Your Legal Saarthi</p>

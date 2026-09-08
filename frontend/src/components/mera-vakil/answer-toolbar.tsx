@@ -1,17 +1,21 @@
 "use client";
 
-import { useRef, useState, type ReactNode, type RefObject } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Check, Copy, FileDown, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 
 import { ReadAloudControl } from "@/components/mera-vakil/read-aloud-control";
 import { useToast } from "@/components/ui/toast";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
+import { downloadCounselReportPdf } from "@/lib/counsel-report-pdf";
+import type { CounselReportSource } from "@/lib/counsel-report-model";
 import { cn } from "@/lib/utils";
 
 interface AnswerToolbarProps {
-  answerRef: RefObject<HTMLElement | null>;
   content: string;
   title?: string;
+  question?: string;
+  sources?: CounselReportSource[];
+  disclaimer?: string;
   messageId: string;
   onRegenerate?: () => void;
   readAloudStatus?: ReadAloudStatus;
@@ -34,65 +38,6 @@ async function copyText(value: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function exportAnswerPdf(el: HTMLElement, title: string) {
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-    import("html2canvas"),
-    import("jspdf"),
-  ]);
-  const canvas = await html2canvas(el, {
-    backgroundColor: "#ffffff",
-    scale: 2,
-    useCORS: true,
-  });
-  const imgData = canvas.toDataURL("image/png");
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 14;
-  const usableWidth = pageWidth - margin * 2;
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10);
-  pdf.setTextColor(71, 85, 105);
-  pdf.text("Saarthi  ·  Counsel note", margin, 12);
-  pdf.setFontSize(8);
-  pdf.text(title.slice(0, 90), margin, 17);
-  const top = 22;
-  const usableHeight = pageHeight - top - margin;
-  const imgHeight = (canvas.height * usableWidth) / canvas.width;
-  if (imgHeight <= usableHeight) {
-    pdf.addImage(imgData, "PNG", margin, top, usableWidth, imgHeight);
-  } else {
-    let remaining = imgHeight;
-    let srcY = 0;
-    let first = true;
-    while (remaining > 0.5) {
-      if (!first) pdf.addPage();
-      const destH = Math.min(usableHeight, remaining);
-      const srcH = (destH / imgHeight) * canvas.height;
-      const slice = document.createElement("canvas");
-      slice.width = canvas.width;
-      slice.height = Math.max(1, Math.floor(srcH));
-      slice.getContext("2d")?.drawImage(
-        canvas,
-        0,
-        srcY,
-        canvas.width,
-        slice.height,
-        0,
-        0,
-        canvas.width,
-        slice.height,
-      );
-      pdf.addImage(slice.toDataURL("image/png"), "PNG", margin, first ? top : margin, usableWidth, destH);
-      srcY += slice.height;
-      remaining -= destH;
-      first = false;
-    }
-  }
-  const slug = title.replace(/[^\w]+/g, "-").slice(0, 40) || "counsel-note";
-  pdf.save(`${slug}.pdf`);
 }
 
 function ToolButton({
@@ -124,9 +69,11 @@ function ToolButton({
 }
 
 export function AnswerToolbar({
-  answerRef,
   content,
   title = "Counsel note",
+  question,
+  sources = [],
+  disclaimer,
   messageId,
   onRegenerate,
   readAloudStatus = "idle",
@@ -202,12 +149,15 @@ export function AnswerToolbar({
         label="Export PDF"
         disabled={exporting}
         onClick={async () => {
-          const el = answerRef.current;
-          if (!el) return;
           setExporting(true);
           try {
-            await exportAnswerPdf(el, title);
-            toast({ title: "Exported", description: "PDF downloaded." });
+            await downloadCounselReportPdf({
+              question: question || title,
+              answer: content,
+              sources,
+              disclaimer,
+            });
+            toast({ title: "Exported", description: "Counsel report downloaded." });
           } catch {
             toast({ title: "Export failed", description: "Could not generate PDF.", variant: "destructive" });
           } finally {

@@ -16,6 +16,7 @@ declare -a SUITES=(
   "services/knowledge-ingestion/tests|${COMMON}:services/knowledge-ingestion"
   "services/search/tests|${COMMON}:services/search"
   "services/research/tests|${COMMON}:${ORCH}:services/research"
+  "services/document/tests|${COMMON}:services/document"
 )
 
 failed=0

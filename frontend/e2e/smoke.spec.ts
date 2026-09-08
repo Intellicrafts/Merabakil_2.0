@@ -4,7 +4,9 @@ import { test, expect } from "@playwright/test";
 test.describe("Legal OS smoke", () => {
   test("landing page shows marketing content", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Meet Mera Vakil/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Legal clarity for/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Mera Bakil home/i })).toBeVisible();
+    await expect(page.getByRole("img", { name: /Mera Bakil/i }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Sign In/i }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Get Started/i }).first()).toBeVisible();
     await expect(page.getByRole("tab", { name: /Chat/i })).toBeVisible();

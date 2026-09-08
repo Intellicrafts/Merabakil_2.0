@@ -4,7 +4,9 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Pencil, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
-import { AshokaStambh } from "@/components/mera-vakil/ashoka-stambh";
+import { BrandLogo } from "@/components/brand/brand-logo";
+import { ChatFileCard } from "@/components/mera-vakil/chat-file-card";
+import { DocumentPreviewDialog, type PreviewTarget } from "@/components/mera-vakil/document-preview-dialog";
 import { AppointmentConfirmationCard } from "@/components/mera-vakil/appointment-confirmation-card";
 import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
 import { Markdown } from "@/components/mera-vakil/markdown";
@@ -33,6 +35,7 @@ interface MessageBubbleProps {
   onReadAloudToggle?: (messageId: string, content: string) => void;
   onReadAloudStop?: () => void;
   caseId?: string | null;
+  question?: string;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -51,11 +54,12 @@ export const MessageBubble = memo(function MessageBubble({
   onReadAloudToggle,
   onReadAloudStop,
   caseId,
+  question,
 }: MessageBubbleProps) {
   const [editText, setEditText] = useState(message.content);
   const [groundingOpen, setGroundingOpen] = useState(false);
+  const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
-  const answerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isEditing) {
@@ -112,10 +116,26 @@ export const MessageBubble = memo(function MessageBubble({
 
     return (
       <div className="group flex justify-end">
-        <div className="relative max-w-[80%]">
+        <div className="relative max-w-[80%] space-y-2">
+          {message.attachments && message.attachments.length > 0 && (
+            <ul className="flex flex-col items-end gap-1.5">
+              {message.attachments.map((file) => (
+                <li key={file.id}>
+                  <ChatFileCard
+                    name={file.name}
+                    size={file.size}
+                    contentType={file.contentType}
+                    tone="onDark"
+                    onOpen={() => setPreview(file)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="rounded-2xl rounded-br-md bg-slate-900 px-4 py-2.5 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900">
             <p className="text-[13.5px] leading-relaxed">{message.content}</p>
           </div>
+          <DocumentPreviewDialog target={preview} onClose={() => setPreview(null)} />
           {onStartEdit && !isPending && (
             <button
               type="button"
@@ -141,8 +161,8 @@ export const MessageBubble = memo(function MessageBubble({
   return (
     <div className="group flex gap-3">
       {showAvatar && (
-        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-black/[0.08] dark:ring-white/15">
-          <AshokaStambh size="avatar" className="h-7 w-7" />
+        <div className="mt-0.5 h-7 w-7 shrink-0">
+          <BrandLogo variant="mark" className="h-7 w-7" />
         </div>
       )}
       {!showAvatar && <div className="w-7 shrink-0" aria-hidden />}
@@ -153,10 +173,7 @@ export const MessageBubble = memo(function MessageBubble({
             Grounding authorities…
           </p>
         )}
-        <div
-          ref={answerRef}
-          className="mv-brief-surface text-[13.5px] leading-[1.7] text-foreground/90"
-        >
+        <div className="mv-brief-surface text-[13.5px] leading-[1.7] text-foreground/90">
           <Markdown
             content={displayContent}
             onCitationClick={onCitationClick}
@@ -174,9 +191,20 @@ export const MessageBubble = memo(function MessageBubble({
 
         {!stillTyping && message.content && (
           <AnswerToolbar
-            answerRef={answerRef}
             content={message.content}
             title={research?.query}
+            question={question || research?.query}
+            sources={[
+              ...(research?.sources ?? []).map((s) => ({
+                title: s.title ?? undefined,
+                citation: s.citation ?? undefined,
+              })),
+              ...(research?.web_sources ?? []).map((s) => ({
+                title: s.title,
+                url: s.url,
+              })),
+            ]}
+            disclaimer={research?.disclaimer}
             messageId={message.id}
             onRegenerate={onRegenerate}
             readAloudStatus={readAloudStatus}

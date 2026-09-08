@@ -105,6 +105,16 @@ export function MessageList({
     return map;
   }, [visibleMessages]);
 
+  const questionByAssistantId = useMemo(() => {
+    const map = new Map<string, string>();
+    let lastUser: string | null = null;
+    for (const msg of visibleMessages) {
+      if (msg.role === "user") lastUser = msg.content;
+      else if (msg.role === "assistant" && lastUser) map.set(msg.id, lastUser);
+    }
+    return map;
+  }, [visibleMessages]);
+
   return (
     <div
       ref={scrollRef}
@@ -135,6 +145,7 @@ export function MessageList({
               onReadAloudToggle={onReadAloudToggle}
               onReadAloudStop={onReadAloudStop}
               caseId={caseId}
+              question={questionByAssistantId.get(msg.id)}
             />
           );
         })}

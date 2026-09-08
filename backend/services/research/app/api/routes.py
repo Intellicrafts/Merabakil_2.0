@@ -52,6 +52,17 @@ _billing = _BillingClient(
 _CHATBOT_FEE = _Decimal(_research_settings.chatbot_query_fee_inr)
 
 
+def _merge_doc_ids(*groups: list[str] | None) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for group in groups:
+        for item in group or []:
+            if item and item not in seen:
+                seen.add(item)
+                out.append(item)
+    return out
+
+
 def _build_state(
     body: ResearchRequest,
     *,
@@ -61,9 +72,12 @@ def _build_state(
     server_history: list[ConversationMessage] | None = None,
     user_facts: list[str] | None = None,
     session_document_ids: list[str] | None = None,
+    session_document_text: str = "",
 ) -> OrchestratorState:
     scope = ResearchScope.DOCUMENT if document_id or body.scope is ResearchScope.DOCUMENT else body.scope
-    filters = body.search_filters()
+    # Session attachments must not become exclusive Qdrant filters — those docs
+    # may only exist as extracted text until ingestion finishes.
+    filters = body.search_filters().model_copy(update={"document_ids": None})
     if document_id:
         filters = filters.model_copy(update={"document_id": document_id})
 
@@ -84,7 +98,31 @@ def _build_state(
         history=history,
         user_facts=user_facts or [],
         session_document_ids=session_document_ids or [],
+        session_document_text=session_document_text,
     )
+
+
+async def _resolve_session_documents(
+    body: ResearchRequest,
+    credentials: HTTPAuthorizationCredentials,
+) -> tuple[list[str], str]:
+    container = get_container()
+    redis_ids: list[str] = []
+    if body.session_id:
+        try:
+            redis_ids = await container.session_documents.get(body.session_id)
+        except Exception:
+            redis_ids = []
+    doc_ids = _merge_doc_ids(redis_ids, body.document_ids)
+    excerpt = ""
+    if doc_ids:
+        try:
+            excerpt = await container.document_texts.fetch_excerpts(
+                doc_ids, user_token=credentials.credentials
+            )
+        except Exception as exc:
+            logger.warning("session_document_text_failed error=%s", exc)
+    return doc_ids, excerpt
 
 
 _input_guardrail = InputGuardrail()
@@ -151,6 +189,7 @@ async def research(
         ConversationMessage(role=t.role, content=t.content)
         for t in memory.session_history
     ] or None
+    session_doc_ids, session_doc_text = await _resolve_session_documents(body, credentials)
     return await _run_research(
         _build_state(
             body,
@@ -158,6 +197,8 @@ async def research(
             current_user=current_user,
             server_history=history,
             user_facts=memory.long_term_facts,
+            session_document_ids=session_doc_ids,
+            session_document_text=session_doc_text,
         )
     )
 
@@ -227,13 +268,9 @@ async def research_stream(
             ] or None
             user_facts = memory_result.long_term_facts
 
-        # Load documents attached to this session (uploaded via Saarthi)
-        session_doc_ids: list[str] = []
-        if body.session_id:
-            try:
-                session_doc_ids = await container.session_documents.get(body.session_id)
-            except Exception:
-                pass
+        session_doc_ids, session_doc_text = await _resolve_session_documents(body, credentials)
+        if session_doc_text and route == QueryRoute.CONVERSATIONAL:
+            route = QueryRoute.LEGAL
 
         state = _build_state(
             body,
@@ -242,6 +279,7 @@ async def research_stream(
             server_history=history,
             user_facts=user_facts,
             session_document_ids=session_doc_ids,
+            session_document_text=session_doc_text,
         )
         state = state.model_copy(update={"route": route})
 
@@ -317,6 +355,16 @@ async def research_document_stream(
             ] or None
             user_facts = memory_result.long_term_facts
 
+        session_doc_ids, session_doc_text = await _resolve_session_documents(body, credentials)
+        if session_doc_text and route == QueryRoute.CONVERSATIONAL:
+            route = QueryRoute.LEGAL
+        scoped_ids = _merge_doc_ids(session_doc_ids, [str(document_id)])
+        if str(document_id) not in (body.document_ids or []):
+            extra = await container.document_texts.fetch_excerpts(
+                [str(document_id)], user_token=credentials.credentials
+            )
+            if extra:
+                session_doc_text = f"{session_doc_text}\n\n{extra}".strip()
         state = _build_state(
             body,
             credentials=credentials,
@@ -324,6 +372,8 @@ async def research_document_stream(
             document_id=str(document_id),
             server_history=history,
             user_facts=user_facts,
+            session_document_ids=scoped_ids,
+            session_document_text=session_doc_text,
         )
         state = state.model_copy(update={"route": route})
 

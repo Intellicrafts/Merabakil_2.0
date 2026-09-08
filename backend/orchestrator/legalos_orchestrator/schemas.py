@@ -65,6 +65,7 @@ class OrchestratorState(BaseModel):
     user_facts: list[str] = Field(default_factory=list)
 
     session_document_ids: list[str] = Field(default_factory=list)
+    session_document_text: str = ""
     route: str = "legal"  # set by QueryRouter before orchestrator runs
 
     intent: IntentResult | None = None

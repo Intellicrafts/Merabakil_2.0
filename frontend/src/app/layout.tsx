@@ -16,6 +16,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MeraBakil — Legal guidance for every Indian",
   description: "MeraBakil: India's legal AI platform — cited answers, verified lawyers, and case management grounded in Indian law.",
+  applicationName: "MeraBakil",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "MeraBakil",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/brand/favicon-light-32.png", media: "(prefers-color-scheme: light)", sizes: "32x32", type: "image/png" },
+      { url: "/brand/favicon-dark-32.png", media: "(prefers-color-scheme: dark)", sizes: "32x32", type: "image/png" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -24,6 +39,7 @@ export const viewport: Viewport = {
   maximumScale: 5,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
+  themeColor: "#2f3338",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

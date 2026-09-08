@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Menu, Moon, Scale, Sun, X } from "lucide-react";
+import { Menu, Moon, Sun, X } from "lucide-react";
 
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import { getToken } from "@/lib/api";
 import { initTheme, toggleTheme } from "@/lib/theme";
@@ -34,14 +35,9 @@ export function MarketingShell({ children }: MarketingShellProps) {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 border-b border-black/[0.06] bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-sm dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
-              <Scale className="h-4 w-4" />
-            </div>
-            <div className="hidden sm:block">
-              <p className="text-sm font-semibold tracking-tight">MeraBakil</p>
-              <p className="text-[10px] text-muted-foreground">Your Legal Saarthi</p>
-            </div>
+          <Link href="/" className="flex items-center" aria-label="Mera Bakil home">
+            <BrandLogo variant="mark" className="h-8 w-8 sm:hidden" />
+            <BrandLogo variant="wordmark" size="md" className="hidden sm:inline-flex" />
           </Link>
 
           <nav className="hidden items-center gap-6 md:flex" aria-label="Main">

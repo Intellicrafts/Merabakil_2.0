@@ -69,13 +69,24 @@ SCOPE AND SAFETY:
 """
 
 
-def build_system_message(user_facts: Optional[list[str]] = None) -> str:
+def build_system_message(
+    user_facts: Optional[list[str]] = None,
+    document_text: Optional[str] = None,
+) -> str:
     import datetime
     today = datetime.date.today().strftime("%Y-%m-%d")
     content = AGENT_SYSTEM_PROMPT + f"\n\nSESSION CONTEXT:\nToday's date: {today}"
     if user_facts:
         facts = "\n".join(f"- {f}" for f in user_facts)
         content += f"\nUSER CONTEXT (from prior conversations):\n{facts}\n"
+    if document_text:
+        content += (
+            "\nUSER-UPLOADED DOCUMENTS are attached below. You can read them. "
+            "Treat them as primary evidence for this turn. Quote the relevant "
+            "passages when the user asks about their file. Never say you cannot "
+            "see or access attached files while this block is present.\n"
+            f"{document_text}\n"
+        )
     return content
 
 

@@ -10,6 +10,7 @@ from app.infrastructure.memory import (
     MemoryManager,
     SessionMemory,
 )
+from app.infrastructure.document_client import DocumentTextClient
 from app.infrastructure.memory.session_documents import SessionDocuments
 from app.infrastructure.search_retriever import HttpSearchRetriever
 from app.infrastructure.specialist_clients import HttpSpecialistClient
@@ -50,6 +51,7 @@ class Container:
         redis_client = self._build_redis(settings.redis_url)
         self.redis = redis_client  # exposed for rate limiting
         self.session_documents = SessionDocuments(redis_client)
+        self.document_texts = DocumentTextClient(settings.document_service_url)
         qdrant_client = AsyncQdrantClient(url=settings.qdrant.qdrant_url)
         summarizer = ConversationSummarizer(self.llm)
         ltm = LongTermMemory(

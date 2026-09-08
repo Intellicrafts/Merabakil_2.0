@@ -29,6 +29,11 @@ class FakeDoc:
     chunk_count = 0
     content_type = "application/pdf"
     created_at = None
+    case_id = None
+    page_count = None
+    storage_key = "documents/test/doc.pdf"
+    doc_metadata: dict = {}
+    extracted_text = ""
 
 
 @pytest_asyncio.fixture
@@ -41,8 +46,18 @@ async def client(monkeypatch):
     fake_repo = MagicMock()
     fake_repo.create = AsyncMock(return_value=fake_doc)
 
+    async def _extract(doc, **kwargs):
+        doc.status = kwargs["status"]
+        doc.page_count = kwargs.get("page_count")
+        doc.extracted_text = kwargs.get("extracted_text") or ""
+        doc.doc_metadata = {"extract_key": kwargs.get("extract_key")}
+
+    fake_repo.update_extraction = AsyncMock(side_effect=_extract)
+    fake_repo.get_for_owner = AsyncMock(return_value=fake_doc)
+
     container_mock = MagicMock()
     container_mock.s3.put_object = AsyncMock(return_value="s3://legalos-documents/test/doc.pdf")
+    container_mock.s3.get_object = AsyncMock(return_value=b"hello extracted")
     container_mock.ingestion.trigger = AsyncMock()
     monkeypatch.setattr("app.api.routes.get_container", lambda: container_mock)
 
@@ -94,3 +109,52 @@ async def test_upload_creates_document(client, access_token) -> None:
     body = resp.json()
     assert body["title"] == "Test Agreement"
     assert body["visibility"] == "private"
+    assert body["status"] in {"ready", "failed"}
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_empty_file(client, access_token) -> None:
+    resp = await client.post(
+        "/api/v1/documents/upload",
+        data={"title": "Empty", "doc_type": "user_upload", "visibility": "private"},
+        files={"file": ("empty.txt", b"", "text/plain")},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_oversized_file(client, access_token, monkeypatch) -> None:
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "max_upload_bytes", 8)
+    resp = await client.post(
+        "/api/v1/documents/upload",
+        data={"title": "Big", "doc_type": "user_upload", "visibility": "private"},
+        files={"file": ("big.txt", b"0123456789", "text/plain")},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_unsupported_type(client, access_token) -> None:
+    resp = await client.post(
+        "/api/v1/documents/upload",
+        data={"title": "Exe", "doc_type": "user_upload", "visibility": "private"},
+        files={"file": ("malware.exe", b"MZ", "application/octet-stream")},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_document_text(client, access_token) -> None:
+    FakeDoc.extracted_text = "clause 4 deposit"
+    FakeDoc.status = "ready"
+    resp = await client.get(
+        f"/api/v1/documents/{FakeDoc.id}/text",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert "deposit" in resp.json()["text"]

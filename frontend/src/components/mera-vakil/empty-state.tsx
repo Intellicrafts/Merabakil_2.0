@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Crown, X } from "lucide-react";
 
-import { AshokaStambh } from "@/components/mera-vakil/ashoka-stambh";
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { getStoredUser } from "@/lib/api";
 import { getPrimaryRole, type PrimaryRole } from "@/lib/dashboard-config";
 import { cn } from "@/lib/utils";
@@ -83,7 +83,7 @@ export function EmptyState({ onQuickAction, onOpenPremium }: EmptyStateProps) {
 
   return (
     <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-10">
-      <AshokaStambh className="h-36 w-[7.5rem]" size="hero" />
+      <BrandLogo variant="wordmark" size="lg" />
 
       <div className="mt-5 max-w-md text-center">
         <h2 className="text-[1.7rem] font-semibold tracking-tight">

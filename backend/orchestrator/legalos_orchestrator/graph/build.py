@@ -117,7 +117,10 @@ def _build_agent_state(state: OrchestratorState) -> LegalAgentState:
     """Convert OrchestratorState into a LegalAgentState ready for the agent graph."""
     from langchain_core.messages import AIMessage
 
-    system_content = build_system_message(state.user_facts or None)
+    system_content = build_system_message(
+        state.user_facts or None,
+        state.session_document_text or None,
+    )
     system_msg = SystemMessage(content=system_content)
 
     history_msgs = []
@@ -242,7 +245,7 @@ class LegalOrchestrator:
         yield _sse("done", result.model_dump(mode="json"))
 
     async def run_state_streaming(self, state: OrchestratorState) -> AsyncIterator[str]:
-        if state.route == QueryRoute.CONVERSATIONAL:
+        if state.route == QueryRoute.CONVERSATIONAL and not state.session_document_text:
             async for chunk in self._stream_conversational(state):
                 yield chunk
             return

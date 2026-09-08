@@ -17,7 +17,8 @@ import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
-import { streamResearch, uploadUserDocument, getUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
+import { streamResearch, uploadUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
+import type { UploadProgress } from "@/components/mera-vakil/input-dock";
 import { FEATURES } from "@/lib/features";
 import { consumeMeraVakilPrefill } from "@/lib/prefill-store";
 import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
@@ -25,10 +26,13 @@ import {
   createAssistantMessage,
   createConversation,
   createUserMessage,
+  type ChatAttachment,
   deleteConversation,
   deriveTitleFromQuery,
+  loadActiveConversationId,
   loadConversations,
   renameConversation,
+  saveActiveConversationId,
   togglePinConversation,
   upsertConversation,
   toResearchHistory,
@@ -71,6 +75,7 @@ export default function MeraVakilPage() {
   const [speechLocale, setSpeechLocale] = useState("en-IN");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [voiceModeOpen, setVoiceModeOpen] = useState(false);
   const [voiceBookingLawyer, setVoiceBookingLawyer] = useState<LawyerProfile | null>(null);
@@ -175,12 +180,13 @@ export default function MeraVakilPage() {
   useEffect(() => {
     const all = loadConversations();
     setConversations(all);
-    const convId = new URLSearchParams(window.location.search).get("c");
+    const convId = new URLSearchParams(window.location.search).get("c") || loadActiveConversationId();
     if (convId) {
       const found = all.find((c) => c.id === convId);
       if (found) {
         setActiveConversation(found);
         setDraftCaseId(found.draftCaseId ?? null);
+        saveActiveConversationId(found.id);
       }
     }
     const stored = localStorage.getItem(THEME_KEY);
@@ -312,6 +318,7 @@ export default function MeraVakilPage() {
       matterType: activeConversation?.matterType ?? null,
     });
     setActiveConversation(conv);
+    saveActiveConversationId(conv.id);
     setInput("");
     setStreamingMessageId(null);
     setPendingStatus(undefined);
@@ -387,6 +394,7 @@ export default function MeraVakilPage() {
     const conv = conversations.find((c) => c.id === id);
     if (conv) {
       setActiveConversation(conv);
+      saveActiveConversationId(conv.id);
       setInput("");
       setStreamingMessageId(null);
       setPendingStatus(undefined);
@@ -402,6 +410,7 @@ export default function MeraVakilPage() {
     setConversations(updated);
     if (activeConversation?.id === id) {
       setActiveConversation(null);
+      saveActiveConversationId(null);
     }
   }
 
@@ -447,19 +456,35 @@ export default function MeraVakilPage() {
     });
   }
 
-  async function uploadOneDocument(file: File, targetSessionId: string | null): Promise<string> {
-    const uploaded = await uploadUserDocument(file, {
-      title: file.name.replace(/\.[^.]+$/, "") || file.name,
-      doc_type: "user_upload",
-    });
+  async function uploadOneDocument(file: File, targetSessionId: string | null): Promise<ChatAttachment> {
+    const startedAt = Date.now();
+    setUploadProgress({ fileName: file.name, percent: 8, stage: "uploading", startedAt });
+    const uploaded = await uploadUserDocument(
+      file,
+      {
+        title: file.name.replace(/\.[^.]+$/, "") || file.name,
+        doc_type: "user_upload",
+      },
+      (percent) =>
+        setUploadProgress({ fileName: file.name, percent: Math.min(90, percent), stage: "uploading", startedAt }),
+    );
+    setUploadProgress({ fileName: file.name, percent: 94, stage: "reading", startedAt });
     const documentIdValue = uploaded.document_id;
+    const attachment: ChatAttachment = {
+      id: documentIdValue,
+      name: file.name,
+      size: file.size,
+      contentType: file.type || "application/octet-stream",
+    };
 
-    // Register document with the current session for server-side context enrichment.
-    // Use targetSessionId (passed explicitly) so this works even before the first message
-    // creates an activeConversation in React state.
     setActiveConversation((prev) => {
       if (!prev) return prev;
-      const newDoc: AttachedDocument = { id: documentIdValue, name: file.name };
+      const newDoc: AttachedDocument = {
+        id: documentIdValue,
+        name: file.name,
+        size: file.size,
+        contentType: file.type,
+      };
       const already = prev.attachedDocuments?.some((d) => d.id === documentIdValue);
       if (already) return prev;
       const updated = { ...prev, attachedDocuments: [...(prev.attachedDocuments ?? []), newDoc] };
@@ -467,29 +492,31 @@ export default function MeraVakilPage() {
       return updated;
     });
     if (targetSessionId) {
-      void attachDocumentToSession(targetSessionId, documentIdValue).catch(() => {});
+      try {
+        await attachDocumentToSession(targetSessionId, documentIdValue);
+      } catch (err) {
+        toast({
+          title: "Could not attach to session",
+          description: err instanceof Error ? err.message : "The file uploaded; context may still apply on send.",
+          variant: "destructive",
+        });
+      }
     }
 
-    let status = uploaded.status;
-    for (let attempt = 0; attempt < 20 && status !== "indexed"; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const doc = await getUserDocument(documentIdValue);
-      status = doc.status;
-      if (status === "failed") break;
-    }
-
+    const ready = uploaded.status === "ready" || uploaded.status === "indexed";
+    setUploadProgress({ fileName: file.name, percent: 100, stage: ready ? "ready" : "failed", startedAt });
     toast({
-      title: status === "indexed" ? "Document ready" : "Document uploaded",
-      description:
-        status === "indexed"
-          ? `"${file.name}" is indexed and in context for this conversation.`
-          : `"${file.name}" is processing. Questions may take a moment to ground.`,
+      title: ready ? "Document ready" : "Document uploaded",
+      description: ready
+        ? `"${file.name}" is in context for this conversation.`
+        : `"${file.name}" was stored. Questions can still use the extracted text when available.`,
     });
-    return documentIdValue;
+    return attachment;
   }
 
   async function handleComposerSend(text: string, files: File[]) {
     if (isResearching) return;
+    const uploadedAttachments: ChatAttachment[] = [];
     if (files.length > 0) {
       // Ensure a conversation exists before uploading so docs can be attached to a real session ID.
       // If the user uploads on a fresh page (no prior messages), we create the conversation now.
@@ -497,6 +524,7 @@ export default function MeraVakilPage() {
       if (!uploadTargetConv) {
         uploadTargetConv = createConversation({ jurisdiction: jurisdiction || null, matterType: null });
         setActiveConversation(uploadTargetConv);
+        saveActiveConversationId(uploadTargetConv.id);
         upsertConversation(uploadTargetConv);
         setConversations(loadConversations());
       }
@@ -504,9 +532,10 @@ export default function MeraVakilPage() {
       try {
         for (const file of files) {
           setUploadingFileName(file.name);
-          await uploadOneDocument(file, uploadTargetConv.id);
+          uploadedAttachments.push(await uploadOneDocument(file, uploadTargetConv.id));
         }
       } catch (err) {
+        setUploadProgress((prev) => (prev ? { ...prev, stage: "failed" } : prev));
         toast({
           title: "Upload failed",
           description: err instanceof Error ? err.message : "Could not upload document",
@@ -516,12 +545,13 @@ export default function MeraVakilPage() {
       } finally {
         setIsUploading(false);
         setUploadingFileName(null);
+        window.setTimeout(() => setUploadProgress(null), 900);
       }
     }
     const query =
       text.trim().length >= 3 ? text.trim() : files.length > 0 ? "Review the attached documents." : "";
     if (query.length < 3) return;
-    await sendMessage(query);
+    await sendMessage(query, { attachments: uploadedAttachments });
   }
 
   function handleStopGeneration() {
@@ -571,7 +601,7 @@ export default function MeraVakilPage() {
 
   async function sendMessage(
     queryText?: string,
-    options?: { editMessageId?: string },
+    options?: { editMessageId?: string; attachments?: ChatAttachment[] },
   ) {
     const query = (queryText ?? input).trim();
     if (query.length < 3 || isResearching) return;
@@ -592,14 +622,28 @@ export default function MeraVakilPage() {
       baseMessages = baseMessages.slice(0, editIndex);
     }
 
-    const userMsg = createUserMessage(query);
+    const userMsg = createUserMessage(query, options?.attachments);
     const priorHistory = toResearchHistory(baseMessages);
+    const extraDocs = (options?.attachments ?? []).filter(
+      (item) => !(conv.attachedDocuments ?? []).some((doc) => doc.id === item.id),
+    );
+    const attachedDocuments = [
+      ...(conv.attachedDocuments ?? []),
+      ...extraDocs.map((item) => ({
+        id: item.id,
+        name: item.name,
+        size: item.size,
+        contentType: item.contentType,
+      })),
+    ];
     const withUser: ChatConversation = {
       ...conv,
       title: baseMessages.length === 0 ? deriveTitleFromQuery(query) : conv.title,
       messages: [...baseMessages, userMsg],
+      attachedDocuments,
     };
     setActiveConversation(withUser);
+    saveActiveConversationId(withUser.id);
     upsertConversation(withUser);
     setConversations(loadConversations());
     setInput("");
@@ -696,7 +740,11 @@ export default function MeraVakilPage() {
             });
           },
         },
-        { signal: controller.signal, sessionId: conv.id },
+        {
+          signal: controller.signal,
+          sessionId: conv.id,
+          documentIds: (withUser.attachedDocuments ?? []).map((d) => d.id),
+        },
       );
 
       const finalized = createAssistantMessage(result);
@@ -945,6 +993,7 @@ export default function MeraVakilPage() {
             onStop={handleStopGeneration}
             isUploading={isUploading}
             uploadingFileName={uploadingFileName}
+            uploadProgress={uploadProgress}
             attachedDocuments={activeConversation?.attachedDocuments ?? []}
             onDetachDocument={(id) => {
               setActiveConversation((prev) => {

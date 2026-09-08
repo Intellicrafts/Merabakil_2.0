@@ -7,6 +7,7 @@ pkill -f "backend/scripts/dev_auth_server.py" 2>/dev/null || true
 pkill -f "backend/scripts/dev_search_server.py" 2>/dev/null || true
 pkill -f "backend/scripts/dev_research_server.py" 2>/dev/null || true
 pkill -f "backend/scripts/dev_marketplace_server.py" 2>/dev/null || true
+pkill -f "backend/scripts/dev_document_server.py" 2>/dev/null || true
 pkill -f "backend/scripts/dev_stack.py" 2>/dev/null || true
 pkill -f "cloudflared tunnel" 2>/dev/null || true
 if [[ "${SKIP_PUBLIC_ORCHESTRATOR:-}" != "1" ]]; then

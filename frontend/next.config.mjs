@@ -6,6 +6,17 @@ const require = createRequire(import.meta.url);
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+    ];
+  },
   /** Route browser API calls through Next.js so one public URL works on any device. */
   async rewrites() {
     const auth = process.env.API_PROXY_AUTH ?? "http://127.0.0.1:8001";

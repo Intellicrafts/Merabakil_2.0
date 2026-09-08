@@ -441,7 +441,11 @@ export async function getUserDocument(documentId: string): Promise<UserDocument>
 export async function uploadUserDocument(
   file: File,
   meta: { title: string; doc_type?: string },
+  onProgress?: (percent: number) => void,
 ): Promise<UserDocument> {
+  if (onProgress) {
+    return uploadUserDocumentWithProgress(file, meta, onProgress);
+  }
   const form = new FormData();
   form.append("file", file);
   form.append("title", meta.title);
@@ -453,6 +457,64 @@ export async function uploadUserDocument(
   });
   if (!res.ok) return parseError(res);
   return res.json();
+}
+
+export async function uploadUserDocumentWithProgress(
+  file: File,
+  meta: { title: string; doc_type?: string },
+  onProgress: (percent: number) => void,
+): Promise<UserDocument> {
+  const token = getToken();
+  if (!token) throw new Error("Not authenticated");
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", meta.title);
+  form.append("doc_type", meta.doc_type ?? "user_upload");
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${documentServiceUrl()}/api/v1/documents/upload`);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress(Math.min(95, Math.round((event.loaded / event.total) * 90)));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        try {
+          resolve(JSON.parse(xhr.responseText) as UserDocument);
+        } catch {
+          reject(new Error("Upload succeeded but the response was invalid."));
+        }
+        return;
+      }
+      try {
+        const body = JSON.parse(xhr.responseText) as { message?: string; detail?: string };
+        reject(new Error(body.message || body.detail || `Upload failed (${xhr.status})`));
+      } catch {
+        reject(new Error(`Upload failed (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Could not reach the document service."));
+    xhr.send(form);
+  });
+}
+
+export async function getDocumentText(
+  documentId: string,
+): Promise<{ text: string; title: string; status: string; filename?: string | null }> {
+  return apiFetch(`${documentServiceUrl()}/api/v1/documents/${documentId}/text`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function fetchDocumentFile(documentId: string): Promise<Blob> {
+  const res = await authorizedFetch(`${documentServiceUrl()}/api/v1/documents/${documentId}/file`, {
+    headers: authHeaders(false),
+  });
+  if (!res.ok) return parseError(res);
+  return res.blob();
 }
 
 export async function runResearch(
@@ -488,7 +550,7 @@ export async function attachDocumentToSession(
   sessionId: string,
   documentId: string,
 ): Promise<void> {
-  await authorizedFetch(
+  const res = await authorizedFetch(
     `${researchServiceUrl()}/api/v1/research/sessions/${sessionId}/documents`,
     {
       method: "POST",
@@ -496,6 +558,7 @@ export async function attachDocumentToSession(
       body: JSON.stringify({ document_id: documentId }),
     },
   );
+  if (!res.ok) return parseError(res);
 }
 
 export async function detachDocumentFromSession(
@@ -513,7 +576,7 @@ export async function streamResearch(
   jurisdiction: string | undefined,
   history: ConversationTurn[],
   handlers: ResearchStreamHandlers,
-  options?: { documentId?: string; signal?: AbortSignal; sessionId?: string },
+  options?: { documentId?: string; documentIds?: string[]; signal?: AbortSignal; sessionId?: string },
 ): Promise<ResearchResponse> {
   // documentId triggers exclusive document-scoped search (e.g. document detail page).
   // Saarthi chat uses server-side session documents instead — do not pass documentId there.
@@ -531,6 +594,7 @@ export async function streamResearch(
       history,
       session_id: options?.sessionId ?? null,
       user_id: user?.user_id ?? null,
+      document_ids: options?.documentIds?.length ? options.documentIds : undefined,
     }),
     signal: options?.signal,
   });

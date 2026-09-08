@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Scale } from "lucide-react";
+
+import { BrandLogo } from "@/components/brand/brand-logo";
 
 export function FooterSection() {
   return (
@@ -8,9 +9,7 @@ export function FooterSection() {
         <div className="mb-8 flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-sm dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
-                <Scale className="h-3.5 w-3.5" />
-              </div>
+              <BrandLogo variant="mark" className="h-7 w-7" />
               <span className="font-semibold tracking-tight">MeraBakil</span>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">Your Legal Saarthi</p>
