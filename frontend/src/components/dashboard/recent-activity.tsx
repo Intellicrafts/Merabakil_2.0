@@ -157,7 +157,7 @@ export function buildRecentEntries({
     badge: documentBadge(item.status),
   }));
 
-  return [...chats, ...apts, ...docs, ...matters]
+  return [...chats, ...apts, ...matters]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, limit);
 }
