@@ -33,10 +33,10 @@ export function DashboardQuickLaunch({
               <span
                 className={cn(
                   "relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-[1.2rem]",
-                  "bg-white shadow-[0_8px_18px_rgba(42,28,12,0.08)] ring-1 ring-[hsl(28_14%_64%)]",
+                  "border border-[hsl(28_14%_76%)] bg-white",
+                  "shadow-[0_6px_16px_rgba(42,28,12,0.06)]",
                   "transition-transform duration-150 group-active:scale-95",
-                  "dark:bg-white/[0.06] dark:ring-white/[0.08] dark:shadow-[0_8px_18px_rgba(0,0,0,0.28)]",
-                  `dash-module-tint-${meta.tint}`,
+                  "dark:border-white/[0.10] dark:bg-white/[0.06] dark:shadow-[0_8px_18px_rgba(0,0,0,0.28)]",
                 )}
               >
                 <Icon className="relative z-[1] h-[22px] w-[22px] text-foreground/85" strokeWidth={1.7} />

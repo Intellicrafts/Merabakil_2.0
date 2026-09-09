@@ -275,8 +275,8 @@ function CasesTeaser() {
     <Link
       href="/cases"
       className={cn(
-        "dash-card-in flex items-center gap-3 rounded-[1.25rem] border border-dashed border-black/[0.08] bg-white/70 p-4",
-        "active:scale-[0.99] dark:border-white/[0.10] dark:bg-white/[0.03]",
+        "dash-card-in mp-surface-card flex items-center gap-3 rounded-[1.25rem] border-dashed p-4",
+        "active:scale-[0.99]",
       )}
       style={{ animationDelay: "120ms" }}
     >

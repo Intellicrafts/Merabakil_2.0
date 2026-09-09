@@ -34,7 +34,7 @@ export default function DashboardPage() {
   }, [config.modules, router]);
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] space-y-5 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:space-y-6 md:px-0 md:pb-12 md:pt-2">
+    <div className="mx-auto w-full min-w-0 max-w-[1180px] space-y-5 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:space-y-6 sm:px-5 md:px-0 md:pb-12 md:pt-2">
       <DashboardHero
         firstName={firstName}
         config={config}

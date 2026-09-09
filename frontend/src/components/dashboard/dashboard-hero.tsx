@@ -64,15 +64,16 @@ export function DashboardHero({
   return (
     <header
       className={cn(
-        "relative overflow-hidden",
-        "px-0 pb-1 pt-2 sm:rounded-[1.75rem] sm:border sm:border-black/[0.06] sm:bg-white/50 sm:px-7 sm:pb-7 sm:pt-7 sm:backdrop-blur-xl",
+        "relative min-w-0 overflow-hidden",
+        "px-0 pb-2 pt-1",
+        "sm:rounded-[1.75rem] sm:border sm:border-black/[0.06] sm:bg-white/50 sm:px-7 sm:pb-7 sm:pt-7 sm:backdrop-blur-xl",
         "dark:sm:border-white/[0.08] dark:sm:bg-white/[0.03]",
         "dash-card-in",
       )}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 hidden h-px dash-shimmer-line sm:block" />
-      <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full dash-hero-orb dash-hero-glow" />
-      <div className="pointer-events-none absolute -bottom-28 -left-16 h-52 w-52 rounded-full dash-hero-orb dash-hero-glow opacity-70" />
+      <div className="pointer-events-none absolute -right-16 -top-24 hidden h-64 w-64 rounded-full dash-hero-orb dash-hero-glow sm:block" />
+      <div className="pointer-events-none absolute -bottom-28 -left-16 hidden h-52 w-52 rounded-full dash-hero-orb dash-hero-glow opacity-70 sm:block" />
 
       <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(260px,380px)] lg:gap-10">
         <div className="space-y-4 sm:space-y-6">
