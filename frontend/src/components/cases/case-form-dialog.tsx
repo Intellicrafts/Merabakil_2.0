@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { createCase } from "@/lib/api";
+import { JURISDICTION_OPTIONS } from "@/lib/conversations";
 import { PRACTICE_AREAS } from "@/lib/mock/lawyers";
 import type { LegalCase } from "@/lib/types";
 
@@ -141,12 +142,21 @@ export function CaseFormDialog({ open, onClose, onCreated }: CaseFormDialogProps
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="case-jurisdiction">Jurisdiction</Label>
-              <Input
+              <Select
                 id="case-jurisdiction"
                 value={jurisdiction}
                 onChange={(e) => setJurisdiction(e.target.value)}
                 className="h-11 rounded-xl"
-              />
+                placeholder="Select jurisdiction"
+                aria-label="Jurisdiction"
+              >
+                <option value="">Select jurisdiction</option>
+                {JURISDICTION_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="case-practice">Practice area</Label>
@@ -155,6 +165,7 @@ export function CaseFormDialog({ open, onClose, onCreated }: CaseFormDialogProps
                 value={practiceArea}
                 onChange={(e) => setPracticeArea(e.target.value)}
                 className="h-11 rounded-xl"
+                aria-label="Practice area"
               >
                 {PRACTICE_AREAS.map((area) => (
                   <option key={area} value={area}>

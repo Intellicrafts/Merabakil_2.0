@@ -6,6 +6,7 @@ import { BadgeCheck, CheckCircle2, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -189,10 +190,12 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         </Field>
 
         <Field label="City">
-          <select
+          <Select
             value={city}
             onChange={(e) => setCity(e.target.value)}
-            className="h-9 w-full rounded-xl border border-black/[0.08] bg-background px-3 text-[13px] dark:border-white/10"
+            className="h-11 rounded-xl text-[13px] sm:h-9"
+            aria-label="City"
+            placeholder="Select city"
           >
             <option value="">Select city</option>
             {CITIES.map((c) => (
@@ -200,7 +203,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
                 {c}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
 
         <Field label="Bar council ID">

@@ -81,17 +81,8 @@ export function FeaturedMotif({ className }: { className?: string }) {
   );
 }
 
-function tintClass(tint: ModuleTintKey): string {
-  const map: Record<ModuleTintKey, string> = {
-    "mera-vakil": "bg-slate-400/35 dark:bg-slate-300/20",
-    research: "bg-sky-400/25 dark:bg-sky-300/15",
-    marketplace: "bg-amber-400/20 dark:bg-amber-300/12",
-    cases: "bg-emerald-400/20 dark:bg-emerald-300/12",
-    documents: "bg-violet-400/20 dark:bg-violet-300/12",
-    knowledge: "bg-indigo-400/20 dark:bg-indigo-300/12",
-    users: "bg-rose-400/18 dark:bg-rose-300/10",
-  };
-  return map[tint];
+function tintClass(_tint: ModuleTintKey): string {
+  return "bg-black/[0.06] dark:bg-white/10";
 }
 
 function motifPaths(tint: ModuleTintKey) {

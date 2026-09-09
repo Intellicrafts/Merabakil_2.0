@@ -23,6 +23,7 @@ import { LanguagePicker } from "@/components/mera-vakil/language-picker";
 import { VoiceVisualizer } from "@/components/mera-vakil/voice-visualizer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { clearSession, getStoredUser } from "@/lib/api";
 import {
   JURISDICTION_OPTIONS,
@@ -522,19 +523,20 @@ export function ContextPanel({
                       );
                     })}
                   </div>
-                  <select
+                  <Select
                     value={activeConversation.jurisdiction ?? ""}
                     onChange={(e) => onJurisdictionChange?.(e.target.value)}
-                    className="h-8 w-full rounded-lg border border-black/[0.06] bg-white/50 px-2 text-[12px] outline-none dark:border-white/10 dark:bg-white/[0.04]"
+                    className="h-11 w-full rounded-xl text-[13px] md:h-9"
                     aria-label="Jurisdiction"
+                    placeholder="Jurisdiction"
                   >
-                    <option value="">Jurisdiction</option>
+                    <option value="">All jurisdictions</option>
                     {JURISDICTION_OPTIONS.map((opt) => (
                       <option key={opt} value={opt}>
                         {opt}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
             </section>

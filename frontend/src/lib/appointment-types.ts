@@ -22,6 +22,7 @@ export interface RankedMarketplaceLawyer {
   verified?: boolean;
   summary?: string;
   bio?: string;
+  photo_url?: string | null;
   match_score: number;
   ai_recommended: boolean;
 }

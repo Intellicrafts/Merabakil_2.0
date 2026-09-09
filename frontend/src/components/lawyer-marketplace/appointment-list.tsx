@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarDays, Clock3, FileText, Sparkles, X } from "lucide-react";
 
+import { LawyerAvatar } from "@/components/lawyer-marketplace/lawyer-avatar";
 import { LiveClock } from "@/components/ui/live-clock";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
@@ -20,13 +21,13 @@ import type { AppointmentStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<AppointmentStatus, string> = {
-  requested: "border-transparent bg-amber-500/10 text-amber-800 dark:text-amber-300",
-  confirmed: "border-transparent bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
-  live: "border-transparent bg-sky-500/10 text-sky-800 dark:text-sky-300",
-  completed: "border-transparent bg-slate-500/10 text-slate-700 dark:text-slate-300",
-  expired: "border-transparent bg-slate-500/10 text-slate-700 dark:text-slate-300",
-  cancelled: "border-transparent bg-red-500/10 text-red-700 dark:text-red-300",
-  no_show: "border-transparent bg-red-500/10 text-red-700 dark:text-red-300",
+  requested: "border-transparent bg-black/[0.05] text-foreground/70 dark:bg-white/[0.08]",
+  confirmed: "border-transparent bg-black/[0.05] text-foreground/70 dark:bg-white/[0.08]",
+  live: "border-transparent bg-black/[0.06] text-foreground/80 dark:bg-white/[0.10]",
+  completed: "border-transparent bg-black/[0.04] text-muted-foreground dark:bg-white/[0.06]",
+  expired: "border-transparent bg-black/[0.04] text-muted-foreground dark:bg-white/[0.06]",
+  cancelled: "border-transparent bg-black/[0.04] text-muted-foreground dark:bg-white/[0.06]",
+  no_show: "border-transparent bg-black/[0.04] text-muted-foreground dark:bg-white/[0.06]",
 };
 
 interface AppointmentListProps {
@@ -63,13 +64,13 @@ export function AppointmentList({ appointments, onChanged }: AppointmentListProp
 
         if (appointments.length === 0) {
           return (
-            <div className="rounded-3xl border border-dashed border-black/[0.08] bg-white/30 py-20 text-center dark:border-white/10 dark:bg-white/[0.02]">
+            <div className="rounded-[1.4rem] border border-dashed border-black/[0.08] bg-white/50 px-5 py-14 text-center dark:border-white/10 dark:bg-white/[0.02] sm:rounded-3xl sm:py-20">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
                 <CalendarDays className="h-6 w-6 text-muted-foreground/60" />
               </div>
-              <p className="text-sm font-semibold">No appointments yet</p>
-              <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-                Book a consultation from Top Lawyers — your inbox will appear here.
+              <p className="text-sm font-semibold">No consultations yet</p>
+              <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
+                Book a verified advocate from the Advocates tab — upcoming sessions will appear here.
               </p>
             </div>
           );
@@ -118,7 +119,7 @@ function PendingSection({
         <h3 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Pending Requests
         </h3>
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-[10px] font-bold text-amber-800 dark:text-amber-300">
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-black/[0.06] px-1 text-[10px] font-semibold text-foreground/70 dark:bg-white/[0.10]">
           {items.length}
         </span>
       </div>
@@ -178,16 +179,24 @@ function PendingRow({
   return (
     <li
       style={{ animationDelay: `${index * 50}ms` }}
-      className="mp-card-enter rounded-2xl border border-amber-200/60 bg-amber-50/60 p-4 backdrop-blur-xl dark:border-amber-700/30 dark:bg-amber-900/10"
+      className="mp-card-enter mp-surface-card rounded-[1.2rem] p-4"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="flex min-w-0 items-start gap-3">
+          <LawyerAvatar
+            name={apt.counterpart_name}
+            lawyer={{ id: apt.lawyer_id, slug: apt.lawyer_slug, full_name: apt.counterpart_name }}
+            className="h-11 w-11"
+            rounded="2xl"
+          />
+          <div className="min-w-0">
           <p className="font-semibold tracking-tight">{apt.counterpart_name}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">Client</p>
           <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
             <Clock3 className="h-3.5 w-3.5" />
             {appointmentClock(apt.scheduled_at)} · {apt.time_slot}
           </p>
+          </div>
         </div>
         <Badge className={STATUS_STYLES.requested}>Pending review</Badge>
       </div>
@@ -198,7 +207,7 @@ function PendingRow({
 
       {/* Case brief access */}
       {apt.case_id && (
-        <div className="mt-2.5 flex items-center gap-1.5 text-[12px] text-violet-700 dark:text-violet-300">
+        <div className="mt-2.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
           <Sparkles className="h-3.5 w-3.5 shrink-0" />
           <span>AI case brief available —</span>
           <Link
@@ -234,7 +243,7 @@ function PendingRow({
             type="button"
             disabled={!rejectReason.trim() || busy === "reject"}
             onClick={() => void handleReject()}
-            className="inline-flex h-8 items-center rounded-lg bg-red-600 px-4 text-[12px] font-semibold text-white disabled:opacity-50"
+            className="mp-btn-accent inline-flex h-9 items-center rounded-xl px-4 text-[12px] font-semibold disabled:opacity-50"
           >
             {busy === "reject" ? "Rejecting…" : "Confirm rejection"}
           </button>
@@ -255,7 +264,7 @@ function PendingRow({
             type="button"
             disabled={busy !== null}
             onClick={() => setShowRejectInput(true)}
-            className="inline-flex h-9 items-center rounded-xl border border-red-200 px-4 text-[12px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300"
+            className="mp-btn-primary inline-flex h-9 items-center rounded-xl px-4 text-[12px] font-semibold"
           >
             Reject
           </button>
@@ -342,26 +351,37 @@ function AppointmentRow({
     <li
       style={{ animationDelay: `${index * 50}ms` }}
       className={cn(
-        "mp-card-enter rounded-2xl border border-black/[0.06] bg-white/60 p-4 backdrop-blur-xl",
-        "transition-all duration-300 hover:border-slate-300/50 hover:shadow-[0_10px_30px_rgba(15,23,42,0.06)]",
-        "dark:border-white/[0.08] dark:bg-white/[0.04]",
+        "mp-card-enter mp-surface-card rounded-[1.2rem] p-4",
+        "transition-[border-color,box-shadow] duration-200",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="flex min-w-0 items-start gap-3">
+          <LawyerAvatar
+            name={apt.counterpart_name || apt.lawyer_name}
+            lawyer={{
+              id: apt.lawyer_id,
+              slug: apt.lawyer_slug,
+              full_name: apt.counterpart_name || apt.lawyer_name,
+            }}
+            className="h-11 w-11"
+            rounded="2xl"
+          />
+          <div className="min-w-0">
           <p className="font-semibold tracking-tight">{apt.counterpart_name || apt.lawyer_name}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">{roleLabel}</p>
           <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
             <Clock3 className="h-3.5 w-3.5" />
             {appointmentClock(apt.scheduled_at)} · {apt.time_slot}
           </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <Badge className={cn("capitalize", STATUS_STYLES[apt.status] ?? STATUS_STYLES.confirmed)}>
             {apt.status.replace("_", " ")}
           </Badge>
           {apt.pending_summon ? (
-            <Badge className="border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200">Join request</Badge>
+            <Badge className="border-transparent bg-black/[0.05] text-foreground/70 dark:bg-white/[0.08]">Join request</Badge>
           ) : null}
         </div>
       </div>
@@ -369,12 +389,12 @@ function AppointmentRow({
         {apt.matter_summary}
       </p>
       {phase === "upcoming" && (
-        <p className="mt-3 text-[12px] font-medium tabular-nums text-slate-600 dark:text-slate-300">
+        <p className="mt-3 text-[12px] font-medium tabular-nums text-muted-foreground">
           Join unlocks in {formatCountdown(untilStart)}
         </p>
       )}
       {phase === "joinable" && (
-        <p className="mt-3 text-[12px] font-medium tabular-nums text-emerald-700 dark:text-emerald-300">
+        <p className="mt-3 text-[12px] font-medium tabular-nums text-muted-foreground">
           Window open · {formatCountdown(untilEnd)} remaining
           {apt.opponent_present ? " · Counsel waiting in room" : ""}
         </p>
@@ -383,7 +403,7 @@ function AppointmentRow({
         {phase === "joinable" ? (
           <Link
             href={`/appointments/${apt.id}/room`}
-            className="mp-btn-primary inline-flex h-9 items-center rounded-xl px-4 text-[12px] font-semibold"
+            className="mp-btn-accent inline-flex h-9 items-center rounded-xl px-4 text-[12px] font-semibold"
           >
             {joinLabel}
           </Link>
@@ -407,7 +427,7 @@ function AppointmentRow({
             type="button"
             disabled={busy !== null}
             onClick={() => void handleCancel()}
-            className="inline-flex h-9 items-center rounded-xl border border-red-200 px-4 text-[12px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300"
+            className="mp-btn-primary inline-flex h-9 items-center rounded-xl px-4 text-[12px] font-semibold"
           >
             {busy === "cancel" ? "Cancelling…" : "Cancel"}
           </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowDownUp, MapPin, Search, Sparkles } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +34,7 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
     !value.verifiedOnly;
 
   return (
-    <div className="space-y-2.5 rounded-2xl border border-black/[0.06] bg-white/55 p-3 shadow-[0_4px_16px_rgba(15,23,42,0.03)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.035] sm:p-3.5">
+    <div className="mp-surface-card space-y-2.5 rounded-[1.15rem] p-3 sm:rounded-2xl sm:p-4">
       {/* Search row */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
@@ -42,12 +42,12 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
           <Input
             value={value.query}
             onChange={(e) => patch({ query: e.target.value })}
-            placeholder="Search by name, city, or practice area…"
-            className="h-9 rounded-xl border-black/[0.06] bg-white/70 pl-9 pr-3 text-[13px] shadow-inner dark:border-white/10 dark:bg-white/[0.04]"
+            placeholder="Search advocates…"
+            className="h-10 rounded-xl border-black/[0.06] bg-white pl-9 pr-3 text-[13px] shadow-inner dark:border-white/10 dark:bg-white/[0.04] sm:h-9"
             aria-label="Search advocates"
           />
         </div>
-        <span className="hidden items-center gap-1 rounded-full border border-slate-300/60 bg-slate-100 px-2.5 py-1 text-[9px] font-semibold text-slate-600 sm:inline-flex dark:border-white/15 dark:bg-white/10 dark:text-zinc-200">
+        <span className="hidden items-center gap-1 rounded-full border border-black/[0.08] bg-black/[0.03] px-2.5 py-1 text-[9px] font-semibold text-muted-foreground sm:inline-flex dark:border-white/15 dark:bg-white/10">
           <Sparkles className="h-2.5 w-2.5" />
           AI search
         </span>
@@ -67,8 +67,8 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
               className={cn(
                 "shrink-0 min-h-7 rounded-full border px-2.5 text-[11px] font-medium transition-all duration-200",
                 active
-                  ? "border-slate-300 bg-slate-100 text-slate-800 shadow-sm dark:border-white/20 dark:bg-white/12 dark:text-zinc-100"
-                  : "border-black/[0.06] bg-white/50 text-muted-foreground hover:border-black/10 hover:text-foreground dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20",
+                  ? "border-black/[0.12] bg-black/[0.05] text-foreground dark:border-white/20 dark:bg-white/12 dark:text-zinc-100"
+                  : "border-black/[0.06] bg-white text-muted-foreground hover:border-black/10 hover:text-foreground dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/20",
               )}
             >
               {area}
@@ -78,10 +78,8 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
       </div>
 
       {/* Bottom row — city, sort, verified */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-black/[0.04] pt-2.5 dark:border-white/[0.05]">
-        <SlidersHorizontal className="h-3 w-3 shrink-0 text-muted-foreground/60" strokeWidth={1.75} />
-
-        <div className="flex items-center gap-1">
+      <div className="grid grid-cols-2 gap-2 border-t border-black/[0.04] pt-2.5 dark:border-white/[0.05] sm:flex sm:flex-wrap sm:items-center">
+        <div className="min-w-0">
           <Label htmlFor="city" className="sr-only">City</Label>
           <Select
             id="city"
@@ -90,7 +88,8 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
               patch({ city: e.target.value, sort: e.target.value ? "match" : value.sort })
             }
             aria-label="Filter by city"
-            className="h-7 rounded-lg border-black/[0.06] bg-white/70 text-[11px] dark:border-white/10 dark:bg-white/[0.04]"
+            icon={<MapPin className="h-3.5 w-3.5" />}
+            className="h-11 rounded-xl text-[13px] sm:h-9 sm:min-w-[10.5rem]"
           >
             <option value="">All cities</option>
             {CITIES.map((city) => (
@@ -99,14 +98,15 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
           </Select>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="min-w-0">
           <Label htmlFor="sort" className="sr-only">Sort</Label>
           <Select
             id="sort"
             value={value.sort}
             onChange={(e) => patch({ sort: e.target.value as LawyerSort })}
             aria-label="Sort advocates"
-            className="h-7 rounded-lg border-black/[0.06] bg-white/70 text-[11px] dark:border-white/10 dark:bg-white/[0.04]"
+            icon={<ArrowDownUp className="h-3.5 w-3.5" />}
+            className="h-11 rounded-xl text-[13px] sm:h-9 sm:min-w-[10.5rem]"
           >
             <option value="match">AI match</option>
             <option value="rating">Rating</option>
@@ -115,31 +115,33 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
           </Select>
         </div>
 
-        <button
-          type="button"
-          onClick={() => patch({ verifiedOnly: !value.verifiedOnly })}
-          className={cn(
-            "inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-[11px] font-semibold transition-all",
-            value.verifiedOnly
-              ? "border-slate-300 bg-slate-100 text-slate-800 dark:border-white/20 dark:bg-white/12 dark:text-zinc-100"
-              : "border-black/[0.06] bg-white/60 text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04]",
-          )}
-          aria-pressed={value.verifiedOnly}
-        >
-          Verified only
-        </button>
-
-        {hasActiveFilter && (
+        <div className="col-span-2 flex items-center gap-2 sm:ml-auto sm:w-auto">
           <button
             type="button"
-            onClick={() =>
-              onChange({ query: "", practiceArea: "", city: "", verifiedOnly: true, sort: "match" })
-            }
-            className="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            onClick={() => patch({ verifiedOnly: !value.verifiedOnly })}
+            className={cn(
+              "inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition-all sm:h-9",
+              value.verifiedOnly
+                ? "border-black/[0.12] bg-black/[0.05] text-foreground dark:border-white/20 dark:bg-white/12 dark:text-zinc-100"
+                : "border-black/[0.08] bg-white text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.04]",
+            )}
+            aria-pressed={value.verifiedOnly}
           >
-            Clear filters
+            Verified only
           </button>
-        )}
+
+          {hasActiveFilter && (
+            <button
+              type="button"
+              onClick={() =>
+                onChange({ query: "", practiceArea: "", city: "", verifiedOnly: true, sort: "match" })
+              }
+              className="ml-auto text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline sm:ml-0"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

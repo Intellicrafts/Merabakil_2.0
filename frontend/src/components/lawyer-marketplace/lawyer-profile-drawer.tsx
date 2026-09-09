@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -14,9 +13,10 @@ import {
   X,
 } from "lucide-react";
 
+import { LawyerAvatar } from "@/components/lawyer-marketplace/lawyer-avatar";
 import { Button } from "@/components/ui/button";
-import { lawyerAvatarSrc } from "@/lib/lawyer-avatar";
 import type { RankedLawyer } from "@/lib/marketplace-store";
+import { cn } from "@/lib/utils";
 
 interface LawyerProfileDrawerProps {
   lawyer: RankedLawyer | null;
@@ -49,7 +49,7 @@ export function LawyerProfileDrawer({
   if (!open || !lawyer || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex justify-end">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-stretch sm:justify-end">
       <button
         type="button"
         className="mp-modal-veil absolute inset-0"
@@ -60,8 +60,14 @@ export function LawyerProfileDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="lawyer-profile-title"
-        className="relative z-[71] flex h-full w-full max-w-md flex-col border-l border-black/[0.08] bg-white shadow-[0_0_80px_rgba(15,23,42,0.2)] dark:border-white/10 dark:bg-[hsl(220_14%_9%)]"
+        className={cn(
+          "relative z-[71] flex w-full flex-col bg-white",
+          "max-h-[92vh] rounded-t-[1.6rem] border border-black/[0.08] shadow-[0_-12px_60px_rgba(15,23,42,0.18)]",
+          "dark:border-white/10 dark:bg-[hsl(220_14%_9%)]",
+          "sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none sm:border-l sm:shadow-[0_0_80px_rgba(15,23,42,0.2)]",
+        )}
       >
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-black/15 sm:hidden dark:bg-white/20" />
         <div className="relative overflow-hidden border-b border-black/[0.06] px-4 pb-4 pt-3 dark:border-white/[0.08]">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-500/[0.06] via-transparent to-transparent" />
           <div className="relative flex items-center justify-between">
@@ -74,16 +80,7 @@ export function LawyerProfileDrawer({
           </div>
 
           <div className="relative mt-3.5 flex items-start gap-3">
-            <div className="relative h-14 w-14 overflow-hidden rounded-2xl shadow-md ring-1 ring-black/[0.06] dark:ring-white/10">
-              <Image
-                src={lawyerAvatarSrc(lawyer.slug || lawyer.id)}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="56px"
-                priority
-              />
-            </div>
+            <LawyerAvatar lawyer={lawyer} className="h-14 w-14 shadow-md" rounded="2xl" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <h2 id="lawyer-profile-title" className="text-lg font-semibold tracking-tight">
@@ -96,11 +93,11 @@ export function LawyerProfileDrawer({
               <p className="mt-0.5 text-[12px] text-muted-foreground">Bar · {lawyer.bar_council_id}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="inline-flex items-center gap-1 text-[12px]">
-                  <Star className="h-3 w-3 fill-current text-amber-500" />
+                  <Star className="h-3 w-3 fill-current text-foreground/55" />
                   <span className="font-semibold">{lawyer.rating.toFixed(1)}</span>
                   <span className="text-muted-foreground">({lawyer.review_count})</span>
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-300/70 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-zinc-200">
+                <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-white/10">
                   <Sparkles className="h-2.5 w-2.5" />
                   {lawyer.match_score}% match
                 </span>
@@ -159,8 +156,8 @@ export function LawyerProfileDrawer({
             <p className="mt-1.5 text-sm text-muted-foreground">{lawyer.jurisdictions.join(" · ")}</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/80 bg-slate-50 p-3.5 dark:border-white/10 dark:bg-white/[0.05]">
-            <div className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-800 dark:text-zinc-100">
+          <div className="rounded-2xl border border-black/[0.08] bg-black/[0.025] p-3.5 dark:border-white/10 dark:bg-white/[0.05]">
+            <div className="flex items-center gap-1.5 text-[13px] font-semibold">
               <Sparkles className="h-3.5 w-3.5" />
               AI fit
             </div>

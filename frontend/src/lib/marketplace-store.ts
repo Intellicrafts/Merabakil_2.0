@@ -50,6 +50,7 @@ export function toRankedLawyer(raw: RankedMarketplaceLawyer): RankedLawyer {
     verified: Boolean(raw.verified ?? raw.is_verified),
     hourly_rate_inr: raw.hourly_rate_inr ?? raw.hourly_rate ?? null,
     bio: raw.bio || raw.summary || "",
+    photo_url: raw.photo_url ?? null,
     match_score: Math.round(Number(raw.match_score ?? 0)),
     ai_recommended: Boolean(raw.ai_recommended),
   };

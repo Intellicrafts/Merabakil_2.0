@@ -158,7 +158,7 @@ export default function LawyerMarketplacePage() {
       : 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] space-y-4 pb-6 md:space-y-5 md:pb-8">
+    <div className="mx-auto w-full max-w-[1180px] space-y-3 pb-8 sm:space-y-6 sm:pb-10">
       <MarketplaceHero
         counselCount={catalog.length}
         verifiedCount={verifiedCount}
@@ -168,25 +168,27 @@ export default function LawyerMarketplacePage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList
           className={cn(
-            "h-10 w-full rounded-2xl bg-black/[0.04] p-1 dark:bg-white/[0.06]",
-            "sm:w-auto",
+            "h-11 w-full rounded-2xl bg-black/[0.04] p-1 dark:bg-white/[0.06]",
+            "sm:h-10 sm:w-auto",
           )}
         >
           <TabsTrigger
             value="lawyers"
-            className="min-h-8 flex-1 rounded-xl px-4 text-[12px] font-semibold sm:flex-none"
+            className="min-h-9 flex-1 rounded-xl px-4 text-[13px] font-semibold sm:min-h-8 sm:flex-none sm:text-[12px]"
           >
-            Find an Advocate
+            <span className="sm:hidden">Advocates</span>
+            <span className="hidden sm:inline">Find an Advocate</span>
           </TabsTrigger>
           <TabsTrigger
             value="appointments"
-            className="min-h-8 flex-1 rounded-xl px-4 text-[12px] font-semibold sm:flex-none"
+            className="min-h-9 flex-1 rounded-xl px-4 text-[13px] font-semibold sm:min-h-8 sm:flex-none sm:text-[12px]"
           >
-            My Consultations
+            <span className="sm:hidden">Bookings</span>
+            <span className="hidden sm:inline">My Consultations</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="lawyers" className="mt-4 space-y-5">
+        <TabsContent value="lawyers" className="mt-3 space-y-4 sm:mt-5 sm:space-y-5">
           <LawyerFilters value={filters} onChange={setFilters} />
 
           <TopMatchesStrip
@@ -195,29 +197,32 @@ export default function LawyerMarketplacePage() {
             onBook={(l) => setBookingLawyer(l)}
           />
 
-          <div className="flex items-baseline justify-between gap-3">
+          <div className="flex items-baseline justify-between gap-3 px-0.5">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              All Advocates ({lawyers.length})
+              <span className="sm:hidden">Matches ({lawyers.length})</span>
+              <span className="hidden sm:inline">All Advocates ({lawyers.length})</span>
             </h2>
-            <p className="text-[11px] text-muted-foreground/70">Sorted by {filters.sort}</p>
+            <p className="hidden text-[12px] text-muted-foreground/70 sm:block">
+              Sorted by {filters.sort}
+            </p>
           </div>
 
           {catalogLoading ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {[0, 1, 2].map((i) => (
+            <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 lg:gap-4">
+              {[0, 1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-44 animate-pulse rounded-2xl border border-black/[0.06] bg-white/40 dark:border-white/10"
+                  className="h-[4.75rem] animate-pulse rounded-[1.15rem] border border-black/[0.06] bg-white/40 dark:border-white/10 sm:h-56"
                 />
               ))}
             </div>
           ) : catalogError ? (
-            <div className="rounded-2xl border border-dashed border-black/[0.08] py-14 text-center dark:border-white/10">
+            <div className="rounded-2xl border border-dashed border-black/[0.08] px-5 py-12 text-center dark:border-white/10">
               <p className="text-sm font-medium">Unable to load advocates</p>
               <p className="mt-1 text-[13px] text-muted-foreground">Please try refreshing the page.</p>
             </div>
           ) : lawyers.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-black/[0.08] px-6 py-14 text-center dark:border-white/10">
+            <div className="rounded-2xl border border-dashed border-black/[0.08] px-5 py-12 text-center dark:border-white/10">
               <p className="text-sm font-medium">
                 {catalog.length === 0
                   ? "No advocates listed yet"
@@ -230,7 +235,7 @@ export default function LawyerMarketplacePage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
+            <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 lg:gap-4">
               {lawyers.map((lawyer, index) => (
                 <LawyerCard
                   key={lawyer.id}

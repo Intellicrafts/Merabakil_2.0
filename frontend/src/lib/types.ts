@@ -218,6 +218,7 @@ export interface LawyerProfile {
   verified: boolean;
   hourly_rate_inr: number | null;
   bio: string;
+  photo_url?: string | null;
 }
 
 export interface LawyerMatchResult {

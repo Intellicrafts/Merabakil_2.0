@@ -7,9 +7,8 @@ import { LogOut, Moon, Sun, UserCircle, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ProfileAvatar } from "@/components/auth/profile-avatar";
-import { BrandLogo } from "@/components/brand/brand-logo";
 import { DashboardCommandPalette } from "@/components/dashboard/dashboard-command-palette";
-import { BackButton } from "@/components/layout/back-button";
+import { BrandLockup } from "@/components/layout/brand-lockup";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { NotificationProvider } from "@/components/layout/notification-provider";
 import { SummonAlertHost } from "@/components/layout/summon-alert-host";
@@ -88,28 +87,9 @@ function AppTopBar({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 px-5 md:h-16 md:px-8">
-      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-        {!isHome && <BackButton />}
-
-        <Link href="/dashboard" className="flex shrink-0 items-center gap-2.5" aria-label="Mera Bakil home">
-          <BrandLogo variant="mark" className="h-7 w-7" />
-          <div className="hidden sm:block">
-            <p className="text-[13px] font-semibold leading-none tracking-tight">MeraBakil</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">Your Legal Saarthi</p>
-          </div>
-        </Link>
-
-        {!isHome && (
-          <>
-            <span className="hidden text-muted-foreground/40 md:inline" aria-hidden>
-              /
-            </span>
-            <span className="hidden truncate text-[13px] font-medium text-muted-foreground md:inline">
-              {pageTitle}
-            </span>
-          </>
-        )}
+    <header className="app-topbar sticky top-0 z-40 flex h-14 items-center justify-between gap-3 px-5 md:h-16 md:px-8">
+      <div className="flex min-w-0 items-center">
+        <BrandLockup isHome={isHome} pageTitle={pageTitle} />
       </div>
 
       <div className="flex items-center gap-1">
@@ -146,7 +126,7 @@ function AppTopBar({
         </Button>
 
         <DropdownMenu>
-          <DropdownMenuTrigger className="ml-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.06]">
+          <DropdownMenuTrigger className="ml-1 flex items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 text-sm transition-colors hover:border-black/[0.06] hover:bg-white/80 dark:hover:border-white/10 dark:hover:bg-white/[0.07]" aria-label="Account menu">
             <ProfileAvatar
               src={readAvatarUrl()}
               name={user?.full_name ?? "User"}

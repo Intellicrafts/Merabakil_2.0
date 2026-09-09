@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Waves } from "lucide-react";
 
+import { useAnchoredOverlay } from "@/components/ui/use-anchored-overlay";
 import { INDIAN_SPEECH_LOCALES } from "@/lib/indian-locales";
 import { cn } from "@/lib/utils";
 
@@ -14,23 +16,94 @@ interface LanguagePickerProps {
 
 export function LanguagePicker({ value, onChange, compact = false }: LanguagePickerProps) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const { layout, mounted } = useAnchoredOverlay(open, triggerRef, {
+    minWidth: compact ? 220 : 240,
+    maxMenuHeight: 320,
+    align: compact ? "end" : "start",
+  });
   const selected =
     INDIAN_SPEECH_LOCALES.find((l) => l.code === value) ?? INDIAN_SPEECH_LOCALES[0];
 
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+  const menu =
+    open && mounted && layout
+      ? createPortal(
+          <div className="ui-select-layer" data-mode={layout.mode}>
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Close language menu"
+              className={cn("ui-select-veil", layout.mode === "popover" && "bg-transparent")}
+              onClick={() => setOpen(false)}
+            />
+            <div
+              role="listbox"
+              aria-label="Read-aloud languages"
+              style={
+                layout.mode === "popover"
+                  ? {
+                      top: layout.top,
+                      bottom: layout.bottom,
+                      left: layout.left,
+                      width: layout.width,
+                      maxHeight: layout.maxHeight,
+                    }
+                  : undefined
+              }
+              className={cn(
+                "ui-select-menu",
+                layout.mode === "sheet" ? "ui-select-sheet" : "ui-select-popover",
+              )}
+            >
+              {layout.mode === "sheet" && (
+                <div className="mb-2 flex flex-col items-center pt-1">
+                  <span className="ui-select-handle" />
+                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Voice language
+                  </p>
+                </div>
+              )}
+              <div className="ui-select-list">
+                {INDIAN_SPEECH_LOCALES.map((locale) => {
+                  const active = locale.code === value;
+                  return (
+                    <button
+                      key={locale.code}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      onClick={() => {
+                        onChange(locale.code);
+                        setOpen(false);
+                      }}
+                      className={cn("ui-select-option", active && "ui-select-option-active")}
+                    >
+                      <span
+                        className={cn(
+                          "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold uppercase",
+                          active
+                            ? "bg-primary/15 text-foreground"
+                            : "bg-black/[0.04] dark:bg-white/[0.06]",
+                        )}
+                      >
+                        {locale.label.slice(0, 2)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{locale.label}</span>
+                      {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
-    <div ref={rootRef} className={cn("relative", compact && "inline-flex")}>
+    <div className={cn("relative", compact && "inline-flex")}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -45,11 +118,8 @@ export function LanguagePicker({ value, onChange, compact = false }: LanguagePic
                 open && "bg-black/[0.05] text-foreground dark:bg-white/10",
               )
             : cn(
-                "group relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border px-3.5 py-3 text-left transition-all duration-300",
-                "border-black/[0.06] bg-white/70 shadow-[0_2px_12px_rgba(15,23,42,0.05)] backdrop-blur-md",
-                "hover:border-slate-300/50 hover:bg-white/90 hover:shadow-[0_6px_20px_rgba(15,23,42,0.08)]",
-                "dark:border-white/10 dark:bg-white/[0.06] dark:hover:border-white/20 dark:hover:bg-white/[0.09]",
-                open && "border-slate-400/40 ring-2 ring-slate-400/20 dark:border-white/25",
+                "ui-select-trigger h-auto min-h-12 rounded-2xl py-2.5 pr-3",
+                open && "ui-select-trigger-open",
               ),
         )}
       >
@@ -63,11 +133,11 @@ export function LanguagePicker({ value, onChange, compact = false }: LanguagePic
                 <Waves className="h-3.5 w-3.5" />
               </span>
             </span>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 text-left">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 Voice language
               </p>
-              <p className="truncate text-sm font-semibold tracking-tight">{selected.label}</p>
+              <p className="truncate text-sm font-semibold tracking-tight text-foreground">{selected.label}</p>
             </div>
             <ChevronDown
               className={cn(
@@ -78,55 +148,7 @@ export function LanguagePicker({ value, onChange, compact = false }: LanguagePic
           </>
         )}
       </button>
-
-      {open && (
-        <div
-          role="listbox"
-          aria-label="Read-aloud languages"
-          className={cn(
-            "mv-lang-menu absolute z-50 max-h-56 overflow-y-auto rounded-2xl border border-black/[0.08] bg-white/95 p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/95",
-            compact
-              ? "bottom-[calc(100%+6px)] right-0 w-56"
-              : "left-0 right-0 top-[calc(100%+6px)]",
-          )}
-        >
-          {INDIAN_SPEECH_LOCALES.map((locale, idx) => {
-            const active = locale.code === value;
-            return (
-              <button
-                key={locale.code}
-                type="button"
-                role="option"
-                aria-selected={active}
-                onClick={() => {
-                  onChange(locale.code);
-                  setOpen(false);
-                }}
-                style={{ animationDelay: `${idx * 30}ms` }}
-                className={cn(
-                  "mv-lang-item flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
-                  active
-                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                    : "text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold uppercase",
-                    active
-                      ? "bg-white/15 dark:bg-black/10"
-                      : "bg-black/[0.04] dark:bg-white/[0.06]",
-                  )}
-                >
-                  {locale.label.slice(0, 2)}
-                </span>
-                <span className="min-w-0 flex-1 truncate font-medium">{locale.label}</span>
-                {active && <Check className="h-3.5 w-3.5 shrink-0" />}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }

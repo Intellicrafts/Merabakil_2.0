@@ -160,16 +160,15 @@ export const MessageBubble = memo(function MessageBubble({
   const appointment = research?.specialist_payload?.appointment as Record<string, unknown> | undefined;
 
   return (
-    <div className="group flex gap-3">
-      {showAvatar && (
+    <div className="group mv-assistant">
+      {showAvatar ? (
         <SaarthiMark
           state={stillTyping ? "streaming" : "idle"}
-          className="mt-0.5 h-8 w-8 shrink-0"
+          className="mv-assistant-mark h-8 w-8"
         />
-      )}
-      {!showAvatar && <div className="w-8 shrink-0" aria-hidden />}
+      ) : null}
 
-      <div className="min-w-0 flex-1 space-y-3 pt-0.5">
+      <div className="mv-assistant-body">
         {grounding && stillTyping && (
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             Grounding authorities…
@@ -191,52 +190,54 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </div>
 
-        {!stillTyping && message.content && (
-          <AnswerToolbar
-            content={message.content}
-            title={research?.query}
-            question={question || research?.query}
-            sources={[
-              ...(research?.sources ?? []).map((s) => ({
-                title: s.title ?? undefined,
-                citation: s.citation ?? undefined,
-              })),
-              ...(research?.web_sources ?? []).map((s) => ({
-                title: s.title,
-                url: s.url,
-              })),
-            ]}
-            disclaimer={research?.disclaimer}
-            messageId={message.id}
-            onRegenerate={onRegenerate}
-            readAloudStatus={readAloudStatus}
-            readAloudActiveId={readAloudActiveId}
-            onReadAloudToggle={onReadAloudToggle}
-            onReadAloudStop={onReadAloudStop}
-            hasGrounding={Boolean(research && (research.sources.length > 0 || research.citations.length > 0 || (research.web_sources?.length ?? 0) > 0))}
-            groundingOpen={groundingOpen}
-            onGroundingToggle={() => setGroundingOpen((o) => !o)}
-          />
-        )}
+        <div className="mv-assistant-after">
+          {!stillTyping && message.content && (
+            <AnswerToolbar
+              content={message.content}
+              title={research?.query}
+              question={question || research?.query}
+              sources={[
+                ...(research?.sources ?? []).map((s) => ({
+                  title: s.title ?? undefined,
+                  citation: s.citation ?? undefined,
+                })),
+                ...(research?.web_sources ?? []).map((s) => ({
+                  title: s.title,
+                  url: s.url,
+                })),
+              ]}
+              disclaimer={research?.disclaimer}
+              messageId={message.id}
+              onRegenerate={onRegenerate}
+              readAloudStatus={readAloudStatus}
+              readAloudActiveId={readAloudActiveId}
+              onReadAloudToggle={onReadAloudToggle}
+              onReadAloudStop={onReadAloudStop}
+              hasGrounding={Boolean(research && (research.sources.length > 0 || research.citations.length > 0 || (research.web_sources?.length ?? 0) > 0))}
+              groundingOpen={groundingOpen}
+              onGroundingToggle={() => setGroundingOpen((o) => !o)}
+            />
+          )}
 
-        {research && !stillTyping && (
-          <div className="space-y-3">
-            {research.web_images?.length > 0 && (
-              <ImageGallery images={toGalleryImages(research.web_images)} />
-            )}
+          {research && !stillTyping && (
+            <div className="space-y-3">
+              {research.web_images?.length > 0 && (
+                <ImageGallery images={toGalleryImages(research.web_images)} />
+              )}
 
-            {groundingOpen && (
-              <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} initialOpen />
-            )}
+              {groundingOpen && (
+                <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} initialOpen />
+              )}
 
-            {lawyers.length > 0 && FEATURES.AI_MATCHING && <LawyerRecommendationPanel lawyers={lawyers} caseId={caseId} />}
-            {appointment && <AppointmentConfirmationCard appointment={appointment} />}
+              {lawyers.length > 0 && FEATURES.AI_MATCHING && <LawyerRecommendationPanel lawyers={lawyers} caseId={caseId} />}
+              {appointment && <AppointmentConfirmationCard appointment={appointment} />}
 
-            {research.disclaimer && (
-              <p className="mv-msg-disclaimer">{research.disclaimer}</p>
-            )}
-          </div>
-        )}
+              {research.disclaimer && (
+                <p className="mv-msg-disclaimer">{research.disclaimer}</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { CalendarPlus, X } from "lucide-react";
 
-import { AppointmentConfirmationCard } from "@/components/mera-vakil/appointment-confirmation-card";
+import { VoiceBookingConfirmationModal } from "@/components/mera-vakil/voice-booking-confirmation-modal";
 import { useVoiceBot, type VoiceBotState, type VoiceMessage } from "@/hooks/use-voice-bot";
 import type { LawyerMatchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -60,8 +60,18 @@ const BLOB_DURATION: Record<VoiceBotState, string> = {
 };
 
 export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEnd, onBookLawyer }: VoiceModeOverlayProps) {
-  const { botState, transcript, amplitude, permissionDenied, voiceMessages, lawyerResults, lastBooking, interrupt, stop } =
-    useVoiceBot({ open, speechLocale });
+  const {
+    botState,
+    transcript,
+    amplitude,
+    permissionDenied,
+    voiceMessages,
+    lawyerResults,
+    lastBooking,
+    dismissLastBooking,
+    interrupt,
+    stop,
+  } = useVoiceBot({ open, speechLocale });
 
   const voiceMessagesRef = useRef(voiceMessages);
   const lawyerResultsRef = useRef(lawyerResults);
@@ -83,11 +93,16 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEn
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
+      if (e.key !== "Escape") return;
+      if (lastBooking) {
+        dismissLastBooking();
+        return;
+      }
+      handleClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, handleClose]);
+  }, [open, handleClose, lastBooking, dismissLastBooking]);
 
   if (!open) return null;
 
@@ -192,15 +207,9 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEn
         </button>
       </div>
 
-      {/* Booking confirmation — appears when AI books an appointment */}
-      {lastBooking && (
-        <div className="shrink-0 px-5 pb-2">
-          <p className="mb-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
-            Appointment booked
-          </p>
-          <AppointmentConfirmationCard appointment={lastBooking} variant="voice" />
-        </div>
-      )}
+      {lastBooking ? (
+        <VoiceBookingConfirmationModal appointment={lastBooking} onDismiss={dismissLastBooking} />
+      ) : null}
 
       {/* Lawyer bubbles — appears when AI surfaces advocates */}
       {lawyerResults.length > 0 && (

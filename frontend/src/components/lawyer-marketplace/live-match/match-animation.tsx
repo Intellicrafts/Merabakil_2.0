@@ -248,7 +248,7 @@ export function MatchAnimation({ result, onComplete, onBook }: MatchAnimationPro
                   <p className="mt-0.5 text-[11px] text-muted-foreground">{lawyer.city}</p>
                 </div>
                 <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <Star className="h-3 w-3 fill-current text-amber-500" />
+                  <Star className="h-3 w-3 fill-current text-foreground/55" />
                   {lawyer.rating.toFixed(1)}
                   {lawyer.verified && (
                     <BadgeCheck className="ml-0.5 h-3.5 w-3.5 text-slate-700 dark:text-slate-300" />
@@ -277,7 +277,7 @@ export function MatchAnimation({ result, onComplete, onBook }: MatchAnimationPro
                 className={cn(
                   "flex h-6 w-6 items-center justify-center rounded-full",
                   show
-                    ? "bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                    ? "bg-black/[0.06] text-foreground/80 dark:bg-white/10 dark:text-zinc-200"
                     : "bg-black/[0.05] text-muted-foreground dark:bg-white/10",
                 )}
               >
@@ -309,7 +309,7 @@ export function MatchAnimation({ result, onComplete, onBook }: MatchAnimationPro
 
         {isSelected && (
           <div className="mp-select-reveal space-y-1 text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Selected for you
             </p>
             <p className="text-sm font-semibold tracking-tight">{result.lawyer.full_name}</p>

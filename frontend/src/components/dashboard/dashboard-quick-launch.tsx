@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import type { DashboardModule } from "@/lib/dashboard-config";
 import { getModuleMeta } from "@/lib/dashboard-meta";
+import { markNavigationStart } from "@/lib/navigation-feedback";
 import { cn } from "@/lib/utils";
 
 export function DashboardQuickLaunch({
@@ -11,36 +12,36 @@ export function DashboardQuickLaunch({
 }: {
   modules: DashboardModule[];
 }) {
-  const items = modules.slice(0, 6);
-  if (items.length === 0) return null;
+  if (modules.length === 0) return null;
 
   return (
-    <section
-      className="dash-card-in md:hidden"
-      style={{ animationDelay: "60ms" }}
-      aria-label="Apps"
-    >
-      <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-1 no-scrollbar snap-x snap-mandatory">
-        {items.map((mod) => {
+    <section className="dash-card-in sm:hidden" aria-label="Services">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        Services
+      </p>
+      <div className="grid grid-cols-4 gap-x-2 gap-y-4">
+        {modules.map((mod) => {
           const Icon = mod.icon;
           const meta = getModuleMeta(mod.href);
           return (
             <Link
               key={mod.href}
               href={mod.href}
-              className={cn(
-                "snap-start flex min-h-[96px] min-w-[80px] flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3",
-                "border border-black/[0.06] bg-white/80 shadow-[0_4px_16px_rgba(15,23,42,0.04)] backdrop-blur-md",
-                "active:scale-[0.97] transition-transform duration-150",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
-                "dark:border-white/[0.08] dark:bg-white/[0.05]",
-                `dash-module-tint-${meta.tint}`,
-              )}
+              onClick={() => markNavigationStart()}
+              className="group flex flex-col items-center gap-2 text-center active:scale-[0.96]"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-black/[0.06] bg-white/90 dark:border-white/10 dark:bg-white/[0.08]">
-                <Icon className="h-5 w-5 text-foreground/80" strokeWidth={1.75} />
+              <span
+                className={cn(
+                  "relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-[1.2rem]",
+                  "bg-white shadow-[0_8px_18px_rgba(42,28,12,0.08)] ring-1 ring-[hsl(28_14%_64%)]",
+                  "transition-transform duration-150 group-active:scale-95",
+                  "dark:bg-white/[0.06] dark:ring-white/[0.08] dark:shadow-[0_8px_18px_rgba(0,0,0,0.28)]",
+                  `dash-module-tint-${meta.tint}`,
+                )}
+              >
+                <Icon className="relative z-[1] h-[22px] w-[22px] text-foreground/85" strokeWidth={1.7} />
               </span>
-              <span className="max-w-[4.75rem] truncate text-center text-[12px] font-semibold tracking-tight">
+              <span className="max-w-[4.6rem] truncate text-[11px] font-medium leading-tight tracking-tight text-foreground/80">
                 {meta.shortLabel}
               </span>
             </Link>

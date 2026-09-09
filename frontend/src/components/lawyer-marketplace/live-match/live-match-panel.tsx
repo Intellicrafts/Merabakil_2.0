@@ -150,8 +150,7 @@ export function LiveMatchPanel({ catalog, onView, onBook }: LiveMatchPanelProps)
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[13px] font-semibold tracking-tight">Live AI Match</p>
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                <span className="mp-pulse-dot h-1 w-1 rounded-full bg-emerald-500" />
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                 Live
               </span>
             </div>

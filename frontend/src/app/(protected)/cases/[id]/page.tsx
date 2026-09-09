@@ -248,7 +248,9 @@ function DocumentsSection({ caseId, isOwner }: { caseId: string; isOwner: boolea
           <Select
             value={docType}
             onChange={(e) => setDocType(e.target.value)}
-            className="h-9 w-48 rounded-lg text-[13px]"
+            className="h-11 rounded-xl text-[13px] sm:h-9"
+            wrapperClassName="w-full sm:w-56"
+            aria-label="Document category"
           >
             {DOC_CATEGORIES.map((cat) => (
               <option key={cat.value} value={cat.value}>
@@ -474,7 +476,7 @@ export default function CaseDetailPage() {
         </div>
 
         {isOwner && (
-          <div className="w-full space-y-1.5 sm:w-44">
+          <div className="w-full min-w-0 space-y-1.5 sm:w-52">
             <Label htmlFor="case-status" className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Update status
             </Label>
@@ -482,8 +484,9 @@ export default function CaseDetailPage() {
               id="case-status"
               value={caseItem.status}
               onChange={(e) => void handleStatusChange(e.target.value)}
-              className="h-10 rounded-xl"
+              className="h-11 rounded-xl sm:h-10"
               disabled={statusUpdating}
+              aria-label="Update case status"
             >
               <option value="draft">Draft</option>
               <option value="open">Open</option>

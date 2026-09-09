@@ -27,13 +27,10 @@ export function DashboardModuleCard({ mod }: { mod: DashboardModule }) {
     <Link
       href={mod.href}
       className={cn(
-        "group relative flex flex-col gap-3.5 overflow-hidden rounded-2xl px-4 py-4 sm:px-5 sm:py-5",
-        "border border-black/[0.06] bg-white",
-        "shadow-[0_1px_3px_rgba(15,23,42,0.05)]",
-        "transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-primary/20 hover:shadow-[0_10px_28px_rgba(15,23,42,0.07)]",
+        "mp-surface-card group relative flex flex-col gap-3.5 overflow-hidden rounded-2xl px-4 py-4 sm:px-5 sm:py-5",
+        "transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px",
         "active:scale-[0.99]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2",
-        "dark:border-white/[0.08] dark:bg-zinc-900 dark:hover:border-primary/30",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15 focus-visible:ring-offset-2",
         `dash-module-tint-${meta.tint}`,
       )}
     >
@@ -45,8 +42,8 @@ export function DashboardModuleCard({ mod }: { mod: DashboardModule }) {
         <span
           className={cn(
             "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-            "border-black/[0.06] bg-white/80 text-foreground/60",
-            "transition-all duration-150 group-hover:border-primary/25 group-hover:bg-primary/[0.06] group-hover:text-primary",
+            "border-black/[0.08] bg-white text-foreground/55",
+            "transition-colors duration-150 group-hover:border-black/15 group-hover:text-foreground",
             "dark:border-white/[0.08] dark:bg-white/[0.05]",
           )}
         >

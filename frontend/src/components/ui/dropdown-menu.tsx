@@ -1,32 +1,35 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
+
+import { useAnchoredOverlay } from "@/components/ui/use-anchored-overlay";
 import { cn } from "@/lib/utils";
 
 type DropdownContextValue = {
   open: boolean;
   setOpen: (v: boolean) => void;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
 };
 
 const DropdownContext = React.createContext<DropdownContextValue | null>(null);
 
 export function DropdownMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
     }
-    if (open) document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
   return (
-    <DropdownContext.Provider value={{ open, setOpen }}>
-      <div ref={ref} className="relative inline-block text-left">
-        {children}
-      </div>
+    <DropdownContext.Provider value={{ open, setOpen, triggerRef }}>
+      <div className="relative inline-flex text-left">{children}</div>
     </DropdownContext.Provider>
   );
 }
@@ -34,18 +37,23 @@ export function DropdownMenu({ children }: { children: React.ReactNode }) {
 export function DropdownMenuTrigger({
   children,
   className,
+  "aria-label": ariaLabel,
 }: {
   children: React.ReactNode;
   className?: string;
+  "aria-label"?: string;
 }) {
   const ctx = React.useContext(DropdownContext);
   if (!ctx) throw new Error("DropdownMenuTrigger must be used within DropdownMenu");
   return (
     <button
+      ref={ctx.triggerRef}
       type="button"
       className={className}
       onClick={() => ctx.setOpen(!ctx.open)}
       aria-expanded={ctx.open}
+      aria-haspopup="menu"
+      aria-label={ariaLabel}
     >
       {children}
     </button>
@@ -62,18 +70,54 @@ export function DropdownMenuContent({
   align?: "start" | "end";
 }) {
   const ctx = React.useContext(DropdownContext);
+  const fallbackRef = React.useRef<HTMLButtonElement>(null);
+  const { layout, mounted } = useAnchoredOverlay(Boolean(ctx?.open), ctx?.triggerRef ?? fallbackRef, {
+    minWidth: 220,
+    maxMenuHeight: 360,
+    align,
+  });
+
   if (!ctx) throw new Error("DropdownMenuContent must be used within DropdownMenu");
-  if (!ctx.open) return null;
-  return (
-    <div
-      className={cn(
-        "absolute z-50 mt-2 min-w-[10rem] rounded-md border bg-card p-1 shadow-md",
-        align === "end" ? "right-0" : "left-0",
-        className,
-      )}
-    >
-      {children}
-    </div>
+  if (!ctx.open || !mounted || !layout) return null;
+
+  return createPortal(
+    <div className="ui-select-layer" data-mode={layout.mode}>
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Close menu"
+        className={cn("ui-select-veil", layout.mode === "popover" && "bg-transparent")}
+        onClick={() => ctx.setOpen(false)}
+      />
+      <div
+        role="menu"
+        style={
+          layout.mode === "popover"
+            ? {
+                top: layout.top,
+                bottom: layout.bottom,
+                left: layout.left,
+                width: layout.width,
+                maxHeight: layout.maxHeight,
+              }
+            : undefined
+        }
+        className={cn(
+          "ui-select-menu",
+          layout.mode === "sheet" ? "ui-select-sheet" : "ui-select-popover",
+          "p-1.5",
+          className,
+        )}
+      >
+        {layout.mode === "sheet" && (
+          <div className="mb-1 flex flex-col items-center pt-1">
+            <span className="ui-select-handle" />
+          </div>
+        )}
+        <div className="ui-select-list">{children}</div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -93,9 +137,10 @@ export function DropdownMenuItem({
   return (
     <button
       type="button"
+      role="menuitem"
       className={cn(
-        "flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-muted",
-        destructive && "text-destructive hover:bg-destructive/10",
+        "ui-select-option min-h-11 text-[13px] sm:min-h-10",
+        destructive && "text-destructive hover:bg-destructive/10 hover:text-destructive",
         className,
       )}
       onClick={() => {
@@ -109,7 +154,7 @@ export function DropdownMenuItem({
 }
 
 export function DropdownMenuSeparator() {
-  return <div className="my-1 h-px bg-border" />;
+  return <div className="my-1.5 h-px bg-black/[0.06] dark:bg-white/[0.08]" />;
 }
 
 export function DropdownMenuLabel({
@@ -120,7 +165,7 @@ export function DropdownMenuLabel({
   className?: string;
 }) {
   return (
-    <div className={cn("px-2 py-1.5 text-xs font-semibold text-muted-foreground", className)}>
+    <div className={cn("truncate px-3 py-2.5 text-[11px] font-medium tracking-tight text-muted-foreground", className)}>
       {children}
     </div>
   );

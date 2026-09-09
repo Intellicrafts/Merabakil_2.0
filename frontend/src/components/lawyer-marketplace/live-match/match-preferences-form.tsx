@@ -120,8 +120,8 @@ export function MatchPreferencesForm({
                 className={cn(
                   "min-h-8 rounded-full border px-2.5 text-[11px] font-medium transition-all duration-200",
                   active
-                    ? "border-slate-300 bg-slate-100 text-slate-800 shadow-sm dark:border-white/20 dark:bg-white/12 dark:text-zinc-100"
-                    : "border-black/[0.06] bg-white/50 text-muted-foreground hover:border-black/10 hover:text-foreground dark:border-white/10 dark:bg-white/[0.04]",
+                    ? "border-black/[0.12] bg-black/[0.05] text-foreground dark:border-white/20 dark:bg-white/12 dark:text-zinc-100"
+                    : "border-black/[0.06] bg-white text-muted-foreground hover:border-black/10 hover:text-foreground dark:border-white/10 dark:bg-white/[0.04]",
                 )}
               >
                 {area}
@@ -173,8 +173,10 @@ export function MatchPreferencesForm({
             <Select
               value={value.city}
               onChange={(e) => patch({ locationMode: "manual", city: e.target.value })}
-              className="h-9 min-w-[120px] rounded-xl text-[13px]"
+              className="h-11 rounded-xl text-[13px] sm:h-9"
+              wrapperClassName="min-w-0 flex-1 sm:max-w-[12rem] sm:flex-none"
               aria-label="Select city"
+              icon={<MapPin className="h-3.5 w-3.5" />}
             >
               {CITIES.map((city) => (
                 <option key={city} value={city}>
@@ -217,7 +219,7 @@ export function MatchPreferencesForm({
             <Select
               value={String(value.minExperience)}
               onChange={(e) => patch({ minExperience: Number(e.target.value) })}
-              className="h-9 rounded-xl text-[13px]"
+              className="h-11 rounded-xl text-[13px] sm:h-9"
               aria-label="Minimum experience"
             >
               {EXPERIENCE_OPTIONS.map((opt) => (
@@ -251,7 +253,7 @@ export function MatchPreferencesForm({
             <Select
               value={String(value.maxRateInr ?? 4500)}
               onChange={(e) => patch({ maxRateInr: Number(e.target.value) })}
-              className="h-9 rounded-xl text-[13px]"
+              className="h-11 rounded-xl text-[13px] sm:h-9"
               aria-label="Maximum hourly rate"
             >
               {BUDGET_OPTIONS.map((opt) => (

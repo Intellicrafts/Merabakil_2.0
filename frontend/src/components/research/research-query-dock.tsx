@@ -2,9 +2,10 @@
 
 import { Clock, Search, Sparkles, Square } from "lucide-react";
 
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { JURISDICTION_OPTIONS } from "@/lib/conversations";
 
 interface ResearchQueryDockProps {
   query: string;
@@ -59,13 +60,21 @@ export function ResearchQueryDock({
         disabled={isStreaming}
       />
 
-      <Input
+      <Select
         value={jurisdiction}
         onChange={(e) => onJurisdictionChange(e.target.value)}
-        placeholder="Jurisdiction (optional) · e.g. Maharashtra"
-        className="h-10 rounded-xl border-black/[0.08] bg-white/80 text-[13px] dark:border-white/10 dark:bg-white/[0.04]"
+        className="h-11 rounded-xl text-[13px] sm:h-10"
         disabled={isStreaming}
-      />
+        aria-label="Jurisdiction"
+        placeholder="Jurisdiction (optional)"
+      >
+        <option value="">Any jurisdiction</option>
+        {JURISDICTION_OPTIONS.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </Select>
 
       <div className="flex gap-2">
         {isStreaming ? (

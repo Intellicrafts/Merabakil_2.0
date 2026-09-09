@@ -1,17 +1,16 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, CalendarDays, Check, Clock3, FileText, Sparkles, X } from "lucide-react";
 
+import { LawyerAvatar } from "@/components/lawyer-marketplace/lawyer-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { bookAppointment, getStoredUser } from "@/lib/api";
-import { lawyerAvatarSrc } from "@/lib/lawyer-avatar";
 import type { LawyerProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -195,15 +194,7 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-500/[0.06] via-transparent to-transparent" />
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl ring-1 ring-black/[0.08] shadow-sm dark:ring-white/10">
-                <Image
-                  src={lawyerAvatarSrc(lawyer.slug || lawyer.id)}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="44px"
-                />
-              </div>
+              <LawyerAvatar lawyer={lawyer} className="h-11 w-11 shadow-sm" rounded="2xl" />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
@@ -227,8 +218,8 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
                   <div
                     className={cn(
                       "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
-                      done && "bg-slate-800 text-white dark:bg-white dark:text-slate-900",
-                      active && !done && "bg-slate-200 text-slate-800 dark:bg-white/20 dark:text-white",
+                      done && "bg-[hsl(25_14%_32%)] text-[hsl(40_28%_97%)] dark:bg-[hsl(35_16%_90%)] dark:text-[hsl(25_14%_16%)]",
+                      active && !done && "bg-black/[0.08] text-foreground dark:bg-white/20",
                       !active && !done && "bg-black/[0.06] text-muted-foreground dark:bg-white/10",
                     )}
                   >
@@ -295,8 +286,8 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
                         className={cn(
                           "min-h-10 rounded-xl border px-2 text-[12px] font-medium transition-all duration-200",
                           slot === option
-                            ? "border-slate-500 bg-slate-900 text-white shadow-sm dark:border-white/40 dark:bg-white dark:text-slate-900"
-                            : "border-black/[0.08] bg-white/70 text-muted-foreground hover:border-slate-300 hover:text-foreground dark:border-white/10 dark:bg-white/[0.04]",
+                            ? "mp-btn-accent border-transparent"
+                            : "border-black/[0.08] bg-white text-muted-foreground hover:border-black/15 hover:text-foreground dark:border-white/10 dark:bg-white/[0.04]",
                         )}
                       >
                         {option}
@@ -322,7 +313,7 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
                     <span
                       className={cn(
                         "text-[11px] tabular-nums",
-                        matterValid ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground",
+                        matterValid ? "text-foreground" : "text-muted-foreground",
                       )}
                     >
                       {matterLen}/{MATTER_MIN}

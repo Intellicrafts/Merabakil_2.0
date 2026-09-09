@@ -8,6 +8,7 @@ import { BackButton } from "@/components/layout/back-button";
 import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
 import { EmptyState } from "@/components/mera-vakil/empty-state";
 import { InputDock } from "@/components/mera-vakil/input-dock";
+import { StarterSuggestions } from "@/components/mera-vakil/starter-suggestions";
 import { MeraVakilShell } from "@/components/mera-vakil/mera-vakil-shell";
 import { MessageList } from "@/components/mera-vakil/message-list";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,7 +20,7 @@ import { useReadAloud } from "@/hooks/use-read-aloud";
 import { streamResearch, uploadUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
 import type { UploadProgress } from "@/components/mera-vakil/input-dock";
 import { FEATURES } from "@/lib/features";
-import { consumeMeraVakilPrefill } from "@/lib/prefill-store";
+import { consumeMeraVakilPrefill, consumeMeraVakilVoiceOpen } from "@/lib/prefill-store";
 import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
 import {
   createAssistantMessage,
@@ -198,6 +199,11 @@ export default function MeraVakilPage() {
     }
     const prefill = consumeMeraVakilPrefill();
     if (prefill) setInput(prefill);
+    const wantVoice =
+      consumeMeraVakilVoiceOpen() || new URLSearchParams(window.location.search).get("voice") === "1";
+    if (wantVoice && FEATURES.VOICE && isVoiceBotSupported()) {
+      setVoiceModeOpen(true);
+    }
     setHydrated(true);
   }, []);
 
@@ -912,7 +918,7 @@ export default function MeraVakilPage() {
       onOpenRightPanel={() => setRightPanelOpenPersisted(true)}
       center={
         <div className="flex h-full min-h-0 flex-col">
-          <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 md:px-6">
+          <header className="app-topbar flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 md:px-6">
             <BackButton />
             <div className="flex items-center gap-1">
               <Button
@@ -949,7 +955,7 @@ export default function MeraVakilPage() {
               <Skeleton className="h-20 w-[85%] rounded-2xl" />
             </div>
           ) : !hasMessages && !isResearching ? (
-            <EmptyState onQuickAction={(prompt) => sendMessage(prompt)} />
+            <EmptyState />
           ) : (
             <MessageList
               messages={activeConversation?.messages ?? []}
@@ -973,9 +979,12 @@ export default function MeraVakilPage() {
             />
           )}
 
-          <p className="hidden px-4 pb-0.5 text-center text-[11px] text-muted-foreground/50 sm:block">
-            Informational only · Not a substitute for licensed legal advice
-          </p>
+          {hydrated && !hasMessages && !isResearching ? (
+            <StarterSuggestions
+              onSelect={(prompt) => sendMessage(prompt)}
+              disabled={isResearching}
+            />
+          ) : null}
 
           <InputDock
             value={input}
@@ -1005,6 +1014,9 @@ export default function MeraVakilPage() {
             }
             speechLocale={speechLocale}
           />
+          <p className="-mt-2 hidden px-4 pb-2 text-center text-[11px] text-muted-foreground/50 sm:block">
+            Informational only · Not a substitute for licensed legal advice
+          </p>
         </div>
       }
       right={

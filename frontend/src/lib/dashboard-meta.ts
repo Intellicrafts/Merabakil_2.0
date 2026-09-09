@@ -63,6 +63,24 @@ export const MODULE_META: Record<string, DashboardModuleMeta> = {
     tint: "users",
     shortLabel: "Users",
   },
+  "/admin/appointments": {
+    tag: "Appointment Ops",
+    features: ["Bookings", "Transcripts", "Sessions"],
+    tint: "users",
+    shortLabel: "Bookings",
+  },
+  "/appointments": {
+    tag: "Consultations",
+    features: ["Upcoming", "Past sessions"],
+    tint: "marketplace",
+    shortLabel: "Consults",
+  },
+  "/wallet": {
+    tag: "Wallet",
+    features: ["Balance", "Top up"],
+    tint: "cases",
+    shortLabel: "Wallet",
+  },
 };
 
 export function getModuleMeta(href: string): DashboardModuleMeta {

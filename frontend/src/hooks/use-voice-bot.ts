@@ -47,6 +47,7 @@ export interface UseVoiceBotResult {
   voiceMessages: VoiceMessage[];
   lawyerResults: LawyerMatchResult[];
   lastBooking: VoiceBookedAppointment | null;
+  dismissLastBooking: () => void;
   startListening: () => void;
   interrupt: () => void;
   stop: () => void;
@@ -404,5 +405,19 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
     playCtxRef.current = null;
   }, [stop]);
 
-  return { botState, transcript, amplitude, permissionDenied, voiceMessages, lawyerResults, lastBooking, startListening: connect, interrupt, stop };
+  const dismissLastBooking = useCallback(() => setLastBooking(null), []);
+
+  return {
+    botState,
+    transcript,
+    amplitude,
+    permissionDenied,
+    voiceMessages,
+    lawyerResults,
+    lastBooking,
+    dismissLastBooking,
+    startListening: connect,
+    interrupt,
+    stop,
+  };
 }

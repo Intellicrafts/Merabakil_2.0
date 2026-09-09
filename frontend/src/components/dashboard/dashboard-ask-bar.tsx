@@ -1,27 +1,35 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { ArrowUpRight, Sparkles } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { ArrowUpRight, AudioLines, Sparkles } from "lucide-react";
 
+import { isVoiceBotSupported } from "@/hooks/use-voice-bot";
+import { FEATURES } from "@/lib/features";
 import { markNavigationStart } from "@/lib/navigation-feedback";
-import { setMeraVakilPrefill } from "@/lib/prefill-store";
+import { setMeraVakilPrefill, setMeraVakilVoiceOpen } from "@/lib/prefill-store";
 import { cn } from "@/lib/utils";
 
 export function DashboardAskBar({ className }: { className?: string }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [voiceReady, setVoiceReady] = useState(false);
 
-  function openCounsel(text: string) {
-    const trimmed = text.trim();
+  useEffect(() => {
+    setVoiceReady(FEATURES.VOICE && isVoiceBotSupported());
+  }, []);
+
+  function goToSaarthi(opts?: { voice?: boolean }) {
+    const trimmed = query.trim();
     if (trimmed) setMeraVakilPrefill(trimmed);
+    if (opts?.voice) setMeraVakilVoiceOpen();
     markNavigationStart();
     router.push("/mera-vakil");
   }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    openCounsel(query);
+    goToSaarthi();
   }
 
   return (
@@ -39,11 +47,11 @@ export function DashboardAskBar({ className }: { className?: string }) {
       </label>
       <div
         className={cn(
-          "flex items-center gap-2 rounded-2xl border border-black/[0.07] bg-white/80 p-1.5 pl-3 shadow-[0_8px_28px_rgba(15,23,42,0.05)]",
-          "backdrop-blur-xl dark:border-white/[0.10] dark:bg-white/[0.06] sm:gap-3 sm:rounded-[1.25rem] sm:p-2 sm:pl-3.5",
+          "flex items-center gap-1.5 rounded-2xl border border-[hsl(28_14%_64%)] bg-white p-1.5 pl-3 shadow-[0_10px_24px_rgba(42,28,12,0.07)]",
+          "dark:border-white/[0.10] dark:bg-white/[0.06] sm:gap-2 sm:rounded-[1.25rem] sm:p-2 sm:pl-3.5",
         )}
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15 sm:h-10 sm:w-10 sm:rounded-2xl">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black/[0.04] text-foreground/70 dark:bg-white/[0.08] sm:h-10 sm:w-10 sm:rounded-2xl">
           <Sparkles className="h-4 w-4" strokeWidth={1.75} />
         </span>
         <input
@@ -54,18 +62,33 @@ export function DashboardAskBar({ className }: { className?: string }) {
           autoComplete="off"
           className="min-h-11 min-w-0 flex-1 bg-transparent text-[15px] tracking-tight outline-none placeholder:text-muted-foreground/70 sm:min-h-10"
         />
-        <button
-          type="submit"
-          className={cn(
-            "inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground shadow-sm",
-            "transition-transform duration-150 hover:brightness-110 active:scale-[0.97]",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2",
-            "sm:h-10 sm:px-4",
-          )}
-        >
-          <span className="hidden sm:inline">Ask</span>
-          <ArrowUpRight className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {voiceReady ? (
+            <button
+              type="button"
+              onClick={() => goToSaarthi({ voice: true })}
+              aria-label="Start voice mode"
+              title="Voice mode"
+              className={cn(
+                "mp-btn-primary h-11 min-w-11 rounded-full px-3 text-[13px] font-semibold",
+                "sm:h-10 sm:px-3.5",
+              )}
+            >
+              <AudioLines className="h-4 w-4" strokeWidth={1.85} />
+              <span className="hidden sm:inline">Voice</span>
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            className={cn(
+              "mp-btn-accent h-11 min-w-11 shrink-0 rounded-full px-3.5 text-[13px] font-semibold",
+              "sm:h-10 sm:px-4",
+            )}
+          >
+            <span className="hidden sm:inline">Ask</span>
+            <ArrowUpRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </form>
   );

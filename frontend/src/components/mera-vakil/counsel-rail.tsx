@@ -23,6 +23,7 @@ import {
 
 import { ConfirmDialog } from "@/components/mera-vakil/confirm-dialog";
 import { LanguagePicker } from "@/components/mera-vakil/language-picker";
+import { Select } from "@/components/ui/select";
 import { clearSession, getStoredUser } from "@/lib/api";
 import {
   JURISDICTION_OPTIONS,
@@ -238,10 +239,10 @@ export function ContextPanel({
                   <MoreHorizontal className="h-[18px] w-[18px] md:h-4 md:w-4" strokeWidth={1.75} />
                 </IconButton>
                 {menuOpen && (
-                  <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[10.5rem] overflow-hidden rounded-xl border border-black/[0.08] bg-white py-1 shadow-[0_12px_32px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-zinc-900">
+                  <div className="ui-select-menu ui-select-popover absolute right-0 top-[calc(100%+6px)] z-50 min-w-[12rem] p-1.5">
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-foreground hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
+                      className="ui-select-option"
                       onClick={() => {
                         setMenuOpen(false);
                         signOut();
@@ -306,19 +307,20 @@ export function ContextPanel({
                 );
               })}
             </div>
-            <select
+            <Select
               value={activeConversation.jurisdiction ?? ""}
               onChange={(e) => onJurisdictionChange?.(e.target.value)}
-              className="h-10 w-full rounded-full border border-black/[0.06] bg-transparent px-3 text-[12px] outline-none md:h-8 dark:border-white/10"
+              className="h-11 w-full rounded-full text-[13px] md:h-9"
               aria-label="Jurisdiction"
+              placeholder="Jurisdiction"
             >
-              <option value="">Jurisdiction</option>
+              <option value="">All jurisdictions</option>
               {JURISDICTION_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
 

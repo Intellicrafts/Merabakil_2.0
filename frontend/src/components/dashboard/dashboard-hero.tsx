@@ -25,6 +25,14 @@ function formatDate(): string {
   }).format(new Date());
 }
 
+function formatDateShort(): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(new Date());
+}
+
 function contextLine(openCount: number, appointmentCount: number): string {
   const parts: string[] = [];
   if (openCount > 0) {
@@ -67,28 +75,36 @@ export function DashboardHero({
       <div className="pointer-events-none absolute -bottom-28 -left-16 h-52 w-52 rounded-full dash-hero-orb dash-hero-glow opacity-70" />
 
       <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(260px,380px)] lg:gap-10">
-        <div className="space-y-5 sm:space-y-6">
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2.5">
-              <p className="text-[13px] text-muted-foreground">{formatDate()}</p>
-              <span className="inline-flex items-center rounded-full border border-black/[0.08] bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground dark:border-white/[0.10] dark:bg-white/[0.05]">
+        <div className="space-y-4 sm:space-y-6">
+          <div className="space-y-1.5 sm:space-y-2.5">
+            <div className="flex items-center gap-2">
+              <p className="text-[12px] text-muted-foreground sm:text-[13px]">
+                <span className="sm:hidden">{formatDateShort()}</span>
+                <span className="hidden sm:inline">{formatDate()}</span>
+              </p>
+              <span className="hidden items-center rounded-full border border-black/[0.08] bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground dark:border-white/[0.10] dark:bg-white/[0.05] sm:inline-flex">
                 Closed Beta
               </span>
+              {ready && context ? (
+                <span className="inline-flex items-center rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium text-muted-foreground dark:bg-white/[0.06] sm:hidden">
+                  {context}
+                </span>
+              ) : null}
             </div>
-            <h1 className="text-[1.85rem] font-semibold leading-[1.12] tracking-tight sm:text-[2.2rem] md:text-[2.4rem]">
+            <h1 className="text-[1.55rem] font-semibold leading-[1.12] tracking-tight sm:text-[2.2rem] md:text-[2.4rem]">
               {getGreeting()}, <span className="gradient-text">{firstName}</span>
             </h1>
-            <p className="max-w-lg text-[13px] leading-relaxed text-muted-foreground sm:text-[15px]">
+            <p className="hidden max-w-lg text-[15px] leading-relaxed text-muted-foreground sm:block">
               <span className="font-medium text-foreground/90">{config.headline}</span>
               {" — "}
               {config.subtitle}
             </p>
             {ready ? (
               context ? (
-                <p className="text-[13px] text-muted-foreground/80">{context}</p>
+                <p className="hidden text-[13px] text-muted-foreground/80 sm:block">{context}</p>
               ) : null
             ) : (
-              <Skeleton className="h-4 w-48" />
+              <Skeleton className="hidden h-4 w-48 sm:block" />
             )}
           </div>
 
@@ -97,7 +113,7 @@ export function DashboardHero({
           {lastCounsel && (
             <Link
               href={`/mera-vakil?c=${lastCounsel.id}`}
-              className="inline-flex h-8 w-fit items-center gap-1.5 rounded-full border border-black/[0.08] bg-black/[0.04] px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-black/[0.07] hover:text-foreground dark:border-white/[0.12] dark:bg-white/[0.06] dark:text-white/60 dark:hover:bg-white/[0.10] dark:hover:text-white/90"
+              className="hidden h-8 w-fit items-center gap-1.5 rounded-full border border-black/[0.08] bg-black/[0.04] px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-black/[0.07] hover:text-foreground dark:border-white/[0.12] dark:bg-white/[0.06] dark:text-white/60 dark:hover:bg-white/[0.10] dark:hover:text-white/90 sm:inline-flex"
             >
               <MessageSquare className="h-3 w-3" />
               Continue last chat
