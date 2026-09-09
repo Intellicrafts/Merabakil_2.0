@@ -1,4 +1,6 @@
 import type { ResearchResponse, ConversationTurn } from "@/lib/types";
+import { getToken } from "@/lib/api";
+import { authServiceUrl } from "@/lib/service-urls";
 
 export type ChatMessageRole = "user" | "assistant";
 
@@ -71,37 +73,68 @@ export interface ChatConversation {
   updatedAt: string;
 }
 
-const STORAGE_KEY = "legalos.meravakil.conversations";
-const ACTIVE_ID_KEY = "legalos.meravakil.active-id";
 const MAX_CONVERSATIONS = 50;
+const ACTIVE_ID_KEY = "legalos.meravakil.active-id";
 
-function generateId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+// In-memory conversation cache. Populated by initConversations() on page load.
+let _cache: ChatConversation[] = [];
+
+// ── Low-level API helper ───────────────────────────────────────────────────────
+
+async function _callApi<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const token = getToken();
+  if (!token) throw new Error("Not authenticated");
+  const res = await fetch(`${authServiceUrl()}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`Conversations API error ${res.status}`);
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
 }
+
+function toApiPayload(conv: ChatConversation): Record<string, unknown> {
+  return {
+    id: conv.id,
+    title: conv.title,
+    messages: conv.messages,
+    document_id: conv.documentId ?? null,
+    attached_documents: conv.attachedDocuments ?? [],
+    draft_case_id: conv.draftCaseId ?? null,
+    jurisdiction: conv.jurisdiction ?? null,
+    matter_type: conv.matterType ?? null,
+    pinned: conv.pinned ?? false,
+  };
+}
+
+// ── Public initialisation ─────────────────────────────────────────────────────
+
+/** Fetch conversations from server and populate the in-memory cache. Call on mount. */
+export async function initConversations(): Promise<ChatConversation[]> {
+  try {
+    const data = await _callApi<ChatConversation[]>("GET", "/api/v1/conversations");
+    _cache = Array.isArray(data) ? data : [];
+  } catch {
+    _cache = [];
+  }
+  return _cache;
+}
+
+// ── Sync reads (use in-memory cache) ─────────────────────────────────────────
 
 export function loadConversations(): ChatConversation[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as ChatConversation[];
-  } catch {
-    return [];
-  }
+  return _cache;
 }
 
-function saveAll(conversations: ChatConversation[]): void {
-  const trimmed = conversations
-    .sort((a, b) => {
-      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    })
-    .slice(0, MAX_CONVERSATIONS);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+export function getConversation(id: string): ChatConversation | null {
+  return _cache.find((c) => c.id === id) ?? null;
 }
+
+// ── Active conversation ID — stays in localStorage (ephemeral UI state) ───────
 
 export function loadActiveConversationId(): string | null {
   if (typeof window === "undefined") return null;
@@ -112,6 +145,26 @@ export function saveActiveConversationId(id: string | null): void {
   if (typeof window === "undefined") return;
   if (id) localStorage.setItem(ACTIVE_ID_KEY, id);
   else localStorage.removeItem(ACTIVE_ID_KEY);
+}
+
+// ── Cache management ──────────────────────────────────────────────────────────
+
+function syncCache(conversations: ChatConversation[]): void {
+  _cache = conversations
+    .sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .slice(0, MAX_CONVERSATIONS);
+}
+
+// ── Generators ────────────────────────────────────────────────────────────────
+
+function generateId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export function createConversation(
@@ -134,8 +187,10 @@ export function createConversation(
   };
 }
 
+// ── Mutations (sync cache update + fire-and-forget server write) ──────────────
+
 export function upsertConversation(conversation: ChatConversation): ChatConversation {
-  const all = loadConversations();
+  const all = [..._cache];
   const idx = all.findIndex((c) => c.id === conversation.id);
   const updated = { ...conversation, updatedAt: new Date().toISOString() };
   if (idx >= 0) {
@@ -143,7 +198,8 @@ export function upsertConversation(conversation: ChatConversation): ChatConversa
   } else {
     all.unshift(updated);
   }
-  saveAll(all);
+  syncCache(all);
+  void _callApi("POST", "/api/v1/conversations", toApiPayload(updated)).catch(() => {});
   return updated;
 }
 
@@ -159,15 +215,13 @@ export function togglePinConversation(id: string): ChatConversation | null {
   return upsertConversation({ ...conv, pinned: !conv.pinned });
 }
 
-export function getConversation(id: string): ChatConversation | null {
-  return loadConversations().find((c) => c.id === id) ?? null;
+export function deleteConversation(id: string): void {
+  syncCache(_cache.filter((c) => c.id !== id));
+  if (loadActiveConversationId() === id) saveActiveConversationId(null);
+  void _callApi("DELETE", `/api/v1/conversations/${id}`).catch(() => {});
 }
 
-export function deleteConversation(id: string): void {
-  const all = loadConversations().filter((c) => c.id !== id);
-  saveAll(all);
-  if (loadActiveConversationId() === id) saveActiveConversationId(null);
-}
+// ── Message builders ──────────────────────────────────────────────────────────
 
 export function createUserMessage(content: string, attachments?: ChatAttachment[]): ChatMessage {
   return {
@@ -194,6 +248,8 @@ export function createAssistantMessage(research: ResearchResponse): ChatMessage 
     revealedChars: 0,
   };
 }
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
 export function deriveTitleFromQuery(query: string): string {
   const trimmed = query.trim();

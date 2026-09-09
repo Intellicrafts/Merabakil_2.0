@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.conversations import router as conversations_router
 from app.api.routes import router, users_router
 from app.config import get_settings
 from legalos_common.api import (
@@ -48,3 +49,4 @@ setup_telemetry(app, settings)
 app.include_router(build_health_router(settings.service_name))
 app.include_router(router)
 app.include_router(users_router)
+app.include_router(conversations_router)

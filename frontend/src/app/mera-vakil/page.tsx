@@ -29,6 +29,7 @@ import {
   type ChatAttachment,
   deleteConversation,
   deriveTitleFromQuery,
+  initConversations,
   loadActiveConversationId,
   loadConversations,
   renameConversation,
@@ -177,34 +178,35 @@ export default function MeraVakilPage() {
   }, [totalMessageCount, sessionId, isResearching]);
 
   useEffect(() => {
-    const all = loadConversations();
-    setConversations(all);
-    const convId = new URLSearchParams(window.location.search).get("c");
-    if (convId) {
-      const found = all.find((c) => c.id === convId);
-      if (found) {
-        setActiveConversation(found);
-        setDraftCaseId(found.draftCaseId ?? null);
-        saveActiveConversationId(found.id);
+    void (async () => {
+      // Load theme and panel state synchronously so UI doesn't flash
+      const stored = localStorage.getItem(THEME_KEY);
+      const prefersDark = stored === "dark";
+      setDark(prefersDark);
+      document.documentElement.classList.toggle("dark", prefersDark);
+      setSpeechLocale(loadSpeechLocale());
+      const panelStored = localStorage.getItem(CONTEXT_PANEL_KEY);
+      if (panelStored !== null) setRightPanelOpen(panelStored === "true");
+      const prefill = consumeMeraVakilPrefill();
+      if (prefill) setInput(prefill);
+      const wantVoice =
+        consumeMeraVakilVoiceOpen() || new URLSearchParams(window.location.search).get("voice") === "1";
+      if (wantVoice && FEATURES.VOICE && isVoiceBotSupported()) setVoiceModeOpen(true);
+
+      // Fetch conversations from server (falls back to [] on error)
+      const all = await initConversations();
+      setConversations(all);
+      const convId = new URLSearchParams(window.location.search).get("c");
+      if (convId) {
+        const found = all.find((c) => c.id === convId);
+        if (found) {
+          setActiveConversation(found);
+          setDraftCaseId(found.draftCaseId ?? null);
+          saveActiveConversationId(found.id);
+        }
       }
-    }
-    const stored = localStorage.getItem(THEME_KEY);
-    const prefersDark = stored === "dark";
-    setDark(prefersDark);
-    document.documentElement.classList.toggle("dark", prefersDark);
-    setSpeechLocale(loadSpeechLocale());
-    const panelStored = localStorage.getItem(CONTEXT_PANEL_KEY);
-    if (panelStored !== null) {
-      setRightPanelOpen(panelStored === "true");
-    }
-    const prefill = consumeMeraVakilPrefill();
-    if (prefill) setInput(prefill);
-    const wantVoice =
-      consumeMeraVakilVoiceOpen() || new URLSearchParams(window.location.search).get("voice") === "1";
-    if (wantVoice && FEATURES.VOICE && isVoiceBotSupported()) {
-      setVoiceModeOpen(true);
-    }
-    setHydrated(true);
+      setHydrated(true);
+    })();
   }, []);
 
   function setRightPanelOpenPersisted(open: boolean) {

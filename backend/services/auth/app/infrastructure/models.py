@@ -185,6 +185,22 @@ class RefreshToken(Base, UUIDMixin, TimestampMixin):
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
+class SaarthiConversation(Base, UUIDMixin, TimestampMixin):
+    __tablename__ = "saarthi_conversations"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="New Chat")
+    messages: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    document_id: Mapped[str | None] = mapped_column(String(36))
+    attached_documents: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    draft_case_id: Mapped[str | None] = mapped_column(String(36))
+    jurisdiction: Mapped[str | None] = mapped_column(String(100))
+    matter_type: Mapped[str | None] = mapped_column(String(50))
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
 class PasswordResetToken(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "password_reset_tokens"
     __table_args__ = (UniqueConstraint("token_hash", name="uq_password_reset_token_hash"),)
