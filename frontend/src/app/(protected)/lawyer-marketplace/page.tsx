@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Search, X } from "lucide-react";
 
 import { AppointmentList } from "@/components/lawyer-marketplace/appointment-list";
 import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
 import { LawyerCard } from "@/components/lawyer-marketplace/lawyer-card";
+import { Input } from "@/components/ui/input";
 import {
   LawyerFilters,
   type LawyerFilterState,
@@ -25,6 +27,49 @@ import type { AppointmentRecord } from "@/lib/appointment-types";
 import { listLawyers, toRankedLawyer, type RankedLawyer } from "@/lib/marketplace-store";
 import { cn } from "@/lib/utils";
 
+type AptStatusFilter = "all" | "upcoming" | "completed" | "cancelled";
+type AptDateFilter = "all" | "week" | "month" | "3months";
+
+function ConsultationFilterBar({
+  search, onSearch, status, onStatus, date, onDate, total, filtered,
+}: {
+  search: string; onSearch: (v: string) => void;
+  status: AptStatusFilter; onStatus: (v: AptStatusFilter) => void;
+  date: AptDateFilter; onDate: (v: AptDateFilter) => void;
+  total: number; filtered: number;
+}) {
+  const isActive = search.trim() !== "" || status !== "all" || date !== "all";
+  const sel = "h-9 rounded-xl border border-input bg-background px-3 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer";
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Search by name…" className="h-9 w-44 rounded-xl pl-8 text-[13px] sm:w-52" />
+      </div>
+      <select value={status} onChange={(e) => onStatus(e.target.value as AptStatusFilter)} className={sel} aria-label="Filter by status">
+        <option value="all">All statuses</option>
+        <option value="upcoming">Upcoming</option>
+        <option value="completed">Completed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <select value={date} onChange={(e) => onDate(e.target.value as AptDateFilter)} className={sel} aria-label="Filter by date">
+        <option value="all">All time</option>
+        <option value="week">This week</option>
+        <option value="month">This month</option>
+        <option value="3months">Last 3 months</option>
+      </select>
+      {isActive && (
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-muted-foreground">{filtered} of {total}</span>
+          <button type="button" onClick={() => { onSearch(""); onStatus("all"); onDate("all"); }} className="inline-flex items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+            <X className="h-3 w-3" /> Clear
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LawyerMarketplacePage() {
   const [tab, setTab] = useState("lawyers");
   const [filters, setFilters] = useState<LawyerFilterState>({
@@ -42,6 +87,9 @@ export default function LawyerMarketplacePage() {
   const [appointmentsVersion, setAppointmentsVersion] = useState(0);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
+  const [aptSearch, setAptSearch] = useState("");
+  const [aptStatus, setAptStatus] = useState<AptStatusFilter>("all");
+  const [aptDate, setAptDate] = useState<AptDateFilter>("all");
   const [catalogTick, setCatalogTick] = useState(0);
   const debouncedQuery = useDebouncedValue(filters.query, 300);
 
@@ -151,6 +199,21 @@ export default function LawyerMarketplacePage() {
     [catalog, filters],
   );
 
+  const filteredAppointments = useMemo(() => appointments.filter((a) => {
+    if (aptSearch.trim()) {
+      const q = aptSearch.toLowerCase();
+      if (!(a.counterpart_name ?? a.citizen_name ?? "").toLowerCase().includes(q)) return false;
+    }
+    if (aptStatus === "upcoming" && !["requested","confirmed","live"].includes(a.status)) return false;
+    if (aptStatus === "completed" && a.status !== "completed") return false;
+    if (aptStatus === "cancelled" && !["cancelled","expired","no_show"].includes(a.status)) return false;
+    if (aptDate !== "all" && a.scheduled_at) {
+      const days = ({ week: 7, month: 30, "3months": 90 } as const)[aptDate];
+      if (new Date(a.scheduled_at).getTime() < Date.now() - days * 86_400_000) return false;
+    }
+    return true;
+  }), [appointments, aptSearch, aptStatus, aptDate]);
+
   const verifiedCount = catalog.filter((l) => l.verified).length;
   const avgMatch =
     lawyers.length > 0
@@ -249,7 +312,15 @@ export default function LawyerMarketplacePage() {
           )}
         </TabsContent>
 
-        <TabsContent value="appointments" className="mt-4">
+        <TabsContent value="appointments" className="mt-4 space-y-4">
+          {!appointmentsLoading && (
+            <ConsultationFilterBar
+              search={aptSearch} onSearch={setAptSearch}
+              status={aptStatus} onStatus={setAptStatus}
+              date={aptDate} onDate={setAptDate}
+              total={appointments.length} filtered={filteredAppointments.length}
+            />
+          )}
           {appointmentsLoading ? (
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
@@ -258,7 +329,7 @@ export default function LawyerMarketplacePage() {
             </div>
           ) : (
             <AppointmentList
-              appointments={appointments}
+              appointments={filteredAppointments}
               onChanged={() => setAppointmentsVersion((v) => v + 1)}
             />
           )}
