@@ -23,7 +23,9 @@ def _format_lawyers(lawyers: list[dict]) -> str:
         return "No matching lawyers found on the platform."
     lines = ["**Recommended Lawyers:**\n"]
     for i, lawyer in enumerate(lawyers, 1):
-        lines.append(f"[LAWYER-{i}] {lawyer['full_name']}")
+        lines.append(f"[LAWYER-{i}] {lawyer['full_name']} (booking_id: {lawyer['id']})")
+        if lawyer.get("city"):
+            lines.append(f"Location: {lawyer['city']}")
         if lawyer.get("summary"):
             lines.append(lawyer["summary"])
         lines.append("")

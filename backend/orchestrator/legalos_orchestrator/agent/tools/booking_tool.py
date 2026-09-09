@@ -40,7 +40,7 @@ def build_book_appointment_tool(marketplace_base_url: str):
         Default time_slot to "Immediate" unless the user specifies a time.
 
         Args:
-            lawyer_id: UUID of the lawyer from the get_lawyer result.
+            lawyer_id: The booking_id UUID shown in the get_lawyer result (e.g. "3783a27e-..."). Always copy it exactly — never guess or construct it.
             date: Consultation date in YYYY-MM-DD format. Use today's date unless the user
                   specifies otherwise (today is provided in the system prompt context).
             time_slot: "Immediate" for right now, or a specific time like "10:00 AM".
