@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clock3, FileText, FolderOpen, Sparkles } from "lucide-react";
+import { Clock3, FileText, FolderOpen, Sparkles } from "lucide-react";
 
 import {
   cancelAppointment,
@@ -23,9 +23,9 @@ import { Badge } from "@/components/ui/badge";
 import type { AppointmentMessage, AppointmentRecord } from "@/lib/appointment-types";
 import type { AiBrief } from "@/lib/types";
 
-// ── Mini Case Brief panel ────────────────────────────────────────────────────
+// ── Case Facts panel (lawyer view) ───────────────────────────────────────────
 
-function CaseBriefPanel({ caseId }: { caseId: string }) {
+function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSummary: string }) {
   const { data: caseItem, isLoading } = useQuery({
     queryKey: ["case", caseId],
     queryFn: () => getCaseApi(caseId),
@@ -52,12 +52,11 @@ function CaseBriefPanel({ caseId }: { caseId: string }) {
 
   if (!caseItem) {
     return (
-      <p className="text-[13px] text-muted-foreground">Case brief could not be loaded.</p>
+      <p className="text-[13px] text-muted-foreground">Case facts could not be loaded.</p>
     );
   }
 
   const brief: AiBrief = caseItem.ai_brief ?? {};
-  const hasBrief = brief.problem_summary || (brief.key_facts?.length ?? 0) > 0;
   const caseDocuments = docs ?? [];
 
   return (
@@ -79,77 +78,36 @@ function CaseBriefPanel({ caseId }: { caseId: string }) {
           </Link>
         </div>
         <h3 className="mt-2 text-[15px] font-semibold">{caseItem.title}</h3>
-        {caseItem.description && (
-          <p className="mt-1 text-[13px] text-muted-foreground">{caseItem.description}</p>
-        )}
       </div>
 
-      {hasBrief ? (
-        <>
-          {brief.problem_summary && (
-            <div>
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Problem Summary
-              </p>
-              <p className="text-[13px] leading-relaxed">{brief.problem_summary}</p>
-            </div>
-          )}
-
-          {(brief.key_facts?.length ?? 0) > 0 && (
-            <div>
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Key Facts
-              </p>
-              <ul className="space-y-1">
-                {brief.key_facts!.map((fact, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[13px]">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
-                    {fact}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {(brief.legal_issues?.length ?? 0) > 0 && (
-            <div>
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Legal Issues
-              </p>
-              <ul className="space-y-1">
-                {brief.legal_issues!.map((issue, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[13px]">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-                    {issue}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {(brief.recommended_actions?.length ?? 0) > 0 && (
-            <div>
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Recommended Actions
-              </p>
-              <ol className="space-y-1.5">
-                {brief.recommended_actions!.map((action, i) => (
-                  <li key={i} className="flex items-start gap-2 text-[13px]">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                      {i + 1}
-                    </span>
-                    {action}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="text-[13px] text-muted-foreground">
-          No AI brief available for this case yet.
+      {/* Section 1: Client Problem */}
+      <div>
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Client Problem
         </p>
-      )}
+        <p className="text-[13px] leading-relaxed">
+          {brief.problem_summary || matterSummary}
+        </p>
+      </div>
+
+      {/* Section 2: Case Details — Key Facts */}
+      <div>
+        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Case Details
+        </p>
+        {(brief.key_facts?.length ?? 0) > 0 ? (
+          <ul className="space-y-1">
+            {brief.key_facts!.map((fact, i) => (
+              <li key={i} className="flex items-start gap-2 text-[13px]">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+                {fact}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[13px] text-muted-foreground">No key facts extracted yet.</p>
+        )}
+      </div>
 
       {/* Documents */}
       {caseDocuments.length > 0 && (
@@ -281,15 +239,15 @@ export default function AppointmentDetailsPage() {
             }`}
           >
             <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-            Case Brief
+            Case Facts
           </button>
         </div>
       )}
 
-      {/* Case Brief tab content */}
+      {/* Case Facts tab content */}
       {hasCaseBrief && activeTab === "brief" && (
         <div className="rounded-3xl border border-black/[0.06] bg-white/55 p-5 shadow-[0_16px_48px_rgba(15,23,42,0.05)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.035]">
-          <CaseBriefPanel caseId={apt.case_id!} />
+          <CaseFactsPanel caseId={apt.case_id!} matterSummary={apt.matter_summary ?? ""} />
         </div>
       )}
 
