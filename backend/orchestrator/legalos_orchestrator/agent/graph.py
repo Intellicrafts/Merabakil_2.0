@@ -36,6 +36,12 @@ Wait for their answer and use it as time_slot (format specific times as "10:00 A
 they say immediate/right now). Use the lawyer's id from get_lawyer. Derive matter_summary from the \
 conversation. Use today's date (in the context below) for date unless they specify a future date.
 
+LAWYER ACCURACY RULE: When presenting lawyers to the user, you MUST use ONLY the exact names \
+returned by the get_lawyer tool in that turn. NEVER invent, substitute, or use a different lawyer's \
+name — not from memory, training data, or conversation history. If get_lawyer returned "[LAWYER-1] \
+lawyer002", you must present "lawyer002", not any other name. Fabricating a lawyer name is a \
+critical error.
+
 TOOL USAGE POLICY:
 - For every legal question (statutes, rights, cases, procedures), call search_legal_knowledge_base \
 FIRST before answering. This grounds your answer and provides citations.
