@@ -149,9 +149,11 @@ async def book(
     start = parse_slot(date, time_slot)
     if start < now_ist() - timedelta(seconds=30):
         raise ValueError("Choose a future date and time slot.")
-    if await repo.slot_taken(lawyer.id, start):
-        raise ValueError("That slot is already booked with this counsel.")
     end = start + timedelta(minutes=WINDOW_MINUTES)
+    if await repo.slot_taken(lawyer.id, start, end):
+        raise ValueError("That time slot is already booked with this counsel. Please choose a different time.")
+    if await repo.citizen_slot_taken(client_id, start, end):
+        raise ValueError("You already have an appointment at this time. Please choose a different slot.")
     status = "confirmed" if auto_confirm() and lawyer.is_verified else "requested"
     row = await repo.create_consultation(
         client_id=client_id,

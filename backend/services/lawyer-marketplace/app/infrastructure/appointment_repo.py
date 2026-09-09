@@ -209,10 +209,20 @@ class MarketplaceRepository:
         stmt = stmt.order_by(Consultation.scheduled_at.desc())
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def slot_taken(self, lawyer_id: uuid.UUID, scheduled_at: datetime) -> bool:
+    async def slot_taken(self, lawyer_id: uuid.UUID, start: datetime, end: datetime) -> bool:
         stmt = select(Consultation.id).where(
             Consultation.lawyer_id == lawyer_id,
-            Consultation.scheduled_at == scheduled_at,
+            Consultation.scheduled_at < end,
+            Consultation.scheduled_end_at > start,
+            Consultation.status.notin_(("cancelled", "expired", "no_show")),
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none() is not None
+
+    async def citizen_slot_taken(self, client_id: uuid.UUID, start: datetime, end: datetime) -> bool:
+        stmt = select(Consultation.id).where(
+            Consultation.client_id == client_id,
+            Consultation.scheduled_at < end,
+            Consultation.scheduled_end_at > start,
             Consultation.status.notin_(("cancelled", "expired", "no_show")),
         )
         return (await self._session.execute(stmt)).scalar_one_or_none() is not None
