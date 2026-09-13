@@ -658,6 +658,10 @@ async def create_appointment(
     )
 
     booking_amount = lawyer.hourly_rate or 0
+    prior = await repo.count_citizen_consultations(uuid.UUID(user.user_id), exclude_id=row.id)
+    if prior == 0 and booking_amount > 0:
+        booking_amount = 0
+        row.metrics = {**(row.metrics or {}), "first_appointment_free": True}
     if booking_amount > 0:
         from decimal import Decimal
         try:

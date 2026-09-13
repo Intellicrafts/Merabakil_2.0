@@ -218,6 +218,15 @@ class MarketplaceRepository:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none() is not None
 
+    async def count_citizen_consultations(self, client_id: uuid.UUID, *, exclude_id: uuid.UUID) -> int:
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(Consultation).where(
+            Consultation.client_id == client_id,
+            Consultation.id != exclude_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one()
+
     async def citizen_slot_taken(self, client_id: uuid.UUID, start: datetime, end: datetime) -> bool:
         stmt = select(Consultation.id).where(
             Consultation.client_id == client_id,
