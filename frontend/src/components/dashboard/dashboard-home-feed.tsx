@@ -48,7 +48,6 @@ function appointmentHref(item: AppointmentRecord): string {
 
 export function DashboardHomeFeed({ snapshot }: { snapshot: DashboardSnapshot }) {
   const nextApt = useMemo(() => pickNextAppointment(snapshot.appointments), [snapshot.appointments]);
-  const matters = snapshot.upcoming.slice(0, 3);
   return (
     <section className="space-y-3.5 sm:hidden" aria-label="Your workspace">
       {!snapshot.ready ? (
@@ -62,12 +61,6 @@ export function DashboardHomeFeed({ snapshot }: { snapshot: DashboardSnapshot })
           {nextApt ? <UpcomingConsultCard apt={nextApt} /> : <FindAdvocateCard />}
 
           <ContinueCard lastCounsel={snapshot.lastCounsel} />
-
-          {matters.length > 0 ? (
-            <MattersCard matters={matters} openCount={snapshot.openCount} />
-          ) : (
-            <CasesTeaser />
-          )}
 
           <RecentActivityCard snapshot={snapshot} />
 
