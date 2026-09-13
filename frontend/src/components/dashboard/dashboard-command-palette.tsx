@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { FolderOpen, MessageSquare, Search, Sparkles } from "lucide-react";
+import { CalendarClock, FolderOpen, MessageSquare, Search, Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
-import { listCases } from "@/lib/cases-store";
+import { listAppointments, listCasesApi } from "@/lib/api";
 import {
   lastMessagePreview,
   loadConversations,
@@ -18,7 +18,7 @@ import { markNavigationStart } from "@/lib/navigation-feedback";
 import type { AuthUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type PaletteGroup = "workspace" | "counsel" | "docket";
+type PaletteGroup = "workspace" | "counsel" | "consultation" | "docket";
 
 interface PaletteItem {
   id: string;
@@ -31,16 +31,19 @@ interface PaletteItem {
 }
 
 const GROUP_LABEL: Record<PaletteGroup, string> = {
-  workspace: "Workspaces",
-  counsel: "Recent counsel",
-  docket: "Docket",
+  workspace:    "Workspaces",
+  counsel:      "Recent Chats",
+  consultation: "My Consultations",
+  docket:       "Cases",
 };
+
+const GROUP_ORDER: PaletteGroup[] = ["workspace", "counsel", "consultation", "docket"];
 
 function domId(id: string): string {
   return `palette-opt-${id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
-function collectItems(user: AuthUser | null): PaletteItem[] {
+function collectSyncItems(user: AuthUser | null): PaletteItem[] {
   const config = getDashboardConfig(user);
   const workspaces: PaletteItem[] = config.modules.map((mod) => ({
     id: `mod:${mod.href}`,
@@ -64,19 +67,40 @@ function collectItems(user: AuthUser | null): PaletteItem[] {
       conversationId: conv.id,
     }));
 
-  const docket: PaletteItem[] = listCases()
+  return [...workspaces, ...counsel];
+}
+
+async function collectAsyncItems(): Promise<PaletteItem[]> {
+  const [apts, page] = await Promise.all([
+    listAppointments(),
+    listCasesApi(undefined, 1, 10),
+  ]);
+
+  const consultations: PaletteItem[] = apts
+    .filter((a) => !["cancelled", "expired", "no_show"].includes(a.status))
+    .slice(0, 5)
+    .map((a) => ({
+      id: `apt:${a.id}`,
+      group: "consultation" as const,
+      title: a.counterpart_name || a.lawyer_name || a.citizen_name || "Consultation",
+      subtitle: `${a.matter_summary || "Legal consultation"} · ${a.date}`,
+      href: `/appointments/${a.id}`,
+      icon: CalendarClock,
+    }));
+
+  const docket: PaletteItem[] = page.items
     .filter((c) => c.status === "open" || c.status === "in_progress")
     .slice(0, 6)
-    .map((item) => ({
-      id: `case:${item.id}`,
+    .map((c) => ({
+      id: `case:${c.id}`,
       group: "docket" as const,
-      title: item.title,
-      subtitle: `${item.case_number} · ${item.court}`,
-      href: `/cases/${item.id}`,
+      title: c.title,
+      subtitle: [c.case_number, c.court].filter(Boolean).join(" · "),
+      href: `/cases/${c.id}`,
       icon: FolderOpen,
     }));
 
-  return [...workspaces, ...counsel, ...docket];
+  return [...consultations, ...docket];
 }
 
 function scoreItem(item: PaletteItem, query: string): number {
@@ -104,8 +128,11 @@ export function DashboardCommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [items, setItems] = useState<PaletteItem[]>([]);
+  const [syncItems, setSyncItems] = useState<PaletteItem[]>([]);
+  const [asyncItems, setAsyncItems] = useState<PaletteItem[]>([]);
   const [mounted, setMounted] = useState(false);
+
+  const items = useMemo(() => [...syncItems, ...asyncItems], [syncItems, asyncItems]);
 
   useEffect(() => setMounted(true), []);
 
@@ -113,7 +140,10 @@ export function DashboardCommandPalette({
     if (!open) return;
     setQuery("");
     setActive(0);
-    setItems(collectItems(user));
+    setSyncItems(collectSyncItems(user));
+    setAsyncItems([]);
+    void collectAsyncItems().then(setAsyncItems).catch(() => {});
+
     const id = window.requestAnimationFrame(() => inputRef.current?.focus());
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -140,18 +170,15 @@ export function DashboardCommandPalette({
       .sort((a, b) => b.score - a.score)
       .map((row) => row.item);
 
-    const order: PaletteGroup[] = ["workspace", "counsel", "docket"];
-    return order.flatMap((group) => ranked.filter((item) => item.group === group));
+    return GROUP_ORDER.flatMap((group) => ranked.filter((item) => item.group === group));
   }, [items, query]);
 
   const groups = useMemo(
     () =>
-      (["workspace", "counsel", "docket"] as const)
-        .map((group) => ({
-          group,
-          items: filtered.filter((item) => item.group === group),
-        }))
-        .filter((g) => g.items.length > 0),
+      GROUP_ORDER.map((group) => ({
+        group,
+        items: filtered.filter((item) => item.group === group),
+      })).filter((g) => g.items.length > 0),
     [filtered],
   );
 
@@ -224,7 +251,7 @@ export function DashboardCommandPalette({
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Jump to workspace, counsel, or matter…"
+              placeholder="Jump to workspace, consultation, or chat…"
               className="h-10 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
               aria-autocomplete="list"
               aria-controls="command-palette-list"
