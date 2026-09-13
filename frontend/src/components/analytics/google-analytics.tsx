@@ -9,13 +9,17 @@ import { clearAnalyticsUser } from "@/lib/analytics/track";
 import { readConsent } from "@/lib/consent";
 
 /**
- * Consent Mode v2: gtag.js loads when GA is enabled, but analytics_storage stays
- * denied until the user clicks "Accept all". Custom events are also gated in track().
+ * Consent Mode v2 — opt-out model for India (DPDP Act, not GDPR).
+ * analytics_storage defaults to 'granted'; users can opt out via "Necessary only".
+ * Only overrides consent mode if the user has already made an explicit choice,
+ * so the gtag default is not accidentally revoked for new visitors.
  */
 export function GoogleAnalytics() {
   useEffect(() => {
     const consent = readConsent();
-    updateConsentMode(consent?.analytics === true);
+    if (consent !== null) {
+      updateConsentMode(consent.analytics);
+    }
 
     function onConsentChanged(event: Event) {
       const detail = (event as CustomEvent<{ analytics: boolean }>).detail;
@@ -39,7 +43,7 @@ export function GoogleAnalytics() {
           function gtag(){dataLayer.push(arguments);}
           window.gtag = window.gtag || gtag;
           gtag('consent', 'default', {
-            analytics_storage: 'denied',
+            analytics_storage: 'granted',
             ad_storage: 'denied',
             ad_user_data: 'denied',
             ad_personalization: 'denied',
