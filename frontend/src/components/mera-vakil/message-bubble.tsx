@@ -9,6 +9,7 @@ import { ChatFileCard } from "@/components/mera-vakil/chat-file-card";
 import { SaarthiMark } from "@/components/mera-vakil/saarthi-mark";
 import { DocumentPreviewDialog, type PreviewTarget } from "@/components/mera-vakil/document-preview-dialog";
 import { AppointmentConfirmationCard } from "@/components/mera-vakil/appointment-confirmation-card";
+import { DraftDocumentCard } from "@/components/mera-vakil/draft-document-card";
 import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
@@ -17,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
 import type { ChatMessage } from "@/lib/conversations";
 import { FEATURES } from "@/lib/features";
-import type { LawyerMatchResult } from "@/lib/types";
+import type { DraftPayload, LawyerMatchResult } from "@/lib/types";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -163,6 +164,8 @@ export const MessageBubble = memo(function MessageBubble({
   const showAvatar = !showSkeleton;
   const lawyers = (research?.specialist_payload?.lawyers ?? []) as LawyerMatchResult[];
   const appointment = research?.specialist_payload?.appointment as Record<string, unknown> | undefined;
+  const draft = research?.specialist_payload?.draft as DraftPayload | undefined;
+  const draftLoading = Boolean(research?.specialist_payload?.draft_loading);
   const showMetadata = !stillTyping && Boolean(message.content);
 
   if (showSkeleton) {
@@ -246,6 +249,9 @@ export const MessageBubble = memo(function MessageBubble({
 
               {lawyers.length > 0 && FEATURES.AI_MATCHING && <LawyerRecommendationPanel lawyers={lawyers} caseId={caseId} />}
               {appointment && <AppointmentConfirmationCard appointment={appointment} />}
+              {(draft || draftLoading) && (
+                <DraftDocumentCard draft={draft} loading={draftLoading} />
+              )}
 
               {research.disclaimer && (
                 <p className="mv-msg-disclaimer">{research.disclaimer}</p>

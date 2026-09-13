@@ -802,6 +802,54 @@ export default function MeraVakilPage() {
               };
             });
           },
+          onDraftStatus: () => {
+            // Show loading card immediately while draft generates
+            setActiveConversation((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === assistantMsgId
+                    ? {
+                        ...m,
+                        research: m.research
+                          ? { ...m.research, specialist_payload: { ...m.research.specialist_payload, draft_loading: true } }
+                          : m.research,
+                      }
+                    : m,
+                ),
+              };
+            });
+          },
+          onDraft: (draft) => {
+            // Replace loading flag with actual draft, then persist
+            setActiveConversation((prev) => {
+              if (!prev) return prev;
+              const updated = {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === assistantMsgId
+                    ? {
+                        ...m,
+                        research: m.research
+                          ? {
+                              ...m.research,
+                              specialist_payload: {
+                                ...m.research.specialist_payload,
+                                draft_loading: false,
+                                draft,
+                              },
+                            }
+                          : m.research,
+                      }
+                    : m,
+                ),
+              };
+              // Persist after draft arrives
+              upsertConversation(updated);
+              return updated;
+            });
+          },
         },
         {
           signal: controller.signal,

@@ -337,6 +337,20 @@ async def research_stream(
                 _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE)
             )
 
+        # Draft generation — sent as separate SSE events AFTER done so the text
+        # answer is fully visible before the document card appears.
+        from app.infrastructure.draft_detector import detect_draft_intent
+        from app.infrastructure.draft_generator import generate_draft
+
+        is_draft, doc_type = detect_draft_intent(state.query)
+        if is_draft and answer:
+            yield "event: draft_status\ndata: " + _json.dumps({"status": "generating"}) + "\n\n"
+            history_dicts = [
+                {"role": m.role, "content": m.content} for m in (history or [])
+            ]
+            draft = await generate_draft(state.query, doc_type, history_dicts, container.llm)
+            yield "event: draft\ndata: " + _json.dumps(draft) + "\n\n"
+
     return StreamingResponse(
         generator(),
         media_type="text/event-stream",

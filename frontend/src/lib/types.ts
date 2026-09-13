@@ -186,6 +186,12 @@ export interface WebImageResult {
   caption: string;
 }
 
+export interface DraftPayload {
+  title: string;
+  document_type: string;
+  content: string;
+}
+
 export interface ResearchResponse {
   query: string;
   intent: string;
