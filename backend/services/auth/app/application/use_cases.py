@@ -80,7 +80,7 @@ class AuthService:
         password_resets: PasswordResetRepository,
         consents: UserConsentRepository,
         settings: AuthSettings,
-        billing=None,
+        events=None,
     ) -> None:
         self._users = users
         self._oauth_identities = oauth_identities
@@ -88,7 +88,7 @@ class AuthService:
         self._password_resets = password_resets
         self._consents = consents
         self._settings = settings
-        self._billing = billing
+        self._events = events
 
     # ---- token helpers --------------------------------------------------- #
     async def _issue_tokens(self, user) -> TokenPair:
@@ -192,8 +192,8 @@ class AuthService:
             privacy_version=privacy_version,
             ip_hash=ip_hash,
         )
-        if self._billing is not None:
-            await self._billing.init_wallet(user_id=str(user.id))
+        if self._events is not None:
+            await self._events.publish_user_registered(user_id=str(user.id), role=role)
         refreshed = await self._users.get_by_id(user.id)
         assert refreshed is not None
         tokens = await self._issue_tokens(refreshed)
@@ -286,8 +286,8 @@ class AuthService:
             privacy_version=privacy_version,
             ip_hash=ip_hash,
         )
-        if self._billing is not None:
-            await self._billing.init_wallet(user_id=str(user.id))
+        if self._events is not None:
+            await self._events.publish_user_registered(user_id=str(user.id), role=role)
 
         refreshed = await self._users.get_by_id(user.id)
         assert refreshed is not None
