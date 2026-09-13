@@ -141,6 +141,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   const roomRef = useRef<unknown>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const remoteAudioElsRef = useRef<HTMLAudioElement[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [, setStreamTick] = useState(0);
   const typingTimer = useRef<number | null>(null);
@@ -202,6 +203,8 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     localStreamRef.current = null;
     setLocalStream(null);
     remoteStreamRef.current = null;
+    remoteAudioElsRef.current.forEach((el) => el.remove());
+    remoteAudioElsRef.current = [];
     void leaveAppointment(appointmentId).catch(() => undefined);
     router.push("/lawyer-marketplace");
   }, [appointmentId, router]);
@@ -220,6 +223,8 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     localStreamRef.current = null;
     setLocalStream(null);
     remoteStreamRef.current = null;
+    remoteAudioElsRef.current.forEach((el) => el.remove());
+    remoteAudioElsRef.current = [];
     if (callPhase === "in_call") {
       setCallPhase("idle");
       setActiveCallId(null);
@@ -463,18 +468,27 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         return true;
       }
       const lk = await import("livekit-client");
-      const room = new lk.Room({ adaptiveStream: true, dynacast: true });
+      const room = new lk.Room({ dynacast: true });
       roomRef.current = room;
       const composedRemote = new MediaStream();
       const composedLocal = new MediaStream();
+
+      const getTrackMST = (track: unknown): MediaStreamTrack | undefined => {
+        const t = track as Record<string, unknown>;
+        if (t.mediaStreamTrack instanceof MediaStreamTrack) return t.mediaStreamTrack;
+        const ms = t.mediaStream;
+        if (ms instanceof MediaStream) return ms.getTracks()[0];
+        return undefined;
+      };
+
       room.on(lk.RoomEvent.ParticipantConnected, () =>
         setJoin((prev) => (prev ? { ...prev, opponent_present: true } : prev)),
       );
       room.on(lk.RoomEvent.ParticipantDisconnected, () =>
         setJoin((prev) => (prev ? { ...prev, opponent_present: false } : prev)),
       );
-      room.on(lk.RoomEvent.LocalTrackPublished, (pub: { track?: { mediaStreamTrack?: MediaStreamTrack; mediaStream?: MediaStream } }) => {
-        const mst = pub.track?.mediaStreamTrack;
+      room.on(lk.RoomEvent.LocalTrackPublished, (pub: unknown) => {
+        const mst = getTrackMST((pub as Record<string, unknown>).track);
         if (mst) {
           composedLocal.getTracks().filter((t) => t.kind === mst.kind).forEach((t) => composedLocal.removeTrack(t));
           composedLocal.addTrack(mst);
@@ -482,21 +496,35 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           setLocalStream(new MediaStream(composedLocal.getTracks()));
         }
       });
-      room.on(lk.RoomEvent.TrackSubscribed, (track: { kind: unknown; mediaStreamTrack?: MediaStreamTrack }) => {
-        if (track.kind === lk.Track.Kind.Video || track.kind === lk.Track.Kind.Audio) {
-          const mst = track.mediaStreamTrack;
+      room.on(lk.RoomEvent.TrackSubscribed, (track: unknown) => {
+        const t = track as Record<string, unknown>;
+        if (t.kind === lk.Track.Kind.Audio) {
+          // Use LiveKit's own attach() for audio — handles autoplay + browser compat reliably
+          const audioEl = (t.attach as () => HTMLAudioElement)();
+          audioEl.autoplay = true;
+          audioEl.style.cssText = "position:absolute;width:0;height:0;";
+          document.body.appendChild(audioEl);
+          remoteAudioElsRef.current.push(audioEl);
+        } else if (t.kind === lk.Track.Kind.Video) {
+          const mst = getTrackMST(track);
           if (mst) {
-            composedRemote.getTracks().filter((t) => t.kind === mst.kind).forEach((t) => composedRemote.removeTrack(t));
+            composedRemote.getTracks().filter((t2) => t2.kind === "video").forEach((t2) => composedRemote.removeTrack(t2));
             composedRemote.addTrack(mst);
             remoteStreamRef.current = composedRemote;
             setStreamTick((n) => n + 1);
           }
         }
       });
-      room.on(lk.RoomEvent.TrackUnsubscribed, (track: { mediaStreamTrack?: MediaStreamTrack }) => {
-        if (track.mediaStreamTrack) {
-          composedRemote.removeTrack(track.mediaStreamTrack);
-          setStreamTick((n) => n + 1);
+      room.on(lk.RoomEvent.TrackUnsubscribed, (track: unknown) => {
+        const t = track as Record<string, unknown>;
+        if (t.kind === lk.Track.Kind.Audio) {
+          // Detach and remove audio elements created for this track
+          const detach = t.detach as ((el: HTMLAudioElement) => void) | undefined;
+          remoteAudioElsRef.current.forEach((el) => { detach?.(el); el.remove(); });
+          remoteAudioElsRef.current = [];
+        } else if (t.kind === lk.Track.Kind.Video) {
+          const mst = getTrackMST(track);
+          if (mst) { composedRemote.removeTrack(mst); setStreamTick((n) => n + 1); }
         }
       });
       await room.connect(url, token);
