@@ -478,9 +478,8 @@ async def transcribe_audio(
     audio: UploadFile,
     _: CurrentUser = Depends(chat_rate_limit),
 ) -> dict:
-    import asyncio as _asyncio
-    from google import genai as _genai
-    from google.genai import types as _gtypes
+    import base64 as _b64
+    import httpx as _httpx
 
     data = await audio.read()
     if not data:
@@ -489,22 +488,35 @@ async def transcribe_audio(
     mime = audio.content_type or "audio/webm"
     container = get_container()
     api_key = container.settings.llm.llm_api_key
+    model = container.settings.llm.llm_model.removeprefix("models/")
+
     if not api_key:
         raise HTTPException(status_code=503, detail="Transcription unavailable.")
 
-    client = _genai.Client(api_key=api_key)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+    body = {
+        "contents": [{
+            "parts": [
+                {"inlineData": {"mimeType": mime, "data": _b64.b64encode(data).decode()}},
+                {"text": "Transcribe this audio exactly as spoken. Return only the transcription text, with no labels, commentary, or formatting."},
+            ]
+        }]
+    }
 
-    def _transcribe() -> str:
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=[
-                _gtypes.Part.from_bytes(data=data, mime_type=mime),
-                "Transcribe this audio exactly as spoken. Return only the transcription text, with no labels, commentary, or formatting.",
-            ],
-        )
-        return (response.text or "").strip()
+    async with _httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, headers=headers, json=body)
 
-    transcript = await _asyncio.to_thread(_transcribe)
+    if resp.is_error:
+        logger.warning("transcribe_audio gemini_error status=%s body=%s", resp.status_code, resp.text[:300])
+        raise HTTPException(status_code=502, detail="Transcription service error.")
+
+    candidates = resp.json().get("candidates", [])
+    transcript = ""
+    if candidates:
+        parts = candidates[0].get("content", {}).get("parts", [])
+        transcript = "".join(p.get("text", "") for p in parts).strip()
+
     if not transcript:
         raise HTTPException(status_code=422, detail="Could not transcribe audio.")
     return {"transcript": transcript}
