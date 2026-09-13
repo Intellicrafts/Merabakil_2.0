@@ -812,40 +812,34 @@ export default function MeraVakilPage() {
 
       streamReveal.complete();
       streamReveal.flush();
-      await streamReveal.waitForAnimation(3000);
 
       const finalized = createAssistantMessage(result);
-      let completedConv: ChatConversation | null = null;
+      const finalMsg = {
+        ...finalized,
+        id: assistantMsgId,
+        content: result.answer,
+        revealedChars: result.answer.length,
+      };
+
+      // Persist immediately — before the animation wait — so navigating away
+      // during the typewriter effect doesn't lose the AI response.
+      // withUser is a closure variable (not React state) so it's always available.
+      const completedConv: ChatConversation = {
+        ...withUser,
+        messages: [...withUser.messages, finalMsg],
+      };
+      upsertConversation(completedConv);
+      setConversations(loadConversations());
+
       setActiveConversation((prev) => {
         if (!prev) return prev;
         const hasAssistant = prev.messages.some((m) => m.id === assistantMsgId);
         const messages = hasAssistant
-          ? prev.messages.map((m) =>
-              m.id === assistantMsgId
-                ? {
-                    ...finalized,
-                    id: assistantMsgId,
-                    content: result.answer,
-                    revealedChars: result.answer.length,
-                  }
-                : m,
-            )
-          : [
-              ...prev.messages,
-              {
-                ...finalized,
-                id: assistantMsgId,
-                content: result.answer,
-                revealedChars: result.answer.length,
-              },
-            ];
-        completedConv = { ...prev, messages };
-        return completedConv;
+          ? prev.messages.map((m) => (m.id === assistantMsgId ? finalMsg : m))
+          : [...prev.messages, finalMsg];
+        return { ...prev, messages };
       });
-      if (completedConv) {
-        upsertConversation(completedConv);
-        setConversations(loadConversations());
-      }
+      await streamReveal.waitForAnimation(3000);
       track(AnalyticsEvents.AI_RESPONSE_RECEIVED, {
         latency_bucket: bucketLatency(Date.now() - startedAt),
         has_citations: Boolean(result.citations?.length || result.web_sources?.length),
