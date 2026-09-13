@@ -10,6 +10,7 @@ import { SaarthiMark } from "@/components/mera-vakil/saarthi-mark";
 import { DocumentPreviewDialog, type PreviewTarget } from "@/components/mera-vakil/document-preview-dialog";
 import { AppointmentConfirmationCard } from "@/components/mera-vakil/appointment-confirmation-card";
 import { DraftDocumentCard } from "@/components/mera-vakil/draft-document-card";
+import { DraftDocumentViewer } from "@/components/mera-vakil/draft-document-viewer";
 import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
@@ -60,6 +61,7 @@ export const MessageBubble = memo(function MessageBubble({
   const [editText, setEditText] = useState(message.content);
   const [groundingOpen, setGroundingOpen] = useState(false);
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
+  const [draftViewerOpen, setDraftViewerOpen] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -250,7 +252,14 @@ export const MessageBubble = memo(function MessageBubble({
               {lawyers.length > 0 && FEATURES.AI_MATCHING && <LawyerRecommendationPanel lawyers={lawyers} caseId={caseId} />}
               {appointment && <AppointmentConfirmationCard appointment={appointment} />}
               {(draft || draftLoading) && (
-                <DraftDocumentCard draft={draft} loading={draftLoading} />
+                <DraftDocumentCard
+                  draft={draft}
+                  loading={draftLoading}
+                  onPreview={() => setDraftViewerOpen(true)}
+                />
+              )}
+              {draft && draftViewerOpen && (
+                <DraftDocumentViewer draft={draft} onClose={() => setDraftViewerOpen(false)} />
               )}
 
               {research.disclaimer && (

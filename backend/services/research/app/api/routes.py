@@ -312,6 +312,22 @@ async def research_stream(
             yield "event: error\ndata: " + _json.dumps({"message": "Query rejected — please rephrase."}) + "\n\n"
             return
 
+        # Start draft generation in parallel with the main answer stream so it is
+        # ready (or nearly so) by the time streaming completes.
+        from app.infrastructure.draft_detector import detect_draft_intent
+        from app.infrastructure.draft_generator import generate_draft
+
+        is_draft, doc_type = detect_draft_intent(state.query)
+        draft_task = None
+        if is_draft:
+            history_dicts = [
+                {"role": m.role, "content": m.content} for m in (history or [])
+            ]
+            draft_task = asyncio.create_task(
+                generate_draft(state.query, doc_type, history_dicts, container.llm)
+            )
+            yield "event: draft_status\ndata: " + _json.dumps({"status": "generating"}) + "\n\n"
+
         answer = ""
         async for chunk in container.orchestrator.run_state_streaming(state):
             if chunk.startswith("event: done"):
@@ -337,19 +353,12 @@ async def research_stream(
                 _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE)
             )
 
-        # Draft generation — sent as separate SSE events AFTER done so the text
-        # answer is fully visible before the document card appears.
-        from app.infrastructure.draft_detector import detect_draft_intent
-        from app.infrastructure.draft_generator import generate_draft
-
-        is_draft, doc_type = detect_draft_intent(state.query)
-        if is_draft and answer:
-            yield "event: draft_status\ndata: " + _json.dumps({"status": "generating"}) + "\n\n"
-            history_dicts = [
-                {"role": m.role, "content": m.content} for m in (history or [])
-            ]
-            draft = await generate_draft(state.query, doc_type, history_dicts, container.llm)
-            yield "event: draft\ndata: " + _json.dumps(draft) + "\n\n"
+        if draft_task is not None:
+            try:
+                draft = await draft_task
+                yield "event: draft\ndata: " + _json.dumps(draft) + "\n\n"
+            except Exception:
+                pass
 
     return StreamingResponse(
         generator(),
