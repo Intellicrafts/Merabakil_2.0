@@ -129,9 +129,12 @@ services:
         INSTALL_ORCHESTRATOR: "true"
     image: merabakil/research:latest
     env_file: .env
+    environment:
+      BILLING_SERVICE_URL: "http://billing:8000"
     depends_on:
-      auth:   { condition: service_healthy }
-      search: { condition: service_healthy }
+      auth:    { condition: service_healthy }
+      search:  { condition: service_healthy }
+      billing: { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 15s
@@ -149,9 +152,11 @@ services:
     env_file: .env
     environment:
       MARKETPLACE_NATIVE: "false"
+      BILLING_SERVICE_URL: "http://billing:8000"
     depends_on:
       postgres: { condition: service_healthy }
       auth:     { condition: service_healthy }
+      billing:  { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 15s
