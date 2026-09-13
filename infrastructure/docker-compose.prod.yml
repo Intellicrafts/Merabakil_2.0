@@ -2,8 +2,8 @@ name: merabakil
 
 # ---------------------------------------------------------------------------
 # Production stack — merabakil.in
-# 12 containers: postgres, redis, minio, auth, search, research, marketplace,
-#                case, document, ingestion, frontend, nginx
+# 13 containers: postgres, redis, minio, auth, billing, search, research,
+#                marketplace, case, document, ingestion, frontend, nginx
 #
 # Usage (on GCP, from repo root):
 #   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env up -d
@@ -78,6 +78,24 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+  billing:
+    <<: *svc-defaults
+    build:
+      <<: *build-backend
+      args:
+        SERVICE_PATH: services/billing
+        INSTALL_ORCHESTRATOR: "false"
+    image: merabakil/billing:latest
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      auth:     { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 15s
@@ -224,6 +242,7 @@ services:
     environment:
       # Next.js rewrites — point to Docker service names on internal network
       API_PROXY_AUTH:        "http://auth:8000"
+      API_PROXY_BILLING:     "http://billing:8000"
       API_PROXY_SEARCH:      "http://search:8000"
       API_PROXY_RESEARCH:    "http://research:8000"
       API_PROXY_MARKETPLACE: "http://marketplace:8000"
@@ -232,6 +251,7 @@ services:
       API_PROXY_INGESTION:   "http://ingestion:8000"
     depends_on:
       auth:        { condition: service_healthy }
+      billing:     { condition: service_healthy }
       search:      { condition: service_healthy }
       research:    { condition: service_healthy }
       marketplace: { condition: service_healthy }

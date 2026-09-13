@@ -32,6 +32,7 @@ const nextConfig = {
   /** Route browser API calls through Next.js so one public URL works on any device. */
   async rewrites() {
     const auth = process.env.API_PROXY_AUTH ?? "http://127.0.0.1:8001";
+    const billing = process.env.API_PROXY_BILLING ?? "http://127.0.0.1:8020";
     const search = process.env.API_PROXY_SEARCH ?? "http://127.0.0.1:8003";
     const research = process.env.API_PROXY_RESEARCH ?? "http://127.0.0.1:8004";
     const marketplace = process.env.API_PROXY_MARKETPLACE ?? "http://127.0.0.1:8010";
@@ -40,6 +41,7 @@ const nextConfig = {
     const caseService = process.env.API_PROXY_CASE ?? "http://127.0.0.1:8011";
     return [
       { source: "/svc/auth/:path*", destination: `${auth}/:path*` },
+      { source: "/svc/billing/:path*", destination: `${billing}/:path*` },
       { source: "/svc/search/:path*", destination: `${search}/:path*` },
       { source: "/svc/research/:path*", destination: `${research}/:path*` },
       { source: "/svc/marketplace/:path*", destination: `${marketplace}/:path*` },

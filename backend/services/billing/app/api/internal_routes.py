@@ -1,14 +1,18 @@
 """Internal service-to-service wallet routes (no JWT; X-Internal-Secret header)."""
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi import Request
+from pydantic import BaseModel
 
 from app.api.deps import get_wallet_service
 from app.api.schemas import (
     InternalCreditRequest,
     InternalDeductRequest,
     InternalTransactionResponse,
+    WalletResponse,
 )
 from app.application.wallet_service import InsufficientFundsError, WalletService
 from app.config import get_settings
@@ -21,6 +25,28 @@ internal_router = APIRouter(prefix="/internal/wallet", tags=["internal"])
 async def _verify_secret(x_internal_secret: str = Header(...)) -> None:
     if x_internal_secret != _settings.billing_internal_secret:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+
+class InternalInitRequest(BaseModel):
+    user_id: uuid.UUID
+
+
+@internal_router.post(
+    "/init",
+    response_model=WalletResponse,
+    dependencies=[Depends(_verify_secret)],
+    summary="Internal: initialise wallet for a new user (credits welcome bonus)",
+)
+async def internal_init(
+    body: InternalInitRequest,
+    service: WalletService = Depends(get_wallet_service),
+) -> WalletResponse:
+    wallet = await service.get_or_create(body.user_id)
+    return WalletResponse(
+        user_id=str(body.user_id),
+        balance=str(wallet.balance),
+        currency=wallet.currency,
+    )
 
 
 @internal_router.post(

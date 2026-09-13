@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.use_cases import AuthService
 from app.config import AuthSettings, get_settings
+from app.infrastructure.billing_client import BillingClient
 from app.infrastructure.db import get_session
 from app.infrastructure.rate_limit import RateLimiter
 from app.infrastructure.repositories import (
@@ -18,6 +19,10 @@ from app.infrastructure.repositories import (
 )
 
 _settings = get_settings()
+_billing_client = BillingClient(
+    base_url=_settings.billing_service_url,
+    internal_secret=_settings.billing_internal_secret,
+)
 _rate_limiter = RateLimiter(
     _settings.redis_url,
     max_requests=_settings.rate_limit_max_requests,
@@ -37,6 +42,7 @@ def get_auth_service(session: AsyncSession = Depends(get_session)) -> AuthServic
         password_resets=SqlAlchemyPasswordResetRepository(session),
         consents=SqlAlchemyUserConsentRepository(session),
         settings=_settings,
+        billing=_billing_client,
     )
 
 
