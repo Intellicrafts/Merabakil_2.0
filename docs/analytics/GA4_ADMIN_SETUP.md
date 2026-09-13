@@ -9,16 +9,64 @@
 
 ## 2. Environment variables
 
-In production `.env`:
+In production `.env` (repo root, used by Docker Compose):
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://merabakil.in
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_GA_ENABLED=true
+```
+
+Keep `NEXT_PUBLIC_GA_ENABLED=false` in local dev unless testing analytics.
+
+**Important:** Next.js bakes `NEXT_PUBLIC_*` at **frontend build time**. After changing these vars you must **rebuild** the frontend image:
+
+```bash
+docker compose -f infrastructure/docker-compose.prod.yml build frontend --no-cache
+docker compose -f infrastructure/docker-compose.prod.yml up -d frontend
+```
+
+## 3. Local development
+
+### Native frontend (`make dev-frontend`)
+
+Set in repo root `.env` (already loaded by Next.js dev server):
 
 ```bash
 NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 NEXT_PUBLIC_GA_ENABLED=true
 ```
 
-Keep `NEXT_PUBLIC_GA_ENABLED=false` in local/staging unless testing.
+Restart `npm run dev` after changing env vars.
 
-## 3. Recommended GA4 settings
+### Docker local stack
+
+```bash
+make up          # starts postgres, auth, frontend, etc.
+make migrate     # applies Alembic migrations (includes user_consents table)
+make seed        # optional: seed roles + admin user
+```
+
+Ensure `.env` has GA vars before `make up` so the frontend image builds with analytics enabled.
+
+## 4. Database migrations
+
+Consent audit trail requires migration `0014_user_consents`:
+
+```bash
+make migrate
+# or manually:
+docker compose -f infrastructure/docker-compose.yml exec auth alembic upgrade head
+```
+
+## 5. How consent + tag loading works
+
+- **gtag.js loads** when `NEXT_PUBLIC_GA_ENABLED=true` (Google can detect the tag).
+- **Consent Mode v2** defaults to `analytics_storage: denied` until the user clicks **Accept all**.
+- **Custom events** only fire after consent (`track()` checks `legalos.consent`).
+- Do **not** paste the manual GTM snippet into `layout.tsx` — it bypasses consent.
+
+## 6. Recommended GA4 settings
 
 | Setting | Value |
 |---------|-------|
@@ -27,33 +75,31 @@ Keep `NEXT_PUBLIC_GA_ENABLED=false` in local/staging unless testing.
 | Data retention | 14 months |
 | Internal traffic filter | Add office/VPN IPs |
 
-## 4. Custom dimensions (optional)
+## 7. Custom dimensions (optional)
 
 Register event parameters as custom dimensions if needed in reports:
 
 - `page_type`, `account_type`, `signup_method`, `booking_source`, `cta_location`
 
-## 5. UTM conventions
-
-Use consistent campaign tags for launch channels:
+## 8. UTM conventions
 
 ```
 ?utm_source=twitter&utm_medium=social&utm_campaign=open_beta
 ?utm_source=linkedin&utm_medium=social&utm_campaign=advocate_outreach
 ```
 
-UTM params are captured in session storage on first landing and attached to signup/login events.
+## 9. DebugView verification
 
-## 6. DebugView verification
+1. Deploy with GA env vars set and rebuild frontend.
+2. Open site in incognito → click **Accept all**.
+3. DevTools → Network → filter `gtag` → confirm `G-XXXXXXXXXX` loads.
+4. GA4 → Admin → **DebugView** — walk signup → Saarthi → marketplace booking funnel.
 
-1. Install [Google Analytics Debugger](https://chrome.google.com/webstore/detail/google-analytics-debugger) or use GA4 DebugView.
-2. Click **Accept all** on the cookie banner (merabakil.in or localhost with env enabled).
-3. Trigger: landing page → register → Saarthi message → lawyer book CTA.
-4. Confirm events in DebugView within ~30 seconds.
+Google's "Test your website" in Tag Manager may still show "not detected" if the crawler does not accept cookies; **DebugView** is the reliable check.
 
-## 7. Legal checklist
+## 10. Legal checklist
 
-- [ ] Privacy Policy mentions GA4 (see `frontend/src/content/legal/privacy.md`)
-- [ ] Cookie banner mentions GA4
-- [ ] FAQ updated for analytics opt-in
-- [ ] Consent version bumped after copy change
+- [x] Privacy Policy mentions GA4 (`frontend/src/content/legal/privacy.md`)
+- [x] Cookie banner + Cookie settings link
+- [x] FAQ updated for analytics opt-in
+- [x] Consent version `2` in `frontend/src/lib/consent.ts`

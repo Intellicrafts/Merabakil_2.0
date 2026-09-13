@@ -26,9 +26,8 @@ test.describe("Cookie consent", () => {
     await expect(page.getByRole("dialog", { name: /We use cookies/i })).not.toBeVisible();
   });
 
-  test("third-party analytics scripts are absent before consent", async ({ page }) => {
+  test("legacy Plausible script is never loaded", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator('script[src*="plausible.io"]')).toHaveCount(0);
-    await expect(page.locator('script[src*="googletagmanager.com"]')).toHaveCount(0);
   });
 });

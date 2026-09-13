@@ -250,6 +250,10 @@ services:
     build:
       context: ..
       dockerfile: infrastructure/docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID:          ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+        NEXT_PUBLIC_GA_MEASUREMENT_ID:         ${NEXT_PUBLIC_GA_MEASUREMENT_ID:-}
+        NEXT_PUBLIC_GA_ENABLED:                ${NEXT_PUBLIC_GA_ENABLED:-false}
     environment:
       NEXT_PUBLIC_AUTH_API_URL: http://localhost:8001
       NEXT_PUBLIC_INGESTION_API_URL: http://localhost:8002
