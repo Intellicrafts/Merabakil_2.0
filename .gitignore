@@ -48,3 +48,12 @@ Thumbs.db
 
 # Local toolchain downloads
 .tools/
+
+# Playwright / e2e artifacts
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+
+# Local SES / tooling cache (invalid paths from misconfigured saves)
+:memory:.ses
+**/:memory:.ses
