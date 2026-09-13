@@ -444,6 +444,22 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       cancelled = true;
       const room = roomRef.current as { disconnect?: () => Promise<void> } | null;
       void room?.disconnect?.();
+      roomRef.current = null;
+      // Stop local tracks so mic/camera browser indicator clears
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+      // Remove injected remote audio elements so audio stops
+      remoteAudioElsRef.current.forEach((el) => el.remove());
+      remoteAudioElsRef.current = [];
+      // Record call-end event if navigating away mid-call
+      if (callStartedAt.current) {
+        const elapsed = Math.max(0, Math.round((Date.now() - callStartedAt.current) / 1000));
+        if (elapsed > 0) {
+          void recordAppointmentCallEvent(appointmentId, "ended", elapsed).catch(() => undefined);
+        }
+        callHub.onEnded();
+        callStartedAt.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId]);
