@@ -148,6 +148,7 @@ export default function AppointmentDetailsPage() {
   const [activeTab, setActiveTab] = useState<"details" | "brief">("details");
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -316,27 +317,63 @@ export default function AppointmentDetailsPage() {
                   )}
                 </>
               )}
-              {apt.my_role !== "lawyer" && !["completed", "expired", "no_show", "cancelled"].includes(apt.status) && (
+              {!["completed", "expired", "no_show", "cancelled", "live"].includes(apt.status) && (
                 <button
                   type="button"
                   disabled={busy !== null}
                   className="inline-flex h-9 rounded-xl border border-red-200 px-4 text-[13px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300"
-                  onClick={async () => {
-                    setBusy("cancel");
-                    try {
-                      setApt(await cancelAppointment(apt.id));
-                      toast({ title: "Appointment cancelled" });
-                    } catch (err) {
-                      toast({ title: "Could not cancel", description: (err as Error).message, variant: "destructive" });
-                    } finally {
-                      setBusy(null);
-                    }
-                  }}
+                  onClick={() => setConfirmCancel(true)}
                 >
-                  {busy === "cancel" ? "Cancelling…" : "Cancel"}
+                  Cancel
                 </button>
               )}
             </div>
+          {/* Cancel confirmation bar */}
+          {confirmCancel && (() => {
+            const minutesUntil = apt.scheduled_at
+              ? (new Date(apt.scheduled_at).getTime() - Date.now()) / 60_000
+              : Infinity;
+            const refundEligible = apt.my_role === "lawyer" || minutesUntil >= 5;
+            return (
+              <div className="mt-3 rounded-xl border border-red-200/70 bg-red-50/60 p-4 dark:border-red-900/30 dark:bg-red-900/10">
+                <p className="text-[13px] font-semibold text-red-800 dark:text-red-200">Cancel this appointment?</p>
+                <p className="mt-1 text-[12px] text-red-700/80 dark:text-red-300/70">
+                  {refundEligible
+                    ? "Your payment will be refunded to your wallet."
+                    : "You are cancelling within 5 minutes of the scheduled time — no refund will be issued."}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy === "cancel"}
+                    className="inline-flex h-8 items-center rounded-lg bg-red-600 px-4 text-[12px] font-semibold text-white disabled:opacity-50"
+                    onClick={async () => {
+                      setBusy("cancel");
+                      try {
+                        setApt(await cancelAppointment(apt.id));
+                        toast({ title: "Appointment cancelled", description: refundEligible ? "Your refund has been processed." : undefined });
+                        setConfirmCancel(false);
+                      } catch (err) {
+                        toast({ title: "Could not cancel", description: (err as Error).message, variant: "destructive" });
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    {busy === "cancel" ? "Cancelling…" : "Confirm cancellation"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmCancel(false)}
+                    className="inline-flex h-8 items-center rounded-lg border border-input px-4 text-[12px] font-medium"
+                  >
+                    Go back
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Reject reason input */}
           {showRejectInput && apt.my_role === "lawyer" && apt.status === "requested" && (
             <div className="mt-4 space-y-2 rounded-xl border border-red-200/60 bg-red-50/40 p-4 dark:border-red-900/30 dark:bg-red-900/10">

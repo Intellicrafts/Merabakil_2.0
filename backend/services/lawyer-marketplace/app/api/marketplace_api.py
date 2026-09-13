@@ -842,8 +842,8 @@ async def cancel_appointment(
 ) -> AppointmentOut:
     repo = MarketplaceRepository(session)
     row = await _load(repo, appointment_id, user)
-    if row.status in {"completed", "expired", "no_show"}:
-        raise HTTPException(status_code=400, detail="Appointment already closed")
+    if row.status in {"completed", "expired", "no_show", "live"}:
+        raise HTTPException(status_code=400, detail="Cannot cancel an appointment that is already in progress")
     row.status = "cancelled"
     await repo.add_event(row.id, "cancelled", uuid.UUID(user.user_id), {})
 
@@ -867,16 +867,30 @@ async def cancel_appointment(
         asyncio.create_task(_email.send(to_email=other_email, to_name=other_name or "", subject=subject, html=html))
     await publish_user(str(other_user_id), {"type": "appointment_cancelled", "appointment_id": str(row.id)})
 
-    booking_amount_str = (row.metrics or {}).get("booking_amount")
-    if booking_amount_str:
-        from decimal import Decimal
-        asyncio.create_task(
-            _billing.credit_refund(
-                user_id=row.citizen_user_id,
-                amount=Decimal(booking_amount_str),
-                consultation_id=row.id,
+    # Refund policy:
+    # - Lawyer cancels → citizen always gets a full refund
+    # - Citizen cancels > 5 min before scheduled time → full refund
+    # - Citizen cancels ≤ 5 min before scheduled time → no refund
+    is_citizen_cancelling = uid == row.citizen_user_id
+    refund_eligible = True
+    if is_citizen_cancelling and row.scheduled_at:
+        from datetime import timezone
+        scheduled = row.scheduled_at if row.scheduled_at.tzinfo else row.scheduled_at.replace(tzinfo=timezone.utc)
+        minutes_until = (scheduled - datetime.now(timezone.utc)).total_seconds() / 60
+        if minutes_until < 5:
+            refund_eligible = False
+
+    if refund_eligible:
+        booking_amount_str = (row.metrics or {}).get("booking_amount")
+        if booking_amount_str:
+            from decimal import Decimal
+            asyncio.create_task(
+                _billing.credit_refund(
+                    user_id=row.citizen_user_id,
+                    amount=Decimal(booking_amount_str),
+                    consultation_id=row.id,
+                )
             )
-        )
 
     return await _to_appointment(repo, row, user)
 
