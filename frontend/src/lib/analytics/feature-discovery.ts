@@ -1,3 +1,4 @@
+import { readConsent } from "@/lib/consent";
 import { AnalyticsEvents } from "@/lib/analytics/events";
 import { track } from "@/lib/analytics/track";
 
@@ -34,6 +35,8 @@ function writeDiscovered(features: Set<string>) {
 
 /** Fire `feature_discovered` once per feature per session. */
 export function trackFeatureDiscovery(pageType: string): void {
+  if (readConsent()?.analytics !== true) return;
+
   const featureName = PAGE_TYPE_TO_FEATURE[pageType];
   if (!featureName) return;
 
