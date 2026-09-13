@@ -865,15 +865,6 @@ export default function MeraVakilPage() {
     [isResearching, activeConversation, documentId, jurisdiction],
   );
 
-  const handleRegenerate = useCallback(
-    (userMessageId: string) => {
-      const userMsg = activeConversation?.messages.find((m) => m.id === userMessageId);
-      if (userMsg) void sendMessage(userMsg.content, { editMessageId: userMessageId });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeConversation?.messages, isResearching, documentId, jurisdiction],
-  );
-
   const handleReadAloudToggle = useCallback(
     (id: string, content: string) => {
       void readAloud.toggle(id, content);
@@ -1031,7 +1022,6 @@ export default function MeraVakilPage() {
               onStartEdit={setEditingMessageId}
               onCancelEdit={() => setEditingMessageId(null)}
               onResendEdit={handleResendEdit}
-              onRegenerate={handleRegenerate}
               groundingMessageId={groundingMessageId}
               readAloudStatus={readAloud.state.status}
               readAloudActiveId={readAloud.state.activeMessageId}
