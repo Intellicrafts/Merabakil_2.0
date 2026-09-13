@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Briefcase, Building2, Scale, Users } from "lucide-react";
+import { Scale, Users } from "lucide-react";
 
 import { AuthDivider } from "@/components/auth/auth-divider";
 import { AuthLayout } from "@/components/auth/auth-layout";
@@ -28,18 +28,6 @@ const ROLES = [
     label: "Advocate",
     description: "I'm a practising lawyer or independent advocate",
     icon: Scale,
-  },
-  {
-    id: "law_firm",
-    label: "Law Firm",
-    description: "I represent a law firm or chambers",
-    icon: Briefcase,
-  },
-  {
-    id: "enterprise",
-    label: "Enterprise",
-    description: "I'm from a company or organisation",
-    icon: Building2,
   },
 ] as const;
 
