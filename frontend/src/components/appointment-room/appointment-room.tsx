@@ -4,10 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, Paperclip, Phone, Send, Siren, Video, X } from "lucide-react";
 
-import { CallControlsDock } from "@/components/appointment-room/calls/call-controls-dock";
+import { CallModal } from "@/components/appointment-room/call-modal";
 import { IncomingCallOverlay } from "@/components/appointment-room/calls/incoming-call-overlay";
 import { OutgoingCallOverlay } from "@/components/appointment-room/calls/outgoing-call-overlay";
-import { CallStage } from "@/components/appointment-room/call-stage";
 import { CameraCapture } from "@/components/appointment-room/camera-capture";
 import { ChatPane } from "@/components/appointment-room/chat-pane";
 import { RoomCountdown } from "@/components/appointment-room/room-countdown";
@@ -22,6 +21,7 @@ import {
   getAppointment,
   getAppointmentJoinState,
   getStoredUser,
+  getToken,
   leaveAppointment,
   listAppointmentMessages,
   markAppointmentRead,
@@ -50,6 +50,7 @@ import type {
 import { AnalyticsEvents, track } from "@/lib/analytics";
 import { callHub } from "@/lib/call-hub";
 import { playAlertChime, requestNotificationPermission, showBrowserNotification, stopCallRingtone } from "@/lib/room-alerts";
+import { marketplaceServiceUrl } from "@/lib/service-urls";
 
 function mergeJoinIntoApt(apt: AppointmentRecord, js: JoinStateDto): AppointmentRecord {
   return {
@@ -297,6 +298,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         setIncomingCall(null);
         if (callPhase === "in_call" && event.type === "call_ended") {
           void disableCallTracks();
+          toast({ title: "Call ended", description: `${counterpart} left the call.` });
         } else if (callPhase !== "idle") {
           setCallPhase("idle");
           setActiveCallId(null);
@@ -621,6 +623,31 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       stopCallRingtone();
     };
   }, []);
+
+  // Hard tab/browser close: send call-end via keepalive fetch so the opponent is notified promptly.
+  // React's cleanup (useEffect return) does NOT run reliably on tab close — pagehide does.
+  // On React navigation (router.push/back), pagehide does NOT fire, so no double-send.
+  useEffect(() => {
+    const handlePageHide = () => {
+      if (!callStartedAt.current) return;
+      const elapsed = Math.max(0, Math.round((Date.now() - callStartedAt.current) / 1000));
+      if (elapsed <= 0) return;
+      const token = getToken();
+      if (!token) return;
+      const base = marketplaceServiceUrl();
+      void fetch(`${base}/api/v1/appointments/${appointmentId}/call-event`, {
+        method: "POST",
+        keepalive: true,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ type: "ended", talk_seconds: elapsed }),
+      }).catch(() => undefined);
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, [appointmentId]);
 
   useEffect(() => {
     if (sseOn) return undefined;
@@ -1079,19 +1106,6 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
-        {callPhase === "in_call" && (
-          <div className="mx-auto h-[32vh] max-h-64 w-full max-w-[680px] shrink-0 px-4 md:mx-0 md:h-auto md:max-h-none md:w-[40%] md:min-h-0">
-            <CallStage
-              visible
-              mode={effectiveMode}
-              localStream={localStream}
-              remoteStream={remoteStreamRef.current}
-              counterpartName={counterpart}
-              elapsedLabel={`${Math.floor(callElapsed / 60)}:${String(callElapsed % 60).padStart(2, "0")}`}
-              muted={muted}
-            />
-          </div>
-        )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ChatPane
             appointmentId={appointmentId}
@@ -1103,6 +1117,23 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           />
         </div>
       </div>
+
+      {callPhase === "in_call" && (
+        <CallModal
+          localStream={localStream}
+          remoteStream={remoteStreamRef.current}
+          counterpartName={counterpart}
+          mode={effectiveMode}
+          muted={muted}
+          cameraOff={cameraOff}
+          elapsedLabel={`${Math.floor(callElapsed / 60)}:${String(callElapsed % 60).padStart(2, "0")}`}
+          isRemoteConnected={!!(join?.opponent_present ?? apt?.opponent_present)}
+          onToggleMute={() => void toggleMute()}
+          onToggleCamera={() => void toggleCamera()}
+          onEnd={() => void endCall()}
+          ending={callBusy}
+        />
+      )}
 
       {callPhase === "incoming_ring" && incomingCall ? (
         <IncomingCallOverlay
@@ -1127,18 +1158,6 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         onSubmit={handleSend}
         className="mx-auto w-full max-w-[680px] shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
       >
-        {callPhase === "in_call" ? (
-          <CallControlsDock
-            className="mb-2"
-            muted={muted}
-            cameraOff={cameraOff}
-            elapsedLabel={`${Math.floor(callElapsed / 60)}:${String(callElapsed % 60).padStart(2, "0")}`}
-            onToggleMute={() => void toggleMute()}
-            onToggleCamera={() => void toggleCamera()}
-            onEnd={() => void endCall()}
-            ending={callBusy}
-          />
-        ) : null}
         <div className="flex items-end gap-2 border-t border-black/[0.06] pt-3 dark:border-white/[0.08]">
           <input
             ref={fileRef}

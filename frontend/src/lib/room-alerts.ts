@@ -101,24 +101,35 @@ export async function playCallRingtone(): Promise<void> {
   if (!ac) return;
   if (ac.state === "suspended") await ac.resume().catch(() => undefined);
 
-  const pulse = () => {
+  // 3-pulse burst: each pulse 0.38s + 0.12s gap, then ~1.8s silence, repeat every 3.8s
+  const PULSE_DUR = 0.38;
+  const PULSE_GAP = 0.12;
+  const BURST_COUNT = 3;
+
+  const tones: Array<[number, OscillatorType]> = [[440, "sine"], [480, "triangle"]];
+
+  const burst = () => {
     const now = ac.currentTime;
-    for (const [i, freq] of [440, 523.25].entries()) {
-      const gain = ac.createGain();
-      gain.connect(ac.destination);
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.1, now + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
-      const osc = ac.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      osc.connect(gain);
-      osc.start(now + i * 0.08);
-      osc.stop(now + 0.5);
-      ringNodes.push({ osc, gain });
+    for (let i = 0; i < BURST_COUNT; i++) {
+      const t = now + i * (PULSE_DUR + PULSE_GAP);
+      for (const [freq, oscType] of tones) {
+        const gain = ac.createGain();
+        gain.connect(ac.destination);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.09, t + 0.01);
+        gain.gain.setValueAtTime(0.09, t + PULSE_DUR - 0.06);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + PULSE_DUR - 0.01);
+        const osc = ac.createOscillator();
+        osc.type = oscType;
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        osc.start(t);
+        osc.stop(t + PULSE_DUR);
+        ringNodes.push({ osc, gain });
+      }
     }
   };
 
-  pulse();
-  ringTimer = window.setInterval(pulse, 2200);
+  burst();
+  ringTimer = window.setInterval(burst, 3800);
 }
