@@ -738,6 +738,18 @@ export async function streamReadAloud(
 }
 
 
+export async function transcribeAudio(blob: Blob): Promise<string> {
+  const form = new FormData();
+  form.append("audio", blob, "recording.webm");
+  const res = await authorizedFetch(`${researchServiceUrl()}/api/v1/research/transcribe`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw new Error("Transcription failed");
+  const data = (await res.json()) as { transcript: string };
+  return data.transcript;
+}
+
 export async function fetchMarketplaceLawyers(params: {
   query?: string;
   practiceArea?: string;

@@ -1137,11 +1137,9 @@ export default function MeraVakilPage() {
               if (sessionId) void detachDocumentFromSession(sessionId, id).catch(() => {});
             }}
             onVoiceModeOpen={FEATURES.VOICE && voiceSupported ? () => setVoiceModeOpen(true) : undefined}
-            onVoiceNoteSend={(transcript) => void sendMessage(transcript)}
             onVoiceNoteError={(message) =>
-              toast({ title: "Voice note", description: message, variant: "destructive" })
+              toast({ title: "Voice input", description: message, variant: "destructive" })
             }
-            speechLocale={speechLocale}
           />
           <p className="-mt-2 hidden px-4 pb-2 text-center text-[11px] text-muted-foreground/50 sm:block">
             Informational only · Not a substitute for licensed legal advice

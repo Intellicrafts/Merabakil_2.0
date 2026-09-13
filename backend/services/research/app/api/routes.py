@@ -7,7 +7,7 @@ import struct
 import uuid
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -468,6 +468,46 @@ async def research_document_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post(
+    "/transcribe",
+    summary="Transcribe an audio recording to text using Gemini",
+)
+async def transcribe_audio(
+    audio: UploadFile,
+    _: CurrentUser = Depends(chat_rate_limit),
+) -> dict:
+    import asyncio as _asyncio
+    from google import genai as _genai
+    from google.genai import types as _gtypes
+
+    data = await audio.read()
+    if not data:
+        raise HTTPException(status_code=422, detail="Empty audio file.")
+
+    mime = audio.content_type or "audio/webm"
+    container = get_container()
+    api_key = container.settings.llm.llm_api_key
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Transcription unavailable.")
+
+    client = _genai.Client(api_key=api_key)
+
+    def _transcribe() -> str:
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[
+                _gtypes.Part.from_bytes(data=data, mime_type=mime),
+                "Transcribe this audio exactly as spoken. Return only the transcription text, with no labels, commentary, or formatting.",
+            ],
+        )
+        return (response.text or "").strip()
+
+    transcript = await _asyncio.to_thread(_transcribe)
+    if not transcript:
+        raise HTTPException(status_code=422, detail="Could not transcribe audio.")
+    return {"transcript": transcript}
 
 
 class _AttachDocumentRequest(BaseModel):
