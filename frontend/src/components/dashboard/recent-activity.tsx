@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { CalendarClock, FileText, FolderOpen, MessageSquare } from "lucide-react";
+import { CalendarClock, FileText, FolderOpen, MessageSquare, Sparkles } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AppointmentRecord } from "@/lib/appointment-types";
@@ -33,15 +33,51 @@ const KIND_LABEL: Record<RecentKind, string> = {
   matter: "Matter",
 };
 
+const KIND_ICON_BG: Record<RecentKind, string> = {
+  chat:        "bg-violet-100/70 dark:bg-violet-500/[0.15]",
+  appointment: "bg-sky-100/70 dark:bg-sky-500/[0.15]",
+  document:    "bg-amber-100/70 dark:bg-amber-500/[0.12]",
+  matter:      "bg-emerald-100/70 dark:bg-emerald-500/[0.12]",
+};
+
+const KIND_ICON_COLOR: Record<RecentKind, string> = {
+  chat:        "text-violet-600 dark:text-violet-400",
+  appointment: "text-sky-600 dark:text-sky-400",
+  document:    "text-amber-600 dark:text-amber-500",
+  matter:      "text-emerald-600 dark:text-emerald-500",
+};
+
 const APT_BADGE: Partial<Record<AppointmentStatus, string>> = {
-  live: "Live",
+  live:      "Live",
   requested: "Requested",
   confirmed: "Upcoming",
   completed: "Done",
   cancelled: "Cancelled",
-  expired: "Ended",
-  no_show: "Missed",
+  expired:   "Ended",
+  no_show:   "Missed",
 };
+
+// badge value → Tailwind pill classes
+const BADGE_STYLE: Record<string, string> = {
+  "Live":         "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
+  "Upcoming":     "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400",
+  "Requested":    "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400",
+  "Preparing":    "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
+  "Needs review": "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400",
+  "Ready":        "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400",
+  "In progress":  "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400",
+  "Open":         "bg-slate-100 text-slate-600 dark:bg-white/[0.07] dark:text-slate-400",
+  "Done":         "bg-slate-100 text-slate-500 dark:bg-white/[0.06] dark:text-slate-500",
+};
+
+function BadgePill({ label }: { label: string }) {
+  const cls = BADGE_STYLE[label] ?? "bg-slate-100 text-slate-500 dark:bg-white/[0.07] dark:text-slate-400";
+  return (
+    <span className={cn("inline-flex shrink-0 items-center rounded-full px-1.5 py-px text-[10px] font-semibold leading-[1.4]", cls)}>
+      {label}
+    </span>
+  );
+}
 
 function whenLabel(iso: string): string {
   const t = new Date(iso).getTime();
@@ -110,7 +146,7 @@ export function buildRecentEntries({
   upcoming,
   appointments,
   documents,
-  limit = 8,
+  limit = 3,
 }: {
   recent: ChatConversation[];
   upcoming: LegalCase[];
@@ -164,8 +200,14 @@ export function buildRecentEntries({
 
 function KindIcon({ kind }: { kind: RecentKind }) {
   const Icon =
-    kind === "chat" ? MessageSquare : kind === "appointment" ? CalendarClock : kind === "document" ? FileText : FolderOpen;
-  return <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.7} />;
+    kind === "chat"
+      ? MessageSquare
+      : kind === "appointment"
+        ? CalendarClock
+        : kind === "document"
+          ? FileText
+          : FolderOpen;
+  return <Icon className={cn("h-[15px] w-[15px]", KIND_ICON_COLOR[kind])} strokeWidth={1.75} />;
 }
 
 export function RecentActivityList({
@@ -181,50 +223,67 @@ export function RecentActivityList({
 
   if (!ready) {
     return (
-      <div className="space-y-2 px-1 pb-1">
-        <Skeleton className="h-14 rounded-xl" />
-        <Skeleton className="h-14 rounded-xl" />
-        <Skeleton className="h-14 rounded-xl" />
+      <div className="space-y-2 px-1 pb-1 pt-1">
+        <Skeleton className="h-16 rounded-xl" />
+        <Skeleton className="h-16 rounded-xl" />
+        <Skeleton className="h-16 rounded-xl" />
       </div>
     );
   }
 
   if (entries.length === 0) {
-    return <p className="px-1 py-3 text-[13px] leading-relaxed text-muted-foreground">{emptyText}</p>;
+    return (
+      <div className="flex flex-col items-center gap-2 px-2 py-8 text-center">
+        <Sparkles className="h-6 w-6 text-muted-foreground/20" strokeWidth={1.5} />
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground/60">{emptyText}</p>
+      </div>
+    );
   }
 
   return (
     <ul className="space-y-0.5">
-      {entries.map((entry) => {
-        const detail = entry.kind === "chat" ? entry.subtitle : entry.badge || entry.subtitle;
-        const meta = [KIND_LABEL[entry.kind], detail].filter(Boolean).join(" · ");
-        return (
-          <li key={`${entry.kind}-${entry.id}`}>
-            <button
-              type="button"
-              onClick={() => router.push(entry.href)}
-              className={cn(
-                "flex w-full items-start gap-3 rounded-xl px-2 py-2.5 text-left",
-                "transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
-              )}
-            >
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-black/[0.06] bg-white dark:border-white/[0.08] dark:bg-white/[0.06]">
-                <KindIcon kind={entry.kind} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-[13.5px] font-medium tracking-tight">{entry.title}</span>
-                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/70">
-                    {whenLabel(entry.updatedAt)}
+      {entries.map((entry) => (
+        <li key={`${entry.kind}-${entry.id}`}>
+          <button
+            type="button"
+            onClick={() => router.push(entry.href)}
+            className={cn(
+              "flex w-full items-start gap-3 rounded-xl px-2 py-3 text-left",
+              "transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.05]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15",
+            )}
+          >
+            {/* Tinted icon circle */}
+            <span className={cn(
+              "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+              KIND_ICON_BG[entry.kind],
+            )}>
+              <KindIcon kind={entry.kind} />
+            </span>
+
+            {/* Text content */}
+            <span className="min-w-0 flex-1">
+              {/* Row 1: title + badge + timestamp */}
+              <span className="flex items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-[13px] font-medium leading-snug tracking-tight">
+                    {entry.title}
                   </span>
+                  {entry.badge && <BadgePill label={entry.badge} />}
                 </span>
-                <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">{meta}</span>
+                <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/75">
+                  {whenLabel(entry.updatedAt)}
+                </span>
               </span>
-            </button>
-          </li>
-        );
-      })}
+              {/* Row 2: kind label + subtitle */}
+              <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground/65">
+                {KIND_LABEL[entry.kind]}
+                {entry.subtitle ? ` · ${entry.subtitle}` : ""}
+              </span>
+            </span>
+          </button>
+        </li>
+      ))}
     </ul>
   );
 }

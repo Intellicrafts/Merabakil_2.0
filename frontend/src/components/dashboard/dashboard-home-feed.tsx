@@ -243,7 +243,7 @@ function RecentActivityCard({ snapshot }: { snapshot: DashboardSnapshot }) {
     upcoming: snapshot.upcoming,
     appointments: snapshot.appointments,
     documents: snapshot.documents,
-    limit: 5,
+    limit: 3,
   });
 
   return (
