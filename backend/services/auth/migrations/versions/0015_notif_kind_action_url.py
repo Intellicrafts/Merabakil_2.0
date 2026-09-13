@@ -18,13 +18,11 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "notifications",
-        sa.Column("kind", sa.String(50), nullable=False, server_default="summon"),
+    op.execute(
+        "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS kind VARCHAR(50) NOT NULL DEFAULT 'summon'"
     )
-    op.add_column(
-        "notifications",
-        sa.Column("action_url", sa.String(500), nullable=True),
+    op.execute(
+        "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url VARCHAR(500)"
     )
 
 
