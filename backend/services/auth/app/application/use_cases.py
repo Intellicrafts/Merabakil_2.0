@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import secrets
@@ -81,6 +82,7 @@ class AuthService:
         consents: UserConsentRepository,
         settings: AuthSettings,
         events=None,
+        email_client=None,
     ) -> None:
         self._users = users
         self._oauth_identities = oauth_identities
@@ -89,6 +91,7 @@ class AuthService:
         self._consents = consents
         self._settings = settings
         self._events = events
+        self._email = email_client
 
     # ---- token helpers --------------------------------------------------- #
     async def _issue_tokens(self, user) -> TokenPair:
@@ -194,6 +197,12 @@ class AuthService:
         )
         if self._events is not None:
             await self._events.publish_user_registered(user_id=str(user.id), role=role)
+        if self._email is not None:
+            from legalos_common.email.templates import welcome_email
+            subject, html = welcome_email(user.full_name, role)
+            asyncio.create_task(
+                self._email.send(to_email=user.email, to_name=user.full_name, subject=subject, html=html)
+            )
         refreshed = await self._users.get_by_id(user.id)
         assert refreshed is not None
         tokens = await self._issue_tokens(refreshed)
@@ -288,6 +297,12 @@ class AuthService:
         )
         if self._events is not None:
             await self._events.publish_user_registered(user_id=str(user.id), role=role)
+        if self._email is not None:
+            from legalos_common.email.templates import welcome_email
+            subject, html = welcome_email(user.full_name, role)
+            asyncio.create_task(
+                self._email.send(to_email=user.email, to_name=user.full_name, subject=subject, html=html)
+            )
 
         refreshed = await self._users.get_by_id(user.id)
         assert refreshed is not None
@@ -327,6 +342,13 @@ class AuthService:
             token_hash=token_hash,
             expires_at=datetime.now(UTC) + timedelta(hours=1),
         )
+        if self._email is not None:
+            from legalos_common.email.templates import password_reset_email
+            reset_url = f"{self._settings.frontend_url}/reset-password?token={raw_token}"
+            subject, html = password_reset_email(user.full_name, reset_url)
+            asyncio.create_task(
+                self._email.send(to_email=user.email, to_name=user.full_name, subject=subject, html=html)
+            )
         return raw_token
 
     async def reset_password(self, *, token: str, new_password: str) -> None:

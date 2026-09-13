@@ -10,6 +10,7 @@ from app.config import AuthSettings, get_settings
 from app.infrastructure.db import get_session
 from app.infrastructure.event_publisher import EventPublisher
 from app.infrastructure.rate_limit import RateLimiter
+from legalos_common.email.client import AsyncEmailClient
 from app.infrastructure.repositories import (
     SqlAlchemyOAuthIdentityRepository,
     SqlAlchemyPasswordResetRepository,
@@ -20,6 +21,7 @@ from app.infrastructure.repositories import (
 
 _settings = get_settings()
 _event_publisher = EventPublisher(_settings.redis_url)
+_email_client = AsyncEmailClient(_settings.smtp)
 _rate_limiter = RateLimiter(
     _settings.redis_url,
     max_requests=_settings.rate_limit_max_requests,
@@ -40,6 +42,7 @@ def get_auth_service(session: AsyncSession = Depends(get_session)) -> AuthServic
         consents=SqlAlchemyUserConsentRepository(session),
         settings=_settings,
         events=_event_publisher,
+        email_client=_email_client,
     )
 
 

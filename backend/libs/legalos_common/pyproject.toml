@@ -23,6 +23,7 @@ dependencies = [
     "opensearch-py[async]>=2.7.0",
     "boto3>=1.35.0",
     "aiokafka>=0.11.0",
+    "aiosmtplib>=3.0",
     "orjson>=3.10.0",
     "pyyaml>=6.0.0",
     "pyyaml>=6.0.0",

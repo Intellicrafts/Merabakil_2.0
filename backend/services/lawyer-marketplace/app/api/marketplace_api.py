@@ -92,10 +92,25 @@ _llm = build_llm_client(_common_settings.llm)
 _summary_generator = LawyerSummaryGenerator(_llm)
 
 from app.infrastructure.billing_client import BillingClient  # noqa: E402
+from legalos_common.email.client import AsyncEmailClient  # noqa: E402
+from legalos_common.email.templates import (  # noqa: E402
+    appointment_cancelled_email,
+    appointment_confirmed_email,
+    appointment_rejected_email,
+    booking_created_email,
+)
 _billing = BillingClient(
     _common_settings.billing_service_url,
     _common_settings.billing_internal_secret,
 )
+_email = AsyncEmailClient(_common_settings.smtp)
+
+
+async def _get_user_email(session: AsyncSession, user_id: uuid.UUID) -> str | None:
+    from sqlalchemy import text
+    result = await session.execute(text("SELECT email, full_name FROM users WHERE id = :uid"), {"uid": user_id})
+    row = result.fetchone()
+    return (row[0], row[1]) if row else (None, None)
 
 
 def _is_indexable(lawyer: Lawyer) -> bool:
@@ -656,6 +671,13 @@ async def create_appointment(
         body=f"{row.citizen_display_name} has booked a consultation on {date_str} at {row.time_slot}.",
         action_url=f"/appointments/{row.id}",
     )
+    lawyer_email, _ = await _get_user_email(session, lawyer.user_id)
+    if lawyer_email:
+        subject, html = booking_created_email(
+            lawyer.full_name or "Advocate", row.citizen_display_name, date_str,
+            row.time_slot or "", f"{_common_settings.frontend_url}/appointments/{row.id}",
+        )
+        asyncio.create_task(_email.send(to_email=lawyer_email, to_name=lawyer.full_name or "", subject=subject, html=html))
 
     booking_amount = lawyer.hourly_rate or 0
     prior = await repo.count_citizen_consultations(uuid.UUID(user.user_id), exclude_id=row.id)
@@ -764,6 +786,14 @@ async def confirm_appointment(
             body=f"{row.lawyer_display_name} has confirmed your consultation on {date_str} at {row.time_slot}.",
             action_url=f"/appointments/{row.id}",
         )
+        citizen_email, citizen_name = await _get_user_email(session, row.citizen_user_id)
+        if citizen_email:
+            subject, html = appointment_confirmed_email(
+                citizen_name or row.citizen_display_name, row.lawyer_display_name,
+                date_str, row.time_slot or "",
+                f"{_common_settings.frontend_url}/appointments/{row.id}",
+            )
+            asyncio.create_task(_email.send(to_email=citizen_email, to_name=citizen_name or "", subject=subject, html=html))
         await publish_user(str(row.citizen_user_id), {"type": "appointment_confirmed", "appointment_id": str(row.id)})
     return await _to_appointment(repo, row, user)
 
@@ -794,6 +824,13 @@ async def reject_appointment(
         body=f"{row.lawyer_display_name} could not accept your consultation request for {date_str}.",
         action_url=f"/appointments/{row.id}",
     )
+    citizen_email, citizen_name = await _get_user_email(session, row.citizen_user_id)
+    if citizen_email:
+        subject, html = appointment_rejected_email(
+            citizen_name or row.citizen_display_name, row.lawyer_display_name,
+            date_str, row.time_slot or "",
+        )
+        asyncio.create_task(_email.send(to_email=citizen_email, to_name=citizen_name or "", subject=subject, html=html))
     return await _to_appointment(repo, row, user)
 
 
@@ -822,6 +859,12 @@ async def cancel_appointment(
         body=f"{canceller_name} cancelled the consultation scheduled for {date_str}.",
         action_url=f"/appointments/{row.id}",
     )
+    other_email, other_name = await _get_user_email(session, other_user_id)
+    if other_email:
+        subject, html = appointment_cancelled_email(
+            other_name or "", canceller_name, date_str, row.time_slot or "",
+        )
+        asyncio.create_task(_email.send(to_email=other_email, to_name=other_name or "", subject=subject, html=html))
     await publish_user(str(other_user_id), {"type": "appointment_cancelled", "appointment_id": str(row.id)})
 
     booking_amount_str = (row.metrics or {}).get("booking_amount")

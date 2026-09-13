@@ -106,6 +106,18 @@ class LLMSettings(BaseSettings):
     marketplace_base_url: str = "http://localhost:8010"
 
 
+class SmtpSettings(BaseSettings):
+    model_config = _BASE_CONFIG
+
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = "noreply@merabakil.in"
+    smtp_from_name: str = "MeraBakil"
+    smtp_enabled: bool = False
+
+
 class CommonSettings(BaseSettings):
     """Cross-cutting runtime settings shared by every service."""
 
@@ -133,6 +145,7 @@ class CommonSettings(BaseSettings):
     billing_internal_secret: str = "change-me"
     chatbot_query_fee_inr: str = "2.00"
     case_service_url: str = "http://localhost:8011"
+    frontend_url: str = "https://merabakil.in"
 
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)
@@ -141,6 +154,7 @@ class CommonSettings(BaseSettings):
     opensearch: OpenSearchSettings = Field(default_factory=OpenSearchSettings)
     s3: S3Settings = Field(default_factory=S3Settings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    smtp: SmtpSettings = Field(default_factory=SmtpSettings)
 
 
 @lru_cache
