@@ -34,7 +34,7 @@ export function CookieConsentBanner() {
           </p>
           <p id="cookie-consent-desc" className="text-sm text-muted-foreground">
             We use local storage for sign-in and theme preferences. With your consent, we also use
-            privacy-friendly analytics (Plausible) to improve MeraBakil during beta.{" "}
+            privacy-friendly analytics (Plausible) to improve MeraBakil during open beta.{" "}
             <Link href="/privacy" className="font-medium text-primary underline-offset-2 hover:underline">
               Privacy Policy
             </Link>

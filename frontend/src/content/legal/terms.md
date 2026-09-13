@@ -5,7 +5,7 @@
 
 These Terms of Service ("Terms") govern your access to and use of MeraBakil ("Platform", "Service") operated at [merabakil.in](https://merabakil.in). By creating an account or using the Service, you agree to these Terms and our [Privacy Policy](/privacy).
 
-> **Beta notice:** MeraBakil is in closed beta. The Service may change, be interrupted, or contain errors. Features may be added or removed without notice.
+> **Beta notice:** MeraBakil is in open beta. The Service may change, be interrupted, or contain errors. Features may be added or removed without notice.
 
 ## 1. What MeraBakil is — and is not
 

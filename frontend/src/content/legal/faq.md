@@ -12,7 +12,7 @@ No. MeraBakil is a technology platform. We provide informational AI guidance and
 
 ### Is MeraBakil free during beta?
 
-Core features are available during our closed beta. Some features (such as certain AI queries) may use wallet credits. Fees, if any, are shown before you incur them.
+Core features are available during our open beta. Some features (such as certain AI queries) may use wallet credits. Fees, if any, are shown before you incur them.
 
 ## Saarthi (AI Legal Assistant)
 

@@ -53,7 +53,7 @@ export default function DashboardPage() {
               Available in this release
             </h2>
             <p className="mt-0.5 text-[13px] text-muted-foreground">
-              Closed beta ·{" "}
+              Open beta ·{" "}
               {config.modules.length}{" "}
               {config.modules.length === 1 ? "feature" : "features"} available in your account
             </p>

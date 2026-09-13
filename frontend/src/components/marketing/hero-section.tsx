@@ -29,7 +29,7 @@ export function HeroSection() {
               Ask in plain language. Get answers cited from Indian law.
             </p>
             <p className="mx-auto max-w-sm text-xs text-muted-foreground/80 lg:mx-0">
-              Free during beta · Informational guidance only — not legal advice
+              Free during open beta · Informational guidance only — not legal advice
             </p>
           </div>
 

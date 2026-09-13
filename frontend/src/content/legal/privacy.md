@@ -5,7 +5,7 @@
 
 MeraBakil ("we", "us", "our") operates the MeraBakil platform at [merabakil.in](https://merabakil.in). This Privacy Policy explains how we collect, use, store, and protect your personal data in accordance with the Digital Personal Data Protection Act, 2023 (DPDP Act) and applicable Indian laws.
 
-> **Beta notice:** MeraBakil is in closed beta. Features, data practices, and this policy may change as we improve the service.
+> **Beta notice:** MeraBakil is in open beta. Features, data practices, and this policy may change as we improve the service.
 
 ## 1. Data we collect
 

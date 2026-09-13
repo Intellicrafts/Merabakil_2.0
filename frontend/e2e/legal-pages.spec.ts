@@ -17,6 +17,7 @@ test.describe("Legal pages", () => {
     await page.goto("/faq");
     await expect(page.getByRole("heading", { name: /Frequently Asked Questions/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /What is MeraBakil/i })).toBeVisible();
+    await expect(page.getByText(/open beta/i).first()).toBeVisible();
   });
 
   test("landing footer links to legal pages", async ({ page }) => {

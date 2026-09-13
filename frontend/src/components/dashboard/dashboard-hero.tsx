@@ -84,7 +84,7 @@ export function DashboardHero({
                 <span className="hidden sm:inline">{formatDate()}</span>
               </p>
               <span className="hidden items-center rounded-full border border-black/[0.08] bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground dark:border-white/[0.10] dark:bg-white/[0.05] sm:inline-flex">
-                Closed Beta
+                Open Beta
               </span>
               {ready && context ? (
                 <span className="inline-flex items-center rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium text-muted-foreground dark:bg-white/[0.06] sm:hidden">
