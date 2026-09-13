@@ -27,10 +27,21 @@ _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from jose import JWTError
 
+from decimal import Decimal as _Decimal
+
+from app.config import get_settings as _get_settings
+from app.infrastructure.billing_client import BillingClient as _BillingClient
 from app.infrastructure.container import get_container
 from legalos_common.clients.web_search import search_web_text
 from legalos_common.security.jwt import TokenType, decode_token
 from legalos_common.security.rate_limit import check_rate_limit
+
+_voice_settings = _get_settings()
+_billing = _BillingClient(
+    _voice_settings.billing_service_url,
+    _voice_settings.billing_internal_secret,
+)
+_VOICE_FEE = _Decimal(_voice_settings.chatbot_query_fee_inr)
 
 logger = logging.getLogger(__name__)
 voice_router = APIRouter(prefix="/api/v1/research", tags=["voice"])
@@ -784,7 +795,12 @@ async def voice_live(
                         # Turn complete — emit both buffered transcripts as single messages
                         if server_content.get("turnComplete"):
                             speaking_signalled = False
+                            had_output = bool(out_buf)
                             await _flush_transcripts()
+                            if had_output:
+                                asyncio.create_task(
+                                    _billing.deduct_chatbot_query(user_id=user_id, fee=_VOICE_FEE)
+                                )
                             with suppress(Exception):
                                 await websocket.send_json({"type": "state", "value": "listening"})
                             continue
