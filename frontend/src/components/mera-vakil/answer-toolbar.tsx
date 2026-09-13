@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
-import { Check, Copy, FileDown, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { Check, Copy, FileDown, Loader2, ShieldCheck } from "lucide-react";
 
 import { ReadAloudControl } from "@/components/mera-vakil/read-aloud-control";
 import { useToast } from "@/components/ui/toast";
@@ -17,7 +17,6 @@ interface AnswerToolbarProps {
   sources?: CounselReportSource[];
   disclaimer?: string;
   messageId: string;
-  onRegenerate?: () => void;
   readAloudStatus?: ReadAloudStatus;
   readAloudActiveId?: string | null;
   onReadAloudToggle?: (messageId: string, content: string) => void;
@@ -75,7 +74,6 @@ export function AnswerToolbar({
   sources = [],
   disclaimer,
   messageId,
-  onRegenerate,
   readAloudStatus = "idle",
   readAloudActiveId = null,
   onReadAloudToggle,
@@ -137,12 +135,6 @@ export function AnswerToolbar({
           <span className={cn(groundingOpen && "text-emerald-600 dark:text-emerald-400")}>
             Sources
           </span>
-        </ToolButton>
-      )}
-      {onRegenerate && (
-        <ToolButton label="Regenerate answer" onClick={onRegenerate}>
-          <RefreshCw className="h-3.5 w-3.5" />
-          Regen
         </ToolButton>
       )}
       <ToolButton
