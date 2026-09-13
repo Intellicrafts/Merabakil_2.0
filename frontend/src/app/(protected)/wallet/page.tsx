@@ -321,7 +321,7 @@ export default function WalletPage() {
             <div className="flex items-center gap-3">
               <Button onClick={() => setTopUpOpen(true)} className="gap-2">
                 <ArrowUpRight className="h-4 w-4" />
-                Add Money
+                Add Points
               </Button>
               {!walletLoading && balance === 0 && (
                 <p className="text-[12px] text-muted-foreground/60">
