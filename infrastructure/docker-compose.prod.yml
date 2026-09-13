@@ -242,6 +242,8 @@ services:
         NEXT_PUBLIC_FEATURE_BOOKING:           ${NEXT_PUBLIC_FEATURE_BOOKING:-true}
         NEXT_PUBLIC_FEATURE_ROOM:              ${NEXT_PUBLIC_FEATURE_ROOM:-true}
         NEXT_PUBLIC_FEATURE_WALLET:            ${NEXT_PUBLIC_FEATURE_WALLET:-true}
+        NEXT_PUBLIC_GA_MEASUREMENT_ID:         ${NEXT_PUBLIC_GA_MEASUREMENT_ID:-}
+        NEXT_PUBLIC_GA_ENABLED:                ${NEXT_PUBLIC_GA_ENABLED:-false}
     image: merabakil/frontend:latest
     env_file: .env
     environment:
