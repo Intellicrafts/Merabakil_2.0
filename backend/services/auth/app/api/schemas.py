@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
@@ -78,3 +80,13 @@ class PasswordResetIssued(BaseModel):
     message: str
     # Present only in non-production to ease local testing.
     reset_token: str | None = None
+
+
+class NotificationOut(BaseModel):
+    id: str
+    kind: str
+    title: str
+    body: str | None
+    action_url: str | None
+    is_read: bool
+    created_at: datetime

@@ -11,7 +11,7 @@ import {
 } from "@/components/layout/notification-provider";
 import { useAnchoredOverlay } from "@/components/ui/use-anchored-overlay";
 import { dismissSummonAlert } from "@/hooks/use-appointment-summon-watcher";
-import { dismissAppointmentSummon } from "@/lib/api";
+import { dismissAppointmentSummon, markAllNotificationsRead } from "@/lib/api";
 import { notificationHub } from "@/lib/notification-hub";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +58,10 @@ export function NotificationBell() {
 
   function toggle() {
     setOpen((v) => !v);
-    if (!open) notificationHub.markAllRead();
+    if (!open) {
+      notificationHub.markAllRead();
+      void markAllNotificationsRead().catch(() => undefined);
+    }
   }
 
   const panel =
@@ -122,32 +125,50 @@ export function NotificationBell() {
                       )}
                     >
                       <div className="flex gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
-                          {initials(item.fromName)}
-                        </div>
+                        {item.fromName ? (
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
+                            {initials(item.fromName)}
+                          </div>
+                        ) : null}
                         <div className="min-w-0 flex-1">
-                          <p className="text-[12px] font-semibold">{item.fromName}</p>
+                          <p className="text-[12px] font-semibold">{item.title}</p>
                           <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                            Waiting for you in the consultation room
+                            {item.body}
                           </p>
                           <p className="mt-1 text-[10px] tabular-nums text-muted-foreground">
                             {formatRelative(item.createdAt)}
                           </p>
                           <div className="mt-2 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openRoom(item.appointmentId, item.id)}
-                              className="inline-flex h-8 items-center rounded-lg bg-slate-900 px-2.5 text-[11px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900"
-                            >
-                              Open room
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => dismissItem(item.id, item.appointmentId, item.lastSummonAt)}
-                              className="inline-flex h-8 items-center rounded-lg border border-black/[0.08] px-2.5 text-[11px] font-medium dark:border-white/10"
-                            >
-                              Dismiss
-                            </button>
+                            {item.kind === "summon" ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openRoom(item.appointmentId, item.id)}
+                                  className="inline-flex h-8 items-center rounded-lg bg-slate-900 px-2.5 text-[11px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900"
+                                >
+                                  Open room
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => dismissItem(item.id, item.appointmentId, item.lastSummonAt)}
+                                  className="inline-flex h-8 items-center rounded-lg border border-black/[0.08] px-2.5 text-[11px] font-medium dark:border-white/10"
+                                >
+                                  Dismiss
+                                </button>
+                              </>
+                            ) : item.actionUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  notificationHub.markRead(item.id);
+                                  setOpen(false);
+                                  router.push(item.actionUrl!);
+                                }}
+                                className="inline-flex h-8 items-center rounded-lg bg-slate-900 px-2.5 text-[11px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900"
+                              >
+                                View
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       </div>

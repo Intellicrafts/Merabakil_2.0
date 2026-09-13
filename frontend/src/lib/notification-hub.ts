@@ -10,7 +10,12 @@ import {
   summonSignalKey,
 } from "@/lib/summon-alerts";
 
-export type NotificationKind = "summon";
+export type NotificationKind =
+  | "summon"
+  | "appointment_booked"
+  | "appointment_confirmed"
+  | "appointment_rejected"
+  | "appointment_cancelled";
 
 export interface AppNotification {
   id: string;
@@ -22,6 +27,7 @@ export interface AppNotification {
   lastSummonAt: string;
   createdAt: number;
   read: boolean;
+  actionUrl?: string;
 }
 
 type Listener = () => void;
@@ -153,6 +159,14 @@ export const notificationHub = {
 
   markAllRead() {
     notifications = notifications.map((n) => ({ ...n, read: true }));
+    emit();
+  },
+
+  loadFromHistory(items: AppNotification[]) {
+    const existingIds = new Set(notifications.map((n) => n.id));
+    const fresh = items.filter((n) => !existingIds.has(n.id));
+    if (fresh.length === 0) return;
+    notifications = [...notifications, ...fresh].slice(0, 50);
     emit();
   },
 };

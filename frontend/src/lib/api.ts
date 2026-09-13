@@ -1266,3 +1266,31 @@ export async function extractCaseBrief(sessionId: string): Promise<CaseBriefExtr
   );
 }
 
+export interface NotificationApiItem {
+  id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  action_url: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export async function listNotifications(): Promise<NotificationApiItem[]> {
+  return apiFetch<NotificationApiItem[]>(`${authServiceUrl()}/api/v1/notifications`);
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await apiFetch<void>(`${authServiceUrl()}/api/v1/notifications/${id}/read`, {
+    method: "PATCH",
+    headers: authHeaders(),
+  });
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await apiFetch<void>(`${authServiceUrl()}/api/v1/notifications/mark-all-read`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
