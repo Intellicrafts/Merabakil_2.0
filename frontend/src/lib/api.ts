@@ -738,16 +738,45 @@ export async function streamReadAloud(
 }
 
 
-export async function transcribeAudio(blob: Blob): Promise<string> {
+export async function streamTranscribeAudio(
+  blob: Blob,
+  onToken: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   const form = new FormData();
   form.append("audio", blob, "recording.webm");
-  const res = await authorizedFetch(`${researchServiceUrl()}/api/v1/research/transcribe`, {
-    method: "POST",
-    body: form,
-  });
+  const res = await authorizedFetch(
+    `${researchServiceUrl()}/api/v1/research/transcribe/stream`,
+    { method: "POST", body: form, signal },
+  );
   if (!res.ok) throw new Error("Transcription failed");
-  const data = (await res.json()) as { transcript: string };
-  return data.transcript;
+  if (!res.body) throw new Error("No stream");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
+    for (const block of blocks) {
+      const lines = block.split("\n");
+      const eventLine = lines.find((l) => l.startsWith("event:"));
+      const dataLine = lines.find((l) => l.startsWith("data:"));
+      if (!eventLine || !dataLine) continue;
+      const event = eventLine.slice(6).trim();
+      const data = dataLine.slice(5).trim();
+      if (event === "token") {
+        const { text } = JSON.parse(data) as { text: string };
+        onToken(text);
+      } else if (event === "error") {
+        throw new Error("Transcription failed");
+      }
+    }
+  }
 }
 
 export async function fetchMarketplaceLawyers(params: {

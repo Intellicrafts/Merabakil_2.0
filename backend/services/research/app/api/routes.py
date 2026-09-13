@@ -522,6 +522,73 @@ async def transcribe_audio(
     return {"transcript": transcript}
 
 
+@router.post(
+    "/transcribe/stream",
+    summary="Stream transcription of an audio recording token-by-token",
+)
+async def transcribe_audio_stream(
+    audio: UploadFile,
+    _: CurrentUser = Depends(chat_rate_limit),
+) -> StreamingResponse:
+    import base64 as _b64
+    import json as _json
+    import httpx as _httpx
+
+    data = await audio.read()
+    if not data:
+        raise HTTPException(status_code=422, detail="Empty audio file.")
+
+    mime = audio.content_type or "audio/webm"
+    container = get_container()
+    api_key = container.settings.llm.llm_api_key
+    model = container.settings.llm.llm_model.removeprefix("models/")
+
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Transcription unavailable.")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent"
+    headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+    body = {
+        "contents": [{
+            "parts": [
+                {"inlineData": {"mimeType": mime, "data": _b64.b64encode(data).decode()}},
+                {"text": "Transcribe this audio exactly as spoken. Return only the transcription text, with no labels, commentary, or formatting."},
+            ]
+        }]
+    }
+
+    async def generator():
+        async with _httpx.AsyncClient(timeout=60.0) as client:
+            async with client.stream(
+                "POST", url, headers=headers, params={"alt": "sse"}, json=body
+            ) as resp:
+                if resp.is_error:
+                    yield "event: error\ndata: " + _json.dumps({"message": "Transcription failed."}) + "\n\n"
+                    return
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if not payload or payload == "[DONE]":
+                        continue
+                    try:
+                        chunk = _json.loads(payload)
+                    except _json.JSONDecodeError:
+                        continue
+                    parts = (chunk.get("candidates") or [{}])[0] \
+                        .get("content", {}).get("parts", [])
+                    token = "".join(p.get("text", "") for p in parts)
+                    if token:
+                        yield "event: token\ndata: " + _json.dumps({"text": token}) + "\n\n"
+        yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 class _AttachDocumentRequest(BaseModel):
     document_id: str
 

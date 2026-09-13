@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AudioLines, FileUp, Loader2, Mic, Send, X } from "lucide-react";
 
 import { ChatFileCard } from "@/components/mera-vakil/chat-file-card";
-import { transcribeAudio } from "@/lib/api";
+import { streamTranscribeAudio } from "@/lib/api";
 import type { AttachedDocument } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
 
@@ -274,10 +274,17 @@ export function InputDock({
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
+    let accumulated = "";
     try {
-      const text = await transcribeAudio(blob);
+      await streamTranscribeAudio(
+        blob,
+        (token) => {
+          accumulated += token;
+          onChange(accumulated);
+        },
+        ctrl.signal,
+      );
       if (ctrl.signal.aborted) return;
-      onChange(text);
       setRecState("idle");
       requestAnimationFrame(() => textareaRef.current?.focus());
     } catch {
@@ -482,7 +489,9 @@ export function InputDock({
             disabled={busy || isGenerating || recording || transcribing}
             active={recording}
           >
-            <Mic className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            {transcribing
+              ? <Loader2 className="h-[18px] w-[18px] animate-spin text-amber-700 dark:text-amber-400" />
+              : <Mic className="h-[18px] w-[18px]" strokeWidth={1.75} />}
           </DockIconButton>
 
           {/* Recording state */}
@@ -520,19 +529,31 @@ export function InputDock({
               </button>
             </div>
           ) : transcribing ? (
-            /* Transcribing state */
-            <div className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 py-1" role="status" aria-live="polite">
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-700 dark:text-amber-400" />
-              <span className="min-w-0 flex-1 text-[12px] text-muted-foreground">Transcribing…</span>
+            /* Transcribing state — textarea fills up token-by-token */
+            <>
+              <textarea
+                ref={textareaRef}
+                rows={MIN_ROWS}
+                value={value}
+                readOnly
+                className={cn(
+                  "max-h-[150px] min-h-[44px] flex-1 resize-none bg-transparent py-2 leading-6 focus:outline-none",
+                  "text-base md:min-h-[40px] md:py-1.5 md:text-[13.5px]",
+                  "text-foreground/90",
+                )}
+                aria-label="Transcribing…"
+                aria-live="polite"
+                placeholder="Transcribing…"
+              />
               <button
                 type="button"
                 onClick={cancelRecording}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
+                className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10 md:h-10 md:w-10"
                 aria-label="Cancel transcription"
               >
                 <X className="h-4 w-4" />
               </button>
-            </div>
+            </>
           ) : (
             /* Normal textarea */
             <textarea
