@@ -47,11 +47,11 @@ export function CallStage({
   const isLive = !!remoteStream;
 
   return (
-    <div className="relative h-full min-h-[220px] overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 shadow-xl">
-      {/* Subtle radial glow */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(59,130,246,0.09),transparent_65%)]" />
+    <div className="relative h-full min-h-[220px] overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 to-[#0a0f1e] shadow-2xl">
+      {/* Radial indigo glow — creates depth without being flashy */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_40%,rgba(99,102,241,0.12),transparent)]" />
 
-      {/* Remote video — always mounted so srcObject assignment is never delayed by conditionals */}
+      {/* Remote video — always mounted so srcObject is never delayed by conditionals */}
       <video
         ref={remoteRef}
         autoPlay
@@ -64,30 +64,31 @@ export function CallStage({
 
       {audioOnly ? (
         /* ── Audio call ── */
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-          {/* Avatar with concentric animated rings */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3.5">
+          {/* Avatar with slow concentric rings */}
           <div className="relative">
-            <span className="absolute inset-[-14px] animate-ping rounded-full border border-slate-600/30" />
-            <span className="absolute inset-[-7px] animate-pulse rounded-full border border-slate-600/50" />
-            <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-slate-700/80 text-2xl font-semibold text-white ring-2 ring-white/10">
+            <span className="absolute inset-[-20px] animate-ping rounded-full border border-white/[0.07] [animation-duration:2.5s]" />
+            <span className="absolute inset-[-10px] animate-pulse rounded-full border border-white/[0.10]" />
+            <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-b from-slate-700 to-slate-800 text-[26px] font-semibold text-white shadow-xl ring-1 ring-white/15">
               {initials}
             </div>
             {muted && (
-              <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 shadow-md">
-                <MicOff className="h-3 w-3 text-white" />
+              <span className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 shadow-md ring-2 ring-[#0a0f1e]">
+                <MicOff className="h-3.5 w-3.5 text-white" />
               </span>
             )}
           </div>
 
           <div className="text-center">
-            <p className="text-[15px] font-semibold text-white">{counterpartName}</p>
-            <p className="mt-0.5 text-[12px] text-white/50">
+            <p className="text-[17px] font-semibold tracking-tight text-white">{counterpartName}</p>
+            <p className="mt-0.5 text-[12px] text-white/45">
               {isLive ? "Audio consultation" : "Connecting…"}
             </p>
           </div>
 
           {isLive && elapsedLabel && (
-            <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-medium tabular-nums text-white/70">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-3 py-1 text-[11px] font-medium tabular-nums text-white/60">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               {elapsedLabel}
             </span>
           )}
@@ -95,15 +96,15 @@ export function CallStage({
       ) : (
         /* ── Video call ── */
         <>
-          {/* Waiting overlay — shown until remote stream arrives */}
+          {/* Waiting overlay */}
           {!isLive && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/60 backdrop-blur-sm">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/10 text-2xl font-semibold text-white ring-1 ring-white/15">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/70 backdrop-blur-md">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/[0.08] text-2xl font-semibold text-white ring-1 ring-white/15">
                 {initials}
               </div>
               <div className="text-center">
-                <p className="text-[13px] font-medium text-white">{counterpartName}</p>
-                <p className="mt-0.5 text-[11px] text-white/50">Connecting…</p>
+                <p className="text-[14px] font-semibold text-white">{counterpartName}</p>
+                <p className="mt-0.5 text-[11px] text-white/45">Joining…</p>
               </div>
             </div>
           )}
@@ -114,14 +115,14 @@ export function CallStage({
             autoPlay
             muted
             playsInline
-            className="absolute bottom-3 right-3 h-24 w-32 rounded-2xl border border-white/15 bg-slate-800 object-cover shadow-lg md:h-28 md:w-36"
+            className="absolute bottom-4 right-4 h-28 w-36 rounded-2xl border border-white/20 bg-slate-900 object-cover shadow-xl md:h-32 md:w-44"
           />
         </>
       )}
 
-      {/* Live / Connecting badge */}
+      {/* Live / Connecting status badge */}
       <div className="absolute left-3 top-3">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white/80 backdrop-blur-sm">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-white/75 backdrop-blur-sm">
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full",

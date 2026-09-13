@@ -2,11 +2,9 @@
 
 import { Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 
-import type { CallMode } from "@/lib/appointment-types";
 import { cn } from "@/lib/utils";
 
 interface CallControlsDockProps {
-  mode: CallMode;
   muted: boolean;
   cameraOff: boolean;
   elapsedLabel: string;
@@ -18,7 +16,6 @@ interface CallControlsDockProps {
 }
 
 export function CallControlsDock({
-  mode,
   muted,
   cameraOff,
   elapsedLabel,
@@ -31,7 +28,7 @@ export function CallControlsDock({
   return (
     <div
       className={cn(
-        "mx-auto flex w-full max-w-[680px] items-center gap-3 rounded-2xl border border-black/[0.06] bg-white/80 px-4 py-2.5 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-slate-950/80",
+        "mx-auto flex w-full max-w-[680px] items-center gap-3 rounded-2xl border border-black/[0.06] bg-white/85 px-5 py-3 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/85",
         className,
       )}
     >
@@ -43,47 +40,47 @@ export function CallControlsDock({
         </span>
       </div>
 
-      <div className="h-4 w-px shrink-0 bg-black/[0.08] dark:bg-white/[0.08]" />
+      <div className="h-5 w-px shrink-0 bg-black/[0.08] dark:bg-white/[0.08]" />
 
-      {/* Mic + Camera */}
+      {/* Mic + Camera — always shown for all call modes */}
       <div className="flex flex-1 items-center justify-center gap-2">
         <button
           type="button"
           onClick={onToggleMute}
           aria-label={muted ? "Unmute microphone" : "Mute microphone"}
           className={cn(
-            "inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+            "inline-flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
             muted
-              ? "bg-red-500/10 text-red-600 ring-1 ring-red-500/25 dark:bg-red-500/15 dark:text-red-400"
-              : "bg-black/[0.04] text-slate-600 hover:bg-black/[0.07] dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/10",
+              ? "bg-red-500/[0.12] text-red-600 ring-1 ring-red-500/20 dark:bg-red-500/15 dark:text-red-400"
+              : "bg-black/[0.05] text-slate-600 hover:bg-black/[0.08] dark:bg-white/[0.06] dark:text-slate-300 dark:hover:bg-white/10",
           )}
         >
           {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </button>
 
-        {mode === "video" && (
-          <button
-            type="button"
-            onClick={onToggleCamera}
-            aria-label={cameraOff ? "Turn camera on" : "Turn camera off"}
-            className={cn(
-              "inline-flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
-              cameraOff
-                ? "bg-red-500/10 text-red-600 ring-1 ring-red-500/25 dark:bg-red-500/15 dark:text-red-400"
-                : "bg-black/[0.04] text-slate-600 hover:bg-black/[0.07] dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/10",
-            )}
-          >
-            {cameraOff ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onToggleCamera}
+          aria-label={cameraOff ? "Enable camera" : "Turn camera off"}
+          className={cn(
+            "inline-flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
+            cameraOff
+              ? "bg-black/[0.05] text-slate-500 hover:bg-black/[0.08] dark:bg-white/[0.06] dark:text-slate-400"
+              : "bg-black/[0.05] text-slate-600 hover:bg-black/[0.08] dark:bg-white/[0.06] dark:text-slate-300 dark:hover:bg-white/10",
+          )}
+        >
+          {cameraOff ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+        </button>
       </div>
+
+      <div className="h-5 w-px shrink-0 bg-black/[0.08] dark:bg-white/[0.08]" />
 
       {/* End call */}
       <button
         type="button"
         disabled={ending}
         onClick={onEnd}
-        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-red-500 px-3.5 text-[12px] font-semibold text-white hover:bg-red-600 disabled:opacity-70"
+        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-red-500 px-4 text-[12.5px] font-semibold tracking-tight text-white hover:bg-red-600 disabled:opacity-70"
       >
         <PhoneOff className="h-3.5 w-3.5" />
         End call

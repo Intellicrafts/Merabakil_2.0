@@ -919,6 +919,8 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   }
 
   const endAt = join?.scheduled_end_at ?? apt?.scheduled_end_at;
+  // Show video stage whenever camera is on, regardless of initiated call mode
+  const effectiveMode: CallMode = callMode === "audio" && cameraOff ? "audio" : "video";
 
   if (error) {
     return (
@@ -1065,7 +1067,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           <div className="mx-auto h-[32vh] max-h-64 w-full max-w-[680px] shrink-0 px-4 md:mx-0 md:h-auto md:max-h-none md:w-[40%] md:min-h-0">
             <CallStage
               visible
-              mode={callMode}
+              mode={effectiveMode}
               localStream={localStream}
               remoteStream={remoteStreamRef.current}
               counterpartName={counterpart}
@@ -1112,7 +1114,6 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         {callPhase === "in_call" ? (
           <CallControlsDock
             className="mb-2"
-            mode={callMode}
             muted={muted}
             cameraOff={cameraOff}
             elapsedLabel={`${Math.floor(callElapsed / 60)}:${String(callElapsed % 60).padStart(2, "0")}`}
