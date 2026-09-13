@@ -872,6 +872,7 @@ export default function MeraVakilPage() {
           open={voiceModeOpen}
           onClose={() => setVoiceModeOpen(false)}
           speechLocale={speechLocale}
+          conversationMessages={activeConversation?.messages}
           onConversationEnd={handleVoiceConversationEnd}
           onBookLawyer={FEATURES.BOOKING ? (lawyer) => setVoiceBookingLawyer(matchResultToProfile(lawyer)) : undefined}
         />
