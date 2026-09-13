@@ -413,7 +413,7 @@ export function DashboardCommandPalette({
               {searchGroups.length === 0 ? (
                 <div className="flex flex-col items-center gap-1.5 px-4 py-12 text-center">
                   <Search className="h-6 w-6 text-muted-foreground/20" strokeWidth={1.5} />
-                  <p className="text-[12.5px] text-muted-foreground/55">No results for "{query}"</p>
+                  <p className="text-[12.5px] text-muted-foreground/55">No results for &ldquo;{query}&rdquo;</p>
                 </div>
               ) : (
                 <div className="pb-2">

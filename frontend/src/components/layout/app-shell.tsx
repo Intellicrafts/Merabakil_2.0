@@ -93,19 +93,27 @@ function AppTopBar({
       </div>
 
       <div className="flex items-center gap-1">
-        {isHome && (
-          <button
-            type="button"
-            onClick={onOpenPalette}
-            className="mr-1 hidden items-center gap-2 rounded-xl border border-black/[0.07] bg-white/60 px-3 py-1.5 text-muted-foreground/65 transition-all hover:bg-white hover:text-muted-foreground hover:shadow-[0_2px_8px_rgba(42,28,12,0.08)] dark:border-white/[0.09] dark:bg-white/[0.05] dark:hover:bg-white/[0.09] sm:inline-flex"
-            aria-label="Open search"
-            aria-keyshortcuts="Meta+K Control+K"
-          >
-            <Search className="h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
-            <span className="text-[12.5px]">Search…</span>
-            <kbd className="dash-kbd ml-0.5">{modKey}K</kbd>
-          </button>
-        )}
+        {/* Desktop search bar */}
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          className="mr-1 hidden items-center gap-2 rounded-xl border border-black/[0.07] bg-white/60 px-3 py-1.5 text-muted-foreground/65 transition-all hover:bg-white hover:text-muted-foreground hover:shadow-[0_2px_8px_rgba(42,28,12,0.08)] dark:border-white/[0.09] dark:bg-white/[0.05] dark:hover:bg-white/[0.09] sm:inline-flex"
+          aria-label="Open search"
+          aria-keyshortcuts="Meta+K Control+K"
+        >
+          <Search className="h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
+          <span className="text-[12.5px]">Search…</span>
+          <kbd className="dash-kbd ml-0.5">{modKey}K</kbd>
+        </button>
+        {/* Mobile search icon */}
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-black/[0.08] bg-white/60 text-foreground backdrop-blur-sm transition hover:bg-white dark:border-white/10 dark:bg-white/[0.06] sm:hidden"
+          aria-label="Open search"
+        >
+          <Search className="h-4 w-4" />
+        </button>
         <NotificationBell />
         {FEATURES.WALLET && (
           <Link
@@ -222,11 +230,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isRoom]);
 
   useEffect(() => {
-    if (!isHome) setPaletteOpen(false);
-  }, [isHome]);
+    if (isRoom) setPaletteOpen(false);
+  }, [isRoom]);
 
   useEffect(() => {
-    if (!isHome) return;
+    if (isRoom) return;
 
     function onKey(event: KeyboardEvent) {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
@@ -236,7 +244,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isHome]);
+  }, [isRoom]);
 
   function handleToggleTheme() {
     setDark(toggleTheme());
@@ -278,7 +286,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
         <SummonAlertHost />
         <IncomingCallHost />
-        {isHome && (
+        {!isRoom && (
           <DashboardCommandPalette
             open={paletteOpen}
             onOpenChange={setPaletteOpen}
