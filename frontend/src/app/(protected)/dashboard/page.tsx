@@ -8,6 +8,7 @@ import { DashboardHomeFeed } from "@/components/dashboard/dashboard-home-feed";
 import { DashboardModuleCard } from "@/components/dashboard/dashboard-module-card";
 import { DashboardQuickLaunch } from "@/components/dashboard/dashboard-quick-launch";
 import { useDashboardSnapshot } from "@/hooks/use-dashboard-snapshot";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { getStoredUser, syncStoredUser } from "@/lib/api";
 import { getDashboardConfig } from "@/lib/dashboard-config";
 import type { AuthUser } from "@/lib/types";
@@ -22,6 +23,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setUser(getStoredUser());
+    track(AnalyticsEvents.DASHBOARD_VIEWED);
     syncStoredUser().then((fresh) => {
       if (fresh) setUser(fresh);
     });

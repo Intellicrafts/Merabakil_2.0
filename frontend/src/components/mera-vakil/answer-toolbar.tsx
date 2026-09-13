@@ -6,6 +6,7 @@ import { Check, Copy, FileDown, Loader2, RefreshCw, ShieldCheck } from "lucide-r
 import { ReadAloudControl } from "@/components/mera-vakil/read-aloud-control";
 import { useToast } from "@/components/ui/toast";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { downloadCounselReportPdf } from "@/lib/counsel-report-pdf";
 import type { CounselReportSource } from "@/lib/counsel-report-model";
 import { cn } from "@/lib/utils";
@@ -102,6 +103,7 @@ export function AnswerToolbar({
         onClick={async () => {
           const ok = await copyText(stripCitationMarkup(content));
           if (ok) {
+            track(AnalyticsEvents.AI_RESPONSE_COPIED, { interaction_type: "plain" });
             flash("plain");
             toast({ title: "Copied", description: "Answer copied without citation markers." });
           }
@@ -115,6 +117,7 @@ export function AnswerToolbar({
         onClick={async () => {
           const ok = await copyText(content);
           if (ok) {
+            track(AnalyticsEvents.AI_RESPONSE_COPIED, { interaction_type: "markdown" });
             flash("md");
             toast({ title: "Copied", description: "Markdown copied to clipboard." });
           }

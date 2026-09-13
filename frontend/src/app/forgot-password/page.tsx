@@ -9,6 +9,7 @@ import { AuthLayout } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { requestPasswordReset } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
@@ -62,6 +63,7 @@ export default function ForgotPasswordPage() {
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
+          track(AnalyticsEvents.PASSWORD_RESET_STARTED);
           mutation.mutate();
         }}
       >

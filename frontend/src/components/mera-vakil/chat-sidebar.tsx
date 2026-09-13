@@ -16,7 +16,7 @@ import {
 
 import { ConfirmDialog } from "@/components/mera-vakil/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { clearSession, getStoredUser } from "@/lib/api";
+import { getStoredUser, signOut as apiSignOut } from "@/lib/api";
 import type { ChatConversation } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
 import type { AuthUser } from "@/lib/types";
@@ -186,7 +186,7 @@ export function ChatSidebar({
               size="sm"
               className={cn("flex-1 justify-start gap-2", collapsed && "justify-center px-0")}
               onClick={() => {
-                clearSession();
+                apiSignOut();
                 router.replace("/login");
               }}
             >

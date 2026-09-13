@@ -56,7 +56,7 @@ You can search advocates by practice area, book an appointment, and join a consu
 
 ### Does MeraBakil use cookies?
 
-We use browser local storage for essential functions (sign-in, theme). Analytics (Plausible) loads only if you accept it in our consent banner. Plausible is cookieless.
+We use essential cookies for sign-in and preferences. With your consent, we also use analytics (Google Analytics 4) to improve the product. You can choose **Necessary only** in the cookie banner to decline optional analytics.
 
 ### How do I contact the Grievance Officer?
 
@@ -70,4 +70,4 @@ Modern browsers (Chrome, Firefox, Safari, Edge) on desktop and mobile. For the b
 
 ### The app isn't working. What should I do?
 
-Try refreshing the page or signing out and back in. If the issue persists, email **support@merabakil.in** with a description of the problem and your browser/device details.
+Try refreshing the page or signing out and back in. If the issue persists, email **admin@merabakil.in** with a description of the problem and your browser/device details.

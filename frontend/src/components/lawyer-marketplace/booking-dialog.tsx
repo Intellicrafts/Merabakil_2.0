@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
+import { AnalyticsEvents, bucketAmount, track } from "@/lib/analytics";
 import { bookAppointment, getStoredUser } from "@/lib/api";
 import type { LawyerProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -86,6 +87,10 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
 
   useEffect(() => {
     if (!open) return;
+    track(AnalyticsEvents.APPOINTMENT_STARTED, {
+      booking_source: source,
+      consultation_type: "lawyer",
+    });
     const nextToday = localToday();
     setDate(nextToday);
     setSlot("Immediate");
@@ -128,6 +133,14 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
   function goNext() {
     if (step === 0 && !validateWhen()) return;
     if (step === 1 && !validateMatter()) return;
+    if (step === 0) {
+      track(AnalyticsEvents.APPOINTMENT_SLOT_SELECTED, {
+        appointment_mode: QUICK_SLOTS.has(slot.toLowerCase()) ? "immediate" : "scheduled",
+      });
+    }
+    if (step === 1) {
+      track(AnalyticsEvents.APPOINTMENT_DETAILS_COMPLETED, { booking_source: source });
+    }
     setErrors({});
     setStep((prev) => (prev < 2 ? ((prev + 1) as Step) : prev));
   }
@@ -146,6 +159,11 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
     if (!lawyer) return;
     setSubmitting(true);
     try {
+      track(AnalyticsEvents.APPOINTMENT_PAYMENT_STARTED, {
+        payment_type: "appointment",
+        price_bucket: bucketAmount(lawyer.hourly_rate_inr ?? 0),
+        booking_source: source,
+      });
       const user = getStoredUser();
       await bookAppointment({
         lawyer_id: lawyer.id,
@@ -155,6 +173,11 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
         source,
         citizen_name: user?.full_name ?? "Citizen",
         case_id: caseId ?? null,
+      });
+      track(AnalyticsEvents.APPOINTMENT_BOOKED, {
+        booking_source: source,
+        appointment_mode: QUICK_SLOTS.has(slot.toLowerCase()) ? "immediate" : "scheduled",
+        booking_status: "confirmed",
       });
       toast({
         title: "Consultation booked",

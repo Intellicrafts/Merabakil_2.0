@@ -12,6 +12,7 @@ import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
 import { login, probeAuthService, setSession, syncAdvocateListing } from "@/lib/api";
 import { isGoogleAuthEnabled } from "@/lib/auth/google-flow";
 import { loginRedirectForUser } from "@/lib/permissions";
@@ -34,6 +35,11 @@ function LoginForm() {
   const mutation = useMutation({
     mutationFn: () => login(email, password),
     onSuccess: async (auth) => {
+      track(AnalyticsEvents.LOGIN_COMPLETED, {
+        authentication_method: "email",
+        account_type: auth.user.roles?.[0] ?? "citizen",
+        ...utmAsAnalyticsParams(),
+      });
       setSession(auth);
       await syncAdvocateListing();
       if (nextPath && nextPath.startsWith("/")) {
@@ -72,6 +78,7 @@ function LoginForm() {
         onSubmit={(e) => {
           e.preventDefault();
           setGoogleError(null);
+          track(AnalyticsEvents.LOGIN_STARTED, { authentication_method: "email" });
           mutation.mutate();
         }}
       >

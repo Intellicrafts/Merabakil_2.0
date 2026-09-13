@@ -9,6 +9,7 @@ import { DocumentDetailHero } from "@/components/documents/document-detail-hero"
 import { DocumentPassagesPanel } from "@/components/documents/document-passages-panel";
 import { DocumentQueryDock } from "@/components/documents/document-query-dock";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AnalyticsEvents, bucketLatency, track } from "@/lib/analytics";
 import { getUserDocument, streamResearch } from "@/lib/api";
 import type { ResearchResponse } from "@/lib/types";
 
@@ -45,6 +46,12 @@ export default function DocumentDetailPage() {
     setResult(null);
     setStreamedAnswer("");
     setIsStreaming(true);
+    const startedAt = Date.now();
+
+    track(AnalyticsEvents.DOCUMENT_ANALYSIS_STARTED, {
+      document_feature: "document_qa",
+      entry_point: "document_detail",
+    });
 
     try {
       const data = await streamResearch(
@@ -61,9 +68,19 @@ export default function DocumentDetailPage() {
 
       setResult(data);
       setStreamedAnswer(data.answer);
+      track(AnalyticsEvents.DOCUMENT_ANALYSIS_COMPLETED, {
+        document_feature: "document_qa",
+        response_status: "success",
+        latency_bucket: bucketLatency(Date.now() - startedAt),
+      });
     } catch (err) {
       if (controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : "Research failed");
+      track(AnalyticsEvents.DOCUMENT_ANALYSIS_COMPLETED, {
+        document_feature: "document_qa",
+        response_status: "error",
+        latency_bucket: bucketLatency(Date.now() - startedAt),
+      });
     } finally {
       if (abortRef.current === controller) {
         abortRef.current = null;

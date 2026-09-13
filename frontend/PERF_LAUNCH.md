@@ -25,6 +25,8 @@ npm run check:links
 
 ```
 NEXT_PUBLIC_SITE_URL=https://merabakil.in
-NEXT_PUBLIC_PLAUSIBLE_DOMAIN=merabakil.in
-NEXT_PUBLIC_PLAUSIBLE_ENABLED=true
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_GA_ENABLED=true
 ```
+
+GA4 loads only after cookie consent (`Accept all`). See `docs/analytics/GA4_ADMIN_SETUP.md`.

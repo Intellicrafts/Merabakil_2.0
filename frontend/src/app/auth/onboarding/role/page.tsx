@@ -10,6 +10,7 @@ import { ProfileAvatar } from "@/components/auth/profile-avatar";
 import { RolePicker, type AccountRole } from "@/components/auth/role-picker";
 import { Button } from "@/components/ui/button";
 import { storeAvatarUrl } from "@/lib/avatar";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import {
   clearGoogleOnboarding,
   completeGoogleOnboarding,
@@ -32,6 +33,7 @@ function RoleOnboardingForm() {
     }
     setContext(stored);
     storeAvatarUrl(stored.picture);
+    track(AnalyticsEvents.ONBOARDING_STARTED, { signup_method: "google" });
   }, [router]);
 
   const mutation = useMutation({

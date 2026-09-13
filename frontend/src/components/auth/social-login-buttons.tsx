@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Badge } from "@/components/ui/badge";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { handleGoogleCredential, isGoogleAuthEnabled } from "@/lib/auth/google-flow";
 import { getGoogleOriginHint, subscribeGoogleCredential } from "@/lib/google-identity";
 
@@ -46,6 +47,7 @@ export function SocialLoginButtons({
       if (disabledRef.current || loadingRef.current) return;
       setLoading(true);
       try {
+        track(AnalyticsEvents.LOGIN_STARTED, { authentication_method: "google" });
         await handleGoogleCredential(credential, router, nextPathRef.current);
       } catch (err) {
         const message = (err as Error).message || "Google sign-in failed.";

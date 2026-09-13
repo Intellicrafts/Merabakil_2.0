@@ -1,11 +1,12 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
-import { PlausibleScript } from "@/components/analytics/plausible-script";
 import { FaviconLinks } from "@/components/brand/favicon-links";
 import { PwaRegister } from "@/components/brand/pwa-register";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
+import { PageViewTracker } from "@/components/analytics/page-view-tracker";
 import { CookieConsentBanner } from "@/components/consent/cookie-consent-banner";
 import { NavTracker } from "@/components/layout/nav-tracker";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
@@ -26,9 +27,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <PwaRegister />
         <NavigationProgress />
         <NavTracker />
+        <GoogleAnalytics />
+        <Suspense fallback={null}>
+          <PageViewTracker />
+        </Suspense>
         {children}
         <CookieConsentBanner />
-        <PlausibleScript />
       </ToastProvider>
     </QueryClientProvider>
   );

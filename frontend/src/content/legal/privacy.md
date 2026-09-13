@@ -13,7 +13,7 @@ We may collect the following categories of personal data:
 
 - **Account data:** name, email address, password (hashed), role (citizen or advocate), profile details.
 - **Authentication data:** Google OAuth identifiers when you sign in with Google.
-- **Usage data:** pages visited, feature interactions, and anonymised analytics (only with your consent).
+- **Usage data:** pages visited, feature interactions, and anonymised analytics via **Google Analytics 4** (only with your consent).
 - **Saarthi (AI chat) data:** your questions, conversation history, attachments, and AI-generated responses.
 - **Document data:** files you upload for document Q&A or case management.
 - **Voice data:** audio input when you use voice features (processed to generate text/responses).
@@ -43,7 +43,7 @@ We use third-party services to operate MeraBakil:
 | **Google (Gemini API)** | AI chat, embeddings, text-to-speech, voice |
 | **Google OAuth** | Sign-in authentication |
 | **LiveKit** | Video/audio consultation rooms |
-| **Plausible Analytics** | Privacy-friendly, cookieless usage statistics (with consent) |
+| **Google Analytics 4** | Usage statistics to improve the platform (with consent; IP anonymised, no ad personalisation) |
 | **Cloud infrastructure** | Hosting, databases, object storage |
 
 AI outputs are generated automatically and may be inaccurate. They are **not legal advice**. See our [Terms of Service](/terms).
@@ -56,7 +56,7 @@ We use **browser local storage** (not traditional cookies) for:
 
 - **Essential:** authentication tokens, user session, theme preference.
 - **Consent preference:** your cookie/analytics choice.
-- **Analytics (optional):** Plausible does not use cookies; it loads only after you accept analytics.
+- **Analytics (optional):** loads only after you accept analytics in the consent banner.
 
 You can clear local storage via your browser settings, which will sign you out.
 

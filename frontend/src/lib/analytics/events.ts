@@ -1,0 +1,66 @@
+/** GA4 custom event names — object_action convention. */
+export const AnalyticsEvents = {
+  // Marketing
+  LANDING_PAGE_VIEWED: "landing_page_viewed",
+  MARKETING_CTA_CLICKED: "marketing_cta_clicked",
+  FAQ_OPENED: "faq_opened",
+  LEGAL_PAGE_VIEWED: "legal_page_viewed",
+
+  // Auth
+  SIGNUP_STARTED: "signup_started",
+  SIGNUP_COMPLETED: "signup_completed",
+  LOGIN_STARTED: "login_started",
+  LOGIN_COMPLETED: "login_completed",
+  LOGOUT_COMPLETED: "logout_completed",
+  PASSWORD_RESET_STARTED: "password_reset_started",
+  PASSWORD_RESET_COMPLETED: "password_reset_completed",
+
+  // Onboarding
+  ONBOARDING_STARTED: "onboarding_started",
+  ONBOARDING_COMPLETED: "onboarding_completed",
+
+  // AI
+  AI_CHAT_STARTED: "ai_chat_started",
+  AI_MESSAGE_SENT: "ai_message_sent",
+  AI_RESPONSE_RECEIVED: "ai_response_received",
+  AI_SESSION_COMPLETED: "ai_session_completed",
+  AI_RESPONSE_COPIED: "ai_response_copied",
+
+  // Documents
+  DOCUMENT_UPLOAD_STARTED: "document_upload_started",
+  DOCUMENT_UPLOAD_COMPLETED: "document_upload_completed",
+  DOCUMENT_ANALYSIS_STARTED: "document_analysis_started",
+  DOCUMENT_ANALYSIS_COMPLETED: "document_analysis_completed",
+
+  // Lawyer discovery
+  LAWYER_SEARCH_STARTED: "lawyer_search_started",
+  LAWYER_SEARCH_COMPLETED: "lawyer_search_completed",
+  LAWYER_FILTER_USED: "lawyer_filter_used",
+  LAWYER_PROFILE_VIEWED: "lawyer_profile_viewed",
+  APPOINTMENT_CTA_CLICKED: "appointment_cta_clicked",
+
+  // Appointment funnel
+  APPOINTMENT_STARTED: "appointment_started",
+  APPOINTMENT_SLOT_SELECTED: "appointment_slot_selected",
+  APPOINTMENT_DETAILS_COMPLETED: "appointment_details_completed",
+  APPOINTMENT_PAYMENT_STARTED: "appointment_payment_started",
+  APPOINTMENT_BOOKED: "appointment_booked",
+  APPOINTMENT_CANCELLED: "appointment_cancelled",
+
+  // Consultation
+  CONSULTATION_JOINED: "consultation_joined",
+  CONSULTATION_COMPLETED: "consultation_completed",
+  CONSULTATION_CANCELLED: "consultation_cancelled",
+
+  // Wallet / payment
+  PAYMENT_STARTED: "payment_started",
+  PAYMENT_COMPLETED: "payment_completed",
+  WALLET_BALANCE_VIEWED: "wallet_balance_viewed",
+
+  // Engagement
+  FEATURE_DISCOVERED: "feature_discovered",
+  DASHBOARD_VIEWED: "dashboard_viewed",
+  ERROR_PAGE_VIEWED: "error_page_viewed",
+} as const;
+
+export type AnalyticsEventName = (typeof AnalyticsEvents)[keyof typeof AnalyticsEvents];

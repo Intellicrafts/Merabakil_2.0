@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { LawyerAvatar } from "@/components/lawyer-marketplace/lawyer-avatar";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import type { RankedLawyer } from "@/lib/marketplace-store";
 import { cn } from "@/lib/utils";
@@ -181,6 +182,7 @@ export function LawyerProfileDrawer({
             type="button"
             className="mp-btn-accent h-10 w-full rounded-xl text-[13px] font-semibold"
             onClick={() => {
+              track(AnalyticsEvents.APPOINTMENT_CTA_CLICKED, { booking_source: "manual" });
               onBook(lawyer);
               onClose();
             }}

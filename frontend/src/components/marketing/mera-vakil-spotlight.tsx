@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { BrandLogoStage } from "@/components/marketing/brand-logo-stage";
 import { Button } from "@/components/ui/button";
+import { trackMarketingCta } from "@/lib/analytics/track-cta";
 
 export function MeraVakilSpotlight() {
   return (
@@ -27,7 +30,10 @@ export function MeraVakilSpotlight() {
             Ask a legal question in plain language. Get a cited answer from Indian law.
           </p>
           <Button asChild className="rounded-full">
-            <Link href="/register">
+            <Link
+              href="/register"
+              onClick={() => trackMarketingCta("saarthi_spotlight", "register", "/register")}
+            >
               Ask Saarthi
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>

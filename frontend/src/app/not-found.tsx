@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, HelpCircle, MessageSquare } from "lucide-react";
 
+import { ErrorPageTracker } from "@/components/analytics/error-page-tracker";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/site-metadata";
@@ -15,6 +16,7 @@ export const metadata = pageMetadata({
 export default function NotFoundPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      <ErrorPageTracker />
       <header className="app-topbar border-b border-black/[0.06] px-4 py-4 dark:border-white/10 md:px-6">
         <Link href="/" className="inline-flex items-center gap-2" aria-label="Mera Bakil home">
           <BrandLogo variant="mark" className="h-8 w-8" />

@@ -2,6 +2,7 @@
 
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
+import { AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
 import {
   completeGoogleRegistration,
   loginWithGoogle,
@@ -65,6 +66,7 @@ export async function handleGoogleAuthResult(
   nextPath?: string | null,
 ): Promise<void> {
   if (isGoogleNeedsRole(result)) {
+    track(AnalyticsEvents.SIGNUP_STARTED, { signup_method: "google" });
     storeAvatarUrl(result.picture);
     storeGoogleOnboarding({
       onboarding_token: result.onboarding_token,
@@ -76,6 +78,11 @@ export async function handleGoogleAuthResult(
     router.push(`/auth/onboarding/role${onboardingNext}`);
     return;
   }
+  track(AnalyticsEvents.LOGIN_COMPLETED, {
+    authentication_method: "google",
+    account_type: result.user.roles?.[0] ?? "citizen",
+    ...utmAsAnalyticsParams(),
+  });
   await finishAuthSession(result, router, nextPath);
 }
 
@@ -98,6 +105,12 @@ export async function completeGoogleOnboarding(
     terms_version: LEGAL_VERSIONS.terms,
     privacy_version: LEGAL_VERSIONS.privacy,
   });
+  track(AnalyticsEvents.SIGNUP_COMPLETED, {
+    signup_method: "google",
+    account_type: role,
+    ...utmAsAnalyticsParams(),
+  });
+  track(AnalyticsEvents.ONBOARDING_COMPLETED, { account_type: role });
   clearGoogleOnboarding();
   await finishAuthSession(auth, router, nextPath);
   return auth;

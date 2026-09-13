@@ -19,6 +19,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
 import { useStreamingReveal } from "@/hooks/use-streaming-reveal";
+import {
+  AnalyticsEvents,
+  bucketCount,
+  bucketLatency,
+  track,
+  trackAiSessionCompleted,
+} from "@/lib/analytics";
 import { streamResearch, uploadUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
 import type { UploadProgress } from "@/components/mera-vakil/input-dock";
 import { FEATURES } from "@/lib/features";
@@ -106,9 +113,13 @@ export default function MeraVakilPage() {
   const sessionIdRef = useRef<string | null>(sessionId);
   const draftCaseIdRef = useRef<string | null>(draftCaseId);
   const totalMessageCountRef = useRef<number>(totalMessageCount);
+  const activeConversationRef = useRef<ChatConversation | null>(activeConversation);
   useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
   useEffect(() => { draftCaseIdRef.current = draftCaseId; }, [draftCaseId]);
   useEffect(() => { totalMessageCountRef.current = totalMessageCount; }, [totalMessageCount]);
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
 
   useEffect(() => {
     const msgId = assistantMsgIdRef.current;
@@ -327,6 +338,7 @@ export default function MeraVakilPage() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      trackAiSessionCompleted(activeConversationRef.current);
       // SPA navigation: component unmounts but JS context stays alive — fetch completes
       const sid = sessionIdRef.current;
       const count = totalMessageCountRef.current;
@@ -338,6 +350,7 @@ export default function MeraVakilPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleNewChat() {
+    trackAiSessionCompleted(activeConversation);
     // Fire final extraction for the session that's ending
     if (sessionId && totalMessageCount >= 10) {
       void runFinalExtraction(sessionId, draftCaseId);
@@ -423,6 +436,9 @@ export default function MeraVakilPage() {
   function handleSelectConversation(id: string) {
     const conv = conversations.find((c) => c.id === id);
     if (conv) {
+      if (activeConversation?.id !== id) {
+        trackAiSessionCompleted(activeConversation);
+      }
       setActiveConversation(conv);
       saveActiveConversationId(conv.id);
       setInput("");
@@ -435,6 +451,9 @@ export default function MeraVakilPage() {
   }
 
   function handleDeleteConversation(id: string) {
+    if (activeConversation?.id === id) {
+      trackAiSessionCompleted(activeConversation);
+    }
     deleteConversation(id);
     const updated = loadConversations();
     setConversations(updated);
@@ -702,6 +721,17 @@ export default function MeraVakilPage() {
     setPendingStatus("Understanding your question…");
     setIsResearching(true);
 
+    const startedAt = Date.now();
+    const isNewChat = baseMessages.length === 0;
+    if (isNewChat) {
+      track(AnalyticsEvents.AI_CHAT_STARTED, { session_type: "saarthi", entry_point: "composer" });
+    }
+    track(AnalyticsEvents.AI_MESSAGE_SENT, {
+      has_attachment: Boolean(options?.attachments?.length),
+      message_count_bucket: bucketCount(withUser.messages.length),
+      interaction_type: options?.editMessageId ? "edit_resend" : "send",
+    });
+
     const assistantMsgId = crypto.randomUUID?.() ?? `asst-${Date.now()}`;
     assistantMsgIdRef.current = assistantMsgId;
     withUserRef.current = withUser;
@@ -816,6 +846,11 @@ export default function MeraVakilPage() {
         upsertConversation(completedConv);
         setConversations(loadConversations());
       }
+      track(AnalyticsEvents.AI_RESPONSE_RECEIVED, {
+        latency_bucket: bucketLatency(Date.now() - startedAt),
+        has_citations: Boolean(result.citations?.length || result.web_sources?.length),
+        response_status: "success",
+      });
     } catch (err) {
       if (controller.signal.aborted) return;
       toast({

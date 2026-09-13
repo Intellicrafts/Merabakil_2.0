@@ -1,8 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, Scale } from "lucide-react";
 
 import { ModuleFeatureShowcase } from "@/components/marketing/module-feature-showcase";
 import { Button } from "@/components/ui/button";
+import { trackMarketingCta } from "@/lib/analytics/track-cta";
 
 export function HeroSection() {
   return (
@@ -39,13 +42,18 @@ export function HeroSection() {
               size="lg"
               className="rounded-full bg-gradient-to-r from-slate-800 to-slate-900 px-7 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
             >
-              <Link href="/register">
+              <Link
+                href="/register"
+                onClick={() => trackMarketingCta("hero", "register", "/register")}
+              >
                 Get legal guidance
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="rounded-full">
-              <Link href="/login">Sign In</Link>
+              <Link href="/login" onClick={() => trackMarketingCta("hero", "login", "/login")}>
+                Sign In
+              </Link>
             </Button>
           </div>
 

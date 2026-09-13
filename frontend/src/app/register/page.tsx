@@ -14,6 +14,7 @@ import { TermsConsentCheckbox } from "@/components/legal/terms-consent-checkbox"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
 import { register, setSession, syncAdvocateListing } from "@/lib/api";
 import { loginRedirectForUser } from "@/lib/permissions";
 import { LEGAL_VERSIONS } from "@/lib/site-metadata";
@@ -65,6 +66,11 @@ function RegisterForm() {
         privacy_version: LEGAL_VERSIONS.privacy,
       }),
     onSuccess: async (auth) => {
+      track(AnalyticsEvents.SIGNUP_COMPLETED, {
+        signup_method: "email",
+        account_type: role,
+        ...utmAsAnalyticsParams(),
+      });
       setSession(auth);
       await syncAdvocateListing();
       if (nextPath && nextPath.startsWith("/")) {
@@ -102,6 +108,7 @@ function RegisterForm() {
         onSubmit={(e) => {
           e.preventDefault();
           setGoogleError(null);
+          track(AnalyticsEvents.SIGNUP_STARTED, { signup_method: "email", account_type: role });
           mutation.mutate();
         }}
       >

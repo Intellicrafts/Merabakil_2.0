@@ -8,6 +8,7 @@ import { DocumentsHero } from "@/components/documents/documents-hero";
 import { DocumentsLibraryGrid } from "@/components/documents/documents-library-grid";
 import { DocumentsUploadZone } from "@/components/documents/documents-upload-zone";
 import { useToast } from "@/components/ui/toast";
+import { AnalyticsEvents, bucketFileSize, track } from "@/lib/analytics";
 import { listUserDocuments, uploadUserDocument } from "@/lib/api";
 import { DEMO_DOCUMENTS, type DemoDocument } from "@/lib/demo-documents";
 
@@ -26,11 +27,16 @@ export default function DocumentsPage() {
   const uploadMutation = useMutation({
     mutationFn: () => {
       if (!selectedFile) throw new Error("Choose a file");
+      track(AnalyticsEvents.DOCUMENT_UPLOAD_STARTED, {
+        file_type_category: selectedFile.type.split("/")[0] || "unknown",
+        file_size_bucket: bucketFileSize(selectedFile.size),
+      });
       return uploadUserDocument(selectedFile, {
         title: title || selectedFile.name,
       });
     },
     onSuccess: () => {
+      track(AnalyticsEvents.DOCUMENT_UPLOAD_COMPLETED, { processing_status: "uploaded" });
       toast({ title: "Document uploaded", variant: "success" });
       setTitle("");
       setSelectedFile(null);

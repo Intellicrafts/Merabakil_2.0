@@ -5,6 +5,7 @@ import { ArrowDownUp, MapPin, Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import type { LawyerSort } from "@/lib/marketplace-store";
 import { CITIES, PRACTICE_AREAS } from "@/lib/mock/lawyers";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,24 @@ interface LawyerFiltersProps {
 export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
   function patch(partial: Partial<LawyerFilterState>) {
     onChange({ ...value, ...partial });
+    if (partial.query !== undefined) {
+      track(AnalyticsEvents.LAWYER_SEARCH_STARTED, { filter_type: "query" });
+    }
+    if (partial.practiceArea !== undefined) {
+      track(AnalyticsEvents.LAWYER_FILTER_USED, {
+        filter_type: "practice_area",
+        filter_applied: Boolean(partial.practiceArea),
+      });
+    }
+    if (partial.city !== undefined) {
+      track(AnalyticsEvents.LAWYER_FILTER_USED, {
+        filter_type: "city",
+        filter_applied: Boolean(partial.city),
+      });
+    }
+    if (partial.sort !== undefined) {
+      track(AnalyticsEvents.LAWYER_FILTER_USED, { filter_type: "sort", sort_type: partial.sort });
+    }
   }
 
   const hasActiveFilter =

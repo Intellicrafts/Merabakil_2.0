@@ -24,7 +24,7 @@ import {
 import { ConfirmDialog } from "@/components/mera-vakil/confirm-dialog";
 import { LanguagePicker } from "@/components/mera-vakil/language-picker";
 import { Select } from "@/components/ui/select";
-import { clearSession, getStoredUser } from "@/lib/api";
+import { getStoredUser, signOut as apiSignOut } from "@/lib/api";
 import {
   JURISDICTION_OPTIONS,
   MATTER_TYPES,
@@ -167,8 +167,8 @@ export function ContextPanel({
 
   const shown = filtered.slice(0, visibleCount);
 
-  function signOut() {
-    clearSession();
+  function handleSignOut() {
+    apiSignOut();
     router.replace("/login");
   }
 
@@ -245,7 +245,7 @@ export function ContextPanel({
                       className="ui-select-option"
                       onClick={() => {
                         setMenuOpen(false);
-                        signOut();
+                        handleSignOut();
                       }}
                     >
                       <LogOut className="h-3.5 w-3.5 text-muted-foreground" />

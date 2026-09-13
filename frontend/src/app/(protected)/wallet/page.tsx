@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AnalyticsEvents, bucketAmount, track } from "@/lib/analytics";
 import { getStoredUser, getWalletBalance, listWalletTransactions, topUpWallet } from "@/lib/api";
 import type { AuthUser } from "@/lib/types";
 import type { TransactionType, WalletTransaction } from "@/lib/types";
@@ -109,8 +110,18 @@ function TopUpPanel({ onSuccess }: { onSuccess: () => void }) {
   const qc = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: (amt: number) => topUpWallet(amt),
-    onSuccess: () => {
+    mutationFn: (amt: number) => {
+      track(AnalyticsEvents.PAYMENT_STARTED, {
+        payment_type: "wallet_top_up",
+        amount_bucket: bucketAmount(amt),
+      });
+      return topUpWallet(amt);
+    },
+    onSuccess: (_data, amt) => {
+      track(AnalyticsEvents.PAYMENT_COMPLETED, {
+        payment_type: "wallet_top_up",
+        amount_bucket: bucketAmount(amt),
+      });
       qc.invalidateQueries({ queryKey: ["wallet-balance"] });
       qc.invalidateQueries({ queryKey: ["wallet-transactions"] });
       onSuccess();
@@ -260,6 +271,7 @@ export default function WalletPage() {
 
   useEffect(() => {
     setUser(getStoredUser());
+    track(AnalyticsEvents.WALLET_BALANCE_VIEWED);
   }, []);
 
   const isAdvocate = user?.roles?.includes("advocate") ?? false;

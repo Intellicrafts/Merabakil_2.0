@@ -6,6 +6,7 @@ import { Menu, Moon, Sun, X } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
+import { trackMarketingCta } from "@/lib/analytics/track-cta";
 import { getToken } from "@/lib/api";
 import { initTheme, toggleTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -81,14 +82,24 @@ export function MarketingShell({ children }: MarketingShellProps) {
             ) : (
               <>
                 <Button asChild variant="ghost" size="sm" className="hidden rounded-full sm:inline-flex">
-                  <Link href="/login">Sign In</Link>
+                  <Link
+                    href="/login"
+                    onClick={() => trackMarketingCta("nav", "login", "/login")}
+                  >
+                    Sign In
+                  </Link>
                 </Button>
                 <Button
                   asChild
                   size="sm"
                   className="rounded-full bg-gradient-to-r from-slate-800 to-slate-900 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
                 >
-                  <Link href="/register">Get Started</Link>
+                  <Link
+                    href="/register"
+                    onClick={() => trackMarketingCta("nav", "register", "/register")}
+                  >
+                    Get Started
+                  </Link>
                 </Button>
               </>
             )}
@@ -135,10 +146,20 @@ export function MarketingShell({ children }: MarketingShellProps) {
             {!loggedIn && (
               <div className="flex gap-2 pt-2">
                 <Button asChild variant="outline" size="sm" className="flex-1">
-                  <Link href="/login">Sign In</Link>
+                  <Link
+                    href="/login"
+                    onClick={() => trackMarketingCta("mobile_nav", "login", "/login")}
+                  >
+                    Sign In
+                  </Link>
                 </Button>
                 <Button asChild size="sm" className="flex-1">
-                  <Link href="/register">Get Started</Link>
+                  <Link
+                    href="/register"
+                    onClick={() => trackMarketingCta("mobile_nav", "register", "/register")}
+                  >
+                    Get Started
+                  </Link>
                 </Button>
               </div>
             )}

@@ -3,6 +3,7 @@
 import { BadgeCheck } from "lucide-react";
 
 import { LawyerAvatar } from "@/components/lawyer-marketplace/lawyer-avatar";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import type { RankedLawyer } from "@/lib/marketplace-store";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +41,10 @@ export function TopMatchesStrip({ lawyers, onView, onBook }: TopMatchesStripProp
           >
             <button
               type="button"
-              onClick={() => onView(lawyer)}
+              onClick={() => {
+                track(AnalyticsEvents.LAWYER_PROFILE_VIEWED, { booking_source: "manual" });
+                onView(lawyer);
+              }}
               className="shrink-0"
               aria-label={`View ${lawyer.full_name}`}
             >
@@ -59,7 +63,10 @@ export function TopMatchesStrip({ lawyers, onView, onBook }: TopMatchesStripProp
             </div>
             <button
               type="button"
-              onClick={() => onBook(lawyer)}
+              onClick={() => {
+                track(AnalyticsEvents.APPOINTMENT_CTA_CLICKED, { booking_source: "manual" });
+                onBook(lawyer);
+              }}
               className="mp-btn-accent h-9 shrink-0 rounded-xl px-3.5 text-[12px] font-semibold"
             >
               Book

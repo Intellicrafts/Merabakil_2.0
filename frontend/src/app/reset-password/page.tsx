@@ -10,6 +10,7 @@ import { AuthLayout } from "@/components/auth/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { confirmPasswordReset } from "@/lib/api";
 
 function ResetPasswordForm() {
@@ -27,6 +28,7 @@ function ResetPasswordForm() {
       return confirmPasswordReset(token, password);
     },
     onSuccess: () => {
+      track(AnalyticsEvents.PASSWORD_RESET_COMPLETED);
       setDone(true);
       setTimeout(() => router.push("/login"), 2500);
     },

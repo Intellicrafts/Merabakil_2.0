@@ -48,6 +48,7 @@ import type {
   SummonAlertPayload,
   ModerationEventPayload,
 } from "@/lib/appointment-types";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { callHub } from "@/lib/call-hub";
 import { playAlertChime, requestNotificationPermission, showBrowserNotification, stopCallRingtone } from "@/lib/room-alerts";
 
@@ -402,6 +403,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           return;
         }
         const token = await fetchRoomToken(appointmentId);
+        track(AnalyticsEvents.CONSULTATION_JOINED, { consultation_mode: "video_chat" });
         const configured = Boolean(token.configured && token.token && token.url);
         setLivekitConfigured(configured);
         setLivekitConnectFailed(false);

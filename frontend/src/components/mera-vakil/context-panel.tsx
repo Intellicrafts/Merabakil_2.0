@@ -24,7 +24,7 @@ import { VoiceVisualizer } from "@/components/mera-vakil/voice-visualizer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { clearSession, getStoredUser } from "@/lib/api";
+import { getStoredUser, signOut as apiSignOut } from "@/lib/api";
 import {
   JURISDICTION_OPTIONS,
   MATTER_TYPES,
@@ -318,7 +318,7 @@ export function ContextPanel({
             size="sm"
             className="mt-3 min-h-9 w-full rounded-lg border-black/[0.08] bg-white/40 text-[12px] dark:border-white/10 dark:bg-white/[0.04]"
             onClick={() => {
-              clearSession();
+              apiSignOut();
               router.replace("/login");
             }}
           >

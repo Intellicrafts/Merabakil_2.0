@@ -4,6 +4,7 @@ import { memo } from "react";
 import { BadgeCheck, MapPin, Star } from "lucide-react";
 
 import { LawyerAvatar } from "@/components/lawyer-marketplace/lawyer-avatar";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import type { RankedLawyer } from "@/lib/marketplace-store";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,16 @@ export const LawyerCard = memo(function LawyerCard({
   const more = lawyer.practice_areas.length - areas.length;
   const displayName = lawyer.full_name.replace(/^Adv\.\s*/i, "");
 
+  function handleView() {
+    track(AnalyticsEvents.LAWYER_PROFILE_VIEWED, { booking_source: "manual" });
+    onView(lawyer);
+  }
+
+  function handleBook() {
+    track(AnalyticsEvents.APPOINTMENT_CTA_CLICKED, { booking_source: "manual" });
+    onBook(lawyer);
+  }
+
   return (
     <article
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
@@ -47,7 +58,7 @@ export const LawyerCard = memo(function LawyerCard({
         <div className="flex items-start gap-3.5">
           <button
             type="button"
-            onClick={() => onView(lawyer)}
+            onClick={handleView}
             className="relative shrink-0"
             aria-label={`View ${lawyer.full_name}`}
           >
@@ -63,7 +74,7 @@ export const LawyerCard = memo(function LawyerCard({
             )}
           </button>
 
-          <button type="button" onClick={() => onView(lawyer)} className="min-w-0 flex-1 text-left">
+          <button type="button" onClick={handleView} className="min-w-0 flex-1 text-left">
             <div className="flex items-start justify-between gap-2">
               <h3 className="truncate text-[14.5px] font-semibold tracking-tight sm:text-[15px]">
                 {variant === "counsel" ? displayName : lawyer.full_name}
@@ -112,14 +123,14 @@ export const LawyerCard = memo(function LawyerCard({
         <button
           type="button"
           className="mp-btn-primary h-11 min-w-0 rounded-xl text-[13px] font-semibold sm:h-10"
-          onClick={() => onView(lawyer)}
+          onClick={handleView}
         >
           Profile
         </button>
         <button
           type="button"
           className="mp-btn-accent h-11 min-w-0 rounded-xl text-[13px] font-semibold sm:h-10"
-          onClick={() => onBook(lawyer)}
+          onClick={handleBook}
         >
           Book
         </button>

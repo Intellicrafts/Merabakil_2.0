@@ -1,4 +1,4 @@
-export const CONSENT_VERSION = 1;
+export const CONSENT_VERSION = 2;
 export const CONSENT_STORAGE_KEY = "legalos.consent";
 
 export type ConsentChoice = {
@@ -33,4 +33,14 @@ export function writeConsent(analytics: boolean): ConsentChoice {
 
 export function hasConsentChoice(): boolean {
   return readConsent() !== null;
+}
+
+/** Clears stored choice and re-opens the cookie banner. Revokes analytics immediately. */
+export function clearConsent(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(CONSENT_STORAGE_KEY);
+  window.dispatchEvent(
+    new CustomEvent("legalos:consent-changed", { detail: { analytics: false } }),
+  );
+  window.dispatchEvent(new CustomEvent("legalos:consent-reset"));
 }

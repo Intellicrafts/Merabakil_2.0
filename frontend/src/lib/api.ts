@@ -28,6 +28,13 @@ import type {
   RoomTokenResponse,
 } from "@/lib/appointment-types";
 
+import {
+  AnalyticsEvents,
+  bucketCount,
+  clearAnalyticsUser,
+  setAnalyticsUser,
+  track,
+} from "@/lib/analytics";
 import { clearAvatarUrl } from "@/lib/avatar";
 import {
   authServiceUrl,
@@ -74,6 +81,7 @@ function setTokens(accessToken: string, refreshToken: string): void {
 export function setSession(auth: AuthResponse): void {
   setTokens(auth.tokens.access_token, auth.tokens.refresh_token);
   window.localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
+  void setAnalyticsUser(auth.user.user_id);
 }
 
 export function clearSession(): void {
@@ -81,6 +89,13 @@ export function clearSession(): void {
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
   clearAvatarUrl();
+  clearAnalyticsUser();
+}
+
+/** User-initiated sign out — tracks logout then clears session. */
+export function signOut(): void {
+  track(AnalyticsEvents.LOGOUT_COMPLETED);
+  clearSession();
 }
 
 function redirectToLogin(reason = "session-expired"): void {
@@ -724,7 +739,14 @@ export async function fetchMarketplaceLawyers(params: {
   if (params.practiceArea) qs.set("practice_area", params.practiceArea);
   if (params.city) qs.set("city", params.city);
   qs.set("verified", String(params.verified ?? true));
-  return apiFetch<RankedMarketplaceLawyer[]>(`${marketplaceServiceUrl()}/api/v1/lawyers?${qs.toString()}`);
+  const rows = await apiFetch<RankedMarketplaceLawyer[]>(
+    `${marketplaceServiceUrl()}/api/v1/lawyers?${qs.toString()}`,
+  );
+  track(AnalyticsEvents.LAWYER_SEARCH_COMPLETED, {
+    result_count_bucket: bucketCount(rows.length),
+    filter_applied: Boolean(params.query || params.practiceArea || params.city),
+  });
+  return rows;
 }
 
 export async function matchMarketplaceLawyers(body: {
@@ -781,10 +803,15 @@ export async function confirmAppointment(id: string): Promise<AppointmentRecord>
 }
 
 export async function cancelAppointment(id: string): Promise<AppointmentRecord> {
-  return apiFetch<AppointmentRecord>(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/cancel`, {
-    method: "POST",
-    headers: authHeaders(),
-  });
+  const result = await apiFetch<AppointmentRecord>(
+    `${marketplaceServiceUrl()}/api/v1/appointments/${id}/cancel`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+    },
+  );
+  track(AnalyticsEvents.APPOINTMENT_CANCELLED, { booking_status: "cancelled" });
+  return result;
 }
 
 export async function rejectAppointment(id: string, reason: string): Promise<AppointmentRecord> {
@@ -850,10 +877,15 @@ export async function dismissAppointmentSummon(id: string): Promise<JoinStateDto
 }
 
 export async function leaveAppointment(id: string): Promise<{ ok: boolean }> {
-  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/leave`, {
-    method: "POST",
-    headers: authHeaders(),
-  });
+  const result = await apiFetch<{ ok: boolean }>(
+    `${marketplaceServiceUrl()}/api/v1/appointments/${id}/leave`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+    },
+  );
+  track(AnalyticsEvents.CONSULTATION_COMPLETED, { completion_status: "left" });
+  return result;
 }
 
 export async function fetchAppointmentTranscript(
@@ -942,11 +974,16 @@ export async function cancelAppointmentCall(
   id: string,
   callId: string,
 ): Promise<import("@/lib/appointment-types").IncomingCallPayload> {
-  return apiFetch(`${marketplaceServiceUrl()}/api/v1/appointments/${id}/call/cancel`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ call_id: callId }),
-  });
+  const result = await apiFetch<import("@/lib/appointment-types").IncomingCallPayload>(
+    `${marketplaceServiceUrl()}/api/v1/appointments/${id}/call/cancel`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ call_id: callId }),
+    },
+  );
+  track(AnalyticsEvents.CONSULTATION_CANCELLED, { consultation_mode: "video_chat" });
+  return result;
 }
 
 export interface LawyerListingInput {

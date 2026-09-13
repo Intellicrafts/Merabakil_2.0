@@ -22,7 +22,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { clearSession, getStoredUser, getWalletBalance } from "@/lib/api";
+import { getStoredUser, getWalletBalance, signOut } from "@/lib/api";
+import { clearConsent } from "@/lib/consent";
 import { readAvatarUrl } from "@/lib/avatar";
 import { markNavigationStart } from "@/lib/navigation-feedback";
 import { FEATURES } from "@/lib/features";
@@ -176,6 +177,7 @@ function AppTopBar({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => clearConsent()}>Cookie settings</DropdownMenuItem>
             <DropdownMenuItem destructive onClick={onSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
@@ -251,7 +253,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   function handleSignOut() {
-    clearSession();
+    signOut();
     router.replace("/login");
   }
 

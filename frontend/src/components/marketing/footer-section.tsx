@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { CookieSettingsLink } from "@/components/consent/cookie-settings-link";
 
 export function FooterSection() {
   return (
@@ -28,6 +29,7 @@ export function FooterSection() {
             <Link href="/terms" className="hover:text-foreground">
               Terms
             </Link>
+            <CookieSettingsLink />
             <a href="mailto:support@merabakil.in" className="hover:text-foreground">
               Contact
             </a>
