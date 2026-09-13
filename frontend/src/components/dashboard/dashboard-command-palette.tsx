@@ -27,6 +27,8 @@ interface PaletteItem {
   subtitle: string;
   href: string;
   icon: LucideIcon;
+  badge?: string;
+  badgeVariant?: "live" | "active" | "muted";
   conversationId?: string;
 }
 
@@ -39,8 +41,37 @@ const GROUP_LABEL: Record<PaletteGroup, string> = {
 
 const GROUP_ORDER: PaletteGroup[] = ["workspace", "counsel", "consultation", "docket"];
 
+// Per-group icon container colours
+const GROUP_ICON_BG: Record<PaletteGroup, string> = {
+  workspace:    "bg-white/80 border-black/[0.06] dark:bg-white/[0.06] dark:border-white/[0.08]",
+  counsel:      "bg-violet-50 border-violet-100 dark:bg-violet-500/[0.12] dark:border-violet-500/[0.15]",
+  consultation: "bg-sky-50 border-sky-100 dark:bg-sky-500/[0.12] dark:border-sky-500/[0.15]",
+  docket:       "bg-amber-50 border-amber-100 dark:bg-amber-500/[0.10] dark:border-amber-500/[0.14]",
+};
+
+const GROUP_ICON_COLOR: Record<PaletteGroup, string> = {
+  workspace:    "text-muted-foreground",
+  counsel:      "text-violet-600 dark:text-violet-400",
+  consultation: "text-sky-600 dark:text-sky-400",
+  docket:       "text-amber-600 dark:text-amber-500",
+};
+
+const BADGE_STYLES: Record<NonNullable<PaletteItem["badgeVariant"]>, string> = {
+  live:   "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/[0.12] dark:text-emerald-400 dark:border-emerald-500/20",
+  active: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/[0.12] dark:text-sky-400 dark:border-sky-500/20",
+  muted:  "bg-black/[0.04] text-muted-foreground border-black/[0.06] dark:bg-white/[0.06] dark:border-white/[0.08]",
+};
+
 function domId(id: string): string {
   return `palette-opt-${id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
+function fmtDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
 }
 
 function collectSyncItems(user: AuthUser | null): PaletteItem[] {
@@ -76,17 +107,28 @@ async function collectAsyncItems(): Promise<PaletteItem[]> {
     listCasesApi(undefined, 1, 10),
   ]);
 
+  const APT_BADGE: Partial<Record<string, { label: string; variant: PaletteItem["badgeVariant"] }>> = {
+    live:      { label: "Live now", variant: "live" },
+    confirmed: { label: "Upcoming", variant: "active" },
+    requested: { label: "Pending",  variant: "muted" },
+  };
+
   const consultations: PaletteItem[] = apts
     .filter((a) => !["cancelled", "expired", "no_show"].includes(a.status))
     .slice(0, 5)
-    .map((a) => ({
-      id: `apt:${a.id}`,
-      group: "consultation" as const,
-      title: a.counterpart_name || a.lawyer_name || a.citizen_name || "Consultation",
-      subtitle: `${a.matter_summary || "Legal consultation"} · ${a.date}`,
-      href: `/appointments/${a.id}`,
-      icon: CalendarClock,
-    }));
+    .map((a) => {
+      const b = APT_BADGE[a.status];
+      return {
+        id: `apt:${a.id}`,
+        group: "consultation" as const,
+        title: a.counterpart_name || a.lawyer_name || a.citizen_name || "Consultation",
+        subtitle: `${a.matter_summary || "Legal consultation"} · ${a.date ? fmtDate(a.date) : ""}`.replace(/ · $/, ""),
+        href: `/appointments/${a.id}`,
+        icon: CalendarClock,
+        badge: b?.label,
+        badgeVariant: b?.variant,
+      };
+    });
 
   const docket: PaletteItem[] = page.items
     .filter((c) => c.status === "open" || c.status === "in_progress")
@@ -98,6 +140,8 @@ async function collectAsyncItems(): Promise<PaletteItem[]> {
       subtitle: [c.case_number, c.court].filter(Boolean).join(" · "),
       href: `/cases/${c.id}`,
       icon: FolderOpen,
+      badge: c.status === "in_progress" ? "In progress" : undefined,
+      badgeVariant: c.status === "in_progress" ? "active" : undefined,
     }));
 
   return [...consultations, ...docket];
@@ -115,6 +159,18 @@ function scoreItem(item: PaletteItem, query: string): number {
   return 1;
 }
 
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl px-2.5 py-2">
+      <div className="h-8 w-8 shrink-0 animate-pulse rounded-xl bg-black/[0.05] dark:bg-white/[0.06]" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 w-2/3 animate-pulse rounded-full bg-black/[0.05] dark:bg-white/[0.06]" />
+        <div className="h-2.5 w-1/2 animate-pulse rounded-full bg-black/[0.04] dark:bg-white/[0.04]" />
+      </div>
+    </div>
+  );
+}
+
 export function DashboardCommandPalette({
   open,
   onOpenChange,
@@ -128,8 +184,9 @@ export function DashboardCommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [syncItems, setSyncItems] = useState<PaletteItem[]>([]);
+  const [syncItems, setSyncItems]   = useState<PaletteItem[]>([]);
   const [asyncItems, setAsyncItems] = useState<PaletteItem[]>([]);
+  const [asyncLoading, setAsyncLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const items = useMemo(() => [...syncItems, ...asyncItems], [syncItems, asyncItems]);
@@ -142,7 +199,11 @@ export function DashboardCommandPalette({
     setActive(0);
     setSyncItems(collectSyncItems(user));
     setAsyncItems([]);
-    void collectAsyncItems().then(setAsyncItems).catch(() => {});
+    setAsyncLoading(true);
+    void collectAsyncItems()
+      .then(setAsyncItems)
+      .catch(() => {})
+      .finally(() => setAsyncLoading(false));
 
     const id = window.requestAnimationFrame(() => inputRef.current?.focus());
     const prev = document.body.style.overflow;
@@ -182,18 +243,14 @@ export function DashboardCommandPalette({
     [filtered],
   );
 
-  useEffect(() => {
-    setActive(0);
-  }, [query]);
+  useEffect(() => { setActive(0); }, [query]);
 
   useEffect(() => {
     const el = document.querySelector<HTMLElement>(`[data-palette-index="${active}"]`);
     el?.scrollIntoView({ block: "nearest" });
   }, [active, filtered.length]);
 
-  function close() {
-    onOpenChange(false);
-  }
+  function close() { onOpenChange(false); }
 
   function select(item: PaletteItem) {
     close();
@@ -202,119 +259,169 @@ export function DashboardCommandPalette({
   }
 
   function onKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-      return;
-    }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setActive((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setActive((i) => Math.max(i - 1, 0));
-      return;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      const item = filtered[active];
-      if (item) select(item);
-    }
+    if (event.key === "Escape")    { event.preventDefault(); close(); return; }
+    if (event.key === "ArrowDown") { event.preventDefault(); setActive((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0))); return; }
+    if (event.key === "ArrowUp")   { event.preventDefault(); setActive((i) => Math.max(i - 1, 0)); return; }
+    if (event.key === "Enter")     { event.preventDefault(); const item = filtered[active]; if (item) select(item); }
   }
 
   if (!mounted || !open) return null;
 
+  const hasResults = filtered.length > 0;
+  const showSkeletons = asyncLoading && !query;
+
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-start justify-center px-4 pt-[12vh] sm:pt-[16vh]">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center px-4 pt-[10vh] sm:pt-[14vh]">
+      {/* Veil */}
       <button
         type="button"
         className="dash-palette-veil absolute inset-0"
-        aria-label="Close command palette"
+        aria-label="Close search"
         onClick={close}
       />
+
+      {/* Dialog */}
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="command-palette-title"
-        className="relative z-[81] w-full max-w-lg overflow-hidden rounded-3xl border border-black/[0.08] bg-white/95 shadow-[0_24px_80px_rgba(15,23,42,0.28)] backdrop-blur-2xl dark:border-white/10 dark:bg-[hsl(220_14%_9%/0.96)]"
+        className="relative z-[81] w-full max-w-[560px] overflow-hidden rounded-[1.5rem] border border-black/[0.07] bg-white/97 shadow-[0_32px_96px_rgba(15,23,42,0.22),0_2px_8px_rgba(15,23,42,0.06)] backdrop-blur-2xl dark:border-white/[0.09] dark:bg-[hsl(220_16%_8%/0.98)]"
         onKeyDown={onKeyDown}
       >
-        <div className="border-b border-black/[0.06] px-3 py-3 dark:border-white/[0.08]">
-          <h2 id="command-palette-title" className="sr-only">
-            Jump to
-          </h2>
-          <div className="flex items-center gap-2">
-            <Search className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-            <Input
-              ref={inputRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Jump to workspace, consultation, or chat…"
-              className="h-10 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
-              aria-autocomplete="list"
-              aria-controls="command-palette-list"
-              aria-activedescendant={filtered[active] ? domId(filtered[active].id) : undefined}
-            />
-            <kbd className="dash-kbd mr-1">Esc</kbd>
-          </div>
+        {/* Search bar */}
+        <div className="flex items-center gap-2.5 border-b border-black/[0.06] px-4 py-3.5 dark:border-white/[0.07]">
+          <h2 id="command-palette-title" className="sr-only">Search</h2>
+          <Search className="h-[15px] w-[15px] shrink-0 text-muted-foreground/70" strokeWidth={2} />
+          <Input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search workspaces, consultations, chats…"
+            className="h-9 border-0 bg-transparent px-0 text-[14px] shadow-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
+            aria-autocomplete="list"
+            aria-controls="command-palette-list"
+            aria-activedescendant={filtered[active] ? domId(filtered[active].id) : undefined}
+          />
+          <kbd className="dash-kbd shrink-0">Esc</kbd>
         </div>
 
+        {/* Results */}
         <ul
           id="command-palette-list"
           role="listbox"
-          className="max-h-[min(52vh,420px)] overflow-y-auto p-2"
+          className="max-h-[min(56vh,440px)] overflow-y-auto px-2 py-2"
         >
-          {filtered.length === 0 ? (
-            <li className="px-3 py-10 text-center text-[13px] text-muted-foreground">
-              No matches
+          {/* No query and no results yet */}
+          {!hasResults && !showSkeletons ? (
+            <li className="flex flex-col items-center gap-2 px-3 py-12 text-center">
+              <Search className="h-7 w-7 text-muted-foreground/25" strokeWidth={1.5} />
+              <span className="text-[13px] text-muted-foreground/60">
+                {query ? "No matches found" : "Start typing to search"}
+              </span>
             </li>
           ) : (
-            groups.map(({ group, items: groupItems }) => (
-              <li key={group} className="mb-1.5">
-                <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  {GROUP_LABEL[group]}
-                </p>
-                <ul>
-                  {groupItems.map((item) => {
-                    const index = filtered.indexOf(item);
-                    const Icon = item.icon ?? Sparkles;
-                    const isActive = index === active;
-                    return (
-                      <li key={item.id} id={domId(item.id)} role="option" aria-selected={isActive}>
-                        <button
-                          type="button"
-                          data-palette-index={index}
-                          onMouseEnter={() => setActive(index)}
-                          onClick={() => select(item)}
-                          className={cn(
-                            "flex w-full items-center gap-3 rounded-2xl px-2.5 py-2 text-left",
-                            isActive
-                              ? "bg-black/[0.05] dark:bg-white/[0.08]"
-                              : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
-                          )}
-                        >
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-black/[0.06] bg-white/80 dark:border-white/[0.08] dark:bg-white/[0.06]">
-                            <Icon className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-medium tracking-tight">
-                              {item.title}
+            <>
+              {groups.map(({ group, items: groupItems }) => (
+                <li key={group} className="mb-2">
+                  {/* Group header with extending rule */}
+                  <div className="flex items-center gap-2.5 px-2.5 pb-1 pt-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">
+                      {GROUP_LABEL[group]}
+                    </span>
+                    <div className="h-px flex-1 bg-black/[0.055] dark:bg-white/[0.06]" />
+                  </div>
+
+                  <ul>
+                    {groupItems.map((item) => {
+                      const index = filtered.indexOf(item);
+                      const Icon = item.icon ?? Sparkles;
+                      const isActive = index === active;
+                      return (
+                        <li key={item.id} id={domId(item.id)} role="option" aria-selected={isActive}>
+                          <button
+                            type="button"
+                            data-palette-index={index}
+                            onMouseEnter={() => setActive(index)}
+                            onClick={() => select(item)}
+                            className={cn(
+                              "flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors",
+                              isActive
+                                ? "bg-black/[0.055] dark:bg-white/[0.08]"
+                                : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
+                            )}
+                          >
+                            {/* Group-tinted icon */}
+                            <span className={cn(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border",
+                              GROUP_ICON_BG[item.group],
+                            )}>
+                              <Icon
+                                className={cn("h-[14px] w-[14px]", GROUP_ICON_COLOR[item.group])}
+                                strokeWidth={1.85}
+                              />
                             </span>
-                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                              {item.subtitle}
+
+                            {/* Text */}
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center gap-2">
+                                <span className="block truncate text-[13px] font-medium leading-snug tracking-tight">
+                                  {item.title}
+                                </span>
+                                {item.badge && (
+                                  <span className={cn(
+                                    "shrink-0 rounded-full border px-1.5 py-[1px] text-[10px] font-medium leading-none",
+                                    BADGE_STYLES[item.badgeVariant ?? "muted"],
+                                  )}>
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground/70">
+                                {item.subtitle}
+                              </span>
                             </span>
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-            ))
+
+                            {/* Arrow hint on active */}
+                            {isActive && (
+                              <span className="ml-1 shrink-0 text-[10px] text-muted-foreground/40">↵</span>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              ))}
+
+              {/* Skeleton rows while async data loads */}
+              {showSkeletons && asyncItems.length === 0 && (
+                <li className="mb-2">
+                  <div className="flex items-center gap-2.5 px-2.5 pb-1 pt-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/40">
+                      My Consultations
+                    </span>
+                    <div className="h-px flex-1 bg-black/[0.04] dark:bg-white/[0.04]" />
+                  </div>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </li>
+              )}
+            </>
           )}
         </ul>
+
+        {/* Footer — keyboard hints */}
+        <div className="flex items-center gap-4 border-t border-black/[0.05] px-4 py-2.5 dark:border-white/[0.06]">
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground/45">
+            <kbd className="dash-kbd">↑↓</kbd> navigate
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground/45">
+            <kbd className="dash-kbd">↵</kbd> open
+          </span>
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground/45">
+            <kbd className="dash-kbd">esc</kbd> close
+          </span>
+        </div>
       </div>
     </div>,
     document.body,
