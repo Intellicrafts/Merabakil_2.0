@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.use_cases import AuthService
 from app.config import AuthSettings, get_settings
 from app.infrastructure.db import get_session
+from app.infrastructure.event_publisher import EventPublisher
 from app.infrastructure.rate_limit import RateLimiter
 from app.infrastructure.repositories import (
     SqlAlchemyOAuthIdentityRepository,
@@ -18,6 +19,7 @@ from app.infrastructure.repositories import (
 )
 
 _settings = get_settings()
+_event_publisher = EventPublisher(_settings.redis_url)
 _rate_limiter = RateLimiter(
     _settings.redis_url,
     max_requests=_settings.rate_limit_max_requests,
@@ -37,6 +39,7 @@ def get_auth_service(session: AsyncSession = Depends(get_session)) -> AuthServic
         password_resets=SqlAlchemyPasswordResetRepository(session),
         consents=SqlAlchemyUserConsentRepository(session),
         settings=_settings,
+        events=_event_publisher,
     )
 
 

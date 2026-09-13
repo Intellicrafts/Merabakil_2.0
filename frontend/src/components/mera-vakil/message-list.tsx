@@ -21,7 +21,6 @@ interface MessageListProps {
   onStartEdit?: (messageId: string) => void;
   onCancelEdit?: () => void;
   onResendEdit?: (messageId: string, newContent: string) => void;
-  onRegenerate?: (userMessageId: string) => void;
   groundingMessageId?: string | null;
   readAloudStatus?: ReadAloudStatus;
   readAloudActiveId?: string | null;
@@ -42,7 +41,6 @@ export function MessageList({
   onStartEdit,
   onCancelEdit,
   onResendEdit,
-  onRegenerate,
   groundingMessageId,
   readAloudStatus,
   readAloudActiveId,
@@ -142,11 +140,6 @@ export function MessageList({
               onStartEdit={msg.role === "user" ? onStartEdit : undefined}
               onCancelEdit={onCancelEdit}
               onResendEdit={onResendEdit}
-              onRegenerate={
-                msg.role === "assistant" && prevUserId && onRegenerate
-                  ? () => onRegenerate(prevUserId)
-                  : undefined
-              }
               readAloudStatus={readAloudStatus}
               readAloudActiveId={readAloudActiveId}
               onReadAloudToggle={onReadAloudToggle}

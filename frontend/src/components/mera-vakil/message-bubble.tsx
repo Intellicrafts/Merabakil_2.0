@@ -29,7 +29,6 @@ interface MessageBubbleProps {
   onStartEdit?: (messageId: string) => void;
   onCancelEdit?: () => void;
   onResendEdit?: (messageId: string, newContent: string) => void;
-  onRegenerate?: () => void;
   readAloudStatus?: ReadAloudStatus;
   readAloudActiveId?: string | null;
   onReadAloudToggle?: (messageId: string, content: string) => void;
@@ -49,7 +48,6 @@ export const MessageBubble = memo(function MessageBubble({
   onStartEdit,
   onCancelEdit,
   onResendEdit,
-  onRegenerate,
   readAloudStatus = "idle",
   readAloudActiveId = null,
   onReadAloudToggle,
@@ -226,7 +224,6 @@ export const MessageBubble = memo(function MessageBubble({
               ]}
               disclaimer={research?.disclaimer}
               messageId={message.id}
-              onRegenerate={onRegenerate}
               readAloudStatus={readAloudStatus}
               readAloudActiveId={readAloudActiveId}
               onReadAloudToggle={onReadAloudToggle}

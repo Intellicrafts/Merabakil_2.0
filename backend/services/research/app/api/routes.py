@@ -332,6 +332,11 @@ async def research_stream(
                 )
             )
 
+        if answer and state.user_id and _CHATBOT_FEE > _Decimal("0"):
+            asyncio.create_task(
+                _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE)
+            )
+
     return StreamingResponse(
         generator(),
         media_type="text/event-stream",
