@@ -27,6 +27,12 @@ async def chat_rate_limit(
         limit=20,
         window_seconds=60,
     )
+    await check_rate_limit(
+        container.redis,
+        key=f"rate:chat:daily:{current_user.user_id}",
+        limit=20,
+        window_seconds=86_400,
+    )
     return current_user
 
 

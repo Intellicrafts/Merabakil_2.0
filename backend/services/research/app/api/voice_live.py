@@ -273,11 +273,33 @@ _TOOL_DECLARATIONS = [
 ]
 
 
-def _setup_msg(voice: str, model: str, today_date: str) -> dict:
+def _format_conversation_history(messages: list[dict]) -> str:
+    lines: list[str] = []
+    for m in messages[-10:]:
+        role = m.get("role", "")
+        content = (m.get("content") or "").strip()[:500]
+        if not content:
+            continue
+        label = "User" if role == "user" else "Mera Vakil"
+        lines.append(f"{label}: {content}")
+    if not lines:
+        return ""
+    header = (
+        "## Prior conversation context (from this session's text chat)\n"
+        "The user has already been chatting via text. Do NOT re-introduce yourself. "
+        "Acknowledge the user's return briefly (e.g. 'I see we were discussing X — shall we continue?') "
+        "and pick up from where the conversation left off.\n"
+    )
+    return header + "\n".join(lines)
+
+
+def _setup_msg(voice: str, model: str, today_date: str, prior_context: str = "") -> dict:
     system_text = (
         _SYSTEM_PROMPT
         + f"\n\n## Session context\nToday's date: {today_date} (use this when booking appointments)."
     )
+    if prior_context:
+        system_text += "\n\n" + prior_context
     return {
         "setup": {
             "model": f"models/{model}",
@@ -583,6 +605,17 @@ async def voice_live(
         gemini_url = f"{_GEMINI_LIVE_WS}?key={api_key}"
         gemini_headers = {}
 
+    # Signal frontend we're ready to receive conversation context.
+    await websocket.send_json({"type": "ready"})
+    prior_context = ""
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=3.0)
+        msg = json.loads(raw)
+        if msg.get("type") == "context" and msg.get("messages"):
+            prior_context = _format_conversation_history(msg["messages"])
+    except Exception:
+        pass  # No context provided or timed out — proceed clean
+
     try:
         async with websockets.connect(
             gemini_url,
@@ -592,7 +625,7 @@ async def voice_live(
         ) as gemini_ws:
             # ── Setup ───────────────────────────────────────────────────────
             today_date = _date.today().strftime("%Y-%m-%d")
-            await gemini_ws.send(json.dumps(_setup_msg(voice, live_model, today_date)))
+            await gemini_ws.send(json.dumps(_setup_msg(voice, live_model, today_date, prior_context)))
             try:
                 first = json.loads(await gemini_ws.recv())
             except Exception as exc:
@@ -608,12 +641,12 @@ async def voice_live(
 
             logger.info("voice_live: Gemini setup OK model=%s voice=%s user=%s", live_model, voice, user_id)
 
-            # Trigger Gemini to deliver an opening greeting immediately.
-            # Without this, Gemini waits for user audio before speaking, which
-            # means the audio pipeline is untested until the user speaks.
+            # Trigger Gemini to speak immediately. Use "continue from prior context"
+            # when history was injected so it skips the intro greeting.
+            begin_text = "continue from prior context" if prior_context else "begin"
             await gemini_ws.send(json.dumps({
                 "clientContent": {
-                    "turns": [{"role": "user", "parts": [{"text": "begin"}]}],
+                    "turns": [{"role": "user", "parts": [{"text": begin_text}]}],
                     "turnComplete": True,
                 }
             }))

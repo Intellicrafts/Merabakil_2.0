@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
@@ -88,3 +90,13 @@ class UserConsentResponse(BaseModel):
     consent_type: str
     version: str
     accepted_at: str
+
+
+class NotificationOut(BaseModel):
+    id: str
+    kind: str
+    title: str
+    body: str | None
+    action_url: str | None
+    is_read: bool
+    created_at: datetime

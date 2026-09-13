@@ -5,7 +5,9 @@ import { createContext, useCallback, useContext, useEffect, useSyncExternalStore
 
 import { useInboxEvents, type InboxStreamEvent } from "@/hooks/use-inbox-events";
 import type { IncomingCallPayload } from "@/lib/appointment-types";
+import { listNotifications } from "@/lib/api";
 import { callHub } from "@/lib/call-hub";
+import type { AppNotification, NotificationKind } from "@/lib/notification-hub";
 import { notificationHub } from "@/lib/notification-hub";
 import { requestNotificationPermission } from "@/lib/room-alerts";
 
@@ -35,11 +37,37 @@ export function useActiveSummonBanner() {
   return useHubStore(() => notificationHub.getActiveBanner());
 }
 
+function appointmentIdFromUrl(url: string | null): string {
+  if (!url) return "";
+  const m = url.match(/\/appointments\/([^/]+)/);
+  return m?.[1] ?? "";
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
     requestNotificationPermission();
+  }, []);
+
+  useEffect(() => {
+    listNotifications()
+      .then((items) => {
+        const mapped: AppNotification[] = items.map((n) => ({
+          id: n.id,
+          kind: n.kind as NotificationKind,
+          appointmentId: appointmentIdFromUrl(n.action_url),
+          title: n.title,
+          body: n.body ?? "",
+          fromName: "",
+          lastSummonAt: "",
+          createdAt: new Date(n.created_at).getTime(),
+          read: n.is_read,
+          actionUrl: n.action_url ?? undefined,
+        }));
+        notificationHub.loadFromHistory(mapped);
+      })
+      .catch(() => undefined);
   }, []);
 
   const handleSummon = useCallback(

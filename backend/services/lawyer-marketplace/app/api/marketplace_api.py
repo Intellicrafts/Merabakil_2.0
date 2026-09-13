@@ -69,7 +69,7 @@ from app.application.livekit_tokens import mint_room_token, remove_room_particip
 from app.application.matching import score_lawyer
 from app.application.room_hub import publish, publish_admin, publish_user, subscribe, subscribe_admin, subscribe_user, unsubscribe, unsubscribe_admin, unsubscribe_user
 from app.constants import PRIORITIES
-from app.infrastructure.appointment_models import AppointmentParticipant, Consultation
+from app.infrastructure.appointment_models import AppointmentParticipant, Consultation, Notification
 from app.infrastructure.appointment_repo import MarketplaceRepository
 from app.infrastructure.db import get_session, session_scope
 from app.infrastructure.file_store import (
@@ -412,6 +412,29 @@ async def _emit_ops_update(
     await _emit(row.id, "ops_update", out.model_dump())
 
 
+async def _notify(
+    session,
+    *,
+    user_id: uuid.UUID,
+    kind: str,
+    title: str,
+    body: str,
+    action_url: str,
+) -> None:
+    try:
+        n = Notification(
+            user_id=user_id,
+            kind=kind,
+            title=title,
+            body=body,
+            action_url=action_url,
+        )
+        session.add(n)
+        await session.flush()
+    except Exception as exc:
+        logger.warning("notify_failed kind=%s user_id=%s error=%s", kind, user_id, exc)
+
+
 def _is_live_session(apt: AppointmentOut) -> bool:
     if apt.status == "live":
         return True
@@ -624,7 +647,21 @@ async def create_appointment(
         except ValueError:
             pass
 
+    date_str = row.scheduled_at.strftime("%d %b %Y") if row.scheduled_at else body.date
+    await _notify(
+        session,
+        user_id=lawyer.user_id,
+        kind="appointment_booked",
+        title="New consultation booked",
+        body=f"{row.citizen_display_name} has booked a consultation on {date_str} at {row.time_slot}.",
+        action_url=f"/appointments/{row.id}",
+    )
+
     booking_amount = lawyer.hourly_rate or 0
+    prior = await repo.count_citizen_consultations(uuid.UUID(user.user_id), exclude_id=row.id)
+    if prior == 0 and booking_amount > 0:
+        booking_amount = 0
+        row.metrics = {**(row.metrics or {}), "first_appointment_free": True}
     if booking_amount > 0:
         from decimal import Decimal
         try:
@@ -718,6 +755,16 @@ async def confirm_appointment(
         row.status = "confirmed"
         row.confirmed_at = now_ist()
         await repo.add_event(row.id, "confirmed", uuid.UUID(user.user_id), {})
+        date_str = row.scheduled_at.strftime("%d %b %Y") if row.scheduled_at else ""
+        await _notify(
+            session,
+            user_id=row.citizen_user_id,
+            kind="appointment_confirmed",
+            title="Consultation confirmed",
+            body=f"{row.lawyer_display_name} has confirmed your consultation on {date_str} at {row.time_slot}.",
+            action_url=f"/appointments/{row.id}",
+        )
+        await publish_user(str(row.citizen_user_id), {"type": "appointment_confirmed", "appointment_id": str(row.id)})
     return await _to_appointment(repo, row, user)
 
 
@@ -737,7 +784,16 @@ async def reject_appointment(
     row.status = "cancelled"
     row.metrics = {**(row.metrics or {}), "rejection_reason": body.reason.strip(), "rejected_by": "lawyer"}
     await repo.add_event(row.id, "rejected", uuid.UUID(user.user_id), {"reason": body.reason.strip()})
-    publish_user(str(row.citizen_user_id), {"type": "appointment_rejected", "appointment_id": str(row.id), "reason": body.reason.strip()})
+    await publish_user(str(row.citizen_user_id), {"type": "appointment_rejected", "appointment_id": str(row.id), "reason": body.reason.strip()})
+    date_str = row.scheduled_at.strftime("%d %b %Y") if row.scheduled_at else ""
+    await _notify(
+        session,
+        user_id=row.citizen_user_id,
+        kind="appointment_rejected",
+        title="Consultation not accepted",
+        body=f"{row.lawyer_display_name} could not accept your consultation request for {date_str}.",
+        action_url=f"/appointments/{row.id}",
+    )
     return await _to_appointment(repo, row, user)
 
 
@@ -753,6 +809,20 @@ async def cancel_appointment(
         raise HTTPException(status_code=400, detail="Appointment already closed")
     row.status = "cancelled"
     await repo.add_event(row.id, "cancelled", uuid.UUID(user.user_id), {})
+
+    uid = uuid.UUID(user.user_id)
+    other_user_id = row.lawyer_user_id if uid == row.citizen_user_id else row.citizen_user_id
+    canceller_name = row.citizen_display_name if uid == row.citizen_user_id else row.lawyer_display_name
+    date_str = row.scheduled_at.strftime("%d %b %Y") if row.scheduled_at else ""
+    await _notify(
+        session,
+        user_id=other_user_id,
+        kind="appointment_cancelled",
+        title="Consultation cancelled",
+        body=f"{canceller_name} cancelled the consultation scheduled for {date_str}.",
+        action_url=f"/appointments/{row.id}",
+    )
+    await publish_user(str(other_user_id), {"type": "appointment_cancelled", "appointment_id": str(row.id)})
 
     booking_amount_str = (row.metrics or {}).get("booking_amount")
     if booking_amount_str:

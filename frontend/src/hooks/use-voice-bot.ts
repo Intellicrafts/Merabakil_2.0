@@ -37,6 +37,7 @@ export function isVoiceBotSupported(): boolean {
 interface UseVoiceBotOptions {
   open: boolean;
   speechLocale: string;
+  priorMessages?: Array<{ role: string; content: string }>;
 }
 
 export interface UseVoiceBotResult {
@@ -75,7 +76,7 @@ function pcmToAudioBuffer(pcm: Uint8Array, sampleRate: number, ctx: AudioContext
   return buf;
 }
 
-export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
+export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoiceBotResult {
   const [botState, setBotState]         = useState<VoiceBotState>("idle");
   const [transcript, setTranscript]     = useState("");
   const [amplitude, setAmplitude]       = useState(0);
@@ -104,10 +105,12 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
   const playbackBlockedRef = useRef(false);
   const smoothAmpRef = useRef(0);
   const ampRafRef    = useRef<number | null>(null);
-  const openRef      = useRef(open);
-  const connectRef   = useRef<() => void>(() => {});
+  const openRef          = useRef(open);
+  const connectRef       = useRef<() => void>(() => {});
+  const priorMessagesRef = useRef(priorMessages ?? []);
 
   useEffect(() => { openRef.current = open; }, [open]);
+  useEffect(() => { priorMessagesRef.current = priorMessages ?? []; }, [priorMessages]);
 
   // ── Amplitude loop ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -296,6 +299,15 @@ export function useVoiceBot({ open }: UseVoiceBotOptions): UseVoiceBotResult {
             appointment?: VoiceBookedAppointment;
           };
           switch (msg.type) {
+            case "ready":
+              ws.send(JSON.stringify({
+                type: "context",
+                messages: priorMessagesRef.current.slice(-10).map((m) => ({
+                  role: m.role,
+                  content: m.content.slice(0, 1000),
+                })),
+              }));
+              break;
             case "state":
               if (msg.value) {
                 if (msg.value !== "speaking") stopPlayback();

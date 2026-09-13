@@ -40,10 +40,16 @@ async def check_rate_limit(
         return  # Redis hiccup — fail open
 
     if count > limit:
-        window_min = window_seconds // 60 or window_seconds
-        unit = "min" if window_seconds >= 60 else "sec"
+        if window_seconds >= 86_400:
+            window_label = f"{window_seconds // 86_400} day"
+        elif window_seconds >= 3_600:
+            window_label = f"{window_seconds // 3_600} hr"
+        elif window_seconds >= 60:
+            window_label = f"{window_seconds // 60} min"
+        else:
+            window_label = f"{window_seconds} sec"
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Rate limit exceeded — max {limit} requests per {window_min} {unit}. Please wait and try again.",
+            detail=f"Rate limit exceeded — max {limit} requests per {window_label}. Please wait and try again.",
             headers={"Retry-After": str(window_seconds)},
         )

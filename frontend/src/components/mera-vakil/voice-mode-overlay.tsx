@@ -12,6 +12,7 @@ interface VoiceModeOverlayProps {
   open: boolean;
   onClose: () => void;
   speechLocale: string;
+  conversationMessages?: Array<{ role: string; content: string }>;
   onConversationEnd?: (messages: VoiceMessage[], lawyers: LawyerMatchResult[]) => void;
   onBookLawyer?: (lawyer: LawyerMatchResult) => void;
 }
@@ -59,7 +60,7 @@ const BLOB_DURATION: Record<VoiceBotState, string> = {
   speaking: "2s",
 };
 
-export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEnd, onBookLawyer }: VoiceModeOverlayProps) {
+export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMessages, onConversationEnd, onBookLawyer }: VoiceModeOverlayProps) {
   const {
     botState,
     transcript,
@@ -71,7 +72,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, onConversationEn
     dismissLastBooking,
     interrupt,
     stop,
-  } = useVoiceBot({ open, speechLocale });
+  } = useVoiceBot({ open, speechLocale, priorMessages: conversationMessages });
 
   const voiceMessagesRef = useRef(voiceMessages);
   const lawyerResultsRef = useRef(lawyerResults);
