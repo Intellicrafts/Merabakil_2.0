@@ -3,46 +3,46 @@ import { Briefcase, FileText, Gavel, MessageSquare, Scale, Search } from "lucide
 const SERVICES = [
   {
     icon: MessageSquare,
-    title: "Ask any legal question",
+    title: "Your AI legal guide, always available",
     description:
-      "Get cited answers on property rights, employment law, consumer protection, criminal procedure, and more — explained in plain language.",
+      "Describe your situation — by text or voice. Saarthi asks the right follow-up questions, explains your rights and options, cites the relevant laws and judgments, and helps you decide whether and when to engage a lawyer.",
     tag: "Saarthi",
   },
   {
     icon: Search,
-    title: "Research Indian law",
+    title: "Cite-ready search across Indian law",
     description:
-      "Search across the Indian Constitution, IPC, CrPC, consumer protection acts, and thousands of Supreme Court and High Court judgments.",
+      "Instantly search the Indian Constitution, IPC, CrPC, consumer protection acts, and thousands of Supreme Court and High Court judgments. Every result is source-linked — reliable enough to share with your advocate.",
     tag: "Research",
   },
   {
     icon: Briefcase,
-    title: "Connect clients and advocates",
+    title: "Find the right lawyer, not just any lawyer",
     description:
-      "Citizens find verified lawyers by practice area and book consultations. Advocates receive curated client opportunities matched to their expertise — with a structured case brief before they commit.",
+      "Browse verified advocates by practice area, city, and availability. Book a timed consultation, review a structured case brief before committing, and meet in a built-in video consultation room — all without leaving the platform.",
     tag: "Marketplace",
   },
   {
     icon: FileText,
-    title: "Track your legal matters",
+    title: "Keep every case organised",
     description:
-      "Stay on top of active cases, next steps, and key dates. Keep all matter details, documents, and updates organised in one place.",
+      "Create a case file for each legal matter, log key dates and milestones, attach documents, and track next steps — so nothing slips through during a long legal process.",
     tag: "Case Management",
     upcoming: true,
   },
   {
     icon: Scale,
-    title: "Manage your documents",
+    title: "One secure registry for all your legal documents",
     description:
-      "Upload contracts, legal notices, evidence, and correspondence. Query your documents with AI and share securely with your lawyer.",
+      "Store contracts, notices, evidence, and correspondence in one place. Query any document with AI, and share selected files directly and securely with your lawyer — with full access control.",
     tag: "Documents",
     upcoming: true,
   },
   {
     icon: Gavel,
-    title: "Practice before a hearing",
+    title: "Rehearse before you argue in court",
     description:
-      "Advocates can rehearse oral arguments with an AI judge and opposing counsel — with real-time transcripts and formal written feedback.",
+      "Advocates can run full oral-argument sessions against an AI judge and opposing counsel. Receive a real-time transcript and a formal written critique of your arguments after every round.",
     tag: "AI Courtroom",
     upcoming: true,
   },
@@ -57,11 +57,10 @@ export function FeaturesSection() {
             Services
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-            Everything you need to handle a legal matter
+            The full legal journey, in one platform
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
-            From your first question to finding a lawyer, managing your case, and preparing
-            for court — one platform covers the full legal journey.
+            From understanding your rights and finding the right lawyer, to managing your case files and preparing for court — MeraVakil covers every step.
           </p>
         </div>
 
@@ -97,7 +96,7 @@ export function FeaturesSection() {
                   </div>
                 </div>
                 <h3 className={`font-semibold ${service.upcoming ? "text-foreground/60" : ""}`}>{service.title}</h3>
-                <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {service.description}
                 </p>
               </div>
