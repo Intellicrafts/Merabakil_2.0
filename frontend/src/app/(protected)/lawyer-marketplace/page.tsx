@@ -13,7 +13,6 @@ import {
 } from "@/components/lawyer-marketplace/lawyer-filters";
 import { LawyerProfileDrawer } from "@/components/lawyer-marketplace/lawyer-profile-drawer";
 import { MarketplaceHero } from "@/components/lawyer-marketplace/marketplace-hero";
-import { TopMatchesStrip } from "@/components/lawyer-marketplace/top-matches-strip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -253,12 +252,6 @@ export default function LawyerMarketplacePage() {
 
         <TabsContent value="lawyers" className="mt-3 space-y-4 sm:mt-5 sm:space-y-5">
           <LawyerFilters value={filters} onChange={setFilters} />
-
-          <TopMatchesStrip
-            lawyers={lawyers}
-            onView={setProfileLawyer}
-            onBook={(l) => setBookingLawyer(l)}
-          />
 
           <div className="flex items-baseline justify-between gap-3 px-0.5">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
