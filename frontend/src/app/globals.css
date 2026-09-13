@@ -484,12 +484,25 @@
 }
 
 .dash-palette-veil {
-  background: rgba(15, 23, 42, 0.38);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(12px);
 }
 
 .dark .dash-palette-veil {
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.62);
+}
+
+@keyframes palette-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.984); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);     }
+}
+
+.dash-palette-dialog {
+  animation: palette-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-palette-dialog { animation: none; }
 }
 
 .dash-ask-bar input:focus {
