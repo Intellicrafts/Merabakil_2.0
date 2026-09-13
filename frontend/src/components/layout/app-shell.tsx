@@ -123,7 +123,7 @@ function AppTopBar({
             aria-label="My wallet"
           >
             <Wallet className="h-3.5 w-3.5" />
-            {walletBalance ?? "₹—"}
+            {walletBalance ?? "— pts"}
           </Link>
         )}
         <Button
@@ -205,7 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   });
 
   const walletBalance = walletData
-    ? new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(parseFloat(walletData.balance))
+    ? `${new Intl.NumberFormat("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(parseFloat(walletData.balance))} pts`
     : null;
 
   const isHome = pathname === "/dashboard";

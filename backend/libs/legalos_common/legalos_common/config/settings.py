@@ -143,7 +143,7 @@ class CommonSettings(BaseSettings):
     corpus_registry_path: str = "data/corpus_registry.yaml"
     billing_service_url: str = "http://localhost:8020"
     billing_internal_secret: str = "change-me"
-    chatbot_query_fee_inr: str = "2.00"
+    chatbot_query_fee_inr: str = "0.10"
     case_service_url: str = "http://localhost:8011"
     frontend_url: str = "https://merabakil.in"
 

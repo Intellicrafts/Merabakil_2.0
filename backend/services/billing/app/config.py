@@ -9,7 +9,7 @@ class BillingSettings(CommonSettings):
     service_name: str = "billing-service"
     billing_internal_secret: str = "change-me"
     welcome_credit_inr: str = "100.00"
-    chatbot_query_fee_inr: str = "2.00"
+    chatbot_query_fee_inr: str = "0.10"
 
 
 @lru_cache

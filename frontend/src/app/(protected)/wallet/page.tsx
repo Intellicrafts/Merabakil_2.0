@@ -27,13 +27,9 @@ import { cn } from "@/lib/utils";
 
 const QUICK_AMOUNTS = [100, 500, 1000, 2000];
 
-function formatInr(amount: string | number): string {
+function formatPts(amount: string | number): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-  }).format(num);
+  return `${new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)} pts`;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -91,10 +87,10 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
       <div className="text-right">
         <p className={cn("text-[13px] font-semibold tabular-nums", isDebit ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
           {isDebit ? "−" : "+"}
-          {formatInr(tx.amount)}
+          {formatPts(tx.amount)}
         </p>
         <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground/60">
-          Bal {formatInr(tx.balance_after)}
+          Bal {formatPts(tx.balance_after)}
         </p>
       </div>
       <p className="hidden w-16 text-right text-[11px] tabular-nums text-muted-foreground/50 sm:block">
@@ -182,7 +178,7 @@ function TopUpPanel({ onSuccess }: { onSuccess: () => void }) {
         disabled={!amount || Number(amount) <= 0 || mutation.isPending}
         onClick={() => { if (amount) mutation.mutate(Number(amount)); }}
       >
-        {mutation.isPending ? "Processing…" : `Add ${amount ? formatInr(amount) : "funds"}`}
+        {mutation.isPending ? "Processing…" : `Add ${amount ? formatPts(amount) : "funds"}`}
       </Button>
     </div>
   );
@@ -195,7 +191,7 @@ function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
       bg: "bg-violet-100/70 dark:bg-violet-500/[0.15]",
       color: "text-violet-600 dark:text-violet-400",
       label: "AI query",
-      value: "₹2 / query",
+      value: "0.1 pts / query",
       sub: "20 queries/day",
     },
     {
@@ -222,7 +218,7 @@ function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
       bg: "bg-violet-100/70 dark:bg-violet-500/[0.15]",
       color: "text-violet-600 dark:text-violet-400",
       label: "AI query",
-      value: "₹2 / query",
+      value: "0.1 pts / query",
       sub: "20 queries/day",
     },
     {
@@ -305,11 +301,11 @@ export default function WalletPage() {
               <Skeleton className="mt-3 h-10 w-40" />
             ) : (
               <p className="mt-1.5 text-[2.6rem] font-bold tracking-tight leading-none">
-                {formatInr(balance)}
+                {formatPts(balance)}
               </p>
             )}
             <p className="mt-2 text-[12px] text-muted-foreground/70">
-              {wallet?.currency ?? "INR"} · available balance
+              MeraBakil Points · available balance
             </p>
           </div>
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100/70 dark:bg-amber-500/[0.15]">
