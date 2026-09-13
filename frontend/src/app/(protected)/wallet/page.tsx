@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowDownLeft,
   ArrowUpRight,
   Bot,
   CalendarCheck,
   CircleDollarSign,
+  Clock,
   Gift,
   RefreshCcw,
   Sparkles,
@@ -17,15 +18,12 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AnalyticsEvents, bucketAmount, track } from "@/lib/analytics";
-import { getStoredUser, getWalletBalance, listWalletTransactions, topUpWallet } from "@/lib/api";
+import { AnalyticsEvents, track } from "@/lib/analytics";
+import { getStoredUser, getWalletBalance, listWalletTransactions } from "@/lib/api";
 import type { AuthUser } from "@/lib/types";
 import type { TransactionType, WalletTransaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const QUICK_AMOUNTS = [100, 500, 1000, 2000];
 
 function formatPts(amount: string | number): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
@@ -100,89 +98,6 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
   );
 }
 
-function TopUpPanel({ onSuccess }: { onSuccess: () => void }) {
-  const [amount, setAmount] = useState<number | "">(500);
-  const [custom, setCustom] = useState(false);
-  const qc = useQueryClient();
-
-  const mutation = useMutation({
-    mutationFn: (amt: number) => {
-      track(AnalyticsEvents.PAYMENT_STARTED, {
-        payment_type: "wallet_top_up",
-        amount_bucket: bucketAmount(amt),
-      });
-      return topUpWallet(amt);
-    },
-    onSuccess: (_data, amt) => {
-      track(AnalyticsEvents.PAYMENT_COMPLETED, {
-        payment_type: "wallet_top_up",
-        amount_bucket: bucketAmount(amt),
-      });
-      qc.invalidateQueries({ queryKey: ["wallet-balance"] });
-      qc.invalidateQueries({ queryKey: ["wallet-transactions"] });
-      onSuccess();
-    },
-  });
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-4 gap-2">
-        {QUICK_AMOUNTS.map((amt) => (
-          <button
-            key={amt}
-            type="button"
-            onClick={() => { setAmount(amt); setCustom(false); }}
-            className={cn(
-              "rounded-xl border py-2.5 text-[13px] font-medium transition-colors",
-              !custom && amount === amt
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-black/[0.08] bg-white/60 text-foreground hover:bg-white dark:border-white/10 dark:bg-white/[0.05] dark:hover:bg-white/[0.09]",
-            )}
-          >
-            ₹{amt.toLocaleString("en-IN")}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="custom-amt"
-          checked={custom}
-          onChange={(e) => { setCustom(e.target.checked); if (e.target.checked) setAmount(""); }}
-          className="h-3.5 w-3.5 cursor-pointer"
-        />
-        <label htmlFor="custom-amt" className="cursor-pointer text-[13px] text-muted-foreground">
-          Enter custom amount
-        </label>
-      </div>
-
-      {custom && (
-        <Input
-          type="number"
-          min={1}
-          max={100000}
-          placeholder="Amount in ₹"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : "")}
-          className="text-[14px]"
-        />
-      )}
-
-      {mutation.isError && (
-        <p className="text-[12px] text-red-600 dark:text-red-400">Failed to add funds. Please try again.</p>
-      )}
-
-      <Button
-        className="w-full"
-        disabled={!amount || Number(amount) <= 0 || mutation.isPending}
-        onClick={() => { if (amount) mutation.mutate(Number(amount)); }}
-      >
-        {mutation.isPending ? "Processing…" : `Add ${amount ? formatPts(amount) : "funds"}`}
-      </Button>
-    </div>
-  );
-}
 
 function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
   const citizenCards = [
@@ -261,7 +176,6 @@ function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
 }
 
 export default function WalletPage() {
-  const [topUpOpen, setTopUpOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -316,34 +230,16 @@ export default function WalletPage() {
         {/* Divider */}
         <div className="mx-6 my-4 h-px bg-black/[0.05] dark:bg-white/[0.06]" />
 
-        <div className="px-6 pb-6">
-          {!topUpOpen ? (
-            <div className="flex items-center gap-3">
-              <Button onClick={() => setTopUpOpen(true)} className="gap-2">
-                <ArrowUpRight className="h-4 w-4" />
-                Add Points
-              </Button>
-              {!walletLoading && balance === 0 && (
-                <p className="text-[12px] text-muted-foreground/60">
-                  Top up to start using paid features
-                </p>
-              )}
+        <div className="px-6 pb-5">
+          <div className="flex items-start gap-3 rounded-xl border border-dashed border-black/[0.10] bg-black/[0.02] px-4 py-3.5 dark:border-white/[0.10] dark:bg-white/[0.03]">
+            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
+            <div>
+              <p className="text-[13px] font-medium text-foreground/80">Points recharge — coming soon</p>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground/60">
+                We&apos;re building a secure top-up experience. Your current balance is ready to use — any unused points will carry forward once recharge goes live.
+              </p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[13px] font-medium">Add funds</p>
-                <button
-                  type="button"
-                  onClick={() => setTopUpOpen(false)}
-                  className="text-[12px] text-muted-foreground hover:text-foreground"
-                >
-                  Cancel
-                </button>
-              </div>
-              <TopUpPanel onSuccess={() => setTopUpOpen(false)} />
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
