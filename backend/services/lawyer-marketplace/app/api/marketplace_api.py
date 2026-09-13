@@ -652,8 +652,8 @@ async def create_appointment(
         session,
         user_id=lawyer.user_id,
         kind="appointment_booked",
-        title="New consultation request",
-        body=f"{row.citizen_display_name} has requested a consultation on {date_str} at {row.time_slot}.",
+        title="New consultation booked",
+        body=f"{row.citizen_display_name} has booked a consultation on {date_str} at {row.time_slot}.",
         action_url=f"/appointments/{row.id}",
     )
 
