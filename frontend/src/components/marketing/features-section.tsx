@@ -28,6 +28,7 @@ const SERVICES = [
     description:
       "Stay on top of active cases, next steps, and key dates. Keep all matter details, documents, and updates organised in one place.",
     tag: "Case Management",
+    upcoming: true,
   },
   {
     icon: Scale,
@@ -35,6 +36,7 @@ const SERVICES = [
     description:
       "Upload contracts, legal notices, evidence, and correspondence. Query your documents with AI and share securely with your lawyer.",
     tag: "Documents",
+    upcoming: true,
   },
   {
     icon: Gavel,
@@ -42,6 +44,7 @@ const SERVICES = [
     description:
       "Advocates can rehearse oral arguments with an AI judge and opposing counsel — with real-time transcripts and formal written feedback.",
     tag: "AI Courtroom",
+    upcoming: true,
   },
 ];
 
@@ -68,17 +71,32 @@ export function FeaturesSection() {
             return (
               <div
                 key={service.title}
-                className="rounded-2xl border border-black/[0.06] bg-white/60 p-4 backdrop-blur-sm sm:p-6 dark:border-white/10 dark:bg-white/[0.04]"
+                className={`rounded-2xl border p-4 backdrop-blur-sm sm:p-6 ${
+                  service.upcoming
+                    ? "border-black/[0.05] bg-black/[0.01] dark:border-white/[0.07] dark:bg-white/[0.02]"
+                    : "border-black/[0.06] bg-white/60 dark:border-white/10 dark:bg-white/[0.04]"
+                }`}
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-black/[0.06] bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
-                    <Icon className="h-[18px] w-[18px] text-slate-600 dark:text-slate-300" strokeWidth={1.75} />
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm ${
+                    service.upcoming
+                      ? "border-black/[0.04] bg-white/70 dark:border-white/[0.07] dark:bg-white/[0.05]"
+                      : "border-black/[0.06] bg-white dark:border-white/10 dark:bg-white/[0.08]"
+                  }`}>
+                    <Icon className={`h-[18px] w-[18px] ${service.upcoming ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-300"}`} strokeWidth={1.75} />
                   </div>
-                  <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:bg-white/[0.06]">
-                    {service.tag}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {service.upcoming && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+                        Coming soon
+                      </span>
+                    )}
+                    <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:bg-white/[0.06]">
+                      {service.tag}
+                    </span>
+                  </div>
                 </div>
-                <h3 className="font-semibold">{service.title}</h3>
+                <h3 className={`font-semibold ${service.upcoming ? "text-foreground/60" : ""}`}>{service.title}</h3>
                 <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-muted-foreground">
                   {service.description}
                 </p>
