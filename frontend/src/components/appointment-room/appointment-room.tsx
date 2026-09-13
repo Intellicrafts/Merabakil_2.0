@@ -465,26 +465,38 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       const lk = await import("livekit-client");
       const room = new lk.Room({ adaptiveStream: true, dynacast: true });
       roomRef.current = room;
+      const composedRemote = new MediaStream();
+      const composedLocal = new MediaStream();
       room.on(lk.RoomEvent.ParticipantConnected, () =>
         setJoin((prev) => (prev ? { ...prev, opponent_present: true } : prev)),
       );
       room.on(lk.RoomEvent.ParticipantDisconnected, () =>
         setJoin((prev) => (prev ? { ...prev, opponent_present: false } : prev)),
       );
-      room.on(lk.RoomEvent.LocalTrackPublished, (pub: { track?: { mediaStream?: MediaStream } }) => {
-        const track = pub.track;
-        if (track?.mediaStream) {
-          localStreamRef.current = track.mediaStream;
-          setLocalStream(track.mediaStream);
+      room.on(lk.RoomEvent.LocalTrackPublished, (pub: { track?: { mediaStreamTrack?: MediaStreamTrack; mediaStream?: MediaStream } }) => {
+        const mst = pub.track?.mediaStreamTrack;
+        if (mst) {
+          composedLocal.getTracks().filter((t) => t.kind === mst.kind).forEach((t) => composedLocal.removeTrack(t));
+          composedLocal.addTrack(mst);
+          localStreamRef.current = composedLocal;
+          setLocalStream(new MediaStream(composedLocal.getTracks()));
         }
       });
-      room.on(lk.RoomEvent.TrackSubscribed, (track: { kind: unknown; mediaStream?: MediaStream }) => {
+      room.on(lk.RoomEvent.TrackSubscribed, (track: { kind: unknown; mediaStreamTrack?: MediaStreamTrack }) => {
         if (track.kind === lk.Track.Kind.Video || track.kind === lk.Track.Kind.Audio) {
-          const media = track.mediaStream;
-          if (media) {
-            remoteStreamRef.current = media;
+          const mst = track.mediaStreamTrack;
+          if (mst) {
+            composedRemote.getTracks().filter((t) => t.kind === mst.kind).forEach((t) => composedRemote.removeTrack(t));
+            composedRemote.addTrack(mst);
+            remoteStreamRef.current = composedRemote;
             setStreamTick((n) => n + 1);
           }
+        }
+      });
+      room.on(lk.RoomEvent.TrackUnsubscribed, (track: { mediaStreamTrack?: MediaStreamTrack }) => {
+        if (track.mediaStreamTrack) {
+          composedRemote.removeTrack(track.mediaStreamTrack);
+          setStreamTick((n) => n + 1);
         }
       });
       await room.connect(url, token);
