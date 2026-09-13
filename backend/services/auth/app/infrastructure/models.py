@@ -201,6 +201,22 @@ class SaarthiConversation(Base, UUIDMixin, TimestampMixin):
     pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
+class UserConsent(Base, UUIDMixin):
+    __tablename__ = "user_consents"
+    __table_args__ = (
+        UniqueConstraint("user_id", "consent_type", "version", name="uq_user_consent_version"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    consent_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    version: Mapped[str] = mapped_column(String(20), nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ip_hash: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class PasswordResetToken(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "password_reset_tokens"
     __table_args__ = (UniqueConstraint("token_hash", name="uq_password_reset_token_hash"),)

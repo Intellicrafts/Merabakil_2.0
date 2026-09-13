@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Pencil, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
+import { AssistantSkeleton } from "@/components/mera-vakil/assistant-skeleton";
 import { ChatFileCard } from "@/components/mera-vakil/chat-file-card";
 import { SaarthiMark } from "@/components/mera-vakil/saarthi-mark";
 import { DocumentPreviewDialog, type PreviewTarget } from "@/components/mera-vakil/document-preview-dialog";
@@ -35,6 +36,7 @@ interface MessageBubbleProps {
   onReadAloudStop?: () => void;
   caseId?: string | null;
   question?: string;
+  streamingStatus?: string;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -54,6 +56,7 @@ export const MessageBubble = memo(function MessageBubble({
   onReadAloudStop,
   caseId,
   question,
+  streamingStatus,
 }: MessageBubbleProps) {
   const [editText, setEditText] = useState(message.content);
   const [groundingOpen, setGroundingOpen] = useState(false);
@@ -154,10 +157,19 @@ export const MessageBubble = memo(function MessageBubble({
 
   const research = message.research;
   const stillTyping = Boolean(isTyping);
-  const displayContent = message.content;
-  const showAvatar = !(stillTyping && !message.content);
+  const revealedChars = message.revealedChars ?? message.content.length;
+  const visibleContent = stillTyping
+    ? message.content.slice(0, revealedChars)
+    : message.content;
+  const showSkeleton = stillTyping && !message.content;
+  const showAvatar = !showSkeleton;
   const lawyers = (research?.specialist_payload?.lawyers ?? []) as LawyerMatchResult[];
   const appointment = research?.specialist_payload?.appointment as Record<string, unknown> | undefined;
+  const showMetadata = !stillTyping && Boolean(message.content);
+
+  if (showSkeleton) {
+    return <AssistantSkeleton statusMessage={streamingStatus} />;
+  }
 
   return (
     <div className="group mv-assistant">
@@ -170,28 +182,34 @@ export const MessageBubble = memo(function MessageBubble({
 
       <div className="mv-assistant-body">
         {grounding && stillTyping && (
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             Grounding authorities…
           </p>
         )}
         <div className="mv-assistant-surface">
-          <Markdown
-            content={displayContent}
-            onCitationClick={onCitationClick}
-            webSources={research?.web_sources}
-            sources={research?.sources}
-            citations={research?.citations}
-          />
-          {stillTyping && (
-            <span
-              className="stream-caret ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[2px] bg-slate-600 dark:bg-slate-300"
-              aria-hidden
-            />
+          {stillTyping ? (
+            <p className="mv-stream-plain whitespace-pre-wrap">
+              {visibleContent}
+              <span
+                className="stream-caret ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[2px] bg-slate-600 dark:bg-slate-300"
+                aria-hidden
+              />
+            </p>
+          ) : (
+            <div className="mv-stream-complete">
+              <Markdown
+                content={visibleContent}
+                onCitationClick={onCitationClick}
+                webSources={research?.web_sources}
+                sources={research?.sources}
+                citations={research?.citations}
+              />
+            </div>
           )}
         </div>
 
-        <div className="mv-assistant-after">
-          {!stillTyping && message.content && (
+        <div className={showMetadata ? "mv-assistant-after mv-assistant-after--complete" : "mv-assistant-after"}>
+          {showMetadata && (
             <AnswerToolbar
               content={message.content}
               title={research?.query}
@@ -219,7 +237,7 @@ export const MessageBubble = memo(function MessageBubble({
             />
           )}
 
-          {research && !stillTyping && (
+          {research && showMetadata && (
             <div className="space-y-3">
               {research.web_images?.length > 0 && (
                 <ImageGallery images={toGalleryImages(research.web_images)} />

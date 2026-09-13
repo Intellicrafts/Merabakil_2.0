@@ -60,7 +60,7 @@ export function InstallAppBanner() {
       >
         <img
           src="/brand/app-icon-192.png"
-          alt=""
+          alt="MeraBakil app icon"
           className="h-14 w-14 shrink-0 rounded-2xl object-cover"
         />
         <div className="min-w-0 flex-1">

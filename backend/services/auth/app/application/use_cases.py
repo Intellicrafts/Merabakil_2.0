@@ -15,6 +15,7 @@ from app.application.ports import (
     OAuthIdentityRepository,
     PasswordResetRepository,
     RefreshTokenRepository,
+    UserConsentRepository,
     UserRepository,
 )
 from app.config import AuthSettings
@@ -77,12 +78,14 @@ class AuthService:
         oauth_identities: OAuthIdentityRepository,
         refresh_tokens: RefreshTokenRepository,
         password_resets: PasswordResetRepository,
+        consents: UserConsentRepository,
         settings: AuthSettings,
     ) -> None:
         self._users = users
         self._oauth_identities = oauth_identities
         self._refresh_tokens = refresh_tokens
         self._password_resets = password_resets
+        self._consents = consents
         self._settings = settings
 
     # ---- token helpers --------------------------------------------------- #
@@ -139,9 +142,40 @@ class AuthService:
             )
             logger.info("google_auth.link user_id=%s", user.id)
 
+    async def _record_registration_consents(
+        self,
+        user_id: uuid.UUID,
+        *,
+        terms_version: str | None,
+        privacy_version: str | None,
+        ip_hash: str | None = None,
+    ) -> None:
+        if terms_version:
+            await self._consents.record(
+                user_id=user_id,
+                consent_type="terms",
+                version=terms_version,
+                ip_hash=ip_hash,
+            )
+        if privacy_version:
+            await self._consents.record(
+                user_id=user_id,
+                consent_type="privacy",
+                version=privacy_version,
+                ip_hash=ip_hash,
+            )
+
     # ---- use cases ------------------------------------------------------- #
     async def register(
-        self, *, email: str, full_name: str, password: str, role: str = "citizen"
+        self,
+        *,
+        email: str,
+        full_name: str,
+        password: str,
+        role: str = "citizen",
+        terms_version: str | None = None,
+        privacy_version: str | None = None,
+        ip_hash: str | None = None,
     ) -> AuthResult:
         if await self._users.get_by_email(email):
             raise ConflictError("A user with this email already exists")
@@ -150,6 +184,12 @@ class AuthService:
         )
         await self._users.assign_roles(user, [role])
         await self._users.create_role_profile(user, role)
+        await self._record_registration_consents(
+            user.id,
+            terms_version=terms_version,
+            privacy_version=privacy_version,
+            ip_hash=ip_hash,
+        )
         refreshed = await self._users.get_by_id(user.id)
         assert refreshed is not None
         tokens = await self._issue_tokens(refreshed)
@@ -194,7 +234,13 @@ class AuthService:
         )
 
     async def complete_google_registration(
-        self, *, onboarding_token: str, role: str
+        self,
+        *,
+        onboarding_token: str,
+        role: str,
+        terms_version: str | None = None,
+        privacy_version: str | None = None,
+        ip_hash: str | None = None,
     ) -> AuthResult:
         if role not in _SELF_SERVICE_ROLES:
             raise ConflictError("Invalid role for self-service registration")
@@ -230,12 +276,21 @@ class AuthService:
         )
         await self._users.assign_roles(user, [role])
         await self._users.create_role_profile(user, role)
+        await self._record_registration_consents(
+            user.id,
+            terms_version=terms_version,
+            privacy_version=privacy_version,
+            ip_hash=ip_hash,
+        )
 
         refreshed = await self._users.get_by_id(user.id)
         assert refreshed is not None
         logger.info("google_auth.signup user_id=%s role=%s", refreshed.id, role)
         tokens = await self._issue_tokens(refreshed)
         return self._to_result(refreshed, tokens)
+
+    async def list_user_consents(self, user_id: uuid.UUID):
+        return await self._consents.list_for_user(user_id)
 
     async def refresh(self, *, refresh_token: str) -> TokenPair:
         try:

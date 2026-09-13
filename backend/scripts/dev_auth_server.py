@@ -227,11 +227,20 @@ _load_state()
 
 
 def _svc() -> AuthService:
+    # Dev server uses in-memory fakes; consent repo is a no-op stub here.
+    class _NoOpConsentRepo:
+        async def record(self, **kwargs):
+            return None
+
+        async def list_for_user(self, user_id):
+            return []
+
     return PersistingAuthService(
         users=_users,
         oauth_identities=_oauth,
         refresh_tokens=_refresh,
         password_resets=_resets,
+        consents=_NoOpConsentRepo(),
         settings=get_settings(),
     )
 

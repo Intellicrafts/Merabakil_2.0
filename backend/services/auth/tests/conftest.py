@@ -12,6 +12,7 @@ from tests.fakes import (
     FakeOAuthIdentityRepository,
     FakePasswordResetRepository,
     FakeRefreshTokenRepository,
+    FakeUserConsentRepository,
     FakeUserRepository,
 )
 
@@ -23,6 +24,7 @@ def auth_service() -> AuthService:
         oauth_identities=FakeOAuthIdentityRepository(),
         refresh_tokens=FakeRefreshTokenRepository(),
         password_resets=FakePasswordResetRepository(),
+        consents=FakeUserConsentRepository(),
         settings=get_settings(),
     )
 

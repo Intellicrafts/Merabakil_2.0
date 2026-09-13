@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Protocol
 
-from app.infrastructure.models import OAuthIdentity, RefreshToken, User
+from app.infrastructure.models import OAuthIdentity, RefreshToken, User, UserConsent
 
 
 class UserRepository(Protocol):
@@ -53,3 +53,15 @@ class PasswordResetRepository(Protocol):
         self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
     ) -> None: ...
     async def consume(self, token_hash: str) -> uuid.UUID | None: ...
+
+
+class UserConsentRepository(Protocol):
+    async def record(
+        self,
+        *,
+        user_id: uuid.UUID,
+        consent_type: str,
+        version: str,
+        ip_hash: str | None = None,
+    ) -> UserConsent: ...
+    async def list_for_user(self, user_id: uuid.UUID) -> list[UserConsent]: ...

@@ -31,15 +31,17 @@ export function ThinkingLoader({ message }: ThinkingLoaderProps) {
 
   return (
     <div
-      className="flex items-center gap-3"
+      className="mv-assistant mv-thinking-row"
       role="status"
       aria-live="polite"
       aria-label="Saarthi is thinking"
     >
-      <SaarthiMark state="thinking" className="h-9 w-9 shrink-0" />
-      <span key={label} className="mv-thinking-label">
-        {label}
-      </span>
+      <SaarthiMark state="thinking" className="mv-assistant-mark h-9 w-9 shrink-0" />
+      <div className="mv-thinking-card">
+        <span key={label} className="mv-thinking-label demo-shimmer inline-block">
+          {label}
+        </span>
+      </div>
     </div>
   );
 }

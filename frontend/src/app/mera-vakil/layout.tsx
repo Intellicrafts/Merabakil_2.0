@@ -1,21 +1,13 @@
-"use client";
+import { MeraVakilClientLayout } from "@/app/mera-vakil/client-layout";
+import { pageMetadata } from "@/lib/site-metadata";
 
-import { useEffect } from "react";
-
-import { useAuthGate } from "@/hooks/use-auth-gate";
+export const metadata = pageMetadata({
+  title: "Saarthi — AI Legal Assistant",
+  description:
+    "Ask legal questions in plain language. Get cited answers grounded in Indian law from MeraBakil's Saarthi AI assistant.",
+  path: "/mera-vakil",
+});
 
 export default function MeraVakilLayout({ children }: { children: React.ReactNode }) {
-  const ready = useAuthGate();
-
-  useEffect(() => {
-    if (!ready) return;
-    document.documentElement.classList.add("mera-vakil-locked");
-    return () => {
-      document.documentElement.classList.remove("mera-vakil-locked");
-    };
-  }, [ready]);
-
-  if (!ready) return null;
-
-  return <div className="mera-vakil-root no-scrollbar h-[100dvh] overflow-hidden">{children}</div>;
+  return <MeraVakilClientLayout>{children}</MeraVakilClientLayout>;
 }

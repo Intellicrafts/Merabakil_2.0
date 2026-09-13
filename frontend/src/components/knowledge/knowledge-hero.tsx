@@ -65,7 +65,7 @@ export function KnowledgeHero({
         <div className="relative mx-auto h-[120px] w-full max-w-[220px] shrink-0 sm:h-[140px] sm:max-w-[260px] lg:mx-0">
           <Image
             src="/knowledge/knowledge-hero.svg"
-            alt=""
+            alt="Knowledge Hub illustration"
             fill
             className="object-contain"
             sizes="260px"

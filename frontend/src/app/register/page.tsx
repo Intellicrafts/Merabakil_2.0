@@ -4,16 +4,19 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Briefcase, Building2, Scale, Users } from "lucide-react";
+import { Scale, Users } from "lucide-react";
+// Briefcase, Building2 — reserved for law_firm / enterprise at launch
 
 import { AuthDivider } from "@/components/auth/auth-divider";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
+import { TermsConsentCheckbox } from "@/components/legal/terms-consent-checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { register, setSession, syncAdvocateListing } from "@/lib/api";
 import { loginRedirectForUser } from "@/lib/permissions";
+import { LEGAL_VERSIONS } from "@/lib/site-metadata";
 import { cn } from "@/lib/utils";
 
 const ROLES = [
@@ -29,18 +32,19 @@ const ROLES = [
     description: "I'm a practising lawyer or independent advocate",
     icon: Scale,
   },
-  {
-    id: "law_firm",
-    label: "Law Firm",
-    description: "I represent a law firm or chambers",
-    icon: Briefcase,
-  },
-  {
-    id: "enterprise",
-    label: "Enterprise",
-    description: "I'm from a company or organisation",
-    icon: Building2,
-  },
+  // Not available at beta launch:
+  // {
+  //   id: "law_firm",
+  //   label: "Law Firm",
+  //   description: "I represent a law firm or chambers",
+  //   icon: Briefcase,
+  // },
+  // {
+  //   id: "enterprise",
+  //   label: "Enterprise",
+  //   description: "I'm from a company or organisation",
+  //   icon: Building2,
+  // },
 ] as const;
 
 function RegisterForm() {
@@ -51,10 +55,15 @@ function RegisterForm() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("citizen");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () => register(email, fullName || email.split("@")[0], password, role),
+    mutationFn: () =>
+      register(email, fullName || email.split("@")[0], password, role, {
+        terms_version: LEGAL_VERSIONS.terms,
+        privacy_version: LEGAL_VERSIONS.privacy,
+      }),
     onSuccess: async (auth) => {
       setSession(auth);
       await syncAdvocateListing();
@@ -176,6 +185,12 @@ function RegisterForm() {
           </div>
         </div>
 
+        <TermsConsentCheckbox
+          checked={termsAccepted}
+          onChange={setTermsAccepted}
+          disabled={mutation.isPending}
+        />
+
         {displayError && (
           <div className="space-y-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
             <p>{displayError}</p>
@@ -189,7 +204,12 @@ function RegisterForm() {
           </div>
         )}
 
-        <Button type="submit" className="h-11 w-full rounded-xl" size="lg" disabled={mutation.isPending}>
+        <Button
+          type="submit"
+          className="h-11 w-full rounded-xl"
+          size="lg"
+          disabled={mutation.isPending || !termsAccepted}
+        >
           {mutation.isPending ? "Creating account…" : "Create account"}
         </Button>
       </form>

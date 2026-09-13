@@ -178,6 +178,41 @@ class FakeRefreshTokenRepository:
             self.tokens[jti]["revoked"] = True
 
 
+@dataclass
+class FakeUserConsent:
+    user_id: uuid.UUID
+    consent_type: str
+    version: str
+    accepted_at: datetime
+    ip_hash: str | None = None
+
+
+class FakeUserConsentRepository:
+    def __init__(self) -> None:
+        self.store: list[FakeUserConsent] = []
+
+    async def record(
+        self,
+        *,
+        user_id: uuid.UUID,
+        consent_type: str,
+        version: str,
+        ip_hash: str | None = None,
+    ) -> FakeUserConsent:
+        consent = FakeUserConsent(
+            user_id=user_id,
+            consent_type=consent_type,
+            version=version,
+            accepted_at=datetime.now(UTC),
+            ip_hash=ip_hash,
+        )
+        self.store.append(consent)
+        return consent
+
+    async def list_for_user(self, user_id: uuid.UUID) -> list[FakeUserConsent]:
+        return [c for c in self.store if c.user_id == user_id]
+
+
 class FakePasswordResetRepository:
     def __init__(self) -> None:
         self.tokens: dict[str, dict] = {}

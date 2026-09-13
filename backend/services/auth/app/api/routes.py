@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
 from app.api.deps import enforce_rate_limit, get_auth_service, get_auth_settings
@@ -21,6 +22,7 @@ from app.api.schemas import (
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+    UserConsentResponse,
     UserResponse,
 )
 from app.application.use_cases import AuthResult, AuthService, GoogleNeedsRoleResult
@@ -52,6 +54,12 @@ def _to_auth_response(result: AuthResult) -> AuthResponse:
     )
 
 
+def _hash_client_ip(request: Request) -> str | None:
+    if request.client is None:
+        return None
+    return hashlib.sha256(request.client.host.encode()).hexdigest()
+
+
 def _to_google_needs_role_response(result: GoogleNeedsRoleResult) -> GoogleNeedsRoleResponse:
     return GoogleNeedsRoleResponse(
         onboarding_token=result.onboarding_token,
@@ -70,6 +78,7 @@ def _to_google_needs_role_response(result: GoogleNeedsRoleResult) -> GoogleNeeds
 )
 async def register(
     body: RegisterRequest,
+    request: Request,
     service: AuthService = Depends(get_auth_service),
 ) -> AuthResponse:
     result = await service.register(
@@ -77,6 +86,9 @@ async def register(
         full_name=body.full_name,
         password=body.password,
         role=body.role.value,
+        terms_version=body.terms_version,
+        privacy_version=body.privacy_version,
+        ip_hash=_hash_client_ip(request),
     )
     return _to_auth_response(result)
 
@@ -122,11 +134,15 @@ async def google_auth(
 )
 async def google_complete(
     body: GoogleCompleteRequest,
+    request: Request,
     service: AuthService = Depends(get_auth_service),
 ) -> AuthResponse:
     result = await service.complete_google_registration(
         onboarding_token=body.onboarding_token,
         role=body.role.value,
+        terms_version=body.terms_version,
+        privacy_version=body.privacy_version,
+        ip_hash=_hash_client_ip(request),
     )
     return _to_auth_response(result)
 
@@ -189,6 +205,26 @@ async def me(
 ) -> UserResponse:
     user = await service.get_user(uuid.UUID(current.user_id))
     return _to_user_response(user)
+
+
+@users_router.get(
+    "/me/consents",
+    response_model=list[UserConsentResponse],
+    summary="Current user consent records",
+)
+async def my_consents(
+    current: CurrentUser = Depends(get_current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> list[UserConsentResponse]:
+    consents = await service.list_user_consents(uuid.UUID(current.user_id))
+    return [
+        UserConsentResponse(
+            consent_type=c.consent_type,
+            version=c.version,
+            accepted_at=c.accepted_at.isoformat(),
+        )
+        for c in consents
+    ]
 
 
 @users_router.get(

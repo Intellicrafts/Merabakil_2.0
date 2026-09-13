@@ -53,6 +53,12 @@ export function MessageList({
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
 
+  const streamingRevealChars = useMemo(() => {
+    if (!streamingMessageId) return 0;
+    const streaming = messages.find((m) => m.id === streamingMessageId);
+    return streaming?.revealedChars ?? streaming?.content.length ?? 0;
+  }, [messages, streamingMessageId]);
+
   useEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
@@ -60,7 +66,7 @@ export function MessageList({
       top: container.scrollHeight,
       behavior: isGenerating || streamingMessageId ? "auto" : "smooth",
     });
-  }, [messages, isPending, streamingMessageId, isGenerating]);
+  }, [messages, isPending, streamingMessageId, isGenerating, streamingRevealChars]);
 
   // Keep last message pinned when the container resizes (keyboard open/close on mobile)
   useEffect(() => {
@@ -147,6 +153,9 @@ export function MessageList({
               onReadAloudStop={onReadAloudStop}
               caseId={caseId}
               question={questionByAssistantId.get(msg.id)}
+              streamingStatus={
+                msg.id === streamingMessageId && !msg.content ? pendingMessage : undefined
+              }
             />
           );
         })}

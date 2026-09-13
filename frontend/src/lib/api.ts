@@ -255,12 +255,15 @@ export async function register(
   full_name: string,
   password: string,
   role: string,
+  consent?: { terms_version: string; privacy_version: string },
 ): Promise<AuthResponse> {
   return postAuthJson<AuthResponse>("/api/v1/auth/register", {
     email,
     full_name,
     password,
     role,
+    terms_version: consent?.terms_version,
+    privacy_version: consent?.privacy_version,
   });
 }
 
@@ -271,10 +274,13 @@ export async function loginWithGoogle(idToken: string): Promise<GoogleAuthResult
 export async function completeGoogleRegistration(
   onboardingToken: string,
   role: string,
+  consent?: { terms_version: string; privacy_version: string },
 ): Promise<AuthResponse> {
   return postAuthJson<AuthResponse>("/api/v1/auth/google/complete", {
     onboarding_token: onboardingToken,
     role,
+    terms_version: consent?.terms_version,
+    privacy_version: consent?.privacy_version,
   });
 }
 

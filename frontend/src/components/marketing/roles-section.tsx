@@ -1,4 +1,5 @@
-import { Building2, Scale, Shield, User } from "lucide-react";
+import { Scale, User } from "lucide-react";
+// Building2, Shield — reserved for law firm / enterprise at launch
 
 const ROLES = [
   {
@@ -17,22 +18,23 @@ const ROLES = [
       "Receive curated client case opportunities matched to your practice area. Get a structured case brief before you accept — key facts, relevant statutes, and a document checklist — then research, draft, and advise with confidence.",
     gradient: "from-slate-600 to-slate-800",
   },
-  {
-    icon: Building2,
-    title: "Law Firms",
-    scenario: "We're managing 30 active matters across the team.",
-    description:
-      "Centralise case management, build a firm knowledge base, and equip every team member with AI-powered research tools — in one workspace.",
-    gradient: "from-zinc-600 to-zinc-800",
-  },
-  {
-    icon: Shield,
-    title: "Enterprises",
-    scenario: "We need to comply with the DPDP Act. Where do we start?",
-    description:
-      "Get AI-powered compliance guidance, review contracts, manage legal documents, and understand regulatory obligations relevant to your business.",
-    gradient: "from-emerald-700 to-emerald-900",
-  },
+  // Not available at beta launch:
+  // {
+  //   icon: Building2,
+  //   title: "Law Firms",
+  //   scenario: "We're managing 30 active matters across the team.",
+  //   description:
+  //     "Centralise case management, build a firm knowledge base, and equip every team member with AI-powered research tools — in one workspace.",
+  //   gradient: "from-zinc-600 to-zinc-800",
+  // },
+  // {
+  //   icon: Shield,
+  //   title: "Enterprises",
+  //   scenario: "We need to comply with the DPDP Act. Where do we start?",
+  //   description:
+  //     "Get AI-powered compliance guidance, review contracts, manage legal documents, and understand regulatory obligations relevant to your business.",
+  //   gradient: "from-emerald-700 to-emerald-900",
+  // },
 ];
 
 export function RolesSection() {
@@ -47,12 +49,12 @@ export function RolesSection() {
             Built for every legal situation
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
-            Whether you&apos;re a citizen facing a dispute or an enterprise managing compliance —
+            Whether you&apos;re a citizen facing a dispute or an advocate building your practice —
             MeraBakil gives you the right tools for your role.
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
           {ROLES.map((role) => {
             const Icon = role.icon;
             return (

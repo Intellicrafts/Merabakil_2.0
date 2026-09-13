@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "#roles", label: "Who it's for" },
   { href: "#features", label: "Services" },
   { href: "#trust", label: "Why MeraBakil" },
+  { href: "/faq", label: "FAQ" },
 ];
 
 interface MarketingShellProps {
@@ -41,15 +42,25 @@ export function MarketingShell({ children }: MarketingShellProps) {
           </Link>
 
           <nav className="hidden items-center gap-6 md:flex" aria-label="Main">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {link.label}
-              </a>
-            ))}
+            {NAV_LINKS.map((link) =>
+              link.href.startsWith("/") ? (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {link.label}
+                </a>
+              ),
+            )}
           </nav>
 
           <div className="flex items-center gap-2">
@@ -100,16 +111,27 @@ export function MarketingShell({ children }: MarketingShellProps) {
           )}
         >
           <nav className="flex flex-col gap-3">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="text-sm text-muted-foreground"
-                onClick={() => setMobileOpen(false)}
-              >
-                {link.label}
-              </a>
-            ))}
+            {NAV_LINKS.map((link) =>
+              link.href.startsWith("/") ? (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm text-muted-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm text-muted-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {link.label}
+                </a>
+              ),
+            )}
             {!loggedIn && (
               <div className="flex gap-2 pt-2">
                 <Button asChild variant="outline" size="sm" className="flex-1">
@@ -124,7 +146,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
         </div>
       </header>
 
-      <main>{children}</main>
+      <main id="main-content">{children}</main>
     </div>
   );
 }

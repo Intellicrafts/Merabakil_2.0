@@ -15,18 +15,27 @@ export function FooterSection() {
             <p className="mt-1.5 text-xs text-muted-foreground">Your Legal Saarthi</p>
           </div>
 
-          <nav className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground md:justify-end">
+          <nav className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground md:justify-end">
+            <Link href="/mera-vakil" className="hover:text-foreground">
+              Saarthi
+            </Link>
+            <Link href="/faq" className="hover:text-foreground">
+              FAQ
+            </Link>
+            <Link href="/privacy" className="hover:text-foreground">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-foreground">
+              Terms
+            </Link>
+            <a href="mailto:support@merabakil.in" className="hover:text-foreground">
+              Contact
+            </a>
             <Link href="/login" className="hover:text-foreground">
               Sign In
             </Link>
             <Link href="/register" className="hover:text-foreground">
               Get Started
-            </Link>
-            <Link href="/mera-vakil" className="hover:text-foreground">
-              Saarthi
-            </Link>
-            <Link href="/lawyer-marketplace" className="hover:text-foreground">
-              Find an Advocate
             </Link>
           </nav>
         </div>

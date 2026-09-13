@@ -46,7 +46,7 @@ export function DocumentsDemoGrid({ demos, onUseDemo }: DocumentsDemoGridProps) 
             <div className="relative h-[120px] overflow-hidden bg-slate-100/80 dark:bg-white/[0.03]">
               <Image
                 src={demo.image}
-                alt=""
+                alt={demo.title}
                 fill
                 className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                 sizes="(max-width:640px) 100vw, 33vw"

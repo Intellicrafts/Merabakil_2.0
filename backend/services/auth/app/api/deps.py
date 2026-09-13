@@ -13,6 +13,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyOAuthIdentityRepository,
     SqlAlchemyPasswordResetRepository,
     SqlAlchemyRefreshTokenRepository,
+    SqlAlchemyUserConsentRepository,
     SqlAlchemyUserRepository,
 )
 
@@ -34,6 +35,7 @@ def get_auth_service(session: AsyncSession = Depends(get_session)) -> AuthServic
         oauth_identities=SqlAlchemyOAuthIdentityRepository(session),
         refresh_tokens=SqlAlchemyRefreshTokenRepository(session),
         password_resets=SqlAlchemyPasswordResetRepository(session),
+        consents=SqlAlchemyUserConsentRepository(session),
         settings=_settings,
     )
 

@@ -76,7 +76,7 @@ export function DashboardFeaturedCard({ mod }: { mod: DashboardModule }) {
           {meta.imageSrc ? (
             <Image
               src={meta.imageSrc}
-              alt=""
+              alt={`${mod.title} module preview`}
               fill
               priority
               className="object-cover opacity-90 transition-transform duration-500 group-hover:scale-[1.03]"

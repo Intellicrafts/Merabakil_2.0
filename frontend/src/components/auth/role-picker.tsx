@@ -1,6 +1,7 @@
 "use client";
 
-import { Building2, Scale, Shield, UserRound } from "lucide-react";
+import { Scale, UserRound } from "lucide-react";
+// Building2, Shield — reserved for enterprise / law_firm at launch
 
 import { cn } from "@/lib/utils";
 
@@ -24,18 +25,19 @@ const ROLE_OPTIONS: {
     description: "Practice tools, courtroom, and documents",
     icon: Scale,
   },
-  {
-    id: "law_firm",
-    label: "Law Firm",
-    description: "Team workflows and case management",
-    icon: Shield,
-  },
-  {
-    id: "enterprise",
-    label: "Enterprise",
-    description: "Organization legal intelligence",
-    icon: Building2,
-  },
+  // Not available at beta launch:
+  // {
+  //   id: "law_firm",
+  //   label: "Law Firm",
+  //   description: "Team workflows and case management",
+  //   icon: Shield,
+  // },
+  // {
+  //   id: "enterprise",
+  //   label: "Enterprise",
+  //   description: "Organization legal intelligence",
+  //   icon: Building2,
+  // },
 ];
 
 interface RolePickerProps {

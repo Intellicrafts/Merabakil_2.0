@@ -14,6 +14,8 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8, max_length=128)
     role: Role = Role.CITIZEN
+    terms_version: str | None = Field(default=None, max_length=20)
+    privacy_version: str | None = Field(default=None, max_length=20)
 
 
 class LoginRequest(BaseModel):
@@ -28,6 +30,8 @@ class GoogleAuthRequest(BaseModel):
 class GoogleCompleteRequest(BaseModel):
     onboarding_token: str = Field(min_length=1)
     role: Role = Role.CITIZEN
+    terms_version: str | None = Field(default=None, max_length=20)
+    privacy_version: str | None = Field(default=None, max_length=20)
 
 
 class RefreshRequest(BaseModel):
@@ -78,3 +82,9 @@ class PasswordResetIssued(BaseModel):
     message: str
     # Present only in non-production to ease local testing.
     reset_token: str | None = None
+
+
+class UserConsentResponse(BaseModel):
+    consent_type: str
+    version: str
+    accepted_at: str

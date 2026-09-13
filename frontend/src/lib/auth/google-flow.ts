@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { storeAvatarUrl } from "@/lib/avatar";
 import { loginRedirectForUser } from "@/lib/permissions";
+import { LEGAL_VERSIONS } from "@/lib/site-metadata";
 import type { AuthResponse, GoogleAuthResult } from "@/lib/types";
 import { isGoogleNeedsRole } from "@/lib/types";
 
@@ -93,7 +94,10 @@ export async function completeGoogleOnboarding(
   router: AppRouterInstance,
   nextPath?: string | null,
 ): Promise<AuthResponse> {
-  const auth = await completeGoogleRegistration(onboardingToken, role);
+  const auth = await completeGoogleRegistration(onboardingToken, role, {
+    terms_version: LEGAL_VERSIONS.terms,
+    privacy_version: LEGAL_VERSIONS.privacy,
+  });
   clearGoogleOnboarding();
   await finishAuthSession(auth, router, nextPath);
   return auth;

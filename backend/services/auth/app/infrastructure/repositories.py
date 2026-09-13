@@ -18,6 +18,7 @@ from app.infrastructure.models import (
     RefreshToken,
     Role,
     User,
+    UserConsent,
 )
 
 
@@ -173,3 +174,37 @@ class SqlAlchemyPasswordResetRepository:
         token.used = True
         await self._session.flush()
         return token.user_id
+
+
+class SqlAlchemyUserConsentRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def record(
+        self,
+        *,
+        user_id: uuid.UUID,
+        consent_type: str,
+        version: str,
+        ip_hash: str | None = None,
+    ) -> UserConsent:
+        now = datetime.now(UTC)
+        consent = UserConsent(
+            user_id=user_id,
+            consent_type=consent_type,
+            version=version,
+            accepted_at=now,
+            ip_hash=ip_hash,
+            created_at=now,
+        )
+        self._session.add(consent)
+        await self._session.flush()
+        return consent
+
+    async def list_for_user(self, user_id: uuid.UUID) -> list[UserConsent]:
+        result = await self._session.execute(
+            select(UserConsent)
+            .where(UserConsent.user_id == user_id)
+            .order_by(UserConsent.accepted_at.desc())
+        )
+        return list(result.scalars().all())

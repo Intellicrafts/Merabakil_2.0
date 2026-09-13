@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 
 import { AuthLayout } from "@/components/auth/auth-layout";
+import { TermsConsentCheckbox } from "@/components/legal/terms-consent-checkbox";
 import { ProfileAvatar } from "@/components/auth/profile-avatar";
 import { RolePicker, type AccountRole } from "@/components/auth/role-picker";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ function RoleOnboardingForm() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
   const [role, setRole] = useState<AccountRole>("citizen");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [context, setContext] = useState(readGoogleOnboarding());
 
   useEffect(() => {
@@ -64,6 +66,14 @@ function RoleOnboardingForm() {
 
       <RolePicker value={role} onChange={setRole} disabled={mutation.isPending} />
 
+      <TermsConsentCheckbox
+        className="mt-4"
+        checked={termsAccepted}
+        onChange={setTermsAccepted}
+        disabled={mutation.isPending}
+        id="google-terms-consent"
+      />
+
       {mutation.isError && (
         <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {(mutation.error as Error).message}
@@ -75,7 +85,7 @@ function RoleOnboardingForm() {
           type="button"
           className="h-11 w-full rounded-xl"
           size="lg"
-          disabled={mutation.isPending}
+          disabled={mutation.isPending || !termsAccepted}
           onClick={() => mutation.mutate()}
         >
           {mutation.isPending ? "Creating your account…" : "Continue to dashboard"}

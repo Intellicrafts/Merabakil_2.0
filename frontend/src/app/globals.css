@@ -344,6 +344,9 @@
     .saarthi-mark-glow,
     .saarthi-mark-thinking .saarthi-mark-icon,
     .mv-thinking-label,
+    .mv-stream-complete,
+    .mv-assistant-after--complete > *,
+    .mv-thinking-skeleton-line,
     .dash-hero-glow,
     .dash-hero-orb,
     .dash-shimmer-line,
@@ -2915,6 +2918,93 @@
   letter-spacing: -0.012em;
   color: hsl(var(--muted-foreground));
   animation: mv-thinking-in 0.35s ease both;
+}
+
+.mv-thinking-row {
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.mv-thinking-card {
+  flex: 1;
+  min-width: 0;
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--foreground) / 0.06);
+  background: hsl(var(--foreground) / 0.025);
+  padding: 0.75rem 1rem;
+}
+
+.dark .mv-thinking-card {
+  border-color: hsl(var(--foreground) / 0.08);
+  background: hsl(var(--foreground) / 0.04);
+}
+
+.mv-stream-plain {
+  color: hsl(var(--foreground) / 0.88);
+  font-size: 15px;
+  line-height: 1.75;
+  letter-spacing: -0.01em;
+}
+
+.mv-stream-complete {
+  animation: mv-fade-in 0.4s ease both;
+}
+
+.mv-assistant-after--complete > * {
+  animation: mv-fade-in 0.45s ease both;
+}
+
+.mv-assistant-after--complete > *:nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.mv-assistant-after--complete > *:nth-child(3) {
+  animation-delay: 0.14s;
+}
+
+.mv-thinking-skeleton-line {
+  height: 0.65rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--foreground) / 0.06) 0%,
+    hsl(var(--foreground) / 0.12) 50%,
+    hsl(var(--foreground) / 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: mv-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+.mv-thinking-skeleton-line--lg {
+  width: 92%;
+}
+
+.mv-thinking-skeleton-line--md {
+  width: 78%;
+}
+
+.mv-thinking-skeleton-line--sm {
+  width: 54%;
+}
+
+@keyframes mv-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mv-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @keyframes saarthi-mark-breathe {

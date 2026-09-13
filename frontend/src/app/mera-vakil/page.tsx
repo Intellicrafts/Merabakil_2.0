@@ -7,6 +7,7 @@ import { Moon, PanelRight, Sun } from "lucide-react";
 import { BackButton } from "@/components/layout/back-button";
 import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
 import { EmptyState } from "@/components/mera-vakil/empty-state";
+import { SaarthiDisclaimerBanner } from "@/components/mera-vakil/saarthi-disclaimer-banner";
 import { InputDock } from "@/components/mera-vakil/input-dock";
 import { StarterSuggestions } from "@/components/mera-vakil/starter-suggestions";
 import { MeraVakilShell } from "@/components/mera-vakil/mera-vakil-shell";
@@ -17,6 +18,7 @@ import { isVoiceBotSupported, type VoiceMessage } from "@/hooks/use-voice-bot";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useReadAloud } from "@/hooks/use-read-aloud";
+import { useStreamingReveal } from "@/hooks/use-streaming-reveal";
 import { streamResearch, uploadUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
 import type { UploadProgress } from "@/components/mera-vakil/input-dock";
 import { FEATURES } from "@/lib/features";
@@ -84,8 +86,8 @@ export default function MeraVakilPage() {
   const abortRef = useRef<AbortController | null>(null);
   const assistantMsgIdRef = useRef<string | null>(null);
   const withUserRef = useRef<ChatConversation | null>(null);
-  const tokenBufferRef = useRef("");
-  const tokenRafRef = useRef<number | null>(null);
+  const streamReveal = useStreamingReveal();
+  const streamGenerationRef = useRef(0);
   const [groundingMessageId, setGroundingMessageId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const readAloud = useReadAloud(speechLocale);
@@ -107,6 +109,28 @@ export default function MeraVakilPage() {
   useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
   useEffect(() => { draftCaseIdRef.current = draftCaseId; }, [draftCaseId]);
   useEffect(() => { totalMessageCountRef.current = totalMessageCount; }, [totalMessageCount]);
+
+  useEffect(() => {
+    const msgId = assistantMsgIdRef.current;
+    if (!msgId || streamReveal.phase === "idle" || streamReveal.phase === "waiting") return;
+
+    setActiveConversation((prev) => {
+      if (!prev) return prev;
+      if (!prev.messages.some((m) => m.id === msgId)) return prev;
+      return {
+        ...prev,
+        messages: prev.messages.map((m) =>
+          m.id === msgId
+            ? {
+                ...m,
+                content: streamReveal.content,
+                revealedChars: streamReveal.revealedChars,
+              }
+            : m,
+        ),
+      };
+    });
+  }, [streamReveal.content, streamReveal.revealedChars, streamReveal.phase]);
 
   useEffect(() => {
     if (!FEATURES.CASE_BRIEF) return;
@@ -561,15 +585,15 @@ export default function MeraVakilPage() {
   }
 
   function handleStopGeneration() {
+    const generation = streamGenerationRef.current;
     abortRef.current?.abort();
-    if (tokenRafRef.current != null) {
-      cancelAnimationFrame(tokenRafRef.current);
-      tokenRafRef.current = null;
-    }
-    tokenBufferRef.current = "";
+    streamReveal.stopRaf();
+    streamReveal.flush();
 
     const assistantId = assistantMsgIdRef.current;
     const baseConv = withUserRef.current;
+    const partialContent = streamReveal.content;
+    const partialRevealed = streamReveal.revealedChars;
 
     let stoppedConv: ChatConversation | null = null;
 
@@ -579,13 +603,24 @@ export default function MeraVakilPage() {
         return stoppedConv;
       }
       const assistant = prev.messages.find((m) => m.id === assistantId);
-      if (!assistant?.content?.trim()) {
+      const content = partialContent || assistant?.content || "";
+      if (!content.trim()) {
         stoppedConv = baseConv ?? prev;
         return stoppedConv;
       }
+      const stoppedAssistant: ChatMessage = {
+        ...(assistant ?? {
+          id: assistantId,
+          role: "assistant" as const,
+          createdAt: new Date().toISOString(),
+        }),
+        content,
+        revealedChars: Math.min(partialRevealed || content.length, content.length),
+      };
+      const baseMessages = baseConv?.messages ?? prev.messages.filter((m) => m.id !== assistantId);
       stoppedConv = {
         ...(baseConv ?? prev),
-        messages: [...(baseConv?.messages ?? []), assistant],
+        messages: [...baseMessages.filter((m) => m.id !== assistantId), stoppedAssistant],
       };
       return stoppedConv;
     });
@@ -596,11 +631,17 @@ export default function MeraVakilPage() {
     }
 
     setIsResearching(false);
-    setStreamingMessageId(null);
     setPendingStatus(undefined);
+    setGroundingMessageId(null);
     abortRef.current = null;
-    assistantMsgIdRef.current = null;
-    withUserRef.current = null;
+
+    void streamReveal.waitForAnimation(300).then(() => {
+      if (streamGenerationRef.current !== generation) return;
+      setStreamingMessageId(null);
+      assistantMsgIdRef.current = null;
+      withUserRef.current = null;
+      streamReveal.reset();
+    });
 
     toast({ title: "Response stopped", description: "Generation was cancelled." });
   }
@@ -655,6 +696,8 @@ export default function MeraVakilPage() {
     setInput("");
     setEditingMessageId(null);
     abortRef.current?.abort();
+    streamReveal.reset();
+    const generation = ++streamGenerationRef.current;
     setStreamingMessageId(null);
     setPendingStatus("Understanding your question…");
     setIsResearching(true);
@@ -666,26 +709,23 @@ export default function MeraVakilPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     let assistantAdded = false;
-    tokenBufferRef.current = "";
-    if (tokenRafRef.current != null) {
-      cancelAnimationFrame(tokenRafRef.current);
-      tokenRafRef.current = null;
-    }
+    streamReveal.startWaiting();
     setGroundingMessageId(null);
 
-    const flushTokens = (assistantMsgId: string) => {
-      const chunk = tokenBufferRef.current;
-      tokenBufferRef.current = "";
-      tokenRafRef.current = null;
-      if (!chunk) return;
-      setActiveConversation((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          messages: prev.messages.map((m) =>
-            m.id === assistantMsgId ? { ...m, content: m.content + chunk } : m,
-          ),
-        };
+    const ensureAssistantShell = () => {
+      if (assistantAdded) return;
+      assistantAdded = true;
+      const assistantMsg: ChatMessage = {
+        id: assistantMsgId,
+        role: "assistant",
+        content: "",
+        createdAt: new Date().toISOString(),
+        revealedChars: 0,
+      };
+      setStreamingMessageId(assistantMsgId);
+      setActiveConversation({
+        ...withUser,
+        messages: [...withUser.messages, assistantMsg],
       });
     };
 
@@ -695,35 +735,23 @@ export default function MeraVakilPage() {
         jurisdiction || undefined,
         priorHistory,
         {
-          onStatus: (_stage, message) => setPendingStatus(message),
+          onStatus: (_stage, message) => {
+            setPendingStatus(message);
+            ensureAssistantShell();
+          },
           onToken: (token) => {
             setPendingStatus(undefined);
-            if (!assistantAdded) {
-              assistantAdded = true;
-              const assistantMsg: ChatMessage = {
-                id: assistantMsgId,
-                role: "assistant",
-                content: token,
-                createdAt: new Date().toISOString(),
-              };
-              setStreamingMessageId(assistantMsgId);
-              setActiveConversation({
-                ...withUser,
-                messages: [...withUser.messages, assistantMsg],
-              });
-              return;
-            }
-            tokenBufferRef.current += token;
-            if (tokenRafRef.current == null) {
-              tokenRafRef.current = requestAnimationFrame(() => flushTokens(assistantMsgId));
-            }
+            ensureAssistantShell();
+            streamReveal.appendToken(token);
           },
           onCitations: (citationsResult) => {
-            if (tokenRafRef.current != null) {
-              cancelAnimationFrame(tokenRafRef.current);
-              flushTokens(assistantMsgId);
-            }
+            streamReveal.flush();
             setGroundingMessageId(assistantMsgId);
+            const streamed = streamReveal.content.trim();
+            const guardrailed = (citationsResult.answer ?? "").trim();
+            if (guardrailed && guardrailed !== streamed) {
+              streamReveal.setContent(citationsResult.answer);
+            }
             setActiveConversation((prev) => {
               if (!prev) return prev;
               return {
@@ -732,7 +760,6 @@ export default function MeraVakilPage() {
                   m.id === assistantMsgId
                     ? {
                         ...m,
-                        content: citationsResult.answer || m.content,
                         research: {
                           ...citationsResult,
                           web_sources: citationsResult.web_sources ?? [],
@@ -753,17 +780,42 @@ export default function MeraVakilPage() {
         },
       );
 
+      streamReveal.complete();
+      streamReveal.flush();
+      await streamReveal.waitForAnimation(3000);
+
       const finalized = createAssistantMessage(result);
-      const completedConv: ChatConversation = {
-        ...withUser,
-        messages: [
-          ...withUser.messages,
-          { ...finalized, id: assistantMsgId, content: result.answer },
-        ],
-      };
-      setActiveConversation(completedConv);
-      upsertConversation(completedConv);
-      setConversations(loadConversations());
+      let completedConv: ChatConversation | null = null;
+      setActiveConversation((prev) => {
+        if (!prev) return prev;
+        const hasAssistant = prev.messages.some((m) => m.id === assistantMsgId);
+        const messages = hasAssistant
+          ? prev.messages.map((m) =>
+              m.id === assistantMsgId
+                ? {
+                    ...finalized,
+                    id: assistantMsgId,
+                    content: result.answer,
+                    revealedChars: result.answer.length,
+                  }
+                : m,
+            )
+          : [
+              ...prev.messages,
+              {
+                ...finalized,
+                id: assistantMsgId,
+                content: result.answer,
+                revealedChars: result.answer.length,
+              },
+            ];
+        completedConv = { ...prev, messages };
+        return completedConv;
+      });
+      if (completedConv) {
+        upsertConversation(completedConv);
+        setConversations(loadConversations());
+      }
     } catch (err) {
       if (controller.signal.aborted) return;
       toast({
@@ -772,19 +824,25 @@ export default function MeraVakilPage() {
         variant: "destructive",
       });
       setActiveConversation(withUser);
+      streamReveal.reset();
     } finally {
-      if (tokenRafRef.current != null) {
-        cancelAnimationFrame(tokenRafRef.current);
-        tokenRafRef.current = null;
+      streamReveal.flush();
+      if (controller.signal.aborted) {
+        abortRef.current = null;
+        return;
       }
-      tokenBufferRef.current = "";
       setIsResearching(false);
-      setStreamingMessageId(null);
       setPendingStatus(undefined);
       setGroundingMessageId(null);
       abortRef.current = null;
-      assistantMsgIdRef.current = null;
-      withUserRef.current = null;
+
+      void streamReveal.waitForAnimation(300).then(() => {
+        if (streamGenerationRef.current !== generation) return;
+        setStreamingMessageId(null);
+        assistantMsgIdRef.current = null;
+        withUserRef.current = null;
+        streamReveal.reset();
+      });
     }
   }
 
@@ -920,6 +978,7 @@ export default function MeraVakilPage() {
       onOpenRightPanel={() => setRightPanelOpenPersisted(true)}
       center={
         <div className="flex h-full min-h-0 flex-col">
+          <SaarthiDisclaimerBanner />
           <header className="app-topbar flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 md:px-6">
             <BackButton />
             <div className="flex items-center gap-1">

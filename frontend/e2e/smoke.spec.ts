@@ -9,6 +9,9 @@ test.describe("Legal OS smoke", () => {
     await expect(page.getByRole("img", { name: /Mera Bakil/i }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Sign In/i }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Get Started/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Privacy$/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Terms$/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /^FAQ$/i }).first()).toBeVisible();
     await expect(page.getByRole("tab", { name: /Chat/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Consult/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Documents/i })).toBeVisible();

@@ -54,7 +54,7 @@ export function DocumentsHero({ documentCount }: DocumentsHeroProps) {
         <div className="relative mx-auto h-[120px] w-full max-w-[220px] shrink-0 sm:h-[140px] sm:max-w-[260px] lg:mx-0">
           <Image
             src="/documents/documents-hero.svg"
-            alt=""
+            alt="Documents module illustration"
             fill
             className="object-contain"
             sizes="260px"

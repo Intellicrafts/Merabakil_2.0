@@ -28,6 +28,9 @@ export function HeroSection() {
             <p className="mx-auto max-w-sm text-[15px] leading-relaxed text-muted-foreground lg:mx-0">
               Ask in plain language. Get answers cited from Indian law.
             </p>
+            <p className="mx-auto max-w-sm text-xs text-muted-foreground/80 lg:mx-0">
+              Free during beta · Informational guidance only — not legal advice
+            </p>
           </div>
 
           <div className="hero-stagger-3 mt-5 flex flex-wrap items-center justify-center gap-3 lg:mt-6 lg:justify-start">
