@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Camera, Paperclip, Send, Siren, X } from "lucide-react";
+import { Camera, Paperclip, Phone, Send, Siren, Video, X } from "lucide-react";
 
 import { CallControlsDock } from "@/components/appointment-room/calls/call-controls-dock";
-import { CallTypePicker } from "@/components/appointment-room/calls/call-type-picker";
 import { IncomingCallOverlay } from "@/components/appointment-room/calls/incoming-call-overlay";
 import { OutgoingCallOverlay } from "@/components/appointment-room/calls/outgoing-call-overlay";
 import { CallStage } from "@/components/appointment-room/call-stage";
@@ -991,6 +990,29 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {callPhase === "idle" && livekitReady && (
+            <>
+              <button
+                type="button"
+                onClick={() => void startCall("audio")}
+                disabled={callBusy}
+                aria-label="Start audio call"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-black/[0.08] bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-primary disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/10"
+              >
+                <Phone className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => void startCall("video")}
+                disabled={callBusy}
+                aria-label="Start video call"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-40"
+              >
+                <Video className="h-4 w-4" />
+              </button>
+              <div className="h-4 w-px bg-black/10 dark:bg-white/10" />
+            </>
+          )}
           {!emergencyActive ? (
             <button
               type="button"
@@ -1040,13 +1062,15 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
         {callPhase === "in_call" && (
-          <div className="mx-auto h-[28vh] max-h-56 w-full max-w-[680px] shrink-0 px-4 md:mx-0 md:h-auto md:max-h-none md:w-[40%] md:min-h-0">
+          <div className="mx-auto h-[32vh] max-h-64 w-full max-w-[680px] shrink-0 px-4 md:mx-0 md:h-auto md:max-h-none md:w-[40%] md:min-h-0">
             <CallStage
               visible
               mode={callMode}
               localStream={localStream}
               remoteStream={remoteStreamRef.current}
               counterpartName={counterpart}
+              elapsedLabel={`${Math.floor(callElapsed / 60)}:${String(callElapsed % 60).padStart(2, "0")}`}
+              muted={muted}
             />
           </div>
         )}
@@ -1085,14 +1109,6 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         onSubmit={handleSend}
         className="mx-auto w-full max-w-[680px] shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
       >
-        {callPhase === "idle" && livekitReady ? (
-          <CallTypePicker
-            className="mb-2"
-            disabled={callBusy}
-            onAudio={() => void startCall("audio")}
-            onVideo={() => void startCall("video")}
-          />
-        ) : null}
         {callPhase === "in_call" ? (
           <CallControlsDock
             className="mb-2"
