@@ -3,6 +3,7 @@
 import { Mic, Phone, PhoneOff, Video } from "lucide-react";
 
 import type { CallMode } from "@/lib/appointment-types";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface IncomingCallCardProps {
@@ -22,6 +23,7 @@ export function IncomingCallCard({
   busy = false,
   className,
 }: IncomingCallCardProps) {
+  const { t } = useTranslation();
   const isVideo = mode === "video";
   const initials = counterpartName
     .split(" ")
@@ -49,7 +51,7 @@ export function IncomingCallCard({
         <p className="text-lg font-semibold tracking-tight">{counterpartName}</p>
         <p className="mt-1 flex items-center gap-1.5 text-sm text-white/70">
           {isVideo ? <Video className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-          {isVideo ? "Incoming video call" : "Incoming audio call"}
+          {isVideo ? t("room.incomingVideoCall") : t("room.incomingAudioCall")}
         </p>
         <div className="mt-6 flex w-full gap-3">
           <button
@@ -59,7 +61,7 @@ export function IncomingCallCard({
             className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-red-500/90 px-4 py-3 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-60"
           >
             <PhoneOff className="h-4 w-4" />
-            Decline
+            {t("room.decline")}
           </button>
           <button
             type="button"
@@ -68,7 +70,7 @@ export function IncomingCallCard({
             className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-60"
           >
             <Phone className="h-4 w-4" />
-            Accept
+            {t("room.accept")}
           </button>
         </div>
       </div>

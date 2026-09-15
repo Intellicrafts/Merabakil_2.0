@@ -2,6 +2,8 @@
 
 import { Radio } from "lucide-react";
 
+import { useTranslation } from "@/lib/i18n";
+
 interface RejoinPromptModalProps {
   counterpartName: string;
   waiting: boolean;
@@ -17,6 +19,7 @@ export function RejoinPromptModal({
   onWait,
   onSendRequest,
 }: RejoinPromptModalProps) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-5">
       <div className="mp-modal-veil absolute inset-0" />
@@ -30,14 +33,14 @@ export function RejoinPromptModal({
           <Radio className="h-5 w-5 text-sky-700 dark:text-sky-300" />
         </div>
         <h2 id="rejoin-prompt-title" className="text-[16px] font-semibold tracking-tight">
-          {counterpartName} is not in the room
+          {t("room.notInRoom").replace("{{name}}", counterpartName)}
         </h2>
         <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-          Send a join request and they&apos;ll get an instant notification on any page — even on mobile.
+          {t("room.sendJoinNotification")}
         </p>
         {sent ? (
           <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-[12px] font-medium text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
-            Join request sent. We&apos;ll notify you when {counterpartName.split(" ")[0]} returns.
+            {t("room.joinRequestSent").replace("{{firstName}}", counterpartName.split(" ")[0])}
           </p>
         ) : null}
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
@@ -47,14 +50,14 @@ export function RejoinPromptModal({
             onClick={onSendRequest}
             disabled={waiting || sent}
           >
-            {waiting ? "Sending…" : sent ? "Request sent" : "Send join request"}
+            {waiting ? t("room.sendingRequest") : sent ? t("room.requestSent") : t("room.sendJoinRequest")}
           </button>
           <button
             type="button"
             className="mp-btn-primary h-11 flex-1 rounded-xl text-[13px] font-semibold"
             onClick={onWait}
           >
-            Wait in room
+            {t("room.waitInRoom")}
           </button>
         </div>
       </div>

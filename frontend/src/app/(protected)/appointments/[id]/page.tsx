@@ -20,12 +20,14 @@ import type { JoinStateDto } from "@/lib/appointment-types";
 import { useToast } from "@/components/ui/toast";
 import { AttachmentPreview } from "@/components/appointment-room/attachment-preview";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "@/lib/i18n";
 import type { AppointmentMessage, AppointmentRecord } from "@/lib/appointment-types";
 import type { AiBrief } from "@/lib/types";
 
 // ── Case Facts panel (lawyer view) ───────────────────────────────────────────
 
 function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSummary: string }) {
+  const { t } = useTranslation();
   const { data: caseItem, isLoading } = useQuery({
     queryKey: ["case", caseId],
     queryFn: () => getCaseApi(caseId),
@@ -52,7 +54,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
 
   if (!caseItem) {
     return (
-      <p className="text-[13px] text-muted-foreground">Case facts could not be loaded.</p>
+      <p className="text-[13px] text-muted-foreground">{t("appointments.caseFactsLoadError")}</p>
     );
   }
 
@@ -67,14 +69,14 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
           {caseItem.source === "saarthi" && (
             <Badge className="border-transparent bg-violet-500/10 text-[11px] text-violet-800 dark:text-violet-300">
               <Sparkles className="mr-1 h-3 w-3" />
-              AI-extracted
+              {t("appointments.aiExtracted")}
             </Badge>
           )}
           <Link
             href={`/cases/${caseId}`}
             className="text-[12px] text-primary underline-offset-2 hover:underline"
           >
-            Open full case →
+            {t("appointments.openFullCase")}
           </Link>
         </div>
         <h3 className="mt-2 text-[15px] font-semibold">{caseItem.title}</h3>
@@ -83,7 +85,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
       {/* Section 1: Client Problem */}
       <div>
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Client Problem
+          {t("appointments.clientProblem")}
         </p>
         <p className="text-[13px] leading-relaxed">
           {brief.problem_summary || matterSummary}
@@ -93,7 +95,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
       {/* Section 2: Case Details — Key Facts */}
       <div>
         <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Case Details
+          {t("appointments.caseDetails")}
         </p>
         {(brief.key_facts?.length ?? 0) > 0 ? (
           <ul className="space-y-1">
@@ -105,7 +107,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
             ))}
           </ul>
         ) : (
-          <p className="text-[13px] text-muted-foreground">No key facts extracted yet.</p>
+          <p className="text-[13px] text-muted-foreground">{t("appointments.noKeyFacts")}</p>
         )}
       </div>
 
@@ -113,7 +115,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
       {caseDocuments.length > 0 && (
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Documents ({caseDocuments.length})
+            {t("appointments.caseFacts")} ({caseDocuments.length})
           </p>
           <ul className="space-y-1.5">
             {caseDocuments.map((doc) => (
@@ -138,6 +140,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function AppointmentDetailsPage() {
+  const { t } = useTranslation();
   const params = useParams<{ id: string }>();
   const { toast } = useToast();
   const [apt, setApt] = useState<AppointmentRecord | null>(null);
@@ -193,7 +196,7 @@ export default function AppointmentDetailsPage() {
       <div className="mx-auto max-w-lg py-16 text-center">
         <p className="text-sm font-semibold">{error}</p>
         <Link href="/lawyer-marketplace" className="mp-btn-primary mt-4 inline-flex h-9 rounded-xl px-4 text-[13px]">
-          Back to marketplace
+          {t("appointments.backToMarketplace")}
         </Link>
       </div>
     );
@@ -228,7 +231,7 @@ export default function AppointmentDetailsPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Appointment
+            {t("appointments.tab")}
           </button>
           <button
             type="button"
@@ -240,7 +243,7 @@ export default function AppointmentDetailsPage() {
             }`}
           >
             <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-            Case Facts
+            {t("appointments.caseFacts")}
           </button>
         </div>
       )}
@@ -257,7 +260,7 @@ export default function AppointmentDetailsPage() {
         <>
           <div className="rounded-3xl border border-black/[0.06] bg-white/55 p-5 shadow-[0_16px_48px_rgba(15,23,42,0.05)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.035]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Appointment details
+              {t("appointments.detailsLabel")}
             </p>
             <h1 className="mt-1 text-xl font-semibold tracking-tight">{apt.counterpart_name || apt.lawyer_name}</h1>
             <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -265,15 +268,17 @@ export default function AppointmentDetailsPage() {
               {apt.date} · {apt.time_slot}
             </p>
             <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">{apt.matter_summary}</p>
-            <p className="mt-3 text-[12px] capitalize text-muted-foreground">Status · {apt.status.replace("_", " ")}</p>
+            <p className="mt-3 text-[12px] capitalize text-muted-foreground">
+              {t("common.status")} · {apt.status.replace("_", " ")}
+            </p>
             {joinable && opponentWaiting ? (
               <p className="mt-2 text-[12px] font-medium text-emerald-700 dark:text-emerald-300">
-                {apt.counterpart_name} is waiting in the room
+                {t("appointments.waitingInRoom").replace("{{name}}", apt.counterpart_name ?? "")}
               </p>
             ) : null}
             {apt.pending_summon ? (
               <p className="mt-2 text-[12px] font-medium text-sky-700 dark:text-sky-300">
-                You have a pending join request for this appointment
+                {t("appointments.pendingJoinRequest")}
               </p>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
@@ -282,7 +287,7 @@ export default function AppointmentDetailsPage() {
                   href={`/appointments/${apt.id}/room`}
                   className="mp-btn-accent inline-flex h-9 rounded-xl px-4 text-[13px] font-semibold"
                 >
-                  {isRejoin ? "Rejoin room" : "Join room"}
+                  {isRejoin ? t("appointments.rejoinRoom") : t("appointments.joinRoom")}
                 </Link>
               )}
               {apt.my_role === "lawyer" && apt.status === "requested" && (
@@ -295,15 +300,15 @@ export default function AppointmentDetailsPage() {
                       setBusy("confirm");
                       try {
                         setApt(await confirmAppointment(apt.id));
-                        toast({ title: "Appointment accepted", variant: "success" });
+                        toast({ title: t("appointments.appointmentAccepted"), variant: "success" });
                       } catch (err) {
-                        toast({ title: "Could not accept", description: (err as Error).message, variant: "destructive" });
+                        toast({ title: t("appointments.couldNotAccept"), description: (err as Error).message, variant: "destructive" });
                       } finally {
                         setBusy(null);
                       }
                     }}
                   >
-                    {busy === "confirm" ? "Accepting…" : "Accept"}
+                    {busy === "confirm" ? t("appointments.accepting") : t("appointments.accept")}
                   </button>
                   {!showRejectInput && (
                     <button
@@ -312,7 +317,7 @@ export default function AppointmentDetailsPage() {
                       onClick={() => setShowRejectInput(true)}
                       className="inline-flex h-9 rounded-xl border border-red-200 px-4 text-[13px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300"
                     >
-                      Reject
+                      {t("appointments.rejectBtn")}
                     </button>
                   )}
                 </>
@@ -324,7 +329,7 @@ export default function AppointmentDetailsPage() {
                   className="inline-flex h-9 rounded-xl border border-red-200 px-4 text-[13px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300"
                   onClick={() => setConfirmCancel(true)}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               )}
             </div>
@@ -336,11 +341,11 @@ export default function AppointmentDetailsPage() {
             const refundEligible = apt.my_role === "lawyer" || minutesUntil >= 5;
             return (
               <div className="mt-3 rounded-xl border border-red-200/70 bg-red-50/60 p-4 dark:border-red-900/30 dark:bg-red-900/10">
-                <p className="text-[13px] font-semibold text-red-800 dark:text-red-200">Cancel this appointment?</p>
+                <p className="text-[13px] font-semibold text-red-800 dark:text-red-200">{t("appointments.cancelThisAppointment")}</p>
                 <p className="mt-1 text-[12px] text-red-700/80 dark:text-red-300/70">
                   {refundEligible
-                    ? "Your payment will be refunded to your wallet."
-                    : "You are cancelling within 5 minutes of the scheduled time — no refund will be issued."}
+                    ? t("appointments.cancelRefundEligible")
+                    : t("appointments.cancelNoRefund")}
                 </p>
                 <div className="mt-3 flex gap-2">
                   <button
@@ -351,23 +356,23 @@ export default function AppointmentDetailsPage() {
                       setBusy("cancel");
                       try {
                         setApt(await cancelAppointment(apt.id));
-                        toast({ title: "Appointment cancelled", description: refundEligible ? "Your refund has been processed." : undefined });
+                        toast({ title: t("appointments.appointmentCancelled"), description: refundEligible ? t("appointments.refundProcessed") : undefined });
                         setConfirmCancel(false);
                       } catch (err) {
-                        toast({ title: "Could not cancel", description: (err as Error).message, variant: "destructive" });
+                        toast({ title: t("appointments.couldNotCancel"), description: (err as Error).message, variant: "destructive" });
                       } finally {
                         setBusy(null);
                       }
                     }}
                   >
-                    {busy === "cancel" ? "Cancelling…" : "Confirm cancellation"}
+                    {busy === "cancel" ? t("appointments.cancellingDots") : t("appointments.confirmCancellation")}
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmCancel(false)}
                     className="inline-flex h-8 items-center rounded-lg border border-input px-4 text-[12px] font-medium"
                   >
-                    Go back
+                    {t("appointments.goBack")}
                   </button>
                 </div>
               </div>
@@ -377,12 +382,12 @@ export default function AppointmentDetailsPage() {
           {/* Reject reason input */}
           {showRejectInput && apt.my_role === "lawyer" && apt.status === "requested" && (
             <div className="mt-4 space-y-2 rounded-xl border border-red-200/60 bg-red-50/40 p-4 dark:border-red-900/30 dark:bg-red-900/10">
-              <p className="text-[13px] font-medium">Reason for rejection</p>
+              <p className="text-[13px] font-medium">{t("appointments.reasonForRejection")}</p>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={2}
-                placeholder="e.g. Schedule conflict, outside my practice area…"
+                placeholder={t("appointments.rejectionPlaceholder")}
                 className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <div className="flex gap-2">
@@ -394,23 +399,23 @@ export default function AppointmentDetailsPage() {
                     setBusy("reject");
                     try {
                       setApt(await rejectAppointment(apt.id, rejectReason.trim()));
-                      toast({ title: "Appointment rejected" });
+                      toast({ title: t("appointments.appointmentRejected") });
                       setShowRejectInput(false);
                     } catch (err) {
-                      toast({ title: "Could not reject", description: (err as Error).message, variant: "destructive" });
+                      toast({ title: t("appointments.couldNotReject"), description: (err as Error).message, variant: "destructive" });
                     } finally {
                       setBusy(null);
                     }
                   }}
                 >
-                  {busy === "reject" ? "Rejecting…" : "Confirm rejection"}
+                  {busy === "reject" ? t("appointments.rejectingDots") : t("appointments.confirmRejection")}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowRejectInput(false); setRejectReason(""); }}
                   className="inline-flex h-8 items-center rounded-lg border border-input px-4 text-[12px] font-medium"
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
@@ -419,10 +424,10 @@ export default function AppointmentDetailsPage() {
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              ["Messages", metrics.message_count ?? messages.length],
-              ["Citizen joins", metrics.citizen_join_count ?? "—"],
-              ["Lawyer joins", metrics.lawyer_join_count ?? "—"],
-              ["Talk seconds", metrics.talk_seconds ?? "—"],
+              [t("appointments.messagesCount"), metrics.message_count ?? messages.length],
+              [t("appointments.citizenJoins"), metrics.citizen_join_count ?? "—"],
+              [t("appointments.lawyerJoins"), metrics.lawyer_join_count ?? "—"],
+              [t("appointments.talkSeconds"), metrics.talk_seconds ?? "—"],
             ].map(([label, value]) => (
               <div
                 key={String(label)}
@@ -435,9 +440,11 @@ export default function AppointmentDetailsPage() {
           </div>
 
           <section className="px-1 py-2">
-            <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</h2>
+            <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              {t("appointments.transcriptTitle")}
+            </h2>
             {messages.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">No messages were recorded.</p>
+              <p className="mt-3 text-sm text-muted-foreground">{t("appointments.noMessagesRecorded")}</p>
             ) : (
               <ol className="mt-4 flex flex-col gap-2">
                 {messages.map((msg) => {

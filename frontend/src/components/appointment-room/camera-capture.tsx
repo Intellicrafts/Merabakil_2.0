@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, FlipHorizontal2, ImagePlus, RefreshCw, RotateCw, SwitchCamera, X } from "lucide-react";
 
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface CameraCaptureProps {
@@ -44,6 +45,7 @@ async function renderEdited(source: Blob, rotation: number, flipped: boolean): P
 }
 
 export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCaptureProps) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -96,8 +98,8 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
         const name = (err as DOMException).name;
         setError(
           name === "NotAllowedError"
-            ? "Camera permission is blocked. Allow access, or pick a photo from your device."
-            : "Camera is not available on this device. You can still pick a photo.",
+            ? t("room.cameraBlocked")
+            : t("room.cameraNotAvailable"),
         );
         setPhase("denied");
       }
@@ -110,7 +112,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
       }
       streamRef.current = null;
     };
-  }, [open, facing, reuseStream, retry]);
+  }, [open, facing, reuseStream, retry, t]);
 
   useEffect(() => {
     if (!open || phase !== "live" || !videoRef.current || !streamRef.current) return;
@@ -129,7 +131,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
   async function capture() {
     const video = videoRef.current;
     if (!video || !video.videoWidth) {
-      setError("Camera is still starting. Try capture again in a moment.");
+      setError(t("room.cameraStillStarting"));
       return;
     }
     const canvas = document.createElement("canvas");
@@ -169,7 +171,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-5">
-      <button type="button" className="mp-modal-veil absolute inset-0" onClick={onClose} aria-label="Close camera" />
+      <button type="button" className="mp-modal-veil absolute inset-0" onClick={onClose} aria-label={t("room.closeCamera")} />
       <div
         role="dialog"
         aria-modal="true"
@@ -178,25 +180,25 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
       >
         <div className="flex items-center justify-between px-4 pt-4">
           <h2 id="camera-title" className="text-[15px] font-semibold tracking-tight">
-            {phase === "review" ? "Review photo" : "Take a photo"}
+            {phase === "review" ? t("room.reviewPhoto") : t("room.takePhoto")}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/[0.05] dark:hover:bg-white/10"
-            aria-label="Close"
+            aria-label={t("room.closeCamera")}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
         <p className="px-4 pt-1 text-[12px] text-muted-foreground">
           {phase === "requesting"
-            ? "Allow camera access to capture a photo for this appointment."
+            ? t("room.cameraPermReq")
             : phase === "review"
-              ? "Retake, rotate, or flip, then send."
+              ? t("room.retakeRotateFlip")
               : phase === "denied"
-                ? "Permission is needed to use the camera."
-                : "Frame the document or scene, then capture."}
+                ? t("room.cameraPermNeeded")
+                : t("room.frameDocument")}
         </p>
 
         <div className="mt-3 bg-slate-950">
@@ -217,7 +219,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
           {(phase === "requesting" || phase === "denied") && (
             <div className="flex aspect-[4/3] flex-col items-center justify-center gap-2 px-6 text-center text-slate-300">
               <Camera className="h-8 w-8 opacity-70" />
-              <p className="text-[13px]">{phase === "requesting" ? "Waiting for camera permission…" : error}</p>
+              <p className="text-[13px]">{phase === "requesting" ? t("room.waitingCameraPerm") : error}</p>
             </div>
           )}
         </div>
@@ -231,7 +233,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
             <input
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
-              placeholder="Add a note (optional)"
+              placeholder={t("room.addNoteOptional")}
               maxLength={200}
               className="h-10 w-full rounded-xl border border-black/[0.08] bg-transparent px-3 text-[13px] outline-none focus:border-slate-400 dark:border-white/10"
             />
@@ -248,7 +250,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
                   className="mp-btn-primary h-10 rounded-xl px-3 text-[12px] font-semibold"
                 >
                   <SwitchCamera className="mr-1 h-3.5 w-3.5" />
-                  Flip cam
+                  {t("room.flipCam")}
                 </button>
               )}
               <button
@@ -257,7 +259,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
                 className="mp-btn-accent inline-flex h-12 items-center rounded-full px-5 text-[13px] font-semibold"
               >
                 <Camera className="mr-1.5 h-4 w-4" />
-                Capture
+                {t("room.capture")}
               </button>
             </>
           )}
@@ -265,7 +267,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
             <>
               <button type="button" onClick={retake} className="mp-btn-primary h-10 rounded-xl px-3 text-[12px] font-semibold">
                 <RefreshCw className="mr-1 h-3.5 w-3.5" />
-                Retake
+                {t("room.retake")}
               </button>
               <button
                 type="button"
@@ -273,7 +275,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
                 className="mp-btn-primary h-10 rounded-xl px-3 text-[12px] font-semibold"
               >
                 <RotateCw className="mr-1 h-3.5 w-3.5" />
-                Rotate
+                {t("room.rotate")}
               </button>
               <button
                 type="button"
@@ -281,7 +283,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
                 className="mp-btn-primary h-10 rounded-xl px-3 text-[12px] font-semibold"
               >
                 <FlipHorizontal2 className="mr-1 h-3.5 w-3.5" />
-                Flip
+                {t("room.flip")}
               </button>
               <button
                 type="button"
@@ -289,7 +291,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
                 disabled={sending}
                 className={cn("mp-btn-accent h-10 rounded-xl px-4 text-[12px] font-semibold", sending && "opacity-60")}
               >
-                {sending ? "Sending…" : "Send"}
+                {sending ? t("room.sendingMedia") : t("room.send")}
               </button>
             </>
           )}
@@ -300,7 +302,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
                 onClick={() => setRetry((n) => n + 1)}
                 className="mp-btn-primary h-10 rounded-xl px-3 text-[12px] font-semibold"
               >
-                Try again
+                {t("room.tryAgain")}
               </button>
               <button
                 type="button"
@@ -308,7 +310,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
                 className="mp-btn-accent h-10 rounded-xl px-3 text-[12px] font-semibold"
               >
                 <ImagePlus className="mr-1 h-3.5 w-3.5" />
-                Choose photo
+                {t("room.choosePhoto")}
               </button>
             </>
           )}

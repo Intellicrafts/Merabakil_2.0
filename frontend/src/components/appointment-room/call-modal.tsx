@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface CallModalProps {
@@ -34,6 +35,7 @@ export function CallModal({
   onEnd,
   ending = false,
 }: CallModalProps) {
+  const { t } = useTranslation();
   const remoteRef = useRef<HTMLVideoElement>(null);
   const localRef = useRef<HTMLVideoElement>(null);
 
@@ -95,7 +97,7 @@ export function CallModal({
           <div className="text-center">
             <p className="text-[20px] font-semibold tracking-tight text-white">{counterpartName}</p>
             <p className="mt-1 text-[13px] text-white/50">
-              {isRemoteConnected ? "Audio consultation" : "Connecting…"}
+              {isRemoteConnected ? t("room.audioConsultation") : t("room.connecting")}
             </p>
           </div>
 
@@ -117,7 +119,7 @@ export function CallModal({
           <div className="text-center">
             <p className="text-[15px] font-semibold text-white">{counterpartName}</p>
             <p className="mt-0.5 text-[12px] text-white/45">
-              {isRemoteConnected ? "Starting video…" : "Joining…"}
+              {isRemoteConnected ? t("room.startingVideo") : t("room.joining")}
             </p>
           </div>
         </div>
@@ -143,7 +145,7 @@ export function CallModal({
           <div>
             <p className="text-[15px] font-semibold leading-tight text-white">{counterpartName}</p>
             <p className="mt-0.5 text-[11px] text-white/55">
-              {mode === "video" ? "Video consultation" : "Audio consultation"}
+              {mode === "video" ? t("room.videoConsultation") : t("room.audioConsultation")}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -158,7 +160,7 @@ export function CallModal({
                   isRemoteConnected ? "bg-emerald-400" : "animate-pulse bg-amber-400",
                 )}
               />
-              {isRemoteConnected ? "Live" : "Connecting"}
+              {isRemoteConnected ? t("room.live") : t("room.connecting")}
             </span>
             {!audioOnly && isRemoteConnected && (
               <span className="rounded-full bg-black/50 px-2.5 py-1 text-[11px] tabular-nums text-white/70 backdrop-blur-sm">
@@ -175,7 +177,7 @@ export function CallModal({
         <button
           type="button"
           onClick={onToggleMute}
-          aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+          aria-label={muted ? t("room.unmuteMic") : t("room.muteMic")}
           className={cn(
             "flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full transition-colors",
             muted
@@ -190,7 +192,7 @@ export function CallModal({
         <button
           type="button"
           onClick={onToggleCamera}
-          aria-label={cameraOff ? "Enable camera" : "Turn camera off"}
+          aria-label={cameraOff ? t("room.enableCamera") : t("room.turnCameraOff")}
           className={cn(
             "flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full transition-colors",
             cameraOff
@@ -211,7 +213,7 @@ export function CallModal({
           className="flex h-14 flex-shrink-0 items-center gap-2 rounded-full bg-red-500 px-7 text-[13px] font-semibold text-white shadow-lg hover:bg-red-600 disabled:opacity-70"
         >
           <PhoneOff className="h-5 w-5" />
-          End call
+          {t("room.endCall")}
         </button>
       </div>
     </div>

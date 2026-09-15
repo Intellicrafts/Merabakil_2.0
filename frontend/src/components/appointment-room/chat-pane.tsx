@@ -7,6 +7,7 @@ import "./room.css";
 
 import { AttachmentPreview } from "@/components/appointment-room/attachment-preview";
 import type { AppointmentMessage } from "@/lib/appointment-types";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const REACTIONS = [
@@ -44,6 +45,7 @@ export function ChatPane({
   counterpartName,
   onReact,
 }: ChatPaneProps) {
+  const { t } = useTranslation();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -130,7 +132,7 @@ export function ChatPane({
         <div ref={contentRef} className="mx-auto w-full max-w-[680px] px-4">
           {messages.length === 0 && (
             <p className="mx-auto mt-16 max-w-xs text-center text-[12px] leading-relaxed text-muted-foreground">
-              Messages stay with this appointment. Leave anytime — you can rejoin until the hour ends.
+              {t("room.messagesStay")}
             </p>
           )}
           <ul className="flex flex-col gap-1">
@@ -146,7 +148,7 @@ export function ChatPane({
                 return (
                   <li key={msg.id} className="mt-3 flex justify-center">
                     <div className="max-w-[92%] rounded-xl border border-slate-300/60 bg-slate-100/90 px-3.5 py-2 text-center text-[12.5px] leading-relaxed text-slate-800 dark:border-white/15 dark:bg-white/[0.06] dark:text-zinc-100">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ops notice</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{t("room.opsNotice")}</p>
                       <p className="mt-1 whitespace-pre-wrap">{msg.body}</p>
                       {msg.created_at ? (
                         <time className="mt-1 block text-[10px] tabular-nums text-muted-foreground">{formatTime(msg.created_at)}</time>
@@ -254,7 +256,7 @@ export function ChatPane({
             className="pointer-events-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-black/[0.08] bg-white/95 px-3.5 text-[12px] font-semibold text-slate-800 shadow-md backdrop-blur-sm transition-transform hover:scale-[1.02] active:scale-[0.98] dark:border-white/15 dark:bg-slate-900/95 dark:text-zinc-100"
           >
             <ChevronDown className="h-3.5 w-3.5" />
-            {unreadBelow === 1 ? "New message" : `${unreadBelow} new messages`}
+            {unreadBelow === 1 ? t("room.newMessage") : t("room.newMessages").replace("{{count}}", String(unreadBelow))}
           </button>
         </div>
       ) : null}

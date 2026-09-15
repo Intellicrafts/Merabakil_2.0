@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnalyticsEvents, track } from "@/lib/analytics";
 import { getStoredUser, getWalletBalance, listWalletTransactions } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import type { AuthUser } from "@/lib/types";
 import type { TransactionType, WalletTransaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -30,24 +31,24 @@ function formatPts(amount: string | number): string {
   return `${new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)} pts`;
 }
 
-function formatRelativeTime(iso: string): string {
+function formatRelativeTime(iso: string, t: (key: string) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t("wallet.justNow");
+  if (mins < 60) return t("wallet.minutesAgo").replace("{{n}}", String(mins));
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("wallet.hoursAgo").replace("{{n}}", String(hours));
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return t("wallet.daysAgo").replace("{{n}}", String(days));
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-const TX_LABELS: Record<TransactionType, string> = {
-  TOP_UP: "Top-up",
-  CHATBOT_USAGE: "AI Query",
-  APPOINTMENT_BOOKING: "Booking",
-  APPOINTMENT_REFUND: "Refund",
-  ADVOCATE_EARNING: "Earning",
+const TX_LABEL_KEY: Record<TransactionType, string> = {
+  TOP_UP: "wallet.txTopUp",
+  CHATBOT_USAGE: "wallet.txAiQuery",
+  APPOINTMENT_BOOKING: "wallet.txBooking",
+  APPOINTMENT_REFUND: "wallet.txRefund",
+  ADVOCATE_EARNING: "wallet.txEarning",
 };
 
 const DEBIT_TYPES = new Set<TransactionType>(["CHATBOT_USAGE", "APPOINTMENT_BOOKING"]);
@@ -72,6 +73,7 @@ function TxIcon({ type }: { type: TransactionType }) {
 }
 
 function TransactionRow({ tx }: { tx: WalletTransaction }) {
+  const { t } = useTranslation();
   const isDebit = DEBIT_TYPES.has(tx.transaction_type);
   return (
     <div className="flex items-center gap-3 border-b border-black/[0.05] py-3 last:border-0 dark:border-white/[0.06]">
@@ -79,7 +81,7 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
         <TxIcon type={tx.transaction_type} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium leading-none">{TX_LABELS[tx.transaction_type]}</p>
+        <p className="text-[13px] font-medium leading-none">{t(TX_LABEL_KEY[tx.transaction_type])}</p>
         <p className="mt-1 truncate text-[11.5px] text-muted-foreground">{tx.description}</p>
       </div>
       <div className="text-right">
@@ -88,11 +90,11 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
           {formatPts(tx.amount)}
         </p>
         <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground/60">
-          Bal {formatPts(tx.balance_after)}
+          {t("wallet.balAfter")} {formatPts(tx.balance_after)}
         </p>
       </div>
       <p className="hidden w-16 text-right text-[11px] tabular-nums text-muted-foreground/50 sm:block">
-        {formatRelativeTime(tx.created_at)}
+        {formatRelativeTime(tx.created_at, t)}
       </p>
     </div>
   );
@@ -100,30 +102,32 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
 
 
 function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
+  const { t } = useTranslation();
+
   const citizenCards = [
     {
       icon: <Bot className="h-4 w-4" />,
       bg: "bg-violet-100/70 dark:bg-violet-500/[0.15]",
       color: "text-violet-600 dark:text-violet-400",
-      label: "AI query",
-      value: "0.1 pts / query",
-      sub: "20 queries/day",
+      label: t("wallet.aiQuery"),
+      value: t("wallet.aiQueryValue"),
+      sub: t("wallet.aiQuerySub"),
     },
     {
       icon: <Gift className="h-4 w-4" />,
       bg: "bg-emerald-100/70 dark:bg-emerald-500/[0.15]",
       color: "text-emerald-600 dark:text-emerald-400",
-      label: "First consultation",
-      value: "Free",
-      sub: "No charge on 1st booking",
+      label: t("wallet.firstConsultation"),
+      value: t("wallet.firstConsultationValue"),
+      sub: t("wallet.firstConsultationSub"),
     },
     {
       icon: <Zap className="h-4 w-4" />,
       bg: "bg-sky-100/70 dark:bg-sky-500/[0.15]",
       color: "text-sky-600 dark:text-sky-400",
-      label: "Daily limit",
-      value: "20 queries",
-      sub: "Resets every 24 hours",
+      label: t("wallet.dailyLimit"),
+      value: t("wallet.dailyLimitValue"),
+      sub: t("wallet.dailyLimitSub"),
     },
   ];
 
@@ -132,25 +136,25 @@ function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
       icon: <Bot className="h-4 w-4" />,
       bg: "bg-violet-100/70 dark:bg-violet-500/[0.15]",
       color: "text-violet-600 dark:text-violet-400",
-      label: "AI query",
-      value: "0.1 pts / query",
-      sub: "20 queries/day",
+      label: t("wallet.aiQuery"),
+      value: t("wallet.aiQueryValue"),
+      sub: t("wallet.aiQuerySub"),
     },
     {
       icon: <CalendarCheck className="h-4 w-4" />,
       bg: "bg-sky-100/70 dark:bg-sky-500/[0.15]",
       color: "text-sky-600 dark:text-sky-400",
-      label: "Booking received",
-      value: "At your rate",
-      sub: "Charged to client",
+      label: t("wallet.bookingReceived"),
+      value: t("wallet.bookingReceivedValue"),
+      sub: t("wallet.bookingReceivedSub"),
     },
     {
       icon: <TrendingUp className="h-4 w-4" />,
       bg: "bg-amber-100/70 dark:bg-amber-500/[0.12]",
       color: "text-amber-600 dark:text-amber-500",
-      label: "Earnings",
-      value: "On complete",
-      sub: "Credited after session",
+      label: t("wallet.earnings"),
+      value: t("wallet.earningsValue"),
+      sub: t("wallet.earningsSub"),
     },
   ];
 
@@ -176,6 +180,7 @@ function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
 }
 
 export default function WalletPage() {
+  const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -209,7 +214,7 @@ export default function WalletPage() {
         <div className="flex items-start justify-between px-6 pb-2 pt-6">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-              Wallet Balance
+              {t("wallet.walletBalance")}
             </p>
             {walletLoading ? (
               <Skeleton className="mt-3 h-10 w-40" />
@@ -219,7 +224,7 @@ export default function WalletPage() {
               </p>
             )}
             <p className="mt-2 text-[12px] text-muted-foreground/70">
-              MeraBakil Points · available balance
+              {t("wallet.availableBalance")}
             </p>
           </div>
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100/70 dark:bg-amber-500/[0.15]">
@@ -234,9 +239,9 @@ export default function WalletPage() {
           <div className="flex items-start gap-3 rounded-xl border border-dashed border-black/[0.10] bg-black/[0.02] px-4 py-3.5 dark:border-white/[0.10] dark:bg-white/[0.03]">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
             <div>
-              <p className="text-[13px] font-medium text-foreground/80">Points recharge — coming soon</p>
+              <p className="text-[13px] font-medium text-foreground/80">{t("wallet.rechargeSoon")}</p>
               <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground/60">
-                We&apos;re building a secure top-up experience. Your current balance is ready to use — any unused points will carry forward once recharge goes live.
+                {t("wallet.rechargeDesc")}
               </p>
             </div>
           </div>
@@ -249,13 +254,13 @@ export default function WalletPage() {
       {/* Transaction history */}
       <div className="overflow-hidden rounded-[1.35rem] border border-black/[0.06] bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
         <div className="flex items-center justify-between border-b border-black/[0.05] px-6 py-4 dark:border-white/[0.06]">
-          <p className="text-[15px] font-semibold tracking-tight">Transaction History</p>
+          <p className="text-[15px] font-semibold tracking-tight">{t("wallet.transactionHistory")}</p>
           <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground/70">
             <ArrowDownLeft className="h-3 w-3 text-emerald-600" />
-            <span>credit</span>
+            <span>{t("wallet.credit")}</span>
             <span className="mx-1 opacity-30">·</span>
             <ArrowUpRight className="h-3 w-3 text-red-500" />
-            <span>debit</span>
+            <span>{t("wallet.debit")}</span>
           </div>
         </div>
 
@@ -276,11 +281,11 @@ export default function WalletPage() {
           ) : !txList?.items.length ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
               <Sparkles className="h-8 w-8 text-muted-foreground/20" strokeWidth={1.5} />
-              <p className="text-[13px] font-medium text-muted-foreground/70">No transactions yet</p>
+              <p className="text-[13px] font-medium text-muted-foreground/70">{t("wallet.noTransactionsYet")}</p>
               <p className="text-[12px] text-muted-foreground/50">
                 {isAdvocate
-                  ? "Earnings from completed consultations will appear here."
-                  : "Use Saarthi AI or book a consultation to see activity."}
+                  ? t("wallet.noTransactionsAdvocate")
+                  : t("wallet.noTransactionsCitizen")}
               </p>
             </div>
           ) : (
@@ -291,11 +296,13 @@ export default function WalletPage() {
               {totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-between border-t border-black/[0.05] pt-4 dark:border-white/[0.06]">
                   <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                    Previous
+                    {t("wallet.previous")}
                   </Button>
-                  <span className="text-[12px] text-muted-foreground">Page {page} of {totalPages}</span>
+                  <span className="text-[12px] text-muted-foreground">
+                    {t("wallet.pageOf").replace("{{page}}", String(page)).replace("{{total}}", String(totalPages))}
+                  </span>
                   <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                    Next
+                    {t("common.next")}
                   </Button>
                 </div>
               )}

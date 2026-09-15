@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Mic, Pause, Play, Square, Trash2, X } from "lucide-react";
 
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const MAX_SECONDS = 120;
@@ -33,6 +34,7 @@ interface VoiceNoteComposerProps {
 }
 
 export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerProps) {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase>("idle");
   const active = phase !== "idle";
   const [elapsed, setElapsed] = useState(0);
@@ -120,8 +122,8 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
       const name = (err as DOMException).name;
       setError(
         name === "NotAllowedError"
-          ? "Microphone permission is blocked. Allow access to send a voice note."
-          : "Microphone is not available on this device.",
+          ? t("room.micPermBlocked")
+          : t("room.micNotAvailable"),
       );
       setPhase("denied");
     }
@@ -157,7 +159,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
       await onSend(fileRef.current, "Voice note");
       reset();
     } catch {
-      setError("Could not send voice note.");
+      setError(t("room.couldNotSendVoiceNote"));
     } finally {
       setSending(false);
     }
@@ -169,7 +171,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
         type="button"
         onClick={() => void start()}
         className="mb-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/10"
-        aria-label="Record voice note"
+        aria-label={t("room.recordVoiceNote")}
       >
         <Mic className="h-4 w-4" />
       </button>
@@ -195,12 +197,12 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
               ))}
             </span>
             <span className="flex-1 text-[12px] font-medium tabular-nums">{formatClock(elapsed)}</span>
-            <span className="hidden text-[11px] text-muted-foreground sm:inline">Recording</span>
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">{t("room.recording")}</span>
             <button
               type="button"
               onClick={reset}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/[0.05]"
-              aria-label="Cancel recording"
+              aria-label={t("room.cancelRecording")}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -210,7 +212,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
               className="mp-btn-accent inline-flex h-8 items-center rounded-lg px-2.5 text-[11px] font-semibold"
             >
               <Square className="mr-1 h-3 w-3" />
-              Stop
+              {t("room.stopRecording")}
             </button>
           </>
         )}
@@ -220,7 +222,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
               type="button"
               onClick={togglePreview}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
-              aria-label={playing ? "Pause preview" : "Play preview"}
+              aria-label={playing ? t("room.pausePreview") : t("room.playPreview")}
             >
               {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
             </button>
@@ -229,7 +231,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
               type="button"
               onClick={reset}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/[0.05]"
-              aria-label="Discard voice note"
+              aria-label={t("room.discardVoiceNote")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -240,7 +242,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
               className={cn("mp-btn-accent inline-flex h-8 items-center rounded-lg px-2.5 text-[11px] font-semibold", sending && "opacity-60")}
             >
               <Check className="mr-1 h-3 w-3" />
-              {sending ? "Sending…" : "Send"}
+              {sending ? t("room.sendingVoiceNote") : t("room.sendVoiceNote")}
             </button>
           </>
         )}
@@ -248,14 +250,14 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
           <>
             <Mic className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="flex-1 text-[12px] text-muted-foreground">
-              {phase === "requesting" ? "Allow microphone access…" : error}
+              {phase === "requesting" ? t("room.allowMicAccess") : error}
             </span>
             <button type="button" onClick={reset} className="text-[11px] font-semibold">
-              Close
+              {t("room.closeCamera")}
             </button>
             {phase === "denied" && (
               <button type="button" onClick={() => void start()} className="mp-btn-primary h-8 rounded-lg px-2 text-[11px] font-semibold">
-                Try again
+                {t("room.tryAgain")}
               </button>
             )}
           </>
