@@ -8,6 +8,7 @@ import {
 } from "@/components/dashboard/recent-activity";
 import type { AppointmentRecord } from "@/lib/appointment-types";
 import type { ChatConversation } from "@/lib/conversations";
+import { useTranslation } from "@/lib/i18n";
 import type { LegalCase, UserDocument } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ export function DashboardActivityRail({
   documents: UserDocument[];
   ready: boolean;
 }) {
+  const { t } = useTranslation();
   const entries = buildRecentEntries({ recent, upcoming, appointments, documents, limit: 3 });
 
   return (
@@ -38,22 +40,22 @@ export function DashboardActivityRail({
       <div className="flex items-center justify-between border-b border-black/[0.05] px-5 py-4 dark:border-white/[0.08]">
         <div>
           <h2 id="activity-heading" className="text-[15px] font-semibold tracking-tight">
-            Recent activity
+            {t("modules.recentActivity")}
           </h2>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">Continue where you left off</p>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">{t("modules.continueWhereLeftOff")}</p>
         </div>
         <Link
           href="/appointments"
           className="shrink-0 text-[11.5px] font-medium text-muted-foreground/70 transition-colors hover:text-foreground"
         >
-          View all
+          {t("common.viewAll")}
         </Link>
       </div>
       <div className="px-4 pb-2 pt-1">
         <RecentActivityList
           entries={entries}
           ready={ready}
-          emptyText="Chats, bookings, documents, and matters will appear here as you use the workspace."
+          emptyText={t("modules.activityEmpty")}
         />
       </div>
     </aside>

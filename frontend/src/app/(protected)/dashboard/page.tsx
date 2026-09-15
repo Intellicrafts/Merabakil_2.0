@@ -11,9 +11,11 @@ import { useDashboardSnapshot } from "@/hooks/use-dashboard-snapshot";
 import { AnalyticsEvents, track } from "@/lib/analytics";
 import { getStoredUser, syncStoredUser } from "@/lib/api";
 import { getDashboardConfig } from "@/lib/dashboard-config";
+import { useTranslation } from "@/lib/i18n";
 import type { AuthUser } from "@/lib/types";
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const snapshot = useDashboardSnapshot();
@@ -52,17 +54,17 @@ export default function DashboardPage() {
         <section className="dash-card-in" aria-labelledby="workspace-heading">
           <div className="mb-4">
             <h2 id="workspace-heading" className="text-[15px] font-semibold tracking-tight">
-              Available in this release
+              {t("modules.availableInRelease")}
             </h2>
             <p className="mt-0.5 text-[13px] text-muted-foreground">
-              Open beta ·{" "}
-              {config.modules.length}{" "}
-              {config.modules.length === 1 ? "feature" : "features"} available in your account
+              {t("modules.openBeta")} · {config.modules.length}{" "}
+              {config.modules.length === 1 ? t("modules.feature") : t("modules.features")}{" "}
+              {t("modules.availableInAccount")}
             </p>
           </div>
           {config.modules.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-black/[0.08] py-16 text-center dark:border-white/[0.10]">
-              <p className="text-sm text-muted-foreground">No services available for your account.</p>
+              <p className="text-sm text-muted-foreground">{t("modules.noServicesAvailable")}</p>
             </div>
           ) : (
             <div className="dash-workspace-grid grid gap-3 sm:grid-cols-2 lg:gap-3.5">
