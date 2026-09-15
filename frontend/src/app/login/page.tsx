@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
 import { login, probeAuthService, setSession, syncAdvocateListing } from "@/lib/api";
 import { isGoogleAuthEnabled } from "@/lib/auth/google-flow";
+import { useTranslation } from "@/lib/i18n";
 import { loginRedirectForUser } from "@/lib/permissions";
 
 function LoginForm() {
@@ -27,6 +28,7 @@ function LoginForm() {
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [authOffline, setAuthOffline] = useState(false);
   const googleEnabled = isGoogleAuthEnabled();
+  const { t } = useTranslation();
 
   useEffect(() => {
     void probeAuthService().then((ok) => setAuthOffline(!ok));
@@ -54,13 +56,13 @@ function LoginForm() {
 
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Sign in to your MeraBakil account"
+      title={t("auth.welcomeBack")}
+      subtitle={t("auth.signInToAccount")}
       footer={
         <>
-          Don&apos;t have an account?{" "}
+          {t("auth.dontHaveAccount")}{" "}
           <Link href="/register" className="font-medium text-primary hover:underline">
-            Create one
+            {t("auth.createOne")}
           </Link>
         </>
       }
@@ -83,13 +85,13 @@ function LoginForm() {
         }}
       >
         <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t("auth.email")}</Label>
           <Input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            placeholder={t("auth.emailPlaceholder")}
             required
             autoComplete="email"
             className="h-11 rounded-xl"
@@ -97,12 +99,12 @@ function LoginForm() {
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("auth.password")}</Label>
             <Link
               href="/forgot-password"
               className="text-xs font-medium text-primary hover:underline"
             >
-              Forgot password?
+              {t("auth.forgotPassword")}
             </Link>
           </div>
           <Input
@@ -118,7 +120,7 @@ function LoginForm() {
 
         {sessionExpired && (
           <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
-            Your session expired. Please sign in again to continue.
+            {t("auth.sessionExpired")}
           </p>
         )}
         {authOffline && (
@@ -133,7 +135,7 @@ function LoginForm() {
         )}
 
         <Button type="submit" className="mt-1 h-11 w-full rounded-xl" size="lg" disabled={mutation.isPending}>
-          {mutation.isPending ? "Signing in…" : "Sign in"}
+          {mutation.isPending ? t("auth.signingIn") : t("auth.signIn")}
         </Button>
       </form>
     </AuthLayout>

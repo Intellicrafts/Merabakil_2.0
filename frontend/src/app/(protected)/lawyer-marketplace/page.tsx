@@ -23,6 +23,7 @@ import {
   syncAdvocateListing,
 } from "@/lib/api";
 import type { AppointmentRecord } from "@/lib/appointment-types";
+import { useTranslation } from "@/lib/i18n";
 import { listLawyers, toRankedLawyer, type RankedLawyer } from "@/lib/marketplace-store";
 import { cn } from "@/lib/utils";
 
@@ -37,31 +38,32 @@ function ConsultationFilterBar({
   date: AptDateFilter; onDate: (v: AptDateFilter) => void;
   total: number; filtered: number;
 }) {
+  const { t } = useTranslation();
   const isActive = search.trim() !== "" || status !== "all" || date !== "all";
   const sel = "h-9 rounded-xl border border-input bg-background px-3 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer";
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Search by name…" className="h-9 w-44 rounded-xl pl-8 text-[13px] sm:w-52" />
+        <Input value={search} onChange={(e) => onSearch(e.target.value)} placeholder={t("appointments.searchByName")} className="h-9 w-44 rounded-xl pl-8 text-[13px] sm:w-52" />
       </div>
-      <select value={status} onChange={(e) => onStatus(e.target.value as AptStatusFilter)} className={sel} aria-label="Filter by status">
-        <option value="all">All statuses</option>
-        <option value="upcoming">Upcoming</option>
-        <option value="completed">Completed</option>
-        <option value="cancelled">Cancelled</option>
+      <select value={status} onChange={(e) => onStatus(e.target.value as AptStatusFilter)} className={sel} aria-label={t("appointments.filterByStatus")}>
+        <option value="all">{t("appointments.allStatuses")}</option>
+        <option value="upcoming">{t("appointments.upcoming")}</option>
+        <option value="completed">{t("appointments.completed")}</option>
+        <option value="cancelled">{t("appointments.cancelled")}</option>
       </select>
-      <select value={date} onChange={(e) => onDate(e.target.value as AptDateFilter)} className={sel} aria-label="Filter by date">
-        <option value="all">All time</option>
-        <option value="week">This week</option>
-        <option value="month">This month</option>
-        <option value="3months">Last 3 months</option>
+      <select value={date} onChange={(e) => onDate(e.target.value as AptDateFilter)} className={sel} aria-label={t("appointments.filterByDate")}>
+        <option value="all">{t("appointments.allTime")}</option>
+        <option value="week">{t("appointments.thisWeek")}</option>
+        <option value="month">{t("appointments.thisMonth")}</option>
+        <option value="3months">{t("appointments.lastThreeMonths")}</option>
       </select>
       {isActive && (
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-muted-foreground">{filtered} of {total}</span>
           <button type="button" onClick={() => { onSearch(""); onStatus("all"); onDate("all"); }} className="inline-flex items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
-            <X className="h-3 w-3" /> Clear
+            <X className="h-3 w-3" /> {t("common.clear")}
           </button>
         </div>
       )}
@@ -70,6 +72,7 @@ function ConsultationFilterBar({
 }
 
 export default function LawyerMarketplacePage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("lawyers");
   const [filters, setFilters] = useState<LawyerFilterState>({
     query: "",
@@ -238,15 +241,15 @@ export default function LawyerMarketplacePage() {
             value="lawyers"
             className="min-h-9 flex-1 rounded-xl px-4 text-[13px] font-semibold sm:min-h-8 sm:flex-none sm:text-[12px]"
           >
-            <span className="sm:hidden">Advocates</span>
-            <span className="hidden sm:inline">Find an Advocate</span>
+            <span className="sm:hidden">{t("marketplace.advocates")}</span>
+            <span className="hidden sm:inline">{t("marketplace.findAdvocate")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="appointments"
             className="min-h-9 flex-1 rounded-xl px-4 text-[13px] font-semibold sm:min-h-8 sm:flex-none sm:text-[12px]"
           >
-            <span className="sm:hidden">Bookings</span>
-            <span className="hidden sm:inline">My Consultations</span>
+            <span className="sm:hidden">{t("marketplace.bookings")}</span>
+            <span className="hidden sm:inline">{t("appointments.myConsultations")}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -255,11 +258,11 @@ export default function LawyerMarketplacePage() {
 
           <div className="flex items-baseline justify-between gap-3 px-0.5">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              <span className="sm:hidden">Matches ({lawyers.length})</span>
-              <span className="hidden sm:inline">All Advocates ({lawyers.length})</span>
+              <span className="sm:hidden">{t("marketplace.matches")} ({lawyers.length})</span>
+              <span className="hidden sm:inline">{t("marketplace.allAdvocates")} ({lawyers.length})</span>
             </h2>
             <p className="hidden text-[12px] text-muted-foreground/70 sm:block">
-              Sorted by {filters.sort}
+              {t("marketplace.sortedBy")} {filters.sort}
             </p>
           </div>
 
@@ -274,20 +277,16 @@ export default function LawyerMarketplacePage() {
             </div>
           ) : catalogError ? (
             <div className="rounded-2xl border border-dashed border-black/[0.08] px-5 py-12 text-center dark:border-white/10">
-              <p className="text-sm font-medium">Unable to load advocates</p>
-              <p className="mt-1 text-[13px] text-muted-foreground">Please try refreshing the page.</p>
+              <p className="text-sm font-medium">{t("marketplace.unableToLoad")}</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">{t("marketplace.tryRefresh")}</p>
             </div>
           ) : lawyers.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-black/[0.08] px-5 py-12 text-center dark:border-white/10">
               <p className="text-sm font-medium">
-                {catalog.length === 0
-                  ? "No advocates listed yet"
-                  : "No advocates match your filters"}
+                {catalog.length === 0 ? t("marketplace.noAdvocates") : t("marketplace.noMatches")}
               </p>
               <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">
-                {catalog.length === 0
-                  ? "Verified advocates will appear here once they join the platform."
-                  : "Try a broader practice area or clear the search."}
+                {catalog.length === 0 ? t("marketplace.advocatesWillAppear") : t("marketplace.tryBroader")}
               </p>
             </div>
           ) : (

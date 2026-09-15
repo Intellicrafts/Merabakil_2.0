@@ -11,10 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AnalyticsEvents, track } from "@/lib/analytics";
 import { requestPasswordReset } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const { t } = useTranslation();
 
   const mutation = useMutation({
     mutationFn: () => requestPasswordReset(email),
@@ -24,11 +26,11 @@ export default function ForgotPasswordPage() {
   if (sent) {
     return (
       <AuthLayout
-        title="Check your email"
-        subtitle="If an account exists for that address, reset instructions have been sent."
+        title={t("auth.checkYourEmail")}
+        subtitle={t("auth.resetSent")}
         footer={
           <Link href="/login" className="font-medium text-primary hover:underline">
-            Back to sign in
+            {t("auth.backToSignIn")}
           </Link>
         }
       >
@@ -39,7 +41,7 @@ export default function ForgotPasswordPage() {
             account, you&apos;ll receive a reset link shortly.
           </p>
           <Button asChild variant="outline" className="rounded-xl">
-            <Link href="/login">Return to sign in</Link>
+            <Link href="/login">{t("auth.backToSignIn")}</Link>
           </Button>
         </div>
       </AuthLayout>
@@ -48,13 +50,13 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthLayout
-      title="Reset your password"
-      subtitle="Enter your email and we'll send reset instructions"
+      title={t("auth.resetPassword")}
+      subtitle={t("auth.resetInstructions")}
       footer={
         <>
-          Remember your password?{" "}
+          {t("auth.rememberPassword")}{" "}
           <Link href="/login" className="font-medium text-primary hover:underline">
-            Sign in
+            {t("auth.signIn")}
           </Link>
         </>
       }
@@ -68,13 +70,13 @@ export default function ForgotPasswordPage() {
         }}
       >
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t("auth.email")}</Label>
           <Input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            placeholder={t("auth.emailPlaceholder")}
             required
             autoComplete="email"
           />
@@ -87,7 +89,7 @@ export default function ForgotPasswordPage() {
         )}
 
         <Button type="submit" className="w-full rounded-xl" size="lg" disabled={mutation.isPending}>
-          {mutation.isPending ? "Sending…" : "Send reset link"}
+          {mutation.isPending ? t("auth.sending") : t("auth.sendResetLink")}
         </Button>
       </form>
     </AuthLayout>

@@ -11,6 +11,7 @@ import { CookieConsentBanner } from "@/components/consent/cookie-consent-banner"
 import { NavTracker } from "@/components/layout/nav-tracker";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { ToastProvider } from "@/components/ui/toast";
+import { LanguageProvider } from "@/lib/i18n";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -21,19 +22,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={client}>
-      <ToastProvider>
-        <FaviconLinks />
-        <PwaRegister />
-        <NavigationProgress />
-        <NavTracker />
-        <GoogleAnalytics />
-        <Suspense fallback={null}>
-          <PageViewTracker />
-        </Suspense>
-        {children}
-        <CookieConsentBanner />
-      </ToastProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={client}>
+        <ToastProvider>
+          <FaviconLinks />
+          <PwaRegister />
+          <NavigationProgress />
+          <NavTracker />
+          <GoogleAnalytics />
+          <Suspense fallback={null}>
+            <PageViewTracker />
+          </Suspense>
+          {children}
+          <CookieConsentBanner />
+        </ToastProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   );
 }

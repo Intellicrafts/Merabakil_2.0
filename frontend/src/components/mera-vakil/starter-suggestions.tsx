@@ -2,38 +2,40 @@
 
 import { getStoredUser } from "@/lib/api";
 import { getPrimaryRole, type PrimaryRole } from "@/lib/dashboard-config";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-export const STARTER_ACTIONS_BY_ROLE: Record<PrimaryRole, { title: string; prompt: string }[]> = {
+// Prompts stay in English — they go to the AI. Titles are translated via i18n keys.
+export const STARTER_ACTIONS_BY_ROLE: Record<PrimaryRole, { titleKey: string; prompt: string }[]> = {
   citizen: [
-    { title: "Know my rights", prompt: "What are my fundamental rights under the Indian Constitution?" },
-    { title: "Draft a complaint", prompt: "Help me draft a consumer complaint under the Consumer Protection Act, 2019." },
-    { title: "Explain a notice", prompt: "I received a legal notice. What does it mean and what should I do?" },
-    { title: "Find a lawyer", prompt: "How do I find and evaluate a lawyer in India for my matter?" },
+    { titleKey: "suggestions.knowRights", prompt: "What are my fundamental rights under the Indian Constitution?" },
+    { titleKey: "suggestions.draftComplaint", prompt: "Help me draft a consumer complaint under the Consumer Protection Act, 2019." },
+    { titleKey: "suggestions.explainNotice", prompt: "I received a legal notice. What does it mean and what should I do?" },
+    { titleKey: "suggestions.findLawyer", prompt: "How do I find and evaluate a lawyer in India for my matter?" },
   ],
   advocate: [
-    { title: "Draft a notice", prompt: "Draft a legal notice for breach of contract under Indian law." },
-    { title: "Explain a section", prompt: "What is Article 21 of the Constitution of India?" },
-    { title: "Review a clause", prompt: "Review this indemnity clause for risks under Indian contract law." },
-    { title: "Find case law", prompt: "What are the leading Supreme Court judgments on the right to privacy?" },
+    { titleKey: "suggestions.draftNotice", prompt: "Draft a legal notice for breach of contract under Indian law." },
+    { titleKey: "suggestions.explainSection", prompt: "What is Article 21 of the Constitution of India?" },
+    { titleKey: "suggestions.reviewClause", prompt: "Review this indemnity clause for risks under Indian contract law." },
+    { titleKey: "suggestions.findCaseLaw", prompt: "What are the leading Supreme Court judgments on the right to privacy?" },
   ],
   law_firm: [
-    { title: "Find precedent", prompt: "Leading Supreme Court and High Court judgments on wrongful termination in India." },
-    { title: "Review a contract", prompt: "Identify the key risk clauses in this commercial contract under Indian law." },
-    { title: "FIR outline", prompt: "Draft a professional FIR outline with likely sections and documents to annex." },
-    { title: "Explain a section", prompt: "Explain the relevant statutory section with leading Supreme Court interpretation." },
+    { titleKey: "suggestions.findPrecedent", prompt: "Leading Supreme Court and High Court judgments on wrongful termination in India." },
+    { titleKey: "suggestions.reviewContract", prompt: "Identify the key risk clauses in this commercial contract under Indian law." },
+    { titleKey: "suggestions.firOutline", prompt: "Draft a professional FIR outline with likely sections and documents to annex." },
+    { titleKey: "suggestions.explainSection", prompt: "Explain the relevant statutory section with leading Supreme Court interpretation." },
   ],
   enterprise: [
-    { title: "DPDP compliance", prompt: "What are our key obligations under the Digital Personal Data Protection Act, 2023?" },
-    { title: "Review a clause", prompt: "Review this vendor indemnity clause for risks under Indian contract law." },
-    { title: "Employment law", prompt: "Summarise key Indian employment obligations for a technology company." },
-    { title: "Regulatory update", prompt: "What recent SEBI or RBI changes must listed companies or NBFCs comply with?" },
+    { titleKey: "suggestions.dppdCompliance", prompt: "What are our key obligations under the Digital Personal Data Protection Act, 2023?" },
+    { titleKey: "suggestions.reviewClause", prompt: "Review this vendor indemnity clause for risks under Indian contract law." },
+    { titleKey: "suggestions.employmentLaw", prompt: "Summarise key Indian employment obligations for a technology company." },
+    { titleKey: "suggestions.regulatoryUpdate", prompt: "What recent SEBI or RBI changes must listed companies or NBFCs comply with?" },
   ],
   admin: [
-    { title: "Draft a notice", prompt: "Draft a legal notice for breach of contract under Indian law." },
-    { title: "Explain a section", prompt: "What is Article 21 of the Constitution of India?" },
-    { title: "Review a clause", prompt: "Review this indemnity clause for risks under Indian contract law." },
-    { title: "Find case law", prompt: "What are the leading Supreme Court judgments on the right to privacy?" },
+    { titleKey: "suggestions.draftNotice", prompt: "Draft a legal notice for breach of contract under Indian law." },
+    { titleKey: "suggestions.explainSection", prompt: "What is Article 21 of the Constitution of India?" },
+    { titleKey: "suggestions.reviewClause", prompt: "Review this indemnity clause for risks under Indian contract law." },
+    { titleKey: "suggestions.findCaseLaw", prompt: "What are the leading Supreme Court judgments on the right to privacy?" },
   ],
 };
 
@@ -46,13 +48,14 @@ export function StarterSuggestions({
 }) {
   const role = getPrimaryRole(getStoredUser());
   const actions = STARTER_ACTIONS_BY_ROLE[role];
+  const { t } = useTranslation();
 
   return (
     <div className="saarthi-starters mx-auto max-w-3xl">
-      <div className="saarthi-starters-track" aria-label="Suggested questions">
+      <div className="saarthi-starters-track" aria-label={t("suggestions.suggestedQuestions")}>
         {actions.map((action) => (
           <button
-            key={action.title}
+            key={action.titleKey}
             type="button"
             disabled={disabled}
             onClick={() => onSelect(action.prompt)}
@@ -61,7 +64,7 @@ export function StarterSuggestions({
               "disabled:pointer-events-none disabled:opacity-40",
             )}
           >
-            {action.title}
+            {t(action.titleKey)}
           </button>
         ))}
       </div>

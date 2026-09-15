@@ -6,6 +6,7 @@ import { AudioLines, FileUp, Loader2, Mic, Send, X } from "lucide-react";
 import { ChatFileCard } from "@/components/mera-vakil/chat-file-card";
 import { streamTranscribeAudio } from "@/lib/api";
 import type { AttachedDocument } from "@/lib/conversations";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export type UploadStage = "uploading" | "reading" | "ready" | "failed";
@@ -149,6 +150,7 @@ export function InputDock({
   onVoiceModeOpen,
   onVoiceNoteError,
 }: InputDockProps) {
+  const { t } = useTranslation();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
@@ -220,7 +222,7 @@ export function InputDock({
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
-      onVoiceNoteError?.("Microphone access is needed to record audio.");
+      onVoiceNoteError?.(t("chat.microphoneAccess"));
       return;
     }
 
@@ -264,7 +266,7 @@ export function InputDock({
     chunksRef.current = [];
 
     if (chunks.length === 0) {
-      onVoiceNoteError?.("Nothing was captured. Please try again.");
+      onVoiceNoteError?.(t("chat.nothingCaptured"));
       setRecState("idle");
       return;
     }
@@ -289,7 +291,7 @@ export function InputDock({
       requestAnimationFrame(() => textareaRef.current?.focus());
     } catch {
       if (ctrl.signal.aborted) return;
-      onVoiceNoteError?.("Could not transcribe audio. Please try again.");
+      onVoiceNoteError?.(t("chat.transcriptionError"));
       setRecState("idle");
     } finally {
       abortRef.current = null;
@@ -303,19 +305,19 @@ export function InputDock({
       for (const file of incoming) {
         const ext = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
         if (!ACCEPTED_EXT.includes(ext)) {
-          setFileHint("Use PDF, Word, text, CSV, or Markdown.");
+          setFileHint(t("chat.fileTypes"));
           continue;
         }
         if (file.size === 0) {
-          setFileHint("Empty files cannot be uploaded.");
+          setFileHint(t("chat.fileEmpty"));
           continue;
         }
         if (file.size > MAX_FILE_BYTES) {
-          setFileHint("Each file must be 15 MB or smaller.");
+          setFileHint(t("chat.fileLarge"));
           continue;
         }
         if (next.length >= MAX_FILES) {
-          setFileHint(`You can attach up to ${MAX_FILES} files.`);
+          setFileHint(t("chat.fileLimit").replace("{{count}}", String(MAX_FILES)));
           break;
         }
         if (next.some((item) => fileKey(item) === fileKey(file))) continue;
@@ -416,10 +418,10 @@ export function InputDock({
               >
                 <div className="mb-1.5 flex items-center justify-between gap-3 text-[11px]">
                   <span className="truncate font-medium text-amber-950 dark:text-amber-100">
-                    {uploadProgress.stage === "uploading" && "Uploading"}
-                    {uploadProgress.stage === "reading" && "Reading document"}
-                    {uploadProgress.stage === "ready" && "Ready"}
-                    {uploadProgress.stage === "failed" && "Could not process"}
+                    {uploadProgress.stage === "uploading" && t("chat.uploading")}
+                    {uploadProgress.stage === "reading" && t("chat.readingDocument")}
+                    {uploadProgress.stage === "ready" && t("chat.fileReady")}
+                    {uploadProgress.stage === "failed" && t("chat.couldNotProcess")}
                     {` · ${uploadProgress.fileName}`}
                   </span>
                   <span className="shrink-0 tabular-nums text-amber-800 dark:text-amber-300">
@@ -477,7 +479,7 @@ export function InputDock({
         <div className="flex items-end gap-1.5 md:gap-2">
           <DockIconButton
             onClick={() => fileInputRef.current?.click()}
-            label="Attach documents"
+            label={t("chat.attachDocuments")}
             disabled={busy || isGenerating || recording || transcribing}
           >
             {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-[18px] w-[18px]" strokeWidth={1.75} />}
@@ -485,7 +487,7 @@ export function InputDock({
 
           <DockIconButton
             onClick={() => void startRecording()}
-            label="Record voice input"
+            label={t("chat.recordVoice")}
             disabled={busy || isGenerating || recording || transcribing}
             active={recording}
           >
@@ -509,13 +511,13 @@ export function InputDock({
               </span>
               <span className="shrink-0 text-[12px] font-medium tabular-nums">{formatClock(elapsed)}</span>
               <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
-                Recording…
+                {t("chat.recording")}
               </span>
               <button
                 type="button"
                 onClick={cancelRecording}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
-                aria-label="Cancel recording"
+                aria-label={t("chat.cancelRecording")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -523,7 +525,7 @@ export function InputDock({
                 type="button"
                 onClick={() => void stopAndTranscribe()}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-amber-800 to-amber-900 text-white shadow-sm transition-transform active:scale-95 dark:from-amber-600 dark:to-amber-700"
-                aria-label="Stop and transcribe"
+                aria-label={t("chat.stopTranscribe")}
               >
                 <Send className="h-3.5 w-3.5" />
               </button>
@@ -541,15 +543,15 @@ export function InputDock({
                   "text-base md:min-h-[40px] md:py-1.5 md:text-[13.5px]",
                   "text-foreground/90",
                 )}
-                aria-label="Transcribing…"
+                aria-label={t("chat.transcribing")}
                 aria-live="polite"
-                placeholder="Transcribing…"
+                placeholder={t("chat.transcribing")}
               />
               <button
                 type="button"
                 onClick={cancelRecording}
                 className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10 md:h-10 md:w-10"
-                aria-label="Cancel transcription"
+                aria-label={t("chat.cancelTranscription")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -564,7 +566,7 @@ export function InputDock({
               onKeyDown={handleKeyDown}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
-              placeholder="Describe your matter…"
+              placeholder={t("chat.describeYourMatter")}
               disabled={disabled}
               className={cn(
                 "max-h-[150px] min-h-[44px] flex-1 resize-none bg-transparent py-2 leading-6 placeholder:text-muted-foreground/80 focus:outline-none",
@@ -578,7 +580,7 @@ export function InputDock({
             (isGenerating && onStop ? (
               <StopButton onClick={onStop} />
             ) : showVoiceMode ? (
-              <PrimaryDisc onClick={onVoiceModeOpen!} label="Start voice mode">
+              <PrimaryDisc onClick={onVoiceModeOpen!} label={t("chat.startVoiceMode")}>
                 <AudioLines className="h-[18px] w-[18px]" strokeWidth={1.75} />
               </PrimaryDisc>
             ) : (
@@ -586,7 +588,7 @@ export function InputDock({
                 onClick={() => void handleSend()}
                 disabled={!canSend}
                 muted={!canSend}
-                label="Send message"
+                label={t("chat.sendMessage")}
               >
                 <Send className="h-4 w-4" />
               </PrimaryDisc>
@@ -598,7 +600,7 @@ export function InputDock({
         <p className="mt-2 text-center text-[11px] text-muted-foreground">{fileHint}</p>
       ) : (
         <p className="mt-2 hidden text-center text-xs text-muted-foreground md:block">
-          Enter to send · Mic for voice input
+          {t("chat.enterToSend")}
           {onVoiceModeOpen ? " · Wave icon for live voice" : ""}
         </p>
       )}

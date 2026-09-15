@@ -9,6 +9,7 @@ import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
 import { AnalyticsEvents, track } from "@/lib/analytics";
 import { downloadCounselReportPdf } from "@/lib/counsel-report-pdf";
 import type { CounselReportSource } from "@/lib/counsel-report-model";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface AnswerToolbarProps {
@@ -84,6 +85,7 @@ export function AnswerToolbar({
   onGroundingToggle,
 }: AnswerToolbarProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [copied, setCopied] = useState<"plain" | "md" | null>(null);
   const [exporting, setExporting] = useState(false);
   const copiedTimer = useRef<number | null>(null);
@@ -97,27 +99,27 @@ export function AnswerToolbar({
   return (
     <div className="mv-answer-toolbar flex flex-wrap items-center gap-0.5">
       <ToolButton
-        label="Copy answer"
+        label={t("chat.copyAnswer")}
         onClick={async () => {
           const ok = await copyText(stripCitationMarkup(content));
           if (ok) {
             track(AnalyticsEvents.AI_RESPONSE_COPIED, { interaction_type: "plain" });
             flash("plain");
-            toast({ title: "Copied", description: "Answer copied without citation markers." });
+            toast({ title: t("common.copied"), description: t("chat.copiedAnswer") });
           }
         }}
       >
         {copied === "plain" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-        Copy
+        {t("chat.copy")}
       </ToolButton>
       <ToolButton
-        label="Copy as Markdown"
+        label={t("chat.copyMarkdown")}
         onClick={async () => {
           const ok = await copyText(content);
           if (ok) {
             track(AnalyticsEvents.AI_RESPONSE_COPIED, { interaction_type: "markdown" });
             flash("md");
-            toast({ title: "Copied", description: "Markdown copied to clipboard." });
+            toast({ title: t("common.copied"), description: t("chat.copiedMarkdown") });
           }
         }}
       >
@@ -126,7 +128,7 @@ export function AnswerToolbar({
       </ToolButton>
       {hasGrounding && onGroundingToggle && (
         <ToolButton
-          label={groundingOpen ? "Hide sources" : "View sources & grounding"}
+          label={groundingOpen ? t("chat.hideSources") : t("chat.viewSources")}
           onClick={onGroundingToggle}
         >
           <ShieldCheck
@@ -136,12 +138,12 @@ export function AnswerToolbar({
             )}
           />
           <span className={cn(groundingOpen && "text-emerald-600 dark:text-emerald-400")}>
-            Sources
+            {t("chat.sources")}
           </span>
         </ToolButton>
       )}
       <ToolButton
-        label="Export PDF"
+        label={t("chat.exportPdf")}
         disabled={exporting}
         onClick={async () => {
           setExporting(true);
@@ -152,9 +154,9 @@ export function AnswerToolbar({
               sources,
               disclaimer,
             });
-            toast({ title: "Exported", description: "Counsel report downloaded." });
+            toast({ title: t("common.exported"), description: t("chat.pdfDownloaded") });
           } catch {
-            toast({ title: "Export failed", description: "Could not generate PDF.", variant: "destructive" });
+            toast({ title: t("chat.exportFailed"), description: t("chat.pdfError"), variant: "destructive" });
           } finally {
             setExporting(false);
           }

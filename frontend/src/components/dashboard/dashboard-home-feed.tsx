@@ -25,6 +25,7 @@ import {
   type ChatConversation,
 } from "@/lib/conversations";
 import type { DashboardSnapshot } from "@/hooks/use-dashboard-snapshot";
+import { useTranslation } from "@/lib/i18n";
 import type { LegalCase } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +73,7 @@ export function DashboardHomeFeed({ snapshot }: { snapshot: DashboardSnapshot })
 }
 
 function UpcomingConsultCard({ apt }: { apt: AppointmentRecord }) {
+  const { t } = useTranslation();
   const name = apt.counterpart_name || apt.lawyer_name || "Consultation";
   const live = apt.status === "live" || apt.join_state === "joinable";
 
@@ -85,7 +87,7 @@ function UpcomingConsultCard({ apt }: { apt: AppointmentRecord }) {
     >
       <div className="mb-3 flex items-center justify-between">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Next consultation
+          {t("dashboard.nextConsultation")}
         </p>
         <span
           className={cn(
@@ -93,7 +95,7 @@ function UpcomingConsultCard({ apt }: { apt: AppointmentRecord }) {
             "bg-black/[0.04] dark:bg-white/[0.06]",
           )}
         >
-          {live ? "Join now" : apt.status.replace("_", " ")}
+          {live ? t("dashboard.joinNow") : apt.status.replace("_", " ")}
         </span>
       </div>
       <div className="flex items-center gap-3">
@@ -119,6 +121,7 @@ function UpcomingConsultCard({ apt }: { apt: AppointmentRecord }) {
 }
 
 function FindAdvocateCard() {
+  const { t } = useTranslation();
   return (
     <Link
       href="/lawyer-marketplace"
@@ -134,9 +137,9 @@ function FindAdvocateCard() {
           <Briefcase className="h-5 w-5" strokeWidth={1.7} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold tracking-tight">Book an advocate</p>
+          <p className="text-[15px] font-semibold tracking-tight">{t("dashboard.bookAdvocate")}</p>
           <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
-            Match with verified counsel and schedule a consultation.
+            {t("dashboard.bookAdvocateDesc")}
           </p>
         </div>
         <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -146,6 +149,7 @@ function FindAdvocateCard() {
 }
 
 function ContinueCard({ lastCounsel }: { lastCounsel: ChatConversation | null }) {
+  const { t } = useTranslation();
   if (!lastCounsel) {
     return (
       <Link
@@ -160,8 +164,8 @@ function ContinueCard({ lastCounsel }: { lastCounsel: ChatConversation | null })
           <Sparkles className="h-5 w-5" strokeWidth={1.7} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold tracking-tight">Ask Saarthi</p>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">Cited legal answers in seconds.</p>
+          <p className="text-[15px] font-semibold tracking-tight">{t("dashboard.askSaarthi")}</p>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">{t("dashboard.askSaarthiDesc")}</p>
         </div>
         <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       </Link>
@@ -181,7 +185,7 @@ function ContinueCard({ lastCounsel }: { lastCounsel: ChatConversation | null })
         <MessageSquare className="h-5 w-5" strokeWidth={1.7} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium text-muted-foreground">Continue last chat</p>
+        <p className="text-[11px] font-medium text-muted-foreground">{t("dashboard.continueLastChat")}</p>
         <p className="mt-0.5 truncate text-[14px] font-semibold tracking-tight">{lastCounsel.title}</p>
         <p className="mt-0.5 truncate text-[12px] text-muted-foreground">
           {lastMessagePreview(lastCounsel)} · {relativeTime(lastCounsel.updatedAt)}
@@ -193,6 +197,7 @@ function ContinueCard({ lastCounsel }: { lastCounsel: ChatConversation | null })
 }
 
 function MattersCard({ matters, openCount }: { matters: LegalCase[]; openCount: number }) {
+  const { t } = useTranslation();
   return (
     <div
       className={cn(
@@ -201,9 +206,9 @@ function MattersCard({ matters, openCount }: { matters: LegalCase[]; openCount: 
       style={{ animationDelay: "120ms" }}
     >
       <div className="flex items-center justify-between px-4 pb-1 pt-4">
-        <h2 className="text-[14px] font-semibold tracking-tight">Open matters</h2>
+        <h2 className="text-[14px] font-semibold tracking-tight">{t("dashboard.openMattersTitle")}</h2>
         <Link href="/cases" className="text-[12px] font-medium text-muted-foreground">
-          {openCount} open
+          {openCount} {openCount === 1 ? t("dashboard.openMatter") : t("dashboard.openMatters")}
         </Link>
       </div>
       <ul>
@@ -231,6 +236,7 @@ function MattersCard({ matters, openCount }: { matters: LegalCase[]; openCount: 
 }
 
 function RecentActivityCard({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const { t } = useTranslation();
   const entries = buildRecentEntries({
     recent: snapshot.recent,
     upcoming: snapshot.upcoming,
@@ -247,16 +253,16 @@ function RecentActivityCard({ snapshot }: { snapshot: DashboardSnapshot }) {
       style={{ animationDelay: "160ms" }}
     >
       <div className="flex items-center justify-between px-4 pb-1 pt-4">
-        <h2 className="text-[14px] font-semibold tracking-tight">Recent activity</h2>
+        <h2 className="text-[14px] font-semibold tracking-tight">{t("dashboard.recentActivity")}</h2>
         <Link href="/mera-vakil" className="text-[12px] font-medium text-muted-foreground">
-          View all
+          {t("common.viewAll")}
         </Link>
       </div>
       <div className="px-4 pb-2">
         <RecentActivityList
           entries={entries}
           ready={snapshot.ready}
-          emptyText="Your latest chats, bookings, and matters will show up here."
+          emptyText={t("dashboard.recentActivityEmpty")}
         />
       </div>
     </div>
@@ -264,6 +270,7 @@ function RecentActivityCard({ snapshot }: { snapshot: DashboardSnapshot }) {
 }
 
 function CasesTeaser() {
+  const { t } = useTranslation();
   return (
     <Link
       href="/cases"
@@ -277,8 +284,8 @@ function CasesTeaser() {
         <FolderOpen className="h-5 w-5 text-muted-foreground" strokeWidth={1.7} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-semibold tracking-tight">No open matters</p>
-        <p className="mt-0.5 text-[12px] text-muted-foreground">Start a case file when you are ready to track one.</p>
+        <p className="text-[15px] font-semibold tracking-tight">{t("dashboard.noOpenMatters")}</p>
+        <p className="mt-0.5 text-[12px] text-muted-foreground">{t("dashboard.noOpenMattersDesc")}</p>
       </div>
       <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
     </Link>
@@ -286,10 +293,11 @@ function CasesTeaser() {
 }
 
 function TrustStrip() {
+  const { t } = useTranslation();
   return (
     <p className="flex items-center justify-center gap-1.5 px-2 pb-1 pt-1 text-[11px] text-muted-foreground/70">
       <Shield className="h-3 w-3" strokeWidth={1.75} />
-      Private · Cited answers · Verified advocates
+      {t("dashboard.privateAndSecure")}
     </p>
   );
 }

@@ -6,6 +6,7 @@ import { Moon, Shield, Sparkles, Sun } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { initTheme, toggleTheme } from "@/lib/theme";
 
 interface AuthLayoutProps {
@@ -62,15 +63,18 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
             <BrandLogo variant="mark" className="h-7 w-7" />
             <span className="font-semibold">MeraBakil</span>
           </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto rounded-full"
-            onClick={() => setDark(toggleTheme())}
-            aria-label="Toggle theme"
-          >
-            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <LanguageSwitcher />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full"
+              onClick={() => setDark(toggleTheme())}
+              aria-label="Toggle theme"
+            >
+              {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-2 lg:px-8">

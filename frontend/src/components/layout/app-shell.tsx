@@ -22,38 +22,39 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { getStoredUser, getWalletBalance, signOut } from "@/lib/api";
 import { clearConsent } from "@/lib/consent";
 import { readAvatarUrl } from "@/lib/avatar";
+import { useTranslation } from "@/lib/i18n";
 import { markNavigationStart } from "@/lib/navigation-feedback";
 import { FEATURES } from "@/lib/features";
 import { initTheme, toggleTheme } from "@/lib/theme";
 import type { AuthUser } from "@/lib/types";
 
-const PAGE_TITLES: Record<string, string> = {
-  "/dashboard": "Home",
-  "/research": "Research Console",
-  "/lawyer-marketplace": "Find an Advocate",
-  "/appointments": "My Consultations",
-  "/cases": "Case Management",
-  "/documents": "Documents",
-  "/admin/knowledge": "Knowledge Hub",
-  "/admin/users": "User Management",
-  "/admin/appointments": "Appointment Ops",
-  "/profile": "My Profile",
-  "/wallet": "My Wallet",
-};
-
-function resolvePageTitle(pathname: string): string {
-  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
-  if (pathname.startsWith("/appointments") && pathname.endsWith("/room")) return "Appointment Room";
-  if (pathname.startsWith("/appointments")) return "Appointment details";
-  if (pathname.startsWith("/cases")) return "Case Management";
-  if (pathname.startsWith("/documents")) return "Documents";
-  if (pathname.startsWith("/admin/knowledge")) return "Knowledge Hub";
-  if (pathname.startsWith("/admin/users")) return "User Management";
-  if (pathname.startsWith("/admin/appointments")) return "Appointment Ops";
-  return "Console";
+function resolvePageTitle(pathname: string, t: (key: string) => string): string {
+  const exact: Record<string, string> = {
+    "/dashboard": t("pages.home"),
+    "/research": t("pages.research"),
+    "/lawyer-marketplace": t("pages.lawyerMarketplace"),
+    "/appointments": t("pages.appointments"),
+    "/cases": t("pages.cases"),
+    "/documents": t("pages.documents"),
+    "/admin/knowledge": t("pages.knowledgeHub"),
+    "/admin/users": t("pages.userManagement"),
+    "/admin/appointments": t("pages.appointmentOps"),
+    "/profile": t("pages.profile"),
+    "/wallet": t("pages.wallet"),
+  };
+  if (exact[pathname]) return exact[pathname];
+  if (pathname.startsWith("/appointments") && pathname.endsWith("/room")) return t("pages.appointmentRoom");
+  if (pathname.startsWith("/appointments")) return t("pages.appointmentDetails");
+  if (pathname.startsWith("/cases")) return t("pages.cases");
+  if (pathname.startsWith("/documents")) return t("pages.documents");
+  if (pathname.startsWith("/admin/knowledge")) return t("pages.knowledgeHub");
+  if (pathname.startsWith("/admin/users")) return t("pages.userManagement");
+  if (pathname.startsWith("/admin/appointments")) return t("pages.appointmentOps");
+  return t("pages.console");
 }
 
 function AppTopBar({
@@ -82,6 +83,7 @@ function AppTopBar({
   onOpenPalette: () => void;
 }) {
   const [modKey, setModKey] = useState("Ctrl");
+  const { t } = useTranslation();
 
   useEffect(() => {
     setModKey(/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl");
@@ -99,11 +101,11 @@ function AppTopBar({
           type="button"
           onClick={onOpenPalette}
           className="mr-1 hidden items-center gap-2 rounded-xl border border-black/[0.07] bg-white/60 px-3 py-1.5 text-muted-foreground/65 transition-all hover:bg-white hover:text-muted-foreground hover:shadow-[0_2px_8px_rgba(42,28,12,0.08)] dark:border-white/[0.09] dark:bg-white/[0.05] dark:hover:bg-white/[0.09] sm:inline-flex"
-          aria-label="Open search"
+          aria-label={t("nav.openSearch")}
           aria-keyshortcuts="Meta+K Control+K"
         >
           <Search className="h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
-          <span className="text-[12.5px]">Search…</span>
+          <span className="text-[12.5px]">{t("nav.search")}</span>
           <kbd className="dash-kbd ml-0.5">{modKey}K</kbd>
         </button>
         {/* Mobile search icon */}
@@ -111,7 +113,7 @@ function AppTopBar({
           type="button"
           onClick={onOpenPalette}
           className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-black/[0.08] bg-white/60 text-foreground backdrop-blur-sm transition hover:bg-white dark:border-white/10 dark:bg-white/[0.06] sm:hidden"
-          aria-label="Open search"
+          aria-label={t("nav.openSearch")}
         >
           <Search className="h-4 w-4" />
         </button>
@@ -120,24 +122,25 @@ function AppTopBar({
           <Link
             href="/wallet"
             className="hidden items-center gap-1.5 rounded-lg border border-black/[0.06] bg-white/50 px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-white hover:text-foreground dark:border-white/[0.10] dark:bg-white/[0.05] dark:hover:bg-white/[0.08] sm:flex"
-            aria-label="My wallet"
+            aria-label={t("nav.myWallet")}
           >
             <Wallet className="h-3.5 w-3.5" />
             {walletBalance ?? "— pts"}
           </Link>
         )}
+        <LanguageSwitcher />
         <Button
           variant="ghost"
           size="sm"
           className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
           onClick={onToggleTheme}
-          aria-label="Toggle theme"
+          aria-label={t("nav.toggleTheme")}
         >
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
 
         <DropdownMenu>
-          <DropdownMenuTrigger className="ml-1 flex items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 text-sm transition-colors hover:border-black/[0.06] hover:bg-white/80 dark:hover:border-white/10 dark:hover:bg-white/[0.07]" aria-label="Account menu">
+          <DropdownMenuTrigger className="ml-1 flex items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 text-sm transition-colors hover:border-black/[0.06] hover:bg-white/80 dark:hover:border-white/10 dark:hover:bg-white/[0.07]" aria-label={t("nav.accountMenu")}>
             <ProfileAvatar
               src={readAvatarUrl()}
               name={user?.full_name ?? "User"}
@@ -155,20 +158,20 @@ function AppTopBar({
             <DropdownMenuSeparator />
             {!isHome && (
               <>
-                <DropdownMenuItem onClick={onGoHome}>Home</DropdownMenuItem>
+                <DropdownMenuItem onClick={onGoHome}>{t("nav.home")}</DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
             )}
             {user?.roles?.includes("advocate") && (
               <DropdownMenuItem onClick={onGoToProfile}>
                 <UserCircle className="mr-2 h-4 w-4" />
-                My profile
+                {t("nav.myProfile")}
               </DropdownMenuItem>
             )}
             {FEATURES.WALLET && (
               <DropdownMenuItem onClick={onGoToWallet}>
                 <Wallet className="mr-2 h-4 w-4" />
-                <span>Wallet</span>
+                <span>{t("nav.wallet")}</span>
                 {walletBalance && (
                   <span className="ml-auto text-[11px] font-medium text-muted-foreground">
                     {walletBalance}
@@ -177,10 +180,10 @@ function AppTopBar({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => clearConsent()}>Cookie settings</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => clearConsent()}>{t("nav.cookieSettings")}</DropdownMenuItem>
             <DropdownMenuItem destructive onClick={onSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
-              Sign out
+              {t("nav.signOut")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -192,6 +195,7 @@ function AppTopBar({
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useTranslation();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [dark, setDark] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -210,7 +214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isHome = pathname === "/dashboard";
   const isRoom = pathname.startsWith("/appointments") && pathname.endsWith("/room");
-  const pageTitle = resolvePageTitle(pathname);
+  const pageTitle = resolvePageTitle(pathname, t);
 
   useEffect(() => {
     setUser(getStoredUser());

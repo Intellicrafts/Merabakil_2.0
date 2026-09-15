@@ -25,6 +25,7 @@ import { ConfirmDialog } from "@/components/mera-vakil/confirm-dialog";
 import { LanguagePicker } from "@/components/mera-vakil/language-picker";
 import { Select } from "@/components/ui/select";
 import { getStoredUser, signOut as apiSignOut } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import {
   JURISDICTION_OPTIONS,
   MATTER_TYPES,
@@ -110,6 +111,7 @@ export function ContextPanel({
 }: ContextPanelProps) {
   const router = useRouter();
   const user = getStoredUser();
+  const { t } = useTranslation();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -176,14 +178,14 @@ export function ContextPanel({
     <>
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Delete conversation?"
+        title={t("chat.deleteConversation")}
         description={
           deleteTarget
-            ? `This will permanently remove "${deleteTarget.title.length > 60 ? `${deleteTarget.title.slice(0, 60)}…` : deleteTarget.title}". This action cannot be undone.`
+            ? `This will permanently remove "${deleteTarget.title.length > 60 ? `${deleteTarget.title.slice(0, 60)}…` : deleteTarget.title}". ${t("chat.deleteAreYouSure")}`
             : ""
         }
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
+        confirmLabel={t("common.delete")}
+        cancelLabel={t("common.cancel")}
         onConfirm={() => {
           if (deleteTarget) onDeleteConversation(deleteTarget.id);
           setDeleteTarget(null);
@@ -220,12 +222,12 @@ export function ContextPanel({
               {user?.full_name ?? "Guest"}
             </p>
             <div className="flex items-center">
-              <IconButton onClick={onNewChat} label="New chat">
+              <IconButton onClick={onNewChat} label={t("chat.newChat")}>
                 <MessageSquarePlus className="h-[18px] w-[18px] md:h-4 md:w-4" strokeWidth={1.75} />
               </IconButton>
               <IconButton
                 onClick={() => setSearchOpen((open) => !open)}
-                label="Search conversations"
+                label={t("chat.searchConversations")}
                 active={searchOpen}
               >
                 <Search className="h-[18px] w-[18px] md:h-4 md:w-4" strokeWidth={1.75} />
@@ -249,7 +251,7 @@ export function ContextPanel({
                       }}
                     >
                       <LogOut className="h-3.5 w-3.5 text-muted-foreground" />
-                      Sign out
+                      {t("nav.signOut")}
                     </button>
                   </div>
                 )}
@@ -273,9 +275,9 @@ export function ContextPanel({
                 ref={searchRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search"
+                placeholder={t("common.search")}
                 className="h-11 w-full rounded-full border border-black/[0.06] bg-black/[0.03] pl-9 pr-3 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-slate-400 md:h-9 dark:border-white/10 dark:bg-white/[0.04]"
-                aria-label="Search conversations"
+                aria-label={t("chat.searchConversations")}
               />
             </label>
           )}
@@ -400,7 +402,7 @@ export function ContextPanel({
                         <button
                           type="button"
                           className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground md:h-7 md:w-7"
-                          aria-label="Rename"
+                          aria-label={t("common.rename")}
                           onClick={(e) => {
                             e.stopPropagation();
                             setRenameId(conv.id);
@@ -433,7 +435,7 @@ export function ContextPanel({
               className="mt-1 w-full py-2.5 text-center text-[12px] text-muted-foreground hover:text-foreground"
               onClick={() => setVisibleCount((n) => n + 40)}
             >
-              Show more
+              {t("common.viewAll")}
             </button>
           )}
         </nav>

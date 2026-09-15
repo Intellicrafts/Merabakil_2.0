@@ -6,15 +6,16 @@ import { MessageSquare } from "lucide-react";
 
 import { DashboardAskBar } from "@/components/dashboard/dashboard-ask-bar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "@/lib/i18n";
 import type { DashboardConfig } from "@/lib/dashboard-config";
 import type { ChatConversation } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
 
-function getGreeting(): string {
+function getGreetingKey(): "dashboard.goodMorning" | "dashboard.goodAfternoon" | "dashboard.goodEvening" {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return "dashboard.goodMorning";
+  if (h < 17) return "dashboard.goodAfternoon";
+  return "dashboard.goodEvening";
 }
 
 function formatDate(): string {
@@ -33,13 +34,13 @@ function formatDateShort(): string {
   }).format(new Date());
 }
 
-function contextLine(openCount: number, appointmentCount: number): string {
+function contextLine(openCount: number, appointmentCount: number, t: (key: string) => string): string {
   const parts: string[] = [];
   if (openCount > 0) {
-    parts.push(`${openCount} open ${openCount === 1 ? "matter" : "matters"}`);
+    parts.push(`${openCount} ${openCount === 1 ? t("dashboard.openMatter") : t("dashboard.openMatters")}`);
   }
   if (appointmentCount > 0) {
-    parts.push(`${appointmentCount} ${appointmentCount === 1 ? "appointment" : "appointments"}`);
+    parts.push(`${appointmentCount} ${appointmentCount === 1 ? t("dashboard.appointment") : t("dashboard.appointments")}`);
   }
   return parts.join(" · ");
 }
@@ -59,7 +60,8 @@ export function DashboardHero({
   openCount: number;
   lastCounsel: ChatConversation | null;
 }) {
-  const context = ready ? contextLine(openCount, appointmentCount) : "";
+  const { t } = useTranslation();
+  const context = ready ? contextLine(openCount, appointmentCount, t) : "";
 
   return (
     <header
@@ -84,7 +86,7 @@ export function DashboardHero({
                 <span className="hidden sm:inline">{formatDate()}</span>
               </p>
               <span className="hidden items-center rounded-full border border-black/[0.08] bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground dark:border-white/[0.10] dark:bg-white/[0.05] sm:inline-flex">
-                Open Beta
+                {t("dashboard.openBeta")}
               </span>
               {ready && context ? (
                 <span className="inline-flex items-center rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium text-muted-foreground dark:bg-white/[0.06] sm:hidden">
@@ -93,7 +95,7 @@ export function DashboardHero({
               ) : null}
             </div>
             <h1 className="text-[1.55rem] font-semibold leading-[1.12] tracking-tight sm:text-[2.2rem] md:text-[2.4rem]">
-              {getGreeting()}, <span className="gradient-text">{firstName}</span>
+              {t(getGreetingKey())}, <span className="gradient-text">{firstName}</span>
             </h1>
             <p className="hidden max-w-lg text-[15px] leading-relaxed text-muted-foreground sm:block">
               <span className="font-medium text-foreground/90">{config.headline}</span>
@@ -117,7 +119,7 @@ export function DashboardHero({
               className="hidden h-8 w-fit items-center gap-1.5 rounded-full border border-black/[0.08] bg-black/[0.04] px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-black/[0.07] hover:text-foreground dark:border-white/[0.12] dark:bg-white/[0.06] dark:text-white/60 dark:hover:bg-white/[0.10] dark:hover:text-white/90 sm:inline-flex"
             >
               <MessageSquare className="h-3 w-3" />
-              Continue last chat
+              {t("dashboard.continueLastChat")}
             </Link>
           )}
         </div>

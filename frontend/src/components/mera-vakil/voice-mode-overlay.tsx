@@ -5,6 +5,7 @@ import { CalendarPlus, X } from "lucide-react";
 
 import { VoiceBookingConfirmationModal } from "@/components/mera-vakil/voice-booking-confirmation-modal";
 import { useVoiceBot, type VoiceBotState, type VoiceMessage } from "@/hooks/use-voice-bot";
+import { useTranslation } from "@/lib/i18n";
 import type { LawyerMatchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -44,12 +45,12 @@ const BLOB_GLOW_RGB: Record<VoiceBotState, string> = {
   speaking:  "129,140,248",
 };
 
-// Label shown at the bottom
-const STATE_LABEL: Record<VoiceBotState, string> = {
-  idle: "Connecting…",
-  listening: "Listening…",
-  thinking: "Thinking…",
-  speaking: "Tap orb to interrupt",
+// Translation key for each voice state label
+const STATE_LABEL_KEY: Record<VoiceBotState, string> = {
+  idle: "chat.connecting",
+  listening: "chat.listening",
+  thinking: "chat.thinking",
+  speaking: "chat.tapToInterrupt",
 };
 
 // Morph speed: slow for idle/listening, faster for speaking
@@ -61,6 +62,7 @@ const BLOB_DURATION: Record<VoiceBotState, string> = {
 };
 
 export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMessages, onConversationEnd, onBookLawyer }: VoiceModeOverlayProps) {
+  const { t } = useTranslation();
   const {
     botState,
     transcript,
@@ -128,7 +130,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
         <button
           type="button"
           onClick={handleClose}
-          aria-label="Exit voice mode"
+          aria-label={t("chat.exitVoiceMode")}
           className="flex h-8 w-8 items-center justify-center rounded-full text-white/25 transition-colors hover:bg-white/[0.08] hover:text-white/60"
         >
           <X className="h-4 w-4" />
@@ -139,7 +141,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
       <div className="flex flex-1 items-center justify-center">
         <button
           type="button"
-          aria-label={botState === "speaking" ? "Tap to interrupt" : undefined}
+          aria-label={botState === "speaking" ? t("chat.tapToInterrupt") : undefined}
           onClick={handleOrbClick}
           className={cn(
             "group relative flex items-center justify-center focus:outline-none",
@@ -216,7 +218,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
       {lawyerResults.length > 0 && (
         <div className="shrink-0 px-5 pb-2">
           <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
-            Recommended advocates
+            {t("chat.recommendedAdvocates")}
           </p>
           <div className="flex flex-wrap justify-center gap-2">
             {lawyerResults.map((lawyer) => (
@@ -250,7 +252,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
         <div className="min-h-[1.6rem] max-w-[340px] px-4 text-center">
           {permissionDenied ? (
             <p className="text-[12px] leading-snug text-white/35">
-              Microphone access denied. Allow it in browser settings.
+              {t("chat.microphoneDenied")}
             </p>
           ) : transcript && botState === "listening" ? (
             <p className="text-[14px] leading-snug text-white/60">{transcript}</p>
@@ -259,14 +261,14 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
 
         {/* State label */}
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/25">
-          {permissionDenied ? "Permission denied" : STATE_LABEL[botState]}
+          {permissionDenied ? t("chat.permissionDenied") : t(STATE_LABEL_KEY[botState])}
         </p>
 
         {/* Close / end button */}
         <button
           type="button"
           onClick={handleClose}
-          aria-label="End voice session"
+          aria-label={t("chat.endVoiceSession")}
           className="flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.08] text-white/40 ring-1 ring-white/10 transition-all hover:bg-white/[0.15] hover:text-white/70 hover:ring-white/20 active:scale-95"
         >
           <X className="h-5 w-5" />

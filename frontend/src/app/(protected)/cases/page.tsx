@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { listCasesApi, listCasesSharedWithMe } from "@/lib/api";
 import { getStoredUser } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import type { CaseStatus, LegalCase } from "@/lib/types";
 
 type TabValue = "draft" | "open" | "in_progress" | "closed" | "shared";
@@ -36,6 +37,7 @@ export default function CasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const qc = useQueryClient();
   const [isLawyer, setIsLawyer] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const user = getStoredUser();
@@ -72,15 +74,15 @@ export default function CasesPage() {
     <div className="mx-auto w-full max-w-[1120px] space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Case Management</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("cases.caseManagement")}</h1>
           <p className="text-sm text-muted-foreground">
-            Track legal matters, hearings, and status updates in one place.
+            {t("cases.description")}
           </p>
         </div>
         {!isSharedTab && (
           <Button className="min-h-11 rounded-xl" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" />
-            New case
+            {t("cases.newCase")}
           </Button>
         )}
       </header>
@@ -88,20 +90,20 @@ export default function CasesPage() {
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)}>
         <TabsList className="h-11 flex-wrap rounded-xl bg-black/[0.04] p-1 dark:bg-white/[0.06]">
           <TabsTrigger value="draft" className="min-h-9 rounded-lg px-4">
-            Draft
+            {t("cases.draft")}
           </TabsTrigger>
           <TabsTrigger value="open" className="min-h-9 rounded-lg px-4">
-            Open
+            {t("cases.open")}
           </TabsTrigger>
           <TabsTrigger value="in_progress" className="min-h-9 rounded-lg px-4">
-            In progress
+            {t("cases.inProgress")}
           </TabsTrigger>
           <TabsTrigger value="closed" className="min-h-9 rounded-lg px-4">
-            Closed
+            {t("cases.closed")}
           </TabsTrigger>
           {isLawyer && (
             <TabsTrigger value="shared" className="min-h-9 rounded-lg px-4">
-              Shared with me
+              {t("cases.sharedWithMe")}
             </TabsTrigger>
           )}
         </TabsList>

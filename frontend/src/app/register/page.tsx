@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
 import { register, setSession, syncAdvocateListing } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import { loginRedirectForUser } from "@/lib/permissions";
 import { LEGAL_VERSIONS } from "@/lib/site-metadata";
 import { cn } from "@/lib/utils";
@@ -23,14 +24,14 @@ import { cn } from "@/lib/utils";
 const ROLES = [
   {
     id: "citizen",
-    label: "Citizen",
-    description: "I need legal guidance or help finding a lawyer",
+    labelKey: "auth.citizen" as const,
+    descriptionKey: "auth.citizenDesc" as const,
     icon: Users,
   },
   {
     id: "advocate",
-    label: "Advocate",
-    description: "I'm a practising lawyer or independent advocate",
+    labelKey: "auth.advocate" as const,
+    descriptionKey: "auth.advocateDesc" as const,
     icon: Scale,
   },
   // Not available at beta launch:
@@ -58,6 +59,7 @@ function RegisterForm() {
   const [role, setRole] = useState("citizen");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -85,13 +87,13 @@ function RegisterForm() {
 
   return (
     <AuthLayout
-      title="Create your account"
-      subtitle="Join MeraBakil — choose the role that fits you"
+      title={t("auth.createYourAccount")}
+      subtitle={t("auth.joinMeraBakil")}
       footer={
         <>
-          Already have an account?{" "}
+          {t("auth.alreadyHaveAccount")}{" "}
           <Link href="/login" className="font-medium text-primary hover:underline">
-            Sign in
+            {t("auth.signIn")}
           </Link>
         </>
       }
@@ -113,7 +115,7 @@ function RegisterForm() {
         }}
       >
         <div className="space-y-1.5">
-          <Label htmlFor="full_name">Full name</Label>
+          <Label htmlFor="full_name">{t("auth.fullName")}</Label>
           <Input
             id="full_name"
             value={fullName}
@@ -124,20 +126,20 @@ function RegisterForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t("auth.email")}</Label>
           <Input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            placeholder={t("auth.emailPlaceholder")}
             required
             autoComplete="email"
             className="h-11 rounded-xl"
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">{t("auth.password")}</Label>
           <Input
             id="password"
             type="password"
@@ -150,9 +152,9 @@ function RegisterForm() {
         </div>
 
         <div className="space-y-2">
-          <Label>I am a</Label>
+          <Label>{t("auth.iAm")}</Label>
           <div className="grid grid-cols-2 gap-2">
-            {ROLES.map(({ id, label, description, icon: Icon }) => {
+            {ROLES.map(({ id, labelKey, descriptionKey, icon: Icon }) => {
               const selected = role === id;
               return (
                 <button
@@ -180,10 +182,10 @@ function RegisterForm() {
                   </div>
                   <div>
                     <p className={cn("text-[13px] font-semibold", selected && "text-primary")}>
-                      {label}
+                      {t(labelKey)}
                     </p>
                     <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                      {description}
+                      {t(descriptionKey)}
                     </p>
                   </div>
                 </button>
@@ -217,7 +219,7 @@ function RegisterForm() {
           size="lg"
           disabled={mutation.isPending || !termsAccepted}
         >
-          {mutation.isPending ? "Creating account…" : "Create account"}
+          {mutation.isPending ? t("auth.creatingAccount") : t("auth.createAccount")}
         </Button>
       </form>
     </AuthLayout>

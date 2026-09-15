@@ -7,6 +7,7 @@ import { AppointmentList } from "@/components/lawyer-marketplace/appointment-lis
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAppointmentJoinState, listAppointments } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n";
 import type { AppointmentRecord } from "@/lib/appointment-types";
 
 type StatusFilter = "all" | "upcoming" | "completed" | "cancelled";
@@ -33,6 +34,7 @@ function FilterBar({
   total: number;
   filtered: number;
 }) {
+  const { t } = useTranslation();
   const isActive = search.trim() !== "" || status !== "all" || date !== "all";
 
   function clear() {
@@ -52,7 +54,7 @@ function FilterBar({
         <Input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
-          placeholder="Search by name…"
+          placeholder={t("appointments.searchByName")}
           className="h-9 w-48 rounded-xl pl-8 text-[13px] sm:w-56"
         />
       </div>
@@ -62,12 +64,12 @@ function FilterBar({
         value={status}
         onChange={(e) => onStatus(e.target.value as StatusFilter)}
         className={selectClass}
-        aria-label="Filter by status"
+        aria-label={t("appointments.filterByStatus")}
       >
-        <option value="all">All statuses</option>
-        <option value="upcoming">Upcoming</option>
-        <option value="completed">Completed</option>
-        <option value="cancelled">Cancelled</option>
+        <option value="all">{t("appointments.allStatuses")}</option>
+        <option value="upcoming">{t("appointments.upcoming")}</option>
+        <option value="completed">{t("appointments.completed")}</option>
+        <option value="cancelled">{t("appointments.cancelled")}</option>
       </select>
 
       {/* Date range */}
@@ -75,12 +77,12 @@ function FilterBar({
         value={date}
         onChange={(e) => onDate(e.target.value as DateFilter)}
         className={selectClass}
-        aria-label="Filter by date"
+        aria-label={t("appointments.filterByDate")}
       >
-        <option value="all">All time</option>
-        <option value="week">This week</option>
-        <option value="month">This month</option>
-        <option value="3months">Last 3 months</option>
+        <option value="all">{t("appointments.allTime")}</option>
+        <option value="week">{t("appointments.thisWeek")}</option>
+        <option value="month">{t("appointments.thisMonth")}</option>
+        <option value="3months">{t("appointments.lastThreeMonths")}</option>
       </select>
 
       {/* Active filter indicator + clear */}
@@ -95,7 +97,7 @@ function FilterBar({
             className="inline-flex items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
           >
             <X className="h-3 w-3" />
-            Clear
+            {t("common.clear")}
           </button>
         </div>
       )}
@@ -109,6 +111,7 @@ export default function AppointmentsPage() {
   const [version, setVersion] = useState(0);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useTranslation();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -199,9 +202,9 @@ export default function AppointmentsPage() {
   return (
     <div className="mx-auto w-full max-w-[1120px] space-y-5 px-5 pb-8 md:px-0 md:pt-2">
       <div>
-        <h1 className="text-[1.4rem] font-semibold tracking-tight">My Consultations</h1>
+        <h1 className="text-[1.4rem] font-semibold tracking-tight">{t("appointments.myConsultations")}</h1>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          Your upcoming and past appointments.
+          {t("appointments.upcomingAndPast")}
         </p>
       </div>
 

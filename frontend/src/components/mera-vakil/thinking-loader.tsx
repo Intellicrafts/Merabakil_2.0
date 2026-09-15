@@ -3,31 +3,33 @@
 import { useEffect, useState } from "react";
 
 import { SaarthiMark } from "@/components/mera-vakil/saarthi-mark";
+import { useTranslation } from "@/lib/i18n";
 
-const STATUS_MESSAGES = [
-  "Thinking…",
-  "Searching the legal corpus…",
-  "Analyzing statutes and precedents…",
-  "Grounding citations…",
-  "Preparing your answer…",
-];
+const STATUS_MESSAGE_KEYS = [
+  "chat.thinking",
+  "chat.searchingLegalCorpus",
+  "chat.analyzingStatutes",
+  "chat.groundingCitations",
+  "chat.preparingAnswer",
+] as const;
 
 interface ThinkingLoaderProps {
   message?: string;
 }
 
 export function ThinkingLoader({ message }: ThinkingLoaderProps) {
+  const { t } = useTranslation();
   const [msgIndex, setMsgIndex] = useState(0);
 
   useEffect(() => {
     if (message) return undefined;
     const interval = setInterval(() => {
-      setMsgIndex((i) => (i + 1) % STATUS_MESSAGES.length);
+      setMsgIndex((i) => (i + 1) % STATUS_MESSAGE_KEYS.length);
     }, 2200);
     return () => clearInterval(interval);
   }, [message]);
 
-  const label = message ?? STATUS_MESSAGES[msgIndex];
+  const label = message ?? t(STATUS_MESSAGE_KEYS[msgIndex]);
 
   return (
     <div
