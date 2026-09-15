@@ -23,7 +23,9 @@ _CONVERSATIONAL_RE = re.compile(
     r"good\s*(morning|afternoon|evening|night)|"
     r"thanks?|thank\s*you|thanku|thnx|thx|ty|"
     r"ok(ay)?|okk+|k|cool|nice|great|awesome|got\s*it|"
-    r"bye+|goodbye|see\s*you|see\s*ya)[\s!.,?]*$",
+    r"bye+|goodbye|see\s*you|see\s*ya|"
+    r"how\s+are\s+(you|u)\b|how\s+r\s+u\b|kya\s+haal\s+(hai|he)\b|"
+    r"(hi+|hey+|hello+|namaste|namaskar|salaam)[,\s]+(how\s+are\s+(you|u)|what'?s?\s+up|how\s+r\s+u))[\s!.,?]*$",
     re.IGNORECASE,
 )
 

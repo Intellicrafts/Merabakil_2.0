@@ -30,11 +30,12 @@ _SYSTEM = (
 )
 
 _CONVERSATIONAL_RE = re.compile(
-    r"^\s*(hi+|hello|hey|how are you|what can you (do|help)|who are you|"
+    r"^\s*(hi+|hello|hey|how are you|how r u|what can you (do|help)|who are you|"
     r"namaskar|namaste|thanks?|thank you|bye|good\s*(morning|evening|night)|"
     r"what is mera vakil|tell me about yourself|"
     r"ok(ay)?|got it|sure|understood|yes|no|great|perfect|"
-    r"can you (help|explain|tell)|what do you (think|suggest))\W*$",
+    r"can you (help|explain|tell)|what do you (think|suggest)|"
+    r"(hi+|hey+|hello+|namaste|namaskar)[,\s]+(how are you|how r u|what'?s up))\W*$",
     re.IGNORECASE,
 )
 
