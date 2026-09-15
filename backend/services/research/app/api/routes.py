@@ -270,23 +270,43 @@ async def research_stream(
         # HTTP 200 + first event reach browser in ~10ms — before any LLM or memory work
         yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
 
-        route_result, memory_result, doc_result = await asyncio.gather(
-            container.router.classify(body.query),
-            container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
-            _resolve_session_documents(body, credentials),
-            return_exceptions=True,
-        )
-        route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
+        # Phase 1: instant regex/heuristic classify — no LLM, no I/O
+        quick_route = container.router.quick_classify(body.query)
 
-        if route == QueryRoute.CONVERSATIONAL or isinstance(memory_result, Exception):
-            history = None
+        if quick_route == QueryRoute.CONVERSATIONAL:
+            # Skip LTM for conversational queries (saves 300–600ms Qdrant round-trip)
+            memory_result, doc_result = await asyncio.gather(
+                container.memory_manager.retrieve_session_only(body.session_id),
+                _resolve_session_documents(body, credentials),
+                return_exceptions=True,
+            )
+            route = QueryRoute.CONVERSATIONAL
+            if isinstance(memory_result, Exception):
+                history = None
+            else:
+                history = [
+                    ConversationMessage(role=t.role, content=t.content)
+                    for t in memory_result.session_history
+                ] or None
             user_facts: list[str] = []
         else:
-            history = [
-                ConversationMessage(role=t.role, content=t.content)
-                for t in memory_result.session_history
-            ] or None
-            user_facts = memory_result.long_term_facts
+            # Full gather for legal queries (existing behavior)
+            route_result, memory_result, doc_result = await asyncio.gather(
+                container.router.classify(body.query),
+                container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
+                _resolve_session_documents(body, credentials),
+                return_exceptions=True,
+            )
+            route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
+            if isinstance(memory_result, Exception):
+                history = None
+                user_facts = []
+            else:
+                history = [
+                    ConversationMessage(role=t.role, content=t.content)
+                    for t in memory_result.session_history
+                ] or None
+                user_facts = memory_result.long_term_facts
 
         if isinstance(doc_result, Exception) or doc_result is None:
             session_doc_ids, session_doc_text = [], ""
@@ -390,23 +410,42 @@ async def research_document_stream(
     async def generator() -> AsyncIterator[str]:
         yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
 
-        route_result, memory_result, doc_result = await asyncio.gather(
-            container.router.classify(body.query),
-            container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
-            _resolve_session_documents(body, credentials),
-            return_exceptions=True,
-        )
-        route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
+        # Document-scoped stream always ends up LEGAL (docs force legal route).
+        # Still use two-phase to skip LTM for conversational queries.
+        quick_route = container.router.quick_classify(body.query)
 
-        if route == QueryRoute.CONVERSATIONAL or isinstance(memory_result, Exception):
-            history = None
+        if quick_route == QueryRoute.CONVERSATIONAL:
+            memory_result, doc_result = await asyncio.gather(
+                container.memory_manager.retrieve_session_only(body.session_id),
+                _resolve_session_documents(body, credentials),
+                return_exceptions=True,
+            )
+            route = QueryRoute.CONVERSATIONAL
+            if isinstance(memory_result, Exception):
+                history = None
+            else:
+                history = [
+                    ConversationMessage(role=t.role, content=t.content)
+                    for t in memory_result.session_history
+                ] or None
             user_facts: list[str] = []
         else:
-            history = [
-                ConversationMessage(role=t.role, content=t.content)
-                for t in memory_result.session_history
-            ] or None
-            user_facts = memory_result.long_term_facts
+            route_result, memory_result, doc_result = await asyncio.gather(
+                container.router.classify(body.query),
+                container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
+                _resolve_session_documents(body, credentials),
+                return_exceptions=True,
+            )
+            route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
+            if isinstance(memory_result, Exception):
+                history = None
+                user_facts = []
+            else:
+                history = [
+                    ConversationMessage(role=t.role, content=t.content)
+                    for t in memory_result.session_history
+                ] or None
+                user_facts = memory_result.long_term_facts
 
         if isinstance(doc_result, Exception) or doc_result is None:
             session_doc_ids, session_doc_text = [], ""

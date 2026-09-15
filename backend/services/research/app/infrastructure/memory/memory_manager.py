@@ -46,6 +46,14 @@ class MemoryManager:
             facts = []
         return MemoryContext(session_history=history or [], long_term_facts=facts)
 
+    async def retrieve_session_only(self, session_id: str | None) -> MemoryContext:
+        """Retrieve session history only — skips LTM (saves 300–600ms Qdrant round-trip)."""
+        try:
+            history = await self._session.get_history(session_id or "")
+        except Exception:
+            history = []
+        return MemoryContext(session_history=history or [], long_term_facts=[])
+
     async def persist(
         self,
         session_id: str | None,

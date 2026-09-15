@@ -43,8 +43,11 @@ lawyer002", you must present "lawyer002", not any other name. Fabricating a lawy
 critical error.
 
 TOOL USAGE POLICY:
-- For every legal question (statutes, rights, cases, procedures), call search_legal_knowledge_base \
-FIRST before answering. This grounds your answer and provides citations.
+- Call search_legal_knowledge_base when you need specific case law, precise statute text, recent \
+judgments, or when the user explicitly asks for cited sources. For well-known constitutional \
+provisions (e.g. Article 21, Article 19), fundamental rights, and general legal concepts you can \
+answer confidently from training data, you may answer directly — KB is not mandatory when your \
+training knowledge is sufficient and no citation is explicitly requested.
 - Call search_web ONLY when the query is clearly about events or judgments from 2024 onwards \
 that are outside your training knowledge. Do not call it routinely.
 - Call get_lawyer when the user's situation clearly needs professional counsel (see above). \
@@ -54,7 +57,9 @@ information already provided in the conversation. \
 - ONE targeted tool call per type is almost always enough — do not chain searches unless the first \
 result is clearly insufficient.
 
-ANSWER DIRECTLY (no tools) ONLY for:
+ANSWER DIRECTLY (no tools) WHEN:
+- The question is about well-known constitutional rights, fundamental rights, or common legal \
+concepts you can answer accurately and confidently from your training data.
 - Pure small talk already handled before reaching you (the conversational router handles this).
 - Meta questions about Mera Vakil itself (who made you, what you can do).
 
@@ -109,6 +114,7 @@ class AgentGraph:
         llm_api_key: str = "",
         llm_base_url: Optional[str] = None,  # kept for API compat, unused with Gemini native SDK
         max_iterations: int = 3,
+        fast_llm_model: str = "",
     ) -> None:
         self._max_iter = max_iterations
 
@@ -126,6 +132,15 @@ class AgentGraph:
             tools.append(book_appointment_tool)
         self._llm_with_tools = llm.bind_tools(tools)
         self._llm_plain = llm  # without tool binding — used on final forced iteration
+
+        # Faster model for conversational direct streaming (lower TTFT)
+        fast_model = fast_llm_model or llm_model
+        self._llm_fast = ChatGoogleGenerativeAI(
+            model=fast_model,
+            google_api_key=llm_api_key,
+            temperature=0.1,
+            streaming=True,
+        ) if fast_model != llm_model else llm
 
         tool_node = ToolNode(tools)
 
@@ -188,6 +203,6 @@ class AgentGraph:
             yield event
 
     async def astream_direct(self, messages: list) -> AsyncIterator:
-        """Stream directly from the plain LLM — no tools, no graph overhead."""
-        async for chunk in self._llm_plain.astream(messages):
+        """Stream directly from the fast LLM — no tools, no graph overhead."""
+        async for chunk in self._llm_fast.astream(messages):
             yield chunk

@@ -207,6 +207,7 @@ class LegalOrchestrator:
             llm_model=llm_settings.llm_model,
             llm_api_key=llm_settings.llm_api_key,
             llm_base_url=llm_settings.llm_base_url,
+            fast_llm_model=getattr(llm_settings, "llm_fast_model", ""),
         )
 
     async def _stream_conversational(self, state: OrchestratorState) -> AsyncIterator[str]:

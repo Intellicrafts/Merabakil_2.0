@@ -11,7 +11,7 @@ export interface StreamingSnapshot {
   isAnimating: boolean;
 }
 
-const DEFAULT_CHARS_PER_FRAME = 20;
+const DEFAULT_CHARS_PER_FRAME = 60;
 
 export interface UseStreamingRevealOptions {
   charsPerFrame?: number;
