@@ -206,3 +206,15 @@ class AgentGraph:
         """Stream directly from the fast LLM — no tools, no graph overhead."""
         async for chunk in self._llm_fast.astream(messages):
             yield chunk
+
+    async def complete_fast(self, messages: list) -> str:
+        """Non-streaming completion using the fast LLM — for lightweight tasks like suggestions."""
+        response = await self._llm_fast.ainvoke(messages)
+        if isinstance(response.content, str):
+            return response.content
+        if isinstance(response.content, list):
+            return "".join(
+                b.get("text", "") for b in response.content
+                if isinstance(b, dict) and b.get("type") == "text"
+            )
+        return ""

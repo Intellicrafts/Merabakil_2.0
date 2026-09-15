@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-import re
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -22,7 +22,7 @@ from legalos_orchestrator.agent.tools.kb_tool import build_kb_tool
 from legalos_orchestrator.agent.tools.lawyer_tool import build_lawyer_tool
 from legalos_orchestrator.agent.tools.web_tool import build_web_tool
 from legalos_orchestrator.agent.router import QueryRoute
-from legalos_orchestrator.conversation import expand_retrieval_query, is_conversational
+from legalos_orchestrator.conversation import expand_retrieval_query
 from legalos_orchestrator.ports import LLMPort, RetrieverPort, SpecialistPort  # LLMPort kept for container compat
 from legalos_orchestrator.schemas import (
     Intent,
@@ -33,72 +33,24 @@ from legalos_orchestrator.schemas import (
 
 logger = logging.getLogger(__name__)
 
-_CONVERSATIONAL_SUGGESTIONS = [
-    "What can you help me with in Indian law?",
-    "Explain Article 21 of the Constitution",
-    "What makes a contract valid in India?",
-]
-
 _FALLBACK_SUGGESTIONS = [
     "What are the key statutes that apply here?",
     "What remedies are available under Indian law?",
     "What documents should I gather next?",
 ]
 
-# Follow-up templates cycled through when KB sources don't provide enough specificity.
-_FOLLOW_UP_TEMPLATES = [
-    "What remedies and relief are available under Indian law for {topic}?",
-    "What are the procedural steps and timeline involved in {topic}?",
-    "What are recent Supreme Court judgments on {topic}?",
-    "What are the exceptions and limitations related to {topic}?",
-    "What key documents and evidence are needed for {topic}?",
-]
-
-_QUESTION_PREFIX = re.compile(
-    r"^\s*(?:what|how|when|where|who|why|can|could|should|is|are|does|do|will|would)"
-    r"(?:\s+(?:is|are|does|can|the|a|an|i|we|my|one))?\s+",
-    re.IGNORECASE,
+_SUGGESTION_SYSTEM = (
+    "You generate follow-up questions for an Indian legal AI assistant. "
+    "Given the user's question and the answer, output exactly 3 short, specific follow-up questions "
+    "the user would naturally ask next.\n\n"
+    "Rules:\n"
+    "- Questions must be directly relevant to the specific topic — no generic filler\n"
+    "- Each question must be under 12 words\n"
+    "- Output exactly 3 questions, one per line, nothing else\n"
+    "- No numbering, bullets, arrows, or labels — only the question text\n"
+    "- Each question must end with a question mark\n"
+    "- Do not repeat or rephrase the original question"
 )
-
-
-def _extract_topic(query: str) -> str:
-    """Strip question boilerplate to get the core legal topic."""
-    cleaned = _QUESTION_PREFIX.sub("", query).strip().rstrip("?")
-    return (cleaned[0].upper() + cleaned[1:]) if cleaned else query.rstrip("?")
-
-
-def _suggest(query: str, kb_results: list, web_results: list) -> list[str]:
-    """Build 3 follow-up suggestions from retrieved sources — no LLM call."""
-    if is_conversational(query):
-        return _CONVERSATIONAL_SUGGESTIONS
-
-    suggestions: list[str] = []
-
-    # Prefer source-specific suggestions — they give the user a clear next step.
-    seen_titles: set[str] = set()
-    for src in kb_results[:5]:
-        if len(suggestions) >= 2:
-            break
-        title = getattr(src, "title", None) or getattr(src, "document_id", None)
-        if not title or title in seen_titles:
-            continue
-        seen_titles.add(title)
-        section = getattr(src, "section", None)
-        if section:
-            suggestions.append(f"What does {section} of {title} specifically provide?")
-        else:
-            suggestions.append(f"What are the key provisions of {title}?")
-
-    # Fill remaining slots with query-derived templates.
-    topic = _extract_topic(query)
-    for tmpl in _FOLLOW_UP_TEMPLATES:
-        if len(suggestions) >= 3:
-            break
-        candidate = tmpl.format(topic=topic)
-        if candidate not in suggestions:
-            suggestions.append(candidate)
-
-    return suggestions[:3] or _FALLBACK_SUGGESTIONS
 
 _CONVERSATIONAL_SYSTEM_PROMPT = (
     "You are Mera Vakil, an expert AI legal counsel for India, created by the Bakilat team. "
@@ -210,6 +162,26 @@ class LegalOrchestrator:
             fast_llm_model=getattr(llm_settings, "llm_fast_model", ""),
         )
 
+    async def _generate_suggestions(self, query: str, answer: str) -> list[str]:
+        """Use the fast LLM to generate 3 contextual follow-up questions."""
+        user_content = f"User question: {query}\n\nAnswer: {answer[:800]}"
+        try:
+            text = await self._agent_graph.complete_fast([
+                SystemMessage(content=_SUGGESTION_SYSTEM),
+                HumanMessage(content=user_content),
+            ])
+            lines = [
+                line.strip().lstrip("→•-*0123456789.) ").strip()
+                for line in text.split("\n")
+                if line.strip()
+            ]
+            suggestions = [l for l in lines if l and "?" in l][:3]
+            if len(suggestions) >= 2:
+                return suggestions
+        except Exception as exc:
+            logger.warning("suggestion_gen_failed error=%s", exc)
+        return _FALLBACK_SUGGESTIONS
+
     async def _stream_conversational(self, state: OrchestratorState) -> AsyncIterator[str]:
         """Fast path — direct LLM stream with no tools and no LangGraph overhead."""
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -242,7 +214,8 @@ class LegalOrchestrator:
             yield _sse("token", {"text": fallback})
 
         answer = "".join(answer_parts)
-        result = _build_result(state, answer, [], [], [], _CONVERSATIONAL_SUGGESTIONS)
+        suggestions = await self._generate_suggestions(state.query, answer)
+        result = _build_result(state, answer, [], [], [], suggestions)
         yield _sse("done", result.model_dump(mode="json"))
 
     async def run_state_streaming(self, state: OrchestratorState) -> AsyncIterator[str]:
@@ -312,8 +285,10 @@ class LegalOrchestrator:
         guardrail_result = OutputGuardrail().validate(raw_answer, max_valid_citations=len(citations))
         answer = guardrail_result.answer
 
-        suggestions = _suggest(state.query, kb_results, web_results)
-        images = await _attach_web_images(state.query)
+        suggestions, images = await asyncio.gather(
+            self._generate_suggestions(state.query, answer),
+            _attach_web_images(state.query),
+        )
         result = _build_result(state, answer, kb_results, cited_web, citations, suggestions, images)
         serialised = result.model_dump(mode="json")
         payload: dict = {}
@@ -356,8 +331,10 @@ class LegalOrchestrator:
         guardrail_result = OutputGuardrail().validate(answer, max_valid_citations=len(citations))
         answer = guardrail_result.answer
 
-        suggestions = _suggest(state.query, kb_results, web_results)
-        images = await _attach_web_images(state.query)
+        suggestions, images = await asyncio.gather(
+            self._generate_suggestions(state.query, answer),
+            _attach_web_images(state.query),
+        )
         result = _build_result(state, answer, kb_results, cited_web, citations, suggestions, images)
         payload_ns: dict = {}
         if lawyer_results_ns:
