@@ -175,14 +175,31 @@ class MarketplaceRepository:
         )
         return rows
 
-    async def list_events(self, consultation_id: uuid.UUID, *, limit: int = 80) -> list[AppointmentEvent]:
-        stmt = (
-            select(AppointmentEvent)
-            .where(AppointmentEvent.consultation_id == consultation_id)
-            .order_by(AppointmentEvent.created_at.asc())
-            .limit(limit)
-        )
+    async def list_events(
+        self,
+        consultation_id: uuid.UUID,
+        *,
+        limit: int = 80,
+        offset: int = 0,
+        event_type: str | None = None,
+        descending: bool = False,
+    ) -> list[AppointmentEvent]:
+        stmt = select(AppointmentEvent).where(AppointmentEvent.consultation_id == consultation_id)
+        if event_type:
+            stmt = stmt.where(AppointmentEvent.type == event_type)
+        order = AppointmentEvent.created_at.desc() if descending else AppointmentEvent.created_at.asc()
+        stmt = stmt.order_by(order).offset(offset).limit(limit)
         return list((await self._session.execute(stmt)).scalars().all())
+
+    async def count_events(self, consultation_id: uuid.UUID, *, event_type: str | None = None) -> int:
+        from sqlalchemy import func
+
+        stmt = select(func.count()).select_from(AppointmentEvent).where(
+            AppointmentEvent.consultation_id == consultation_id
+        )
+        if event_type:
+            stmt = stmt.where(AppointmentEvent.type == event_type)
+        return int((await self._session.execute(stmt)).scalar_one())
 
     async def create_consultation(self, **fields: object) -> Consultation:
         row = Consultation(**fields)

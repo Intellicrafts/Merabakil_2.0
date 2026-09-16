@@ -50,6 +50,7 @@ import type {
 import { AnalyticsEvents, track } from "@/lib/analytics";
 import { callHub } from "@/lib/call-hub";
 import { playAlertChime, requestNotificationPermission, showBrowserNotification, stopCallRingtone } from "@/lib/room-alerts";
+import { cleanupLiveKitMedia, disconnectLiveKitRoom, initLiveKitClient } from "@/lib/livekit-room";
 import { marketplaceServiceUrl } from "@/lib/service-urls";
 
 function mergeJoinIntoApt(apt: AppointmentRecord, js: JoinStateDto): AppointmentRecord {
@@ -84,6 +85,16 @@ function secondsUntil(iso: string | null | undefined): number {
   const ts = new Date(iso).getTime();
   if (Number.isNaN(ts)) return 0;
   return Math.max(0, Math.round((ts - Date.now()) / 1000));
+}
+
+function myModeration(apt: AppointmentRecord): { status?: string; reason?: string; suspended_until?: string | null } | undefined {
+  return apt.my_role === "lawyer" ? apt.lawyer_moderation : apt.citizen_moderation;
+}
+
+function isSessionModerationBlocked(apt: AppointmentRecord | null): boolean {
+  if (!apt) return false;
+  const status = myModeration(apt)?.status;
+  return status === "kicked" || status === "suspended";
 }
 
 function mergeMessage(prev: AppointmentMessage[], incoming: AppointmentMessage): AppointmentMessage[] {
@@ -163,6 +174,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     title: string;
     body: string;
   } | null>(null);
+  const [sessionBlocked, setSessionBlocked] = useState(false);
   const lastEmergencyStatus = useRef<string>("none");
 
   const counterpart = apt?.counterpart_name ?? "Counsel";
@@ -195,41 +207,39 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     }
   }, []);
 
-  const leave = useCallback(() => {
-    const room = roomRef.current as { disconnect?: () => Promise<void> } | null;
-    void room?.disconnect?.();
+  const teardownLiveKit = useCallback(async () => {
+    const room = roomRef.current;
     roomRef.current = null;
-    localStreamRef.current?.getTracks().forEach((track) => track.stop());
-    localStreamRef.current = null;
-    setLocalStream(null);
-    remoteStreamRef.current = null;
-    remoteAudioElsRef.current.forEach((el) => el.remove());
-    remoteAudioElsRef.current = [];
-    void leaveAppointment(appointmentId).catch(() => undefined);
-    router.push("/lawyer-marketplace");
-  }, [appointmentId, router]);
+    await disconnectLiveKitRoom(room);
+    cleanupLiveKitMedia({
+      localStreamRef,
+      setLocalStream,
+      remoteAudioElsRef,
+      remoteStreamRef,
+    });
+    setLivekitReady(false);
+  }, []);
+
+  const leave = useCallback(() => {
+    void teardownLiveKit().finally(() => {
+      void leaveAppointment(appointmentId).catch(() => undefined);
+      router.push("/lawyer-marketplace");
+    });
+  }, [appointmentId, router, teardownLiveKit]);
 
   const expireToDetails = useCallback(() => {
-    const room = roomRef.current as { disconnect?: () => Promise<void> } | null;
-    void room?.disconnect?.();
-    router.replace(`/appointments/${appointmentId}`);
-  }, [appointmentId, router]);
+    void teardownLiveKit().finally(() => {
+      router.replace(`/appointments/${appointmentId}`);
+    });
+  }, [appointmentId, router, teardownLiveKit]);
 
   const disconnectConference = useCallback(() => {
-    const room = roomRef.current as { disconnect?: () => Promise<void> } | null;
-    void room?.disconnect?.();
-    roomRef.current = null;
-    localStreamRef.current?.getTracks().forEach((track) => track.stop());
-    localStreamRef.current = null;
-    setLocalStream(null);
-    remoteStreamRef.current = null;
-    remoteAudioElsRef.current.forEach((el) => el.remove());
-    remoteAudioElsRef.current = [];
+    void teardownLiveKit();
     if (callPhase === "in_call") {
       setCallPhase("idle");
       setActiveCallId(null);
     }
-  }, [callPhase]);
+  }, [callPhase, teardownLiveKit]);
 
   const onRoomEvent = useCallback(
     (event: RoomStreamEvent) => {
@@ -317,34 +327,29 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         const isTarget = payload.target_user_id === userId;
         if (payload.action === "unsuspend") {
           if (isTarget) {
+            setSessionBlocked(false);
             setActiveAlert(null);
           }
           return;
         }
         void playAlertChime("ops");
         if (isTarget) {
+          setSessionBlocked(true);
           disconnectConference();
           void leaveAppointment(appointmentId).catch(() => undefined);
+          const blockedCopy =
+            "You cannot rejoin or send messages until platform operations allows you back.";
           if (payload.action === "suspend") {
-            const until = payload.suspended_until
-              ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(
-                  new Date(payload.suspended_until),
-                )
-              : null;
             setActiveAlert({
               kind: "moderation",
-              title: "Temporarily suspended by ops",
-              body: until
-                ? `You cannot rejoin this conference until ${until}.${payload.reason ? ` Reason: ${payload.reason}` : ""}`
-                : payload.reason || "An administrator temporarily suspended you from this conference.",
+              title: "Suspended by platform ops",
+              body: payload.reason ? `${payload.reason} ${blockedCopy}` : blockedCopy,
             });
           } else {
             setActiveAlert({
               kind: "moderation",
               title: "Removed from conference by ops",
-              body: payload.reason
-                ? `${payload.reason} You may rejoin when ready.`
-                : "An administrator removed you from the conference. You may rejoin when ready.",
+              body: payload.reason ? `${payload.reason} ${blockedCopy}` : blockedCopy,
             });
           }
           return;
@@ -362,18 +367,59 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         setJoin((prev) => (prev ? { ...prev, opponent_present: false } : prev));
         return;
       }
+      if (event.type === "counsel_reassigned") {
+        const payload = event.payload as AppointmentRecord & {
+          removed_counsel_user_id?: string;
+          reason?: string;
+        };
+        const removedId = payload.removed_counsel_user_id;
+        if (removedId && userId === removedId) {
+          disconnectConference();
+          void leaveAppointment(appointmentId).catch(() => undefined);
+          setActiveAlert({
+            kind: "ops",
+            title: "Consultation reassigned",
+            body:
+              payload.reason ||
+              "This consultation has been reassigned to another advocate. You no longer have access.",
+          });
+          toast({
+            title: "Consultation reassigned",
+            description: payload.reason || "You no longer have access to this appointment.",
+            variant: "destructive",
+          });
+        } else if (payload?.id) {
+          setApt(payload);
+        }
+        return;
+      }
       if (event.type === "emergency" || event.type === "ops_update") {
         if (event.payload?.id) {
-          setApt(event.payload);
-          syncEmergencyAlert(event.payload);
-          if (event.payload.scheduled_end_at) {
+          const payload = event.payload as AppointmentRecord & { removed_counsel_user_id?: string; reason?: string };
+          if (
+            payload.removed_counsel_user_id &&
+            userId === payload.removed_counsel_user_id &&
+            apt?.my_role === "lawyer"
+          ) {
+            disconnectConference();
+            void leaveAppointment(appointmentId).catch(() => undefined);
+            setActiveAlert({
+              kind: "ops",
+              title: "Consultation reassigned",
+              body: payload.reason || "You no longer have access to this appointment.",
+            });
+            return;
+          }
+          setApt(payload);
+          syncEmergencyAlert(payload);
+          if (payload.scheduled_end_at) {
             setJoin((prev) =>
               prev
                 ? {
                     ...prev,
-                    scheduled_end_at: event.payload.scheduled_end_at,
-                    emergency_status: event.payload.emergency_status,
-                    emergency_reason: event.payload.emergency_reason,
+                    scheduled_end_at: payload.scheduled_end_at,
+                    emergency_status: payload.emergency_status,
+                    emergency_reason: payload.emergency_reason,
                   }
                 : prev,
             );
@@ -389,6 +435,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   messagesRef.current = messages;
 
   useEffect(() => {
+    initLiveKitClient();
     requestNotificationPermission();
   }, []);
 
@@ -399,7 +446,19 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         const row = await getAppointment(appointmentId);
         if (cancelled) return;
         setApt(row);
+        setSessionBlocked(isSessionModerationBlocked(row));
         setConnecting(false);
+        if (isSessionModerationBlocked(row)) {
+          const mod = myModeration(row);
+          setActiveAlert({
+            kind: "moderation",
+            title: mod?.status === "kicked" ? "Removed from conference by ops" : "Suspended by platform ops",
+            body: mod?.reason
+              ? `${mod.reason} You cannot rejoin or send messages until platform operations allows you back.`
+              : "You cannot rejoin or send messages until platform operations allows you back.",
+          });
+          return;
+        }
         if (row.join_state === "expired") {
           expireToDetails();
           return;
@@ -444,15 +503,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     })();
     return () => {
       cancelled = true;
-      const room = roomRef.current as { disconnect?: () => Promise<void> } | null;
-      void room?.disconnect?.();
-      roomRef.current = null;
-      // Stop local tracks so mic/camera browser indicator clears
-      localStreamRef.current?.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-      // Remove injected remote audio elements so audio stops
-      remoteAudioElsRef.current.forEach((el) => el.remove());
-      remoteAudioElsRef.current = [];
+      void teardownLiveKit();
       // Record call-end event if navigating away mid-call
       if (callStartedAt.current) {
         const elapsed = Math.max(0, Math.round((Date.now() - callStartedAt.current) / 1000));
@@ -485,8 +536,21 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         return true;
       }
       const lk = await import("livekit-client");
-      const room = new lk.Room({ dynacast: true });
+      const room = new lk.Room({ dynacast: true, disconnectOnPageLeave: false });
       roomRef.current = room;
+
+      room.on(lk.RoomEvent.Disconnected, () => {
+        if (roomRef.current === room) {
+          roomRef.current = null;
+        }
+        cleanupLiveKitMedia({
+          localStreamRef,
+          setLocalStream,
+          remoteAudioElsRef,
+          remoteStreamRef,
+        });
+        setLivekitReady(false);
+      });
       const composedRemote = new MediaStream();
       const composedLocal = new MediaStream();
 
@@ -719,6 +783,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
 
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
+    if (sessionBlocked) return;
     const body = draft.trim();
     if (!body || sending) return;
     const tempId = `tmp-${crypto.randomUUID()}`;
@@ -761,6 +826,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   }
 
   async function shareFile(file: File, kind: "document" | "image" | "screenshot" | "voice", caption?: string) {
+    if (sessionBlocked) return;
     const tempId = `tmp-${crypto.randomUUID()}`;
     const note = caption?.trim() || file.name;
     setMessages((prev) => [
@@ -1035,7 +1101,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {callPhase === "idle" && livekitReady && (
+          {callPhase === "idle" && livekitReady && !sessionBlocked && (
             <>
               <button
                 type="button"
@@ -1089,7 +1155,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
             kind={activeAlert.kind}
             title={activeAlert.title}
             body={activeAlert.body}
-            onDismiss={() => setActiveAlert(null)}
+            onDismiss={activeAlert.kind === "moderation" ? undefined : () => setActiveAlert(null)}
           />
         </div>
       ) : null}
@@ -1154,6 +1220,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         />
       ) : null}
 
+      {!sessionBlocked ? (
       <form
         onSubmit={handleSend}
         className="mx-auto w-full max-w-[680px] shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
@@ -1221,6 +1288,11 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           ) : null}
         </div>
       </form>
+      ) : (
+        <div className="mx-auto w-full max-w-[680px] shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 text-center text-[12px] text-muted-foreground">
+          Messaging is disabled until platform operations allows you to rejoin.
+        </div>
+      )}
 
       {showSummon && !present && (
         <RejoinPromptModal

@@ -260,6 +260,30 @@ class ExtendRequest(BaseModel):
 
 class ReassignRequest(BaseModel):
     lawyer_id: str
+    reason: str = Field(default="", max_length=500)
+
+
+class DurationRequest(BaseModel):
+    scheduled_end_at: str | None = None
+    minutes_delta: int | None = Field(default=None, ge=-60, le=120)
+
+
+class ActivityLogOut(BaseModel):
+    id: str
+    type: str
+    actor_user_id: str | None = None
+    actor_name: str = ""
+    actor_role: str = ""
+    summary: str = ""
+    payload: dict = {}
+    created_at: str | None = None
+
+
+class ActivityLogPageOut(BaseModel):
+    items: list[ActivityLogOut]
+    total: int
+    page: int
+    size: int
 
 
 class SystemMessageRequest(BaseModel):
@@ -279,6 +303,36 @@ class ModerateSuspendRequest(BaseModel):
 
 class ModerateUnsuspendRequest(BaseModel):
     target: Literal["citizen", "lawyer"]
+
+
+class EmergencyRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class LiveKitParticipantOut(BaseModel):
+    identity: str
+    name: str = ""
+    role: str = ""
+
+
+class PartyHealthOut(BaseModel):
+    present: bool = False
+    last_seen_at: str | None = None
+    moderation: ParticipantModeration = Field(default_factory=lambda: ParticipantModeration())
+    livekit_connected: bool = False
+
+
+class SessionHealthOut(BaseModel):
+    appointment_id: str
+    status: str
+    join_state: str
+    citizen: PartyHealthOut
+    lawyer: PartyHealthOut
+    livekit: dict = {}
+    call: dict | None = None
+    summon: dict | None = None
+    emergency: dict = {}
+    diagnostics: dict = Field(default_factory=lambda: {"issues": []})
 
 
 class AdminEventOut(BaseModel):

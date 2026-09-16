@@ -134,6 +134,12 @@ export default function AppointmentsPage() {
   }, [version]);
 
   useEffect(() => {
+    const onChanged = () => setVersion((v) => v + 1);
+    window.addEventListener("legalos:appointments-changed", onChanged);
+    return () => window.removeEventListener("legalos:appointments-changed", onChanged);
+  }, []);
+
+  useEffect(() => {
     if (appointments.length === 0) return undefined;
     const poll = async () => {
       const updates = await Promise.all(

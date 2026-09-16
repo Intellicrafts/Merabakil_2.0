@@ -22,11 +22,13 @@ import type {
   WalletTransactionList,
 } from "@/lib/types";
 import type {
+  ActivityLogPage,
   AppointmentMessage,
   AppointmentRecord,
   JoinStateDto,
   RankedMarketplaceLawyer,
   RoomTokenResponse,
+  SessionHealth,
 } from "@/lib/appointment-types";
 
 import {
@@ -1164,11 +1166,15 @@ export async function adminExtendAppointment(id: string, minutes: number): Promi
   });
 }
 
-export async function adminReassignAppointment(id: string, lawyerId: string): Promise<AppointmentRecord> {
+export async function adminReassignAppointment(
+  id: string,
+  lawyerId: string,
+  reason?: string,
+): Promise<AppointmentRecord> {
   return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/reassign`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ lawyer_id: lawyerId }),
+    body: JSON.stringify({ lawyer_id: lawyerId, reason: reason || undefined }),
   });
 }
 
@@ -1221,6 +1227,54 @@ export async function adminUnsuspendParticipant(
     headers: authHeaders(),
     body: JSON.stringify({ target }),
   });
+}
+
+export async function adminAllowRejoinParticipant(
+  id: string,
+  target: "citizen" | "lawyer",
+): Promise<AppointmentRecord> {
+  return adminUnsuspendParticipant(id, target);
+}
+
+export async function adminSessionHealth(id: string): Promise<SessionHealth> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/session-health`);
+}
+
+export async function adminObserveToken(id: string): Promise<RoomTokenResponse> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/observe-token`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+export async function adminResetCall(id: string): Promise<{ ok: boolean }> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/call/reset`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+export async function adminSetDuration(
+  id: string,
+  body: { scheduled_end_at?: string; minutes_delta?: number },
+): Promise<AppointmentRecord> {
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/duration`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminAppointmentLogs(
+  id: string,
+  params: { page?: number; size?: number; type?: string } = {},
+): Promise<ActivityLogPage> {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", String(params.page));
+  if (params.size) qs.set("size", String(params.size));
+  if (params.type) qs.set("type", params.type);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch(`${marketplaceServiceUrl()}/api/v1/admin/appointments/${id}/logs${suffix}`);
 }
 
 export async function adminListLawyers(): Promise<RankedMarketplaceLawyer[]> {

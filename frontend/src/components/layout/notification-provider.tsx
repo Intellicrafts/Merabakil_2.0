@@ -79,6 +79,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   );
 
   const handleInboxEvent = useCallback((event: InboxStreamEvent) => {
+    if (event.type === "counsel_reassigned") {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("legalos:appointments-changed"));
+      }
+    }
     if (event.type === "summon_cleared" && event.appointment_id) {
       notificationHub.clearSummon(event.appointment_id);
     }

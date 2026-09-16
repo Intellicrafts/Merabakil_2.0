@@ -17,6 +17,7 @@ declare -a SUITES=(
   "services/search/tests|${COMMON}:services/search"
   "services/research/tests|${COMMON}:${ORCH}:services/research"
   "services/document/tests|${COMMON}:services/document"
+  "services/lawyer-marketplace/tests|${COMMON}:services/lawyer-marketplace:scripts"
 )
 
 failed=0

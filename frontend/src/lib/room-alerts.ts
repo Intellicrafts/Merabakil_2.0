@@ -133,3 +133,21 @@ export async function playCallRingtone(): Promise<void> {
   burst();
   ringTimer = window.setInterval(burst, 3800);
 }
+
+let emergencyTimer: number | null = null;
+
+export function stopEmergencyAlert(): void {
+  if (typeof window !== "undefined" && emergencyTimer !== null) {
+    window.clearInterval(emergencyTimer);
+    emergencyTimer = null;
+  }
+}
+
+export function startEmergencyAlert(): void {
+  if (typeof window === "undefined") return;
+  stopEmergencyAlert();
+  void playAlertChime("emergency");
+  emergencyTimer = window.setInterval(() => {
+    void playAlertChime("emergency");
+  }, 30_000);
+}

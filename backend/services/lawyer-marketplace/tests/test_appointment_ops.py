@@ -17,53 +17,11 @@ _COMMON = _ROOT / "backend" / "libs" / "legalos_common"
 sys.path[:0] = [str(_MP), str(_COMMON), str(_ROOT / "backend" / "scripts")]
 
 from app.constants import ADVOCATE_USER_ID, CITIZEN_USER_ID, PRIYA_LAWYER_ID  # noqa: E402
-from legalos_common.security.jwt import create_access_token  # noqa: E402
+from tests.helpers import auth, book  # noqa: E402
 
 
-def _token(user_id: uuid.UUID, role: str) -> str:
-    perms = ["research:read", "user:manage"] if role == "admin" else ["research:read"]
-    return create_access_token(str(user_id), roles=[role], permissions=perms)
-
-
-@pytest.fixture(autouse=True)
-def clear_active_calls():
-    from app.application import appointments as appt_mod
-
-    appt_mod._ACTIVE_CALLS.clear()
-    yield
-    appt_mod._ACTIVE_CALLS.clear()
-
-
-@pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("MARKETPLACE_NATIVE", "true")
-    monkeypatch.setenv("MARKETPLACE_AUTO_CONFIRM", "true")
-    monkeypatch.setenv("MARKETPLACE_DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path}/mp.db")
-    monkeypatch.setenv("JWT_SECRET_KEY", os.getenv("JWT_SECRET_KEY", "dev-local-secret"))
-    monkeypatch.setenv("APPOINTMENT_FILES_DIR", str(tmp_path / "files"))
-    import app.infrastructure.db as dbmod
-
-    dbmod._engine = None
-    dbmod._sessionmaker = None
-    from app.main import app
-
-    with TestClient(app) as test_client:
-        yield test_client
-    try:
-        from app.application import appointments as appt_mod
-
-        appt_mod._ACTIVE_CALLS.clear()
-    except Exception:
-        pass
-    dbmod._engine = None
-    dbmod._sessionmaker = None
-
-
-def _auth(role: str, user_id: uuid.UUID | None = None) -> dict[str, str]:
-    uid = user_id or (ADVOCATE_USER_ID if role == "advocate" else CITIZEN_USER_ID)
-    if role == "admin":
-        uid = uuid.UUID("00000000-0000-4000-8000-000000000001")
-    return {"Authorization": f"Bearer {_token(uid, role)}"}
+_auth = auth
+_book = book
 
 
 def test_list_contains_only_seeded_verified_advocate(client: TestClient) -> None:
@@ -785,7 +743,7 @@ def test_join_state_includes_pending_incoming_call(client: TestClient) -> None:
     assert join["pending_incoming_call"]["mode"] == "video"
 
 
-def test_kick_participant_allows_rejoin(client: TestClient) -> None:
+def test_kick_blocks_rejoin_and_messages_until_allowed(client: TestClient, fake_livekit) -> None:
     from app.application.room_hub import subscribe
 
     apt_id = _book(client)
@@ -804,8 +762,30 @@ def test_kick_participant_allows_rejoin(client: TestClient) -> None:
     assert mod_event["payload"]["action"] == "kick"
     detail = client.get(f"/api/v1/admin/appointments/{apt_id}", headers=_auth("admin")).json()
     assert "participant_kicked" in [e["type"] for e in detail["events"]]
+    assert fake_livekit.removed
+    blocked = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    assert blocked.status_code == 403
+    msg_blocked = client.post(
+        f"/api/v1/appointments/{apt_id}/messages",
+        headers=_auth("citizen"),
+        json={"body": "Still trying to message"},
+    )
+    assert msg_blocked.status_code == 403
+    lifted = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/moderate/unsuspend",
+        headers=_auth("admin"),
+        json={"target": "citizen"},
+    )
+    assert lifted.status_code == 200, lifted.text
+    assert lifted.json()["citizen_moderation"]["status"] == "none"
     rejoin = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
     assert rejoin.status_code == 200, rejoin.text
+    msg_ok = client.post(
+        f"/api/v1/appointments/{apt_id}/messages",
+        headers=_auth("citizen"),
+        json={"body": "Back after allow rejoin"},
+    )
+    assert msg_ok.status_code == 201, msg_ok.text
 
 
 def test_suspend_blocks_room_token_until_unsuspended(client: TestClient) -> None:
@@ -814,7 +794,7 @@ def test_suspend_blocks_room_token_until_unsuspended(client: TestClient) -> None
     suspended = client.post(
         f"/api/v1/admin/appointments/{apt_id}/moderate/suspend",
         headers=_auth("admin"),
-        json={"target": "citizen", "minutes": 15, "reason": "Repeated disruption in conference."},
+        json={"target": "citizen", "minutes": 5, "reason": "Repeated disruption in conference."},
     )
     assert suspended.status_code == 200, suspended.text
     assert suspended.json()["citizen_moderation"]["status"] == "suspended"
@@ -832,6 +812,21 @@ def test_suspend_blocks_room_token_until_unsuspended(client: TestClient) -> None
     assert rejoin.status_code == 200, rejoin.text
 
 
+def test_suspend_does_not_auto_lift(client: TestClient) -> None:
+    apt_id = _book(client)
+    client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    suspended = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/moderate/suspend",
+        headers=_auth("admin"),
+        json={"target": "citizen", "minutes": 5, "reason": "Brief cooling off."},
+    )
+    assert suspended.status_code == 200, suspended.text
+    detail = client.get(f"/api/v1/admin/appointments/{apt_id}", headers=_auth("admin")).json()
+    assert detail["appointment"]["citizen_moderation"]["status"] == "suspended"
+    blocked = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    assert blocked.status_code == 403
+
+
 def test_non_admin_cannot_moderate(client: TestClient) -> None:
     apt_id = _book(client)
     denied = client.post(
@@ -840,3 +835,138 @@ def test_non_admin_cannot_moderate(client: TestClient) -> None:
         json={"target": "lawyer", "reason": "Should fail"},
     )
     assert denied.status_code == 403
+
+
+def test_admin_set_priority(client: TestClient) -> None:
+    apt_id = _book(client)
+    res = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/priority",
+        headers=_auth("admin"),
+        json={"priority": "urgent"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["priority"] == "urgent"
+
+
+def test_admin_force_complete(client: TestClient) -> None:
+    apt_id = _book(client)
+    res = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/force-complete",
+        headers=_auth("admin"),
+        json={"reason": "Session ended by operations team."},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["status"] == "completed"
+
+
+def test_admin_session_health(client: TestClient) -> None:
+    apt_id = _book(client)
+    res = client.get(f"/api/v1/admin/appointments/{apt_id}/session-health", headers=_auth("admin"))
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["appointment_id"] == apt_id
+    assert "citizen" in body and "lawyer" in body
+    assert "diagnostics" in body
+
+
+def test_admin_observe_token(client: TestClient, fake_livekit) -> None:
+    apt_id = _book(client)
+    res = client.post(f"/api/v1/admin/appointments/{apt_id}/observe-token", headers=_auth("admin"))
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["configured"] is True
+    assert body["token"]
+    assert fake_livekit.minted[-1]["role"] == "admin"
+
+
+def test_admin_call_reset(client: TestClient) -> None:
+    apt_id = _book(client)
+    ring = client.post(
+        f"/api/v1/appointments/{apt_id}/call/ring",
+        headers=_auth("citizen"),
+        json={"mode": "video"},
+    )
+    assert ring.status_code == 200, ring.text
+    reset = client.post(f"/api/v1/admin/appointments/{apt_id}/call/reset", headers=_auth("admin"))
+    assert reset.status_code == 200, reset.text
+    assert reset.json()["ok"] is True
+
+
+def test_reassign_removes_old_counsel_access(client: TestClient, fake_livekit) -> None:
+    apt_id = _book(client)
+    client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("advocate"))
+    listing = client.put(
+        "/api/v1/lawyers/me",
+        headers=_auth("advocate", uuid.UUID("00000000-0000-4000-8000-000000000099")),
+        json={"full_name": "Adv. Backup Counsel", "city": "Delhi", "bio": "Backup listing for reassign tests."},
+    )
+    backup_id = listing.json()["id"]
+    client.patch(f"/api/v1/admin/lawyers/{backup_id}", headers=_auth("admin"), json={"is_verified": True})
+    reassigned = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/reassign",
+        headers=_auth("admin"),
+        json={"lawyer_id": backup_id, "reason": "Primary counsel unavailable."},
+    )
+    assert reassigned.status_code == 200, reassigned.text
+    blocked = client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("advocate"))
+    assert blocked.status_code == 403
+    inbox = client.get("/api/v1/appointments", headers=_auth("advocate")).json()
+    assert not any(row["id"] == apt_id for row in inbox)
+    detail = client.get(f"/api/v1/admin/appointments/{apt_id}", headers=_auth("admin")).json()
+    types = [e["type"] for e in detail["events"]]
+    assert "counsel_removed" in types
+    assert fake_livekit.removed
+
+
+def test_admin_set_duration(client: TestClient) -> None:
+    apt_id = _book(client)
+    before = client.get(f"/api/v1/admin/appointments/{apt_id}", headers=_auth("admin")).json()["appointment"]
+    res = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/duration",
+        headers=_auth("admin"),
+        json={"minutes_delta": 15},
+    )
+    assert res.status_code == 200, res.text
+    after_end = res.json()["scheduled_end_at"]
+    assert after_end != before["scheduled_end_at"]
+    detail = client.get(f"/api/v1/admin/appointments/{apt_id}", headers=_auth("admin")).json()
+    assert any(e["type"] == "duration_changed" for e in detail["events"])
+
+
+def test_admin_set_duration_successive_increases(client: TestClient) -> None:
+    apt_id = _book(client)
+    first = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/duration",
+        headers=_auth("admin"),
+        json={"minutes_delta": 15},
+    )
+    assert first.status_code == 200, first.text
+    second = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/duration",
+        headers=_auth("admin"),
+        json={"minutes_delta": 15},
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["scheduled_end_at"] != first.json()["scheduled_end_at"]
+
+
+def test_admin_set_duration_rejects_past_end(client: TestClient) -> None:
+    apt_id = _book(client)
+    client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    res = client.post(
+        f"/api/v1/admin/appointments/{apt_id}/duration",
+        headers=_auth("admin"),
+        json={"minutes_delta": -60},
+    )
+    assert res.status_code == 400
+    detail = (res.json().get("detail") or "").lower()
+    assert "shorten" in detail or "minute" in detail
+
+
+def test_admin_appointment_logs_paginated(client: TestClient) -> None:
+    apt_id = _book(client)
+    client.post(f"/api/v1/appointments/{apt_id}/room-token", headers=_auth("citizen"))
+    logs = client.get(f"/api/v1/admin/appointments/{apt_id}/logs?page=1&size=10", headers=_auth("admin")).json()
+    assert logs["total"] >= 1
+    assert len(logs["items"]) >= 1
+    assert logs["items"][0]["summary"]

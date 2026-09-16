@@ -149,9 +149,28 @@ export interface AppointmentMessage {
   pending?: boolean;
 }
 
+export interface ActivityLogEntry {
+  id: string;
+  type: string;
+  actor_user_id: string | null;
+  actor_name: string;
+  actor_role: string;
+  summary: string;
+  payload: Record<string, unknown>;
+  created_at: string | null;
+}
+
+export interface ActivityLogPage {
+  items: ActivityLogEntry[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 export type RoomStreamEvent =
   | { type: "join"; payload: { user_id?: string } }
   | { type: "message"; payload: AppointmentMessage }
+  | { type: "counsel_reassigned"; payload: AppointmentRecord & { removed_counsel_user_id?: string; reason?: string } }
   | { type: "attachment"; payload: AppointmentMessage }
   | { type: "typing"; payload: { user_id: string; on: boolean } }
   | { type: "reaction"; payload: { messageId: string; reactions: Record<string, string[]> } }
@@ -176,4 +195,55 @@ export interface RoomTokenResponse {
   room: string;
   configured: boolean;
   mode: "livekit" | "polling" | string;
+}
+
+export interface PartyHealth {
+  present: boolean;
+  last_seen_at: string | null;
+  moderation: ModerationState;
+  livekit_connected: boolean;
+}
+
+export type SessionDiagnosticIssue =
+  | "citizen_not_present"
+  | "lawyer_not_present"
+  | "livekit_unconfigured"
+  | "citizen_not_in_livekit"
+  | "lawyer_not_in_livekit"
+  | "active_emergency"
+  | "call_stuck_ringing"
+  | "window_expiring"
+  | string;
+
+export interface SessionHealth {
+  appointment_id: string;
+  status: string;
+  join_state: JoinWindow;
+  citizen: PartyHealth;
+  lawyer: PartyHealth;
+  livekit: {
+    configured: boolean;
+    mode: string;
+    room: string;
+    participant_count: number;
+    participants: { identity: string; name: string; role: string }[];
+  };
+  call: {
+    active: boolean;
+    phase: string;
+    caller: string;
+    mode: string;
+    call_id: string;
+  } | null;
+  summon: {
+    pending: boolean;
+    target: string;
+    expires_at: string;
+  } | null;
+  emergency: {
+    status: string;
+    reason: string;
+    ack_at: string | null;
+  };
+  diagnostics: { issues: SessionDiagnosticIssue[] };
 }

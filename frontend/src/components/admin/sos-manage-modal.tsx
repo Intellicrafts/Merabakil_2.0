@@ -22,7 +22,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import {
   adminAckEmergency,
-  adminExtendAppointment,
   adminForceSummon,
   adminGetAppointment,
   adminKickParticipant,
@@ -54,10 +53,8 @@ function elapsedSince(iso: string | null | undefined): string {
   return `${hrs}h ${mins % 60}m ago`;
 }
 
-function isActiveSuspend(mod: ModerationState | undefined): boolean {
-  if (!mod || mod.status !== "suspended") return false;
-  if (!mod.suspended_until) return true;
-  return new Date(mod.suspended_until).getTime() > Date.now();
+function isModerationBlocked(mod: ModerationState | undefined): boolean {
+  return mod?.status === "kicked" || mod?.status === "suspended";
 }
 
 function PresenceDot({ on }: { on: boolean }) {
@@ -83,7 +80,7 @@ interface PartyCardProps {
   moderation?: ModerationState;
   onKick: () => void;
   onSuspend: (minutes: 5 | 15 | 30) => void;
-  onUnsuspend: () => void;
+  onAllowRejoin: () => void;
   pendingAction: PendingAction | null;
   confirmReason: string;
   onConfirmReasonChange: (v: string) => void;
@@ -99,7 +96,7 @@ function PartyCard({
   moderation,
   onKick,
   onSuspend,
-  onUnsuspend,
+  onAllowRejoin,
   pendingAction,
   confirmReason,
   onConfirmReasonChange,
@@ -107,8 +104,7 @@ function PartyCard({
   onCancelConfirm,
   busy,
 }: PartyCardProps) {
-  const suspended = isActiveSuspend(moderation);
-  const kicked = moderation?.status === "kicked";
+  const blocked = isModerationBlocked(moderation);
   const showConfirm = pendingAction !== null;
 
   return (
@@ -124,28 +120,25 @@ function PartyCard({
         </div>
       </div>
 
-      {suspended ? (
+      {blocked ? (
         <div className="mt-2 rounded-lg border border-rose-500/30 bg-rose-50/80 px-2.5 py-2 text-[11px] dark:bg-rose-950/20">
-          <p className="font-semibold text-rose-800 dark:text-rose-200">Temporarily suspended</p>
+          <p className="font-semibold capitalize text-rose-800 dark:text-rose-200">{moderation?.status}</p>
           {moderation?.suspended_until ? (
-            <p className="mt-0.5 text-rose-700/80 dark:text-rose-300/80">Until {formatClock(moderation.suspended_until)}</p>
+            <p className="mt-0.5 text-rose-700/80 dark:text-rose-300/80">Review by {formatClock(moderation.suspended_until)}</p>
           ) : null}
           {moderation?.reason ? <p className="mt-0.5 opacity-80">{moderation.reason}</p> : null}
           <Button
             size="sm"
-            variant="outline"
             className="mt-2 h-7 rounded-lg text-[11px]"
             disabled={busy}
-            onClick={onUnsuspend}
+            onClick={onAllowRejoin}
           >
-            Lift suspend
+            Allow rejoin
           </Button>
         </div>
-      ) : kicked && moderation?.reason ? (
-        <p className="mt-2 text-[11px] text-amber-800 dark:text-amber-200">Recently removed · {moderation.reason}</p>
       ) : null}
 
-      {!showConfirm ? (
+      {!showConfirm && !blocked ? (
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Button
             size="sm"
@@ -270,15 +263,6 @@ export function SosManageModal({ appointmentId, onClose }: SosManageModalProps) 
     onError: (err: Error) => toast({ title: "Resolve failed", description: err.message, variant: "destructive" }),
   });
 
-  const extendMut = useMutation({
-    mutationFn: ({ minutes }: { minutes: number }) => adminExtendAppointment(appointmentId!, minutes),
-    onSuccess: () => {
-      toast({ title: "Window extended" });
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Extend failed", description: err.message, variant: "destructive" }),
-  });
-
   const summonMut = useMutation({
     mutationFn: () => adminForceSummon(appointmentId!),
     onSuccess: () => {
@@ -329,16 +313,16 @@ export function SosManageModal({ appointmentId, onClose }: SosManageModalProps) 
     onError: (err: Error) => toast({ title: "Suspend failed", description: err.message, variant: "destructive" }),
   });
 
-  const unsuspendMut = useMutation({
+  const allowRejoinMut = useMutation({
     mutationFn: (target: "citizen" | "lawyer") => adminUnsuspendParticipant(appointmentId!, target),
     onSuccess: () => {
-      toast({ title: "Suspension lifted" });
+      toast({ title: "Participant may rejoin" });
       invalidate();
     },
-    onError: (err: Error) => toast({ title: "Lift failed", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Allow rejoin failed", description: err.message, variant: "destructive" }),
   });
 
-  const moderationBusy = kickMut.isPending || suspendMut.isPending || unsuspendMut.isPending;
+  const moderationBusy = kickMut.isPending || suspendMut.isPending || allowRejoinMut.isPending;
 
   const recentEvents = useMemo(() => [...events].slice(-8).reverse(), [events]);
 
@@ -405,7 +389,7 @@ export function SosManageModal({ appointmentId, onClose }: SosManageModalProps) 
             </div>
             {apt && (apt.status === "live" || apt.join_state === "joinable") ? (
               <Link
-                href={`/appointments/${apt.id}/room`}
+                href={`/admin/appointments/${apt.id}/observe`}
                 className="inline-flex h-8 items-center gap-1 rounded-xl bg-white/15 px-3 text-[11px] font-semibold backdrop-blur-sm transition hover:bg-white/25"
               >
                 <ExternalLink className="h-3 w-3" />
@@ -464,7 +448,7 @@ export function SosManageModal({ appointmentId, onClose }: SosManageModalProps) 
                       setPendingAction({ kind: "suspend", target: "citizen", minutes });
                       setConfirmReason("");
                     }}
-                    onUnsuspend={() => unsuspendMut.mutate("citizen")}
+                    onAllowRejoin={() => allowRejoinMut.mutate("citizen")}
                     onConfirm={handleConfirmModeration}
                     onCancelConfirm={() => {
                       setPendingAction(null);
@@ -488,7 +472,7 @@ export function SosManageModal({ appointmentId, onClose }: SosManageModalProps) 
                       setPendingAction({ kind: "suspend", target: "lawyer", minutes });
                       setConfirmReason("");
                     }}
-                    onUnsuspend={() => unsuspendMut.mutate("lawyer")}
+                    onAllowRejoin={() => allowRejoinMut.mutate("lawyer")}
                     onConfirm={handleConfirmModeration}
                     onCancelConfirm={() => {
                       setPendingAction(null);
@@ -535,22 +519,11 @@ export function SosManageModal({ appointmentId, onClose }: SosManageModalProps) 
                   >
                     Force summon
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-xl"
-                    onClick={() => extendMut.mutate({ minutes: 5 })}
-                  >
-                    +5 min
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-xl"
-                    onClick={() => extendMut.mutate({ minutes: 10 })}
-                  >
-                    +10 min
-                  </Button>
+                  {appointmentId ? (
+                    <Button asChild size="sm" variant="outline" className="rounded-xl">
+                      <Link href={`/admin/appointments/${appointmentId}`}>Duration control</Link>
+                    </Button>
+                  ) : null}
                 </div>
               </section>
 

@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas import (
+    ActivityLogOut,
+    ActivityLogPageOut,
     AdminEventOut,
     AdminLawyerPatch,
     AppointmentOut,
@@ -22,6 +24,8 @@ from app.api.schemas import (
     CallEventRequest,
     CallRespondRequest,
     CallRingRequest,
+    DurationRequest,
+    EmergencyRequest,
     ExtendRequest,
     IncomingCallPayload,
     JoinStateOut,
@@ -33,12 +37,14 @@ from app.api.schemas import (
     ModerateSuspendRequest,
     ModerateUnsuspendRequest,
     ParticipantModeration,
+    PartyHealthOut,
     PostMessageRequest,
     PriorityRequest,
     ReactionRequest,
     ReasonRequest,
     ReassignRequest,
     RoomTokenOut,
+    SessionHealthOut,
     SystemMessageRequest,
     TranscriptOut,
     TypingRequest,
@@ -46,6 +52,7 @@ from app.api.schemas import (
 from app.application.summary import LawyerSummaryGenerator
 from app.infrastructure.lawyer_vector_store import get_lawyer_vector_store
 from app.application.appointments import (
+    _ACTIVE_CALLS,
     accept_call,
     book,
     call_payload,
@@ -65,10 +72,16 @@ from app.application.appointments import (
     set_typing,
     start_ring,
 )
-from app.application.livekit_tokens import mint_room_token, remove_room_participant
+from app.application.livekit_tokens import (
+    list_room_participants,
+    livekit_configured,
+    mint_observe_token,
+    mint_room_token,
+    remove_room_participant,
+)
 from app.application.matching import score_lawyer
 from app.application.room_hub import publish, publish_admin, publish_user, subscribe, subscribe_admin, subscribe_user, unsubscribe, unsubscribe_admin, unsubscribe_user
-from app.constants import PRIORITIES
+from app.constants import EMERGENCY_STATUSES, PRIORITIES, SUMMON_TTL_SECONDS
 from app.infrastructure.appointment_models import AppointmentParticipant, Consultation, Notification
 from app.infrastructure.appointment_repo import MarketplaceRepository
 from app.infrastructure.db import get_session, session_scope
@@ -106,11 +119,17 @@ _billing = BillingClient(
 _email = AsyncEmailClient(_common_settings.smtp)
 
 
-async def _get_user_email(session: AsyncSession, user_id: uuid.UUID) -> str | None:
+async def _get_user_email(session: AsyncSession, user_id: uuid.UUID) -> tuple[str | None, str | None]:
     from sqlalchemy import text
-    result = await session.execute(text("SELECT email, full_name FROM users WHERE id = :uid"), {"uid": user_id})
-    row = result.fetchone()
-    return (row[0], row[1]) if row else (None, None)
+
+    try:
+        result = await session.execute(
+            text("SELECT email, full_name FROM users WHERE id = :uid"), {"uid": user_id}
+        )
+        row = result.fetchone()
+        return (row[0], row[1]) if row else (None, None)
+    except Exception:
+        return (None, None)
 
 
 def _is_indexable(lawyer: Lawyer) -> bool:
@@ -199,13 +218,30 @@ def _aware_ist(value: datetime | None) -> datetime | None:
     return value.astimezone(now_ist().tzinfo)
 
 
+def _participant_blocked(part: AppointmentParticipant | None) -> tuple[bool, str]:
+    if part is None:
+        return False, ""
+    status = getattr(part, "moderation_status", None) or "none"
+    if status == "kicked":
+        return True, "You were removed by platform operations. An administrator must allow you to rejoin."
+    if status == "suspended":
+        return True, "You are suspended from this conference until an administrator allows you to rejoin."
+    return False, ""
+
+
 def _is_active_suspend(part: AppointmentParticipant | None) -> bool:
-    if part is None or getattr(part, "moderation_status", None) != "suspended":
+    if part is None:
         return False
-    until = _aware_ist(getattr(part, "suspended_until", None))
-    if until is None:
-        return True
-    return now_ist() < until
+    return getattr(part, "moderation_status", None) == "suspended"
+
+
+async def _require_participant_active(
+    repo: MarketplaceRepository, row: Consultation, user_id: uuid.UUID
+) -> None:
+    part = await repo.participant(row.id, user_id)
+    blocked, detail = _participant_blocked(part)
+    if blocked:
+        raise HTTPException(status_code=403, detail=detail)
 
 
 def _moderation_out(part: AppointmentParticipant | None) -> ParticipantModeration:
@@ -213,8 +249,6 @@ def _moderation_out(part: AppointmentParticipant | None) -> ParticipantModeratio
         return ParticipantModeration()
     status = getattr(part, "moderation_status", None) or "none"
     until = _aware_ist(getattr(part, "suspended_until", None))
-    if status == "suspended" and until is not None and now_ist() >= until:
-        return ParticipantModeration()
     return ParticipantModeration(
         status=status,
         suspended_until=_iso(until) if status == "suspended" else None,
@@ -425,6 +459,81 @@ async def _emit_ops_update(
 ) -> None:
     out = await _ops_snapshot(repo, row, user)
     await _emit(row.id, "ops_update", out.model_dump())
+
+
+async def _emit_emergency(
+    repo: MarketplaceRepository,
+    row: Consultation,
+    user: CurrentUser,
+) -> AppointmentOut:
+    out = await _ops_snapshot(repo, row, user)
+    await _emit(row.id, "emergency", out.model_dump())
+    return out
+
+
+async def _emit_counsel_reassigned(
+    row: Consultation,
+    *,
+    old_user_id: uuid.UUID,
+    payload: dict,
+) -> None:
+    frame = {"type": "counsel_reassigned", "payload": payload}
+    await publish(str(row.id), frame)
+    await publish_admin({"type": "counsel_reassigned", "appointment_id": str(row.id), "payload": payload})
+    await publish_user(
+        str(old_user_id),
+        {"type": "counsel_reassigned", "appointment_id": str(row.id), "payload": payload},
+    )
+
+
+def _event_summary(event_type: str, payload: dict, row: Consultation) -> str:
+    summaries: dict[str, str] = {
+        "joined": "Participant joined the room",
+        "left": "Participant left the room",
+        "emergency_opened": "SOS request opened",
+        "emergency_acked": "SOS acknowledged by operations",
+        "emergency_resolved": "SOS resolved",
+        "extended": "Appointment window extended",
+        "duration_changed": "Appointment duration adjusted",
+        "reassigned": "Counsel reassigned",
+        "counsel_removed": "Previous counsel removed from session",
+        "system_message": "Platform operations message sent",
+        "force_summoned": "Force summon sent",
+        "participant_kicked": "Participant removed from session",
+        "participant_suspended": "Participant suspended",
+        "participant_unsuspended": "Participant suspension lifted",
+        "force_cancelled": "Appointment force-cancelled",
+        "force_completed": "Appointment force-completed",
+        "priority_changed": "Priority updated",
+        "call_ring": "Call started ringing",
+        "call_accepted": "Call accepted",
+        "call_declined": "Call declined",
+        "call_cancelled": "Call cancelled",
+        "call_started": "Call started",
+        "call_ended": "Call ended",
+        "admin_observe": "Operations joined observe mode",
+    }
+    base = summaries.get(event_type, event_type.replace("_", " ").capitalize())
+    if event_type == "counsel_removed" and payload.get("lawyer_name"):
+        return f"{base}: {payload['lawyer_name']}"
+    if event_type == "emergency_opened" and payload.get("reason"):
+        return f"{base} — {payload['reason'][:120]}"
+    if event_type == "duration_changed":
+        delta = payload.get("delta_minutes")
+        if delta is not None:
+            sign = "+" if delta >= 0 else ""
+            return f"Duration changed ({sign}{delta} min)"
+    return base
+
+
+def _actor_role_for_event(actor_id: uuid.UUID | None, row: Consultation) -> str:
+    if actor_id is None:
+        return "system"
+    if actor_id == row.citizen_user_id:
+        return "citizen"
+    if actor_id == row.lawyer_user_id:
+        return "lawyer"
+    return "admin"
 
 
 async def _notify(
@@ -923,16 +1032,9 @@ async def room_token(
     uid = uuid.UUID(user.user_id)
     role = _role_for(user, row)
     existing = await repo.participant(row.id, uid)
-    if _is_active_suspend(existing):
-        until = _aware_ist(getattr(existing, "suspended_until", None))
-        detail = "You are temporarily suspended from this conference"
-        if until:
-            detail = f"{detail} until {until.isoformat()}"
+    blocked, detail = _participant_blocked(existing)
+    if blocked:
         raise HTTPException(status_code=403, detail=detail)
-    if existing is not None and getattr(existing, "moderation_status", None) == "kicked":
-        existing.moderation_status = "none"
-        existing.moderation_reason = ""
-        existing.suspended_until = None
     if _clear_summon_if_target(row, uid):
         await _emit_summon_cleared(row.id, uid)
     await repo.upsert_participant(row.id, uid, role, bump_join=True)
@@ -970,6 +1072,49 @@ async def leave_appointment(
     await repo.add_event(row.id, "left", uid, {"role": _role_for(user, row)})
     await _emit_ops_update(repo, row, user)
     return {"ok": True}
+
+
+@appointments_router.post("/{appointment_id}/emergency", response_model=AppointmentOut)
+async def request_emergency(
+    appointment_id: uuid.UUID,
+    body: EmergencyRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await _load(repo, appointment_id, user)
+    if user.has_role("admin"):
+        raise HTTPException(status_code=403, detail="Only appointment parties may request emergency help")
+    current = getattr(row, "emergency_status", None) or "none"
+    if current in {"open", "ack"}:
+        raise HTTPException(status_code=409, detail="Emergency already open")
+    uid = uuid.UUID(user.user_id)
+    row.emergency_status = "open"
+    row.emergency_reason = body.reason.strip()
+    row.emergency_at = now_ist()
+    row.emergency_ack_at = None
+    row.emergency_resolved_at = None
+    row.priority = "emergency"
+    await repo.add_event(row.id, "emergency_opened", uid, {"reason": row.emergency_reason})
+    return await _emit_emergency(repo, row, user)
+
+
+@appointments_router.post("/{appointment_id}/emergency/resolve", response_model=AppointmentOut)
+async def resolve_emergency(
+    appointment_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await _load(repo, appointment_id, user)
+    current = getattr(row, "emergency_status", None) or "none"
+    if current not in {"open", "ack"}:
+        raise HTTPException(status_code=400, detail="No open emergency to resolve")
+    uid = uuid.UUID(user.user_id)
+    row.emergency_status = "resolved"
+    row.emergency_resolved_at = now_ist()
+    await repo.add_event(row.id, "emergency_resolved", uid, {"by": _role_for(user, row)})
+    return await _emit_emergency(repo, row, user)
 
 
 @appointments_router.get("/{appointment_id}/messages", response_model=list[MessageOut])
@@ -1030,11 +1175,13 @@ async def post_message(
 ) -> MessageOut:
     repo = MarketplaceRepository(session)
     row = await _load(repo, appointment_id, user)
+    uid = uuid.UUID(user.user_id)
+    await _require_participant_active(repo, row, uid)
     if join_phase(row) == "expired" and row.status not in {"live"}:
         raise HTTPException(status_code=403, detail="Chat is closed")
     msg = await repo.add_message(
         consultation_id=row.id,
-        sender_user_id=uuid.UUID(user.user_id),
+        sender_user_id=uid,
         sender_role=_role_for(user, row),
         body=body.body.strip(),
         reactions={},
@@ -1054,7 +1201,8 @@ async def react_message(
     session: AsyncSession = Depends(get_session),
 ) -> MessageOut:
     repo = MarketplaceRepository(session)
-    await _load(repo, appointment_id, user)
+    row = await _load(repo, appointment_id, user)
+    await _require_participant_active(repo, row, uuid.UUID(user.user_id))
     msg = await repo.get_message(message_id)
     if not msg or msg.consultation_id != appointment_id:
         raise HTTPException(status_code=404, detail="Message not found")
@@ -1103,6 +1251,7 @@ async def mark_typing(
     repo = MarketplaceRepository(session)
     row = await _load(repo, appointment_id, user)
     uid = uuid.UUID(user.user_id)
+    await _require_participant_active(repo, row, uid)
     on = True if body is None else body.on
     set_typing(row.id, uid, on)
     await repo.upsert_participant(row.id, uid, _role_for(user, row))
@@ -1121,6 +1270,8 @@ async def upload_attachment(
 ) -> MessageOut:
     repo = MarketplaceRepository(session)
     row = await _load(repo, appointment_id, user)
+    sender_id = uuid.UUID(user.user_id)
+    await _require_participant_active(repo, row, sender_id)
     if join_phase(row) == "expired" and row.status not in {"live"}:
         raise HTTPException(status_code=403, detail="Chat is closed")
     raw = await file.read()
@@ -1128,7 +1279,6 @@ async def upload_attachment(
     error = validate_upload(filename=filename, content_type=file.content_type or "", size=len(raw))
     if error:
         raise HTTPException(status_code=400, detail=error)
-    sender_id = uuid.UUID(user.user_id)
     attachment_id = uuid.uuid4()
     stored = write_bytes(row.id, attachment_id, raw)
     att_kind = infer_kind(filename, kind)
@@ -1199,6 +1349,7 @@ async def summon_opponent(
     if join_phase(row) != "joinable":
         raise HTTPException(status_code=403, detail="Join window is closed")
     uid = uuid.UUID(user.user_id)
+    await _require_participant_active(repo, row, uid)
     if await repo.opponent_present(row.id, uid):
         raise HTTPException(status_code=409, detail="Opponent is already in the room")
     target = row.lawyer_user_id if user.user_id == str(row.citizen_user_id) else row.citizen_user_id
@@ -1237,6 +1388,7 @@ async def ring_call(
     if join_phase(row) != "joinable":
         raise HTTPException(status_code=403, detail="Join window is closed")
     uid = uuid.UUID(user.user_id)
+    await _require_participant_active(repo, row, uid)
     target = row.lawyer_user_id if uid == row.citizen_user_id else row.citizen_user_id
     if uid == target:
         raise HTTPException(status_code=409, detail="Cannot call yourself")
@@ -1266,6 +1418,7 @@ async def respond_call(
     repo = MarketplaceRepository(session)
     row = await _load(repo, appointment_id, user)
     uid = uuid.UUID(user.user_id)
+    await _require_participant_active(repo, row, uid)
     try:
         if body.action == "accept":
             call_session = accept_call(row.id, body.call_id, uid)
@@ -1424,7 +1577,7 @@ async def admin_get_appointment(
         raise HTTPException(status_code=404, detail="Appointment not found")
     await refresh_status(repo, row)
     messages = await _messages_out(repo, row.id, limit=500)
-    events = [_event_out(e) for e in await repo.list_events(row.id)]
+    events = [_event_out(e) for e in await repo.list_events(row.id, limit=500)]
     return {
         "appointment": await _to_appointment(repo, row, user, lawyer=await repo.get_lawyer(row.lawyer_id)),
         "messages": messages,
@@ -1558,18 +1711,186 @@ async def admin_reassign_appointment(
     lawyer = await repo.get_lawyer(new_lawyer_id)
     if not lawyer or not lawyer.is_verified or not lawyer.user_id:
         raise HTTPException(status_code=404, detail="Verified counsel not found")
+    if lawyer.user_id == row.lawyer_user_id:
+        raise HTTPException(status_code=400, detail="Counsel is already assigned to this appointment")
+    admin_id = uuid.UUID(user.user_id)
+    prev_user_id = row.lawyer_user_id
     prev = {
         "lawyer_id": str(row.lawyer_id),
         "lawyer_user_id": str(row.lawyer_user_id),
         "lawyer_name": row.lawyer_display_name,
     }
+    removal_reason = body.reason.strip() or (
+        "This consultation has been reassigned to another advocate by platform operations. "
+        "You no longer have access to this appointment."
+    )
+    room_name = row.livekit_room or f"apt-{row.id}"
+    await remove_room_participant(room=room_name, identity=str(prev_user_id))
+    await repo.leave_participant(row.id, prev_user_id)
+    if row.summon_for_user_id == prev_user_id:
+        row.summon_for_user_id = None
+        row.last_summon_at = None
+    call_session = get_active_call(row.id)
+    if call_session:
+        await _emit_call_event(row, "call_cancelled", call_session)
+        _ACTIVE_CALLS.pop(str(row.id), None)
     row.lawyer_id = lawyer.id
     row.lawyer_user_id = lawyer.user_id
     row.lawyer_display_name = lawyer.full_name
-    await repo.add_event(row.id, "reassigned", uuid.UUID(user.user_id), {"from": prev, "to": {"lawyer_id": str(lawyer.id), "lawyer_name": lawyer.full_name}})
+    await repo.add_event(
+        row.id,
+        "counsel_removed",
+        admin_id,
+        {
+            "lawyer_user_id": prev["lawyer_user_id"],
+            "lawyer_name": prev["lawyer_name"],
+            "reason": removal_reason,
+        },
+    )
+    await repo.add_event(
+        row.id,
+        "reassigned",
+        admin_id,
+        {
+            "from": prev,
+            "to": {"lawyer_id": str(lawyer.id), "lawyer_name": lawyer.full_name},
+            "reason": removal_reason,
+        },
+    )
+    removal_msg = (
+        f"Platform operations: counsel has been changed from {prev['lawyer_name']} to {lawyer.full_name}. "
+        f"The previous advocate no longer has access to this consultation."
+    )
+    await repo.add_message(
+        consultation_id=row.id,
+        sender_user_id=admin_id,
+        sender_role="admin",
+        body=removal_msg,
+        reactions={},
+        kind="text",
+    )
+    await _notify(
+        session,
+        user_id=prev_user_id,
+        kind="counsel_reassigned",
+        title="Consultation reassigned",
+        body=removal_reason,
+        action_url="/appointments",
+    )
+    out = await _ops_snapshot(repo, row, user)
+    reassign_payload = {
+        **out.model_dump(),
+        "removed_counsel_user_id": prev["lawyer_user_id"],
+        "removed_counsel_name": prev["lawyer_name"],
+        "reason": removal_reason,
+    }
+    await _emit_counsel_reassigned(row, old_user_id=prev_user_id, payload=reassign_payload)
+    await _emit(row.id, "ops_update", out.model_dump())
+    await publish_user(
+        str(lawyer.user_id),
+        {"type": "appointment_reassigned", "appointment_id": str(row.id), "payload": out.model_dump()},
+    )
+    return out
+
+
+@admin_router.post("/appointments/{appointment_id}/duration", response_model=AppointmentOut)
+async def admin_set_duration(
+    appointment_id: uuid.UUID,
+    body: DurationRequest,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    end = row.scheduled_end_at
+    if end is None:
+        raise HTTPException(status_code=400, detail="Appointment has no end time")
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=now_ist().tzinfo)
+    start = row.scheduled_at
+    if start and start.tzinfo is None:
+        start = start.replace(tzinfo=now_ist().tzinfo)
+    from_end = end
+    if body.scheduled_end_at:
+        try:
+            new_end = datetime.fromisoformat(body.scheduled_end_at.replace("Z", "+00:00"))
+            if new_end.tzinfo is None:
+                new_end = new_end.replace(tzinfo=now_ist().tzinfo)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid scheduled_end_at") from exc
+        end = new_end
+    elif body.minutes_delta is not None:
+        end = end + timedelta(minutes=body.minutes_delta)
+    else:
+        raise HTTPException(status_code=400, detail="Provide scheduled_end_at or minutes_delta")
+    instant = now_ist()
+    min_start = (start or instant) + timedelta(minutes=5)
+    if end < min_start:
+        raise HTTPException(status_code=400, detail="Cannot shorten before session start")
+    if row.status == "live" and end <= instant + timedelta(minutes=1):
+        raise HTTPException(status_code=400, detail="End time must be at least 1 minute from now")
+    if start and (end - start).total_seconds() > 240 * 60:
+        raise HTTPException(status_code=400, detail="Appointment window cannot exceed 240 minutes")
+    delta_minutes = int(round((end - from_end).total_seconds() / 60))
+    row.scheduled_end_at = end
+    await repo.add_event(
+        row.id,
+        "duration_changed",
+        uuid.UUID(user.user_id),
+        {
+            "from": _iso(from_end),
+            "to": _iso(end),
+            "delta_minutes": delta_minutes,
+        },
+    )
     out = await _ops_snapshot(repo, row, user)
     await _emit(row.id, "ops_update", out.model_dump())
     return out
+
+
+@admin_router.get("/appointments/{appointment_id}/logs", response_model=ActivityLogPageOut)
+async def admin_appointment_logs(
+    appointment_id: uuid.UUID,
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=50, ge=1, le=200),
+    event_type: str | None = Query(default=None, alias="type"),
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ActivityLogPageOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    total = await repo.count_events(row.id, event_type=event_type)
+    offset = (page - 1) * size
+    events = await repo.list_events(row.id, limit=size, offset=offset, event_type=event_type, descending=True)
+    items: list[ActivityLogOut] = []
+    for event in events:
+        payload = event.payload or {}
+        actor_id = event.actor_user_id
+        actor_name = ""
+        actor_role = _actor_role_for_event(actor_id, row)
+        if actor_id == row.citizen_user_id:
+            actor_name = row.citizen_display_name or "Citizen"
+        elif actor_id == row.lawyer_user_id:
+            actor_name = row.lawyer_display_name or "Counsel"
+        elif actor_id is not None:
+            actor_name = "Platform ops"
+        items.append(
+            ActivityLogOut(
+                id=str(event.id),
+                type=event.type,
+                actor_user_id=str(actor_id) if actor_id else None,
+                actor_name=actor_name,
+                actor_role=actor_role,
+                summary=_event_summary(event.type, payload, row),
+                payload=payload,
+                created_at=_iso(event.created_at),
+            )
+        )
+    return ActivityLogPageOut(items=items, total=total, page=page, size=size)
 
 
 @admin_router.post("/appointments/{appointment_id}/system-message", response_model=MessageOut, status_code=201)
@@ -1731,6 +2052,194 @@ async def admin_unsuspend_participant(
     if not row:
         raise HTTPException(status_code=404, detail="Appointment not found")
     return await _apply_moderation(repo, row, user, target=body.target, action="unsuspend")
+
+
+@admin_router.post("/appointments/{appointment_id}/emergency/ack", response_model=AppointmentOut)
+async def admin_ack_emergency(
+    appointment_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    current = getattr(row, "emergency_status", None) or "none"
+    if current != "open":
+        raise HTTPException(status_code=400, detail="No open emergency to acknowledge")
+    admin_id = uuid.UUID(user.user_id)
+    row.emergency_status = "ack"
+    row.emergency_ack_at = now_ist()
+    if not getattr(row, "assigned_admin_user_id", None):
+        row.assigned_admin_user_id = admin_id
+    await repo.add_event(row.id, "emergency_acked", admin_id, {})
+    return await _emit_emergency(repo, row, user)
+
+
+@admin_router.post("/appointments/{appointment_id}/emergency/resolve", response_model=AppointmentOut)
+async def admin_resolve_emergency(
+    appointment_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AppointmentOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    current = getattr(row, "emergency_status", None) or "none"
+    if current not in {"open", "ack"}:
+        raise HTTPException(status_code=400, detail="No open emergency to resolve")
+    admin_id = uuid.UUID(user.user_id)
+    row.emergency_status = "resolved"
+    row.emergency_resolved_at = now_ist()
+    await repo.add_event(row.id, "emergency_resolved", admin_id, {"by": "admin"})
+    return await _emit_emergency(repo, row, user)
+
+
+async def _session_health(
+    repo: MarketplaceRepository,
+    row: Consultation,
+) -> SessionHealthOut:
+    await refresh_status(repo, row)
+    citizen_on, lawyer_on = await repo.party_presence(row)
+    parties = await repo.party_participants(row)
+    room_name = row.livekit_room or f"apt-{row.id}"
+    lk_participants = await list_room_participants(room=room_name)
+    lk_identities = {p["identity"] for p in lk_participants}
+
+    def party_health(user_id: uuid.UUID, present: bool) -> PartyHealthOut:
+        part = parties.get(user_id)
+        return PartyHealthOut(
+            present=present,
+            last_seen_at=_iso(part.last_seen_at) if part and part.last_seen_at else None,
+            moderation=_moderation_out(part),
+            livekit_connected=str(user_id) in lk_identities,
+        )
+
+    call_session = get_active_call(row.id)
+    call_info: dict | None = None
+    if call_session:
+        call_info = {
+            "active": True,
+            "phase": call_session.status,
+            "caller": call_session.caller_name,
+            "mode": call_session.mode,
+            "call_id": call_session.call_id,
+        }
+
+    summon_info: dict | None = None
+    if row.summon_for_user_id and row.last_summon_at:
+        elapsed = (now_ist() - _aware_ist(row.last_summon_at)).total_seconds()
+        if elapsed <= SUMMON_TTL_SECONDS:
+            target = "lawyer" if row.summon_for_user_id == row.lawyer_user_id else "citizen"
+            summon_info = {
+                "pending": True,
+                "target": target,
+                "expires_at": _iso(row.last_summon_at + timedelta(seconds=SUMMON_TTL_SECONDS)),
+            }
+
+    configured = livekit_configured()
+    mode = "livekit" if configured else "polling"
+    issues: list[str] = []
+
+    if not citizen_on and join_phase(row) == "joinable":
+        issues.append("citizen_not_present")
+    if not lawyer_on and join_phase(row) == "joinable":
+        issues.append("lawyer_not_present")
+    if not configured:
+        issues.append("livekit_unconfigured")
+    else:
+        if citizen_on and str(row.citizen_user_id) not in lk_identities:
+            issues.append("citizen_not_in_livekit")
+        if lawyer_on and str(row.lawyer_user_id) not in lk_identities:
+            issues.append("lawyer_not_in_livekit")
+    es = getattr(row, "emergency_status", None) or "none"
+    if es in {"open", "ack"}:
+        issues.append("active_emergency")
+    if call_session and call_session.status == "ringing":
+        issues.append("call_stuck_ringing")
+    if seconds_until_end(row) < 300 and join_phase(row) == "joinable":
+        issues.append("window_expiring")
+
+    return SessionHealthOut(
+        appointment_id=str(row.id),
+        status=row.status,
+        join_state=join_phase(row),
+        citizen=party_health(row.citizen_user_id, citizen_on),
+        lawyer=party_health(row.lawyer_user_id, lawyer_on),
+        livekit={
+            "configured": configured,
+            "mode": mode,
+            "room": room_name,
+            "participant_count": len(lk_participants),
+            "participants": lk_participants,
+        },
+        call=call_info,
+        summon=summon_info,
+        emergency={
+            "status": es,
+            "reason": getattr(row, "emergency_reason", None) or "",
+            "ack_at": _iso(getattr(row, "emergency_ack_at", None)),
+        },
+        diagnostics={"issues": issues},
+    )
+
+
+@admin_router.get("/appointments/{appointment_id}/session-health", response_model=SessionHealthOut)
+async def admin_session_health(
+    appointment_id: uuid.UUID,
+    _: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> SessionHealthOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return await _session_health(repo, row)
+
+
+@admin_router.post("/appointments/{appointment_id}/observe-token", response_model=RoomTokenOut)
+async def admin_observe_token(
+    appointment_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> RoomTokenOut:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    admin_id = uuid.UUID(user.user_id)
+    await repo.upsert_participant(row.id, admin_id, "admin", bump_join=False)
+    if not getattr(row, "assigned_admin_user_id", None):
+        row.assigned_admin_user_id = admin_id
+    await repo.add_event(row.id, "admin_observe", admin_id, {})
+    room_name = row.livekit_room or f"apt-{row.id}"
+    admin_name = f"Ops · {user.user_id[:8]}"
+    minted = mint_observe_token(room=room_name, identity=user.user_id, name=admin_name)
+    if not minted:
+        return RoomTokenOut(url=None, token=None, room=room_name, configured=False, mode="polling")
+    token, url = minted
+    return RoomTokenOut(url=url, token=token, room=room_name, configured=True, mode="livekit")
+
+
+@admin_router.post("/appointments/{appointment_id}/call/reset")
+async def admin_reset_call(
+    appointment_id: uuid.UUID,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    repo = MarketplaceRepository(session)
+    row = await repo.get_consultation(appointment_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    session_obj = get_active_call(row.id)
+    if session_obj:
+        await _emit_call_event(row, "call_cancelled", session_obj)
+        _ACTIVE_CALLS.pop(str(row.id), None)
+    else:
+        end_call(row.id)
+    await _emit_ops_update(repo, row, user)
+    return {"ok": True}
 
 
 @admin_router.get("/ops-events")

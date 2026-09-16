@@ -1,19 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Circle, Radio, Scale, Siren } from "lucide-react";
+import { ChevronRight, Scale, Siren } from "lucide-react";
 
-import { AttachmentPreview } from "@/components/appointment-room/attachment-preview";
+import { AppointmentQueue } from "@/components/admin/appointment-queue";
+import { AdminOpsLayout, type AdminOpsTab } from "@/components/admin/admin-ops-layout";
+import { LiveSessionMatrix } from "@/components/admin/live-session-matrix";
 import { RoomAlertBanner } from "@/components/appointment-room/room-alert-banner";
-import { SosManageModal } from "@/components/admin/sos-manage-modal";
 import { useAdminOpsEvents } from "@/hooks/use-admin-ops-events";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -23,67 +22,43 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import {
-  adminExtendAppointment,
-  adminForceCancelAppointment,
-  adminForceCompleteAppointment,
-  adminForceSummon,
-  adminGetAppointment,
-  adminListAppointments,
-  adminListLawyers,
-  adminReassignAppointment,
-  adminSetLawyerVerified,
-  adminSetPriority,
-  adminSystemMessage,
-} from "@/lib/api";
+import { adminListAppointments, adminListLawyers, adminSetLawyerVerified } from "@/lib/api";
 import type { AdminOpsEvent, AppointmentRecord } from "@/lib/appointment-types";
-import { playAlertChime, requestNotificationPermission, showBrowserNotification } from "@/lib/room-alerts";
+import {
+  playAlertChime,
+  requestNotificationPermission,
+  showBrowserNotification,
+  startEmergencyAlert,
+  stopEmergencyAlert,
+} from "@/lib/room-alerts";
 import { cn } from "@/lib/utils";
 
-const STATUSES = ["", "requested", "confirmed", "live", "completed", "expired", "cancelled", "no_show"];
-
-function formatClock(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
-}
-
-function formatCountdown(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function PresenceDot({ on }: { on: boolean }) {
-  return (
-    <Circle
-      className={cn("h-2 w-2 fill-current", on ? "text-emerald-500" : "text-muted-foreground/40")}
-      aria-label={on ? "Present" : "Away"}
-    />
-  );
-}
-
 export default function AdminAppointmentsPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<AdminOpsTab>("live");
   const [status, setStatus] = useState("");
   const [liveFilter, setLiveFilter] = useState(false);
   const [emergencyFilter, setEmergencyFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [manageSosId, setManageSosId] = useState<string | null>(null);
-  const [sysMsg, setSysMsg] = useState("");
-  const [reason, setReason] = useState("");
-  const [reassignId, setReassignId] = useState("");
   const [flashEmergencyId, setFlashEmergencyId] = useState<string | null>(null);
   const [liveEmergencies, setLiveEmergencies] = useState<Record<string, AppointmentRecord>>({});
   const lastEmergencyFlash = useRef<string | null>(null);
   const refreshTimer = useRef<number | null>(null);
 
+  const navigateToAppointment = useCallback(
+    (id: string, focus?: "sos") => {
+      const qs = focus ? "?focus=sos" : "";
+      router.push(`/admin/appointments/${id}${qs}`);
+    },
+    [router],
+  );
+
   const refreshQueue = useCallback(
     (immediate = false) => {
       const run = () => {
         void queryClient.invalidateQueries({ queryKey: ["admin-appointments"] });
-        void queryClient.invalidateQueries({ queryKey: ["admin-appointment"] });
       };
       if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
       if (immediate) {
@@ -99,6 +74,7 @@ export default function AdminAppointmentsPage() {
     requestNotificationPermission();
     return () => {
       if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+      stopEmergencyAlert();
     };
   }, []);
 
@@ -117,18 +93,6 @@ export default function AdminAppointmentsPage() {
     },
   });
 
-  const detailQuery = useQuery({
-    queryKey: ["admin-appointment", selectedId],
-    queryFn: () => adminGetAppointment(selectedId!),
-    enabled: Boolean(selectedId),
-    refetchInterval: (q) => {
-      const apt = q.state.data?.appointment;
-      return apt && (apt.status === "live" || apt.emergency_status === "open" || apt.emergency_status === "ack")
-        ? 2000
-        : false;
-    },
-  });
-
   const lawyersQuery = useQuery({
     queryKey: ["admin-lawyers"],
     queryFn: adminListLawyers,
@@ -142,6 +106,7 @@ export default function AdminAppointmentsPage() {
 
         if (payload.emergency_status === "open") {
           setLiveEmergencies((prev) => ({ ...prev, [aptId]: { ...payload, id: aptId } }));
+          setTab("sos");
           void playAlertChime("emergency");
           showBrowserNotification(
             "SOS request",
@@ -149,8 +114,6 @@ export default function AdminAppointmentsPage() {
           );
           setFlashEmergencyId(aptId);
           window.setTimeout(() => setFlashEmergencyId(null), 6000);
-          setSelectedId((prev) => prev ?? aptId);
-          setManageSosId((prev) => prev ?? aptId);
           if (lastEmergencyFlash.current !== aptId) {
             lastEmergencyFlash.current = aptId;
             toast({
@@ -186,99 +149,37 @@ export default function AdminAppointmentsPage() {
   const openEmergencies = useMemo(() => {
     const map = new Map<string, AppointmentRecord>();
     for (const row of listQuery.data?.items ?? []) {
-      if (row.emergency_status === "open") map.set(row.id, row);
+      if (row.emergency_status === "open" || row.emergency_status === "ack") map.set(row.id, row);
     }
     for (const [id, row] of Object.entries(liveEmergencies)) {
-      if (row.emergency_status === "open") {
+      if (row.emergency_status === "open" || row.emergency_status === "ack") {
         map.set(id, { ...map.get(id), ...row, id });
       }
     }
     return Array.from(map.values());
   }, [listQuery.data?.items, liveEmergencies]);
 
+  const openSosCount = openEmergencies.filter((r) => r.emergency_status === "open").length;
   const highlightedSos = openEmergencies.find((row) => row.id === flashEmergencyId) ?? openEmergencies[0] ?? null;
+  const emergencyCount = (emergencyCounts.open ?? 0) + (emergencyCounts.ack ?? 0);
+
+  useEffect(() => {
+    if (openSosCount > 0) {
+      startEmergencyAlert();
+    } else {
+      stopEmergencyAlert();
+    }
+  }, [openSosCount]);
 
   const kpis = useMemo(
     () => [
       ["Upcoming", (counts.requested ?? 0) + (counts.confirmed ?? 0)],
       ["Live now", liveTotal],
-      ["Emergencies", (emergencyCounts.open ?? 0) + (emergencyCounts.ack ?? 0)],
+      ["Emergencies", emergencyCount],
       ["Expired", counts.expired ?? 0],
     ],
-    [counts, emergencyCounts, liveTotal],
+    [counts, emergencyCount, liveTotal],
   );
-
-  const selected = detailQuery.data?.appointment;
-  const verifiedLawyers = useMemo(
-    () => (lawyersQuery.data ?? []).filter((l) => l.is_verified || l.verified),
-    [lawyersQuery.data],
-  );
-
-  useEffect(() => {
-    if (selected) setReassignId(selected.lawyer_id);
-  }, [selected?.lawyer_id, selected]);
-
-  function invalidate() {
-    void queryClient.invalidateQueries({ queryKey: ["admin-appointments"] });
-    void queryClient.invalidateQueries({ queryKey: ["admin-appointment"] });
-  }
-
-  const extendMut = useMutation({
-    mutationFn: ({ id, minutes }: { id: string; minutes: number }) => adminExtendAppointment(id, minutes),
-    onSuccess: () => {
-      toast({ title: "Window extended" });
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Extend failed", description: err.message, variant: "destructive" }),
-  });
-
-  const reassignMut = useMutation({
-    mutationFn: ({ id, lawyerId }: { id: string; lawyerId: string }) => adminReassignAppointment(id, lawyerId),
-    onSuccess: () => {
-      toast({ title: "Counsel reassigned" });
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Reassign failed", description: err.message, variant: "destructive" }),
-  });
-
-  const sysMut = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: string }) => adminSystemMessage(id, body),
-    onSuccess: () => {
-      toast({ title: "System message sent" });
-      setSysMsg("");
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Message failed", description: err.message, variant: "destructive" }),
-  });
-
-  const summonMut = useMutation({
-    mutationFn: adminForceSummon,
-    onSuccess: () => {
-      toast({ title: "Summon sent" });
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Summon failed", description: err.message, variant: "destructive" }),
-  });
-
-  const cancelMut = useMutation({
-    mutationFn: ({ id, reason: r }: { id: string; reason: string }) => adminForceCancelAppointment(id, r),
-    onSuccess: () => {
-      toast({ title: "Appointment cancelled" });
-      setReason("");
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Cancel failed", description: err.message, variant: "destructive" }),
-  });
-
-  const completeMut = useMutation({
-    mutationFn: ({ id, reason: r }: { id: string; reason: string }) => adminForceCompleteAppointment(id, r),
-    onSuccess: () => {
-      toast({ title: "Appointment closed" });
-      setReason("");
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Close failed", description: err.message, variant: "destructive" }),
-  });
 
   const verifyMut = useMutation({
     mutationFn: ({ id, verified }: { id: string; verified: boolean }) => adminSetLawyerVerified(id, verified),
@@ -289,156 +190,78 @@ export default function AdminAppointmentsPage() {
     onError: (err: Error) => toast({ title: "Update failed", description: err.message, variant: "destructive" }),
   });
 
-  const priorityMut = useMutation({
-    mutationFn: ({ id, priority }: { id: string; priority: "normal" | "urgent" | "emergency" }) =>
-      adminSetPriority(id, priority),
-    onSuccess: () => {
-      toast({ title: "Priority updated" });
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Priority failed", description: err.message, variant: "destructive" }),
-  });
-
-  function openSosManage(id: string) {
-    setSelectedId(id);
-    setManageSosId(id);
-  }
-
-  function rowClass(row: AppointmentRecord) {
-    if (row.emergency_status === "open") return "border-l-2 border-l-amber-500";
-    if (row.emergency_status === "ack") return "border-l-2 border-l-orange-400";
-    return "";
-  }
+  const counselSection = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Scale className="h-4 w-4" />
+          Counsel listings
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {lawyersQuery.data && (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Counsel</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Verified</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lawyersQuery.data.map((lawyer) => (
+                  <TableRow key={lawyer.id}>
+                    <TableCell className="font-medium">{lawyer.full_name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{lawyer.city}</TableCell>
+                    <TableCell>{lawyer.is_verified || lawyer.verified ? "Yes" : "No"}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl"
+                        disabled={verifyMut.isPending}
+                        onClick={() =>
+                          verifyMut.mutate({
+                            id: lawyer.id,
+                            verified: !(lawyer.is_verified || lawyer.verified),
+                          })
+                        }
+                      >
+                        {lawyer.is_verified || lawyer.verified ? "Unverify" : "Verify"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 pb-10">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <CalendarClock className="h-6 w-6 text-primary" />
-            Appointment operations
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Live queue, emergency response, and counsel verification {opsLive ? "· Ops stream live" : "· Reconnecting…"}
-          </p>
-        </div>
-      </div>
-
-      {highlightedSos ? (
+    <AdminOpsLayout
+      tab={tab}
+      onTabChange={setTab}
+      opsLive={opsLive}
+      emergencyCount={emergencyCount}
+      liveTotal={liveTotal}
+      moreContent={counselSection}
+    >
+      {highlightedSos && tab !== "sos" ? (
         <RoomAlertBanner
           kind="emergency"
           title="Live SOS request"
-          body={`${highlightedSos.citizen_name} ↔ ${highlightedSos.lawyer_name}: ${highlightedSos.emergency_reason || "Help requested in the appointment room."}`}
-          actionLabel="Open & manage"
-          onAction={() => openSosManage(highlightedSos.id)}
+          body={`${highlightedSos.citizen_name} ↔ ${highlightedSos.lawyer_name}: ${highlightedSos.emergency_reason || "Help requested."}`}
+          actionLabel="Open command center"
+          onAction={() => navigateToAppointment(highlightedSos.id, "sos")}
         />
       ) : null}
 
-      {openEmergencies.length > 0 ? (
-        <div className="rounded-2xl border border-amber-500/40 bg-amber-50/80 p-3 dark:bg-amber-950/20">
-          <p className="flex items-center gap-2 text-[13px] font-semibold text-amber-950 dark:text-amber-100">
-            <Siren className="h-4 w-4" />
-            {openEmergencies.length} open emergency request{openEmergencies.length === 1 ? "" : "s"}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {openEmergencies.map((row) => (
-              <button
-                key={row.id}
-                type="button"
-                onClick={() => openSosManage(row.id)}
-                className={cn(
-                  "rounded-xl bg-white/80 px-3 py-1.5 text-left text-[12px] shadow-sm hover:bg-white dark:bg-white/10",
-                  flashEmergencyId === row.id && "ring-2 ring-amber-500",
-                )}
-              >
-                <span className="font-medium">{row.citizen_name}</span>
-                <span className="text-muted-foreground"> · {row.lawyer_name}</span>
-                {row.emergency_reason ? (
-                  <span className="mt-0.5 block text-[11px] text-amber-900/80 dark:text-amber-100/80">{row.emergency_reason}</span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      <Card className="border-emerald-500/25 bg-gradient-to-br from-emerald-50/80 to-white/60 dark:from-emerald-950/20 dark:to-white/[0.02]">
-        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Radio className={cn("h-4 w-4", liveTotal > 0 && "text-emerald-600 animate-pulse")} />
-            Live matrix
-            <Badge variant="secondary" className="ml-1 tabular-nums">
-              {liveTotal}
-            </Badge>
-          </CardTitle>
-          <Button
-            size="sm"
-            variant={liveFilter ? "default" : "outline"}
-            className="rounded-xl"
-            onClick={() => setLiveFilter((v) => !v)}
-          >
-            {liveFilter ? "Show all" : "Live only"}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {listQuery.isLoading && !listQuery.data ? (
-            <Skeleton className="h-24 w-full" />
-          ) : liveSessions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No active consultation rooms. Sessions appear here when a citizen or counsel joins during the window.
-            </p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {liveSessions.map((row) => (
-                <button
-                  key={row.id}
-                  type="button"
-                  onClick={() => setSelectedId(row.id)}
-                  className={cn(
-                    "rounded-2xl border border-black/[0.06] bg-white/80 p-4 text-left transition hover:border-emerald-500/40 hover:shadow-md dark:border-white/10 dark:bg-white/[0.04]",
-                    selectedId === row.id && "ring-2 ring-emerald-500/50",
-                    row.emergency_status === "open" && "border-amber-500/50",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold">{row.citizen_name}</p>
-                      <p className="truncate text-[12px] text-muted-foreground">{row.lawyer_name}</p>
-                    </div>
-                    <Badge className="shrink-0 capitalize" variant={row.status === "live" ? "default" : "secondary"}>
-                      {row.status.replace("_", " ")}
-                    </Badge>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-muted/30 p-2 text-[11px]">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-muted-foreground">Citizen</span>
-                      <span className="inline-flex items-center gap-1 font-medium">
-                        <PresenceDot on={Boolean(row.citizen_present)} />
-                        {row.citizen_present ? "In room" : "Away"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-muted-foreground">Counsel</span>
-                      <span className="inline-flex items-center gap-1 font-medium">
-                        <PresenceDot on={Boolean(row.lawyer_present)} />
-                        {row.lawyer_present ? "In room" : "Away"}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-[11px] tabular-nums text-emerald-800 dark:text-emerald-200">
-                    Window · {formatCountdown(row.seconds_until_end)} left
-                    {row.emergency_status !== "none" && row.emergency_status !== "resolved"
-                      ? ` · SOS ${row.emergency_status}`
-                      : ""}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="hidden gap-3 sm:grid-cols-2 lg:grid-cols-4 md:grid">
         {kpis.map(([label, value]) => (
           <Card key={String(label)}>
             <CardHeader className="pb-2">
@@ -451,352 +274,71 @@ export default function AdminAppointmentsPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <Card className="min-h-[420px]">
-          <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base">Queue {listQuery.data ? `(${listQuery.data.total})` : ""}</CardTitle>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="h-9 rounded-xl border border-black/[0.08] bg-background px-3 text-[13px] dark:border-white/10"
+      {tab === "live" && (
+        <LiveSessionMatrix
+          sessions={liveSessions}
+          liveTotal={liveTotal}
+          loading={listQuery.isLoading}
+          liveFilter={liveFilter}
+          onToggleLiveFilter={() => setLiveFilter((v) => !v)}
+          onSelect={(id) => navigateToAppointment(id)}
+        />
+      )}
+
+      {tab === "queue" && (
+        <AppointmentQueue
+          items={listQuery.data?.items ?? []}
+          total={listQuery.data?.total ?? 0}
+          loading={listQuery.isLoading}
+          error={listQuery.isError ? (listQuery.error as Error) : null}
+          status={status}
+          emergencyFilter={emergencyFilter}
+          search={search}
+          onStatusChange={setStatus}
+          onEmergencyFilterChange={setEmergencyFilter}
+          onSearchChange={setSearch}
+          onSelect={(id) => navigateToAppointment(id)}
+        />
+      )}
+
+      {tab === "sos" && (
+        <div className="max-h-[calc(100dvh-280px)] space-y-3 overflow-y-auto">
+          {openEmergencies.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                No open emergency requests right now.
+              </CardContent>
+            </Card>
+          ) : (
+            openEmergencies.map((row) => (
+              <Card
+                key={row.id}
+                className={cn(
+                  "border-amber-500/30 transition hover:border-amber-500/50",
+                  flashEmergencyId === row.id && "ring-2 ring-amber-500",
+                )}
               >
-                {STATUSES.map((s) => (
-                  <option key={s || "all"} value={s}>
-                    {s ? s.replace("_", " ") : "All statuses"}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={emergencyFilter}
-                onChange={(e) => setEmergencyFilter(e.target.value)}
-                className="h-9 rounded-xl border border-black/[0.08] bg-background px-3 text-[13px] dark:border-white/10"
-              >
-                <option value="">All emergencies</option>
-                <option value="open">Open only</option>
-                <option value="ack">Acknowledged</option>
-                <option value="resolved">Resolved</option>
-              </select>
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name or matter"
-                className="h-9 w-full rounded-xl sm:w-48"
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            {listQuery.isError && (
-              <div className="mb-3 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                {(listQuery.error as Error).message || "Could not load appointments. Check marketplace service on :8010."}
-              </div>
-            )}
-            {listQuery.isLoading && (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            )}
-            {listQuery.data && listQuery.data.items.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {liveFilter ? "No live sessions match this filter." : "No appointments in the queue yet."}
-              </p>
-            )}
-            {listQuery.data && listQuery.data.items.length > 0 && (
-              <div className="max-h-[520px] overflow-x-auto overflow-y-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Parties</TableHead>
-                      <TableHead>Slot</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Presence</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {listQuery.data.items.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        className={cn("cursor-pointer", selectedId === row.id && "bg-muted/50", rowClass(row))}
-                        onClick={() => setSelectedId(row.id)}
-                      >
-                        <TableCell className="min-w-[160px]">
-                          <p className="font-medium">{row.citizen_name}</p>
-                          <p className="text-xs text-muted-foreground">{row.lawyer_name}</p>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {row.date} · {row.time_slot}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="capitalize">
-                            {row.status.replace("_", " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="capitalize text-xs">
-                          {row.emergency_status !== "none" && row.emergency_status !== "resolved" ? (
-                            <span className="font-semibold text-amber-700 dark:text-amber-300">{row.emergency_status}</span>
-                          ) : (
-                            row.priority ?? "normal"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <PresenceDot on={Boolean(row.citizen_present)} /> C
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <PresenceDot on={Boolean(row.lawyer_present)} /> L
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="min-h-[420px]">
-          <CardHeader>
-            <CardTitle className="text-base">Ops detail</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!selectedId && <p className="text-sm text-muted-foreground">Select an appointment from the queue.</p>}
-            {detailQuery.isLoading && selectedId && <Skeleton className="h-32 w-full" />}
-            {selected && detailQuery.data && (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="capitalize">{selected.status.replace("_", " ")}</Badge>
-                  <Badge variant="outline" className="capitalize">{selected.join_state}</Badge>
-                  {selected.emergency_status !== "none" ? (
-                    <Badge className="bg-amber-600 capitalize">{selected.emergency_status}</Badge>
-                  ) : null}
-                </div>
-                <p className="text-sm leading-relaxed">{selected.matter_summary}</p>
-                <div className="grid grid-cols-2 gap-2 text-[12px] text-muted-foreground">
-                  <p>Start: {formatClock(selected.scheduled_at)}</p>
-                  <p>End: {formatClock(selected.scheduled_end_at)}</p>
-                  <p className="inline-flex items-center gap-1">
-                    Citizen <PresenceDot on={Boolean(selected.citizen_present)} />
-                  </p>
-                  <p className="inline-flex items-center gap-1">
-                    Counsel <PresenceDot on={Boolean(selected.lawyer_present)} />
-                  </p>
-                </div>
-                {selected.emergency_reason ? (
-                  <div className="rounded-xl border border-amber-500/30 bg-amber-50/60 px-3 py-2 text-[12px] dark:bg-amber-950/20">
-                    <p className="font-semibold">Emergency reason</p>
-                    <p className="mt-0.5">{selected.emergency_reason}</p>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                  <div>
+                    <p className="flex items-center gap-2 font-semibold">
+                      <Siren className="h-4 w-4 text-amber-600" />
+                      {row.citizen_name} ↔ {row.lawyer_name}
+                    </p>
+                    <p className="mt-1 text-[13px] text-muted-foreground">{row.emergency_reason || "Help requested"}</p>
+                    <Badge variant="outline" className="mt-2 capitalize">
+                      {row.emergency_status}
+                    </Badge>
                   </div>
-                ) : null}
-
-                <div className="flex flex-wrap gap-2">
-                  {(selected.status === "live" || selected.join_state === "joinable") && (
-                    <Link
-                      href={`/appointments/${selected.id}/room`}
-                      className="inline-flex h-8 items-center rounded-xl bg-emerald-700 px-3 text-[12px] font-semibold text-white hover:bg-emerald-800 dark:bg-emerald-600"
-                    >
-                      Observe room
-                    </Link>
-                  )}
-                  {(selected.emergency_status === "open" || selected.emergency_status === "ack") && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl border-amber-500/40 text-amber-900 dark:text-amber-100"
-                      onClick={() => openSosManage(selected.id)}
-                    >
-                      <Siren className="mr-1 h-3.5 w-3.5" />
-                      Manage SOS
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" className="rounded-xl" onClick={() => extendMut.mutate({ id: selected.id, minutes: 5 })}>
-                    +5 min
+                  <Button className="rounded-xl" onClick={() => navigateToAppointment(row.id, "sos")}>
+                    Manage SOS
+                    <ChevronRight className="ml-1 h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="outline" className="rounded-xl" onClick={() => extendMut.mutate({ id: selected.id, minutes: 10 })}>
-                    +10 min
-                  </Button>
-                  <Button size="sm" variant="outline" className="rounded-xl" disabled={summonMut.isPending} onClick={() => summonMut.mutate(selected.id)}>
-                    Force summon
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {(["normal", "urgent", "emergency"] as const).map((p) => (
-                    <Button
-                      key={p}
-                      size="sm"
-                      variant={selected.priority === p ? "default" : "outline"}
-                      className="rounded-xl capitalize"
-                      disabled={priorityMut.isPending}
-                      onClick={() => priorityMut.mutate({ id: selected.id, priority: p })}
-                    >
-                      {p}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  <select
-                    value={reassignId}
-                    onChange={(e) => setReassignId(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-black/[0.08] bg-background px-3 text-[13px] dark:border-white/10"
-                  >
-                    {verifiedLawyers.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.full_name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-xl"
-                    disabled={reassignMut.isPending || !reassignId}
-                    onClick={() => reassignMut.mutate({ id: selected.id, lawyerId: reassignId })}
-                  >
-                    Reassign counsel
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  <Input
-                    value={sysMsg}
-                    onChange={(e) => setSysMsg(e.target.value)}
-                    placeholder="System message to both parties"
-                    className="h-9 rounded-xl"
-                  />
-                  <Button
-                    size="sm"
-                    className="rounded-xl"
-                    disabled={sysMut.isPending || !sysMsg.trim()}
-                    onClick={() => sysMut.mutate({ id: selected.id, body: sysMsg.trim() })}
-                  >
-                    Send system message
-                  </Button>
-                </div>
-
-                <div className="space-y-2 border-t border-black/[0.06] pt-3 dark:border-white/10">
-                  <Input
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Reason for force action (required)"
-                    className="h-9 rounded-xl"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-xl"
-                      disabled={cancelMut.isPending || reason.trim().length < 3}
-                      onClick={() => cancelMut.mutate({ id: selected.id, reason: reason.trim() })}
-                    >
-                      Force cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="rounded-xl"
-                      disabled={completeMut.isPending || reason.trim().length < 3}
-                      onClick={() => completeMut.mutate({ id: selected.id, reason: reason.trim() })}
-                    >
-                      Force complete
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Timeline</p>
-                  <ol className="no-scrollbar mt-2 max-h-28 space-y-1 overflow-y-auto">
-                    {detailQuery.data.events.map((event) => (
-                      <li key={event.id} className="text-[11px] text-muted-foreground">
-                        <span className="font-medium capitalize text-foreground">{event.type.replaceAll("_", " ")}</span>
-                        {event.created_at ? ` · ${formatClock(event.created_at)}` : ""}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Live transcript</p>
-                  {detailQuery.data.messages.length === 0 ? (
-                    <p className="mt-2 text-sm text-muted-foreground">No messages yet.</p>
-                  ) : (
-                    <ol className="no-scrollbar mt-2 max-h-48 space-y-2 overflow-y-auto">
-                      {detailQuery.data.messages.map((msg) => (
-                        <li key={msg.id} className="rounded-lg bg-muted/30 px-2 py-1.5 text-[12px]">
-                          <span className="text-[10px] capitalize text-muted-foreground">{msg.sender_role}</span>
-                          {msg.attachment ? (
-                            <AttachmentPreview appointmentId={selected.id} attachment={msg.attachment} mine={false} />
-                          ) : null}
-                          {msg.body && msg.sender_role !== "admin" ? <p className="mt-0.5">{msg.body}</p> : null}
-                          {msg.sender_role === "admin" ? (
-                            <p className="mt-0.5 font-medium text-slate-700 dark:text-slate-200">{msg.body}</p>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Scale className="h-4 w-4" />
-            Counsel listings
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {lawyersQuery.data && (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Counsel</TableHead>
-                    <TableHead>City</TableHead>
-                    <TableHead>Verified</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lawyersQuery.data.map((lawyer) => (
-                    <TableRow key={lawyer.id}>
-                      <TableCell className="font-medium">{lawyer.full_name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{lawyer.city}</TableCell>
-                      <TableCell>{lawyer.is_verified || lawyer.verified ? "Yes" : "No"}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl"
-                          disabled={verifyMut.isPending}
-                          onClick={() =>
-                            verifyMut.mutate({
-                              id: lawyer.id,
-                              verified: !(lawyer.is_verified || lawyer.verified),
-                            })
-                          }
-                        >
-                          {lawyer.is_verified || lawyer.verified ? "Unverify" : "Verify"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                </CardContent>
+              </Card>
+            ))
           )}
-        </CardContent>
-      </Card>
-
-      <SosManageModal appointmentId={manageSosId} onClose={() => setManageSosId(null)} />
-    </div>
+        </div>
+      )}
+    </AdminOpsLayout>
   );
 }
