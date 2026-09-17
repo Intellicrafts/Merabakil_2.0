@@ -409,7 +409,7 @@ export default function AdminWalletPage() {
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users-all"],
-    queryFn: () => listUsers(1, 200),
+    queryFn: () => listUsers(1, 100),
   });
 
   const isLoading = walletsLoading || usersLoading;

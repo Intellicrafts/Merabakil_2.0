@@ -196,8 +196,8 @@ def _to_user_response(user) -> UserResponse:
         full_name=user.full_name,
         roles=user.role_names,
         permissions=user.permission_codes,
-        is_active=user.is_active,
-        created_at=user.created_at.isoformat() if user.created_at else None,
+        is_active=getattr(user, "is_active", True),
+        created_at=getattr(user, "created_at", None) and user.created_at.isoformat(),
     )
 
 
