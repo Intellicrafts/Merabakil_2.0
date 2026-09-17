@@ -20,7 +20,7 @@ export function MeraVakilSpotlight() {
 
       <div className="relative mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <div className="mx-auto max-w-md space-y-5 text-center lg:mx-0 lg:text-left">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-[11px] font-medium text-muted-foreground">
             Your AI legal guide
           </p>
           <h2 className="text-[2rem] font-semibold leading-[1.1] tracking-tight sm:text-4xl">

@@ -53,13 +53,13 @@ export function FeaturesSection() {
     <section id="features" className="border-y border-black/[0.06] bg-black/[0.02] px-4 py-20 dark:border-white/10 dark:bg-white/[0.02] md:px-6">
       <div className="mx-auto max-w-6xl">
         <div className="mb-12 text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             Services
           </p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">
             The full legal journey, in one platform
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
+          <p className="mx-auto mt-3 max-w-xl text-[13px] text-muted-foreground sm:text-base">
             From understanding your rights and finding the right lawyer, to managing your case files and preparing for court — MeraVakil covers every step.
           </p>
         </div>
@@ -86,11 +86,11 @@ export function FeaturesSection() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     {service.upcoming && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
                         Coming soon
                       </span>
                     )}
-                    <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:bg-white/[0.06]">
+                    <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:bg-white/[0.06]">
                       {service.tag}
                     </span>
                   </div>

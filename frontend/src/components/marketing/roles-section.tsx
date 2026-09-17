@@ -42,13 +42,13 @@ export function RolesSection() {
     <section id="roles" className="px-4 py-20 md:px-6">
       <div className="mx-auto max-w-6xl">
         <div className="mb-12 text-center">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             Who it&apos;s for
           </p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">
             Built for every legal situation
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">
+          <p className="mx-auto mt-3 max-w-xl text-[13px] text-muted-foreground sm:text-base">
             Whether you&apos;re a citizen facing a dispute or an advocate building your practice —
             MeraBakil gives you the right tools for your role.
           </p>

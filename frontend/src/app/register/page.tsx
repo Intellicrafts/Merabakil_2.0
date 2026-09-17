@@ -120,7 +120,7 @@ function RegisterForm() {
             id="full_name"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            placeholder="Jane Advocate"
+            placeholder="Your full name"
             autoComplete="name"
             className="h-11 rounded-xl"
           />
@@ -206,7 +206,7 @@ function RegisterForm() {
             {displayError.toLowerCase().includes("already exists") && (
               <p>
                 <Link href="/login" className="font-medium underline underline-offset-2">
-                  Go to sign in
+                  {t("auth.signIn")}
                 </Link>
               </p>
             )}

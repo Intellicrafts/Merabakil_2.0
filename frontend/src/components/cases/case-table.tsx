@@ -29,16 +29,19 @@ function formatUpdated(iso: string): string {
 
 interface CaseTableProps {
   cases: LegalCase[];
+  isShared?: boolean;
 }
 
-export function CaseTable({ cases }: CaseTableProps) {
+export function CaseTable({ cases, isShared }: CaseTableProps) {
   if (cases.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-black/[0.08] py-16 text-center dark:border-white/10">
         <FolderOpen className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
-        <p className="text-sm font-medium">No cases found</p>
+        <p className="text-sm font-medium">{isShared ? "No cases shared with you" : "No cases found"}</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create a new case or change the status filter.
+          {isShared
+            ? "Cases that a client shares with you will appear here."
+            : "Create a new case or change the status filter."}
         </p>
       </div>
     );

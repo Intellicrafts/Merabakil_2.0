@@ -19,7 +19,7 @@ export function ResearchHero() {
 
       <div className="relative flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-xl space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-black/[0.06] bg-white/70 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-black/[0.06] bg-white/70 px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]">
             <span className="rc-live-dot h-1.5 w-1.5 rounded-full bg-emerald-500" />
             Live grounded research
           </div>

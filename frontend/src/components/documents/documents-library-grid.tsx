@@ -40,7 +40,7 @@ export function DocumentsLibraryGrid({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Files className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
-          <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <h2 className="text-[12px] font-semibold text-muted-foreground">
             Library
             {!isLoading && documents.length > 0 ? ` · ${documents.length}` : ""}
           </h2>

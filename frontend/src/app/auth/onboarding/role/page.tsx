@@ -58,7 +58,7 @@ function RoleOnboardingForm() {
       <div className="mb-5 flex items-center gap-3.5 rounded-2xl border border-black/[0.07] bg-slate-50/80 px-3.5 py-3 dark:border-white/10 dark:bg-white/[0.04]">
         <ProfileAvatar src={context.picture} name={context.full_name} className="h-14 w-14" />
         <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          <p className="text-[11px] font-medium text-muted-foreground">
             Signing in with Google
           </p>
           <p className="truncate text-[15px] font-semibold text-foreground">{context.full_name}</p>

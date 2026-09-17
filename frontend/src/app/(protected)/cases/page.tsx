@@ -109,7 +109,7 @@ export default function CasesPage() {
         </TabsList>
       </Tabs>
 
-      {isLoading ? <CaseListSkeleton /> : <CaseTable cases={cases} />}
+      {isLoading ? <CaseListSkeleton /> : <CaseTable cases={cases} isShared={isSharedTab} />}
 
       <CaseFormDialog
         open={createOpen}

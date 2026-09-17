@@ -44,7 +44,7 @@ export function DashboardFeaturedCard({ mod }: { mod: DashboardModule }) {
             </div>
 
             <div>
-              <h2 className="text-xl font-semibold tracking-tight sm:text-2xl md:text-[1.75rem]">
+              <h2 className="text-lg font-semibold tracking-tight sm:text-2xl md:text-[1.75rem]">
                 {mod.title}
               </h2>
               <p className="mt-2 max-w-md line-clamp-3 text-sm leading-relaxed text-white/70 dark:text-zinc-600">

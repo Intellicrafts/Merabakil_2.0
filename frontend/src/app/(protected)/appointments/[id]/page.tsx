@@ -84,7 +84,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
 
       {/* Section 1: Client Problem */}
       <div>
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="mb-1 text-[11px] font-semibold text-muted-foreground">
           {t("appointments.clientProblem")}
         </p>
         <p className="text-[13px] leading-relaxed">
@@ -94,7 +94,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
 
       {/* Section 2: Case Details — Key Facts */}
       <div>
-        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">
           {t("appointments.caseDetails")}
         </p>
         {(brief.key_facts?.length ?? 0) > 0 ? (
@@ -114,7 +114,7 @@ function CaseFactsPanel({ caseId, matterSummary }: { caseId: string; matterSumma
       {/* Documents */}
       {caseDocuments.length > 0 && (
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-[11px] font-semibold text-muted-foreground">
             {t("appointments.caseFacts")} ({caseDocuments.length})
           </p>
           <ul className="space-y-1.5">
@@ -259,7 +259,7 @@ export default function AppointmentDetailsPage() {
       {(!hasCaseBrief || activeTab === "details") && (
         <>
           <div className="rounded-3xl border border-black/[0.06] bg-white/55 p-5 shadow-[0_16px_48px_rgba(15,23,42,0.05)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.035]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="text-[11px] font-semibold text-muted-foreground">
               {t("appointments.detailsLabel")}
             </p>
             <h1 className="mt-1 text-xl font-semibold tracking-tight">{apt.counterpart_name || apt.lawyer_name}</h1>
@@ -433,14 +433,14 @@ export default function AppointmentDetailsPage() {
                 key={String(label)}
                 className="rounded-2xl border border-black/[0.06] bg-white/50 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]"
               >
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
+                <p className="text-[11px] text-muted-foreground">{label}</p>
                 <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
               </div>
             ))}
           </div>
 
           <section className="px-1 py-2">
-            <h2 className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="text-[12px] font-semibold text-muted-foreground">
               {t("appointments.transcriptTitle")}
             </h2>
             {messages.length === 0 ? (

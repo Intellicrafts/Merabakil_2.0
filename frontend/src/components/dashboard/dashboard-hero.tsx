@@ -97,7 +97,7 @@ export function DashboardHero({
             <h1 className="text-[1.55rem] font-semibold leading-[1.12] tracking-tight sm:text-[2.2rem] md:text-[2.4rem]">
               {t(getGreetingKey())}, <span className="gradient-text">{firstName}</span>
             </h1>
-            <p className="hidden max-w-lg text-[15px] leading-relaxed text-muted-foreground sm:block">
+            <p className="hidden max-w-lg text-[13px] leading-relaxed text-muted-foreground sm:block sm:text-[15px]">
               <span className="font-medium text-foreground/90">{config.headline}</span>
               {" — "}
               {config.subtitle}
