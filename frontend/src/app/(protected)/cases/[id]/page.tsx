@@ -100,8 +100,8 @@ function BriefSection({ brief, isOwner }: { brief: AiBrief; isOwner: boolean }) 
     <div className="space-y-5">
       {brief.problem_summary && (
         <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Problem Summary
+          <p className="mb-1.5 text-[12px] font-semibold text-muted-foreground">
+            Problem summary
           </p>
           <p className="text-[13px] leading-relaxed text-foreground">{brief.problem_summary}</p>
         </div>
@@ -109,8 +109,8 @@ function BriefSection({ brief, isOwner }: { brief: AiBrief; isOwner: boolean }) 
 
       {(brief.key_facts?.length ?? 0) > 0 && (
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Key Facts
+          <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
+            Key facts
           </p>
           <ul className="space-y-1.5">
             {brief.key_facts!.map((fact, i) => (
@@ -125,13 +125,13 @@ function BriefSection({ brief, isOwner }: { brief: AiBrief; isOwner: boolean }) 
 
       {brief.parties && (
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
             Parties
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {brief.parties.client && (
               <div className="rounded-lg border border-black/[0.06] bg-muted/30 px-3 py-2.5 dark:border-white/[0.08]">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="text-[11px] font-semibold text-muted-foreground">
                   Client ({brief.parties.client.role ?? "Petitioner"})
                 </p>
                 <p className="mt-0.5 text-[13px] font-medium">{brief.parties.client.name ?? "—"}</p>
@@ -139,7 +139,7 @@ function BriefSection({ brief, isOwner }: { brief: AiBrief; isOwner: boolean }) 
             )}
             {brief.parties.opponent && (
               <div className="rounded-lg border border-black/[0.06] bg-muted/30 px-3 py-2.5 dark:border-white/[0.08]">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="text-[11px] font-semibold text-muted-foreground">
                   Opponent ({brief.parties.opponent.type ?? "Individual"})
                 </p>
                 <p className="mt-0.5 text-[13px] font-medium">{brief.parties.opponent.name ?? "—"}</p>
@@ -151,8 +151,8 @@ function BriefSection({ brief, isOwner }: { brief: AiBrief; isOwner: boolean }) 
 
       {(brief.legal_issues?.length ?? 0) > 0 && (
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Legal Issues
+          <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
+            Legal issues
           </p>
           <ul className="space-y-1.5">
             {brief.legal_issues!.map((issue, i) => (
@@ -188,8 +188,8 @@ function ActionsSection({ brief }: { brief: AiBrief }) {
 
       {hasActions && (
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Recommended Actions
+          <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
+            Recommended actions
           </p>
           <ol className="space-y-2">
             {brief.recommended_actions!.map((action, i) => (
@@ -323,6 +323,7 @@ function ShareSection({ caseItem }: { caseItem: LegalCase }) {
   const [lawyerUserId, setLawyerUserId] = useState("");
   const [message, setMessage] = useState("");
   const [sharing, setSharing] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   async function handleShare() {
     if (!lawyerUserId.trim()) return;
@@ -332,6 +333,7 @@ function ShareSection({ caseItem }: { caseItem: LegalCase }) {
       toast({ title: "Case shared", variant: "success" });
       setLawyerUserId("");
       setMessage("");
+      setShowAdvanced(false);
     } catch {
       toast({ title: "Failed to share case", variant: "destructive" });
     } finally {
@@ -341,41 +343,71 @@ function ShareSection({ caseItem }: { caseItem: LegalCase }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="lawyer-uid" className="text-[12px]">
-          Lawyer User ID
-        </Label>
-        <input
-          id="lawyer-uid"
-          type="text"
-          value={lawyerUserId}
-          onChange={(e) => setLawyerUserId(e.target.value)}
-          placeholder="Paste lawyer's user ID"
-          className="h-9 w-full rounded-lg border border-input bg-background px-3 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-        />
+      <div className="flex items-start gap-3 rounded-xl border border-black/[0.06] bg-black/[0.02] p-4 dark:border-white/[0.08] dark:bg-white/[0.03]">
+        <Scale className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground/60" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold">Book a consultation</p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+            Find a verified advocate on the marketplace, view their profile, and book a
+            consultation directly — your case context will be linked automatically.
+          </p>
+          <a
+            href="/lawyer-marketplace"
+            className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-2 text-[12px] font-semibold text-background transition-opacity hover:opacity-80"
+          >
+            <Users className="h-3.5 w-3.5" />
+            Find an Advocate
+          </a>
+        </div>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="share-message" className="text-[12px]">
-          Message (optional)
-        </Label>
-        <textarea
-          id="share-message"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          rows={2}
-          placeholder="Add a note for the lawyer…"
-          className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-        />
-      </div>
-      <Button
-        size="sm"
-        className="gap-1.5 rounded-lg text-[13px]"
-        disabled={!lawyerUserId.trim() || sharing}
-        onClick={handleShare}
+
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((v) => !v)}
+        className="text-[12px] font-medium text-muted-foreground hover:text-foreground"
       >
-        <Users className="h-3.5 w-3.5" />
-        {sharing ? "Sharing…" : "Share with lawyer"}
-      </Button>
+        {showAdvanced ? "Hide" : "Already have a lawyer? Share by user ID ↓"}
+      </button>
+
+      {showAdvanced && (
+        <div className="space-y-3 rounded-xl border border-black/[0.06] p-4 dark:border-white/[0.08]">
+          <div className="space-y-1.5">
+            <Label htmlFor="lawyer-uid" className="text-[12px]">
+              Lawyer user ID
+            </Label>
+            <input
+              id="lawyer-uid"
+              type="text"
+              value={lawyerUserId}
+              onChange={(e) => setLawyerUserId(e.target.value)}
+              placeholder="Paste the lawyer's user ID"
+              className="h-9 w-full rounded-lg border border-input bg-background px-3 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="share-message" className="text-[12px]">
+              Message (optional)
+            </Label>
+            <textarea
+              id="share-message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={2}
+              placeholder="Add a note for the lawyer…"
+              className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <Button
+            size="sm"
+            className="gap-1.5 rounded-lg text-[13px]"
+            disabled={!lawyerUserId.trim() || sharing}
+            onClick={handleShare}
+          >
+            <Users className="h-3.5 w-3.5" />
+            {sharing ? "Sharing…" : "Share with lawyer"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

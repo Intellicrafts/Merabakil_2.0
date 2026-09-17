@@ -224,7 +224,7 @@ function MattersCard({ matters, openCount }: { matters: LegalCase[]; openCount: 
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] font-medium">{matter.title}</span>
                 <span className="block truncate text-[12px] text-muted-foreground">
-                  {matter.case_number || "Matter"} · {matter.status.replace("_", " ")}
+                  {matter.case_number || matter.practice_area || "Case"} · {matter.status.replace("_", " ")}
                 </span>
               </span>
             </Link>

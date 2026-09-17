@@ -123,7 +123,7 @@ function LoginForm() {
             {t("auth.sessionExpired")}
           </p>
         )}
-        {authOffline && (
+        {authOffline && process.env.NODE_ENV === "development" && (
           <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
             Auth service is offline. From the project root run: make native
           </p>

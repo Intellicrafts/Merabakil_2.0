@@ -68,9 +68,15 @@ export function AppointmentList({ appointments, onChanged }: AppointmentListProp
                 <CalendarDays className="h-6 w-6 text-muted-foreground/60" />
               </div>
               <p className="text-sm font-semibold">No consultations yet</p>
-              <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
-                Book a verified advocate — sessions appear here.
+              <p className="mx-auto mt-1.5 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
+                Find a verified advocate and book a session — it will appear here once confirmed.
               </p>
+              <Link
+                href="/lawyer-marketplace"
+                className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2.5 text-[13px] font-semibold text-background transition-opacity hover:opacity-80"
+              >
+                Find an Advocate
+              </Link>
             </div>
           );
         }
@@ -510,7 +516,7 @@ function AppointmentRow({
             type="button"
             disabled={busy !== null}
             onClick={() => void handleCancel()}
-            className="mp-btn-primary inline-flex h-11 min-h-11 items-center gap-1.5 rounded-xl px-4 text-[12px] font-semibold sm:h-10 sm:min-h-10"
+            className="inline-flex h-11 min-h-11 items-center gap-1.5 rounded-xl border border-black/[0.07] px-4 text-[12px] font-medium text-muted-foreground transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:border-white/[0.10] dark:hover:border-red-700/40 dark:hover:bg-red-950/30 dark:hover:text-red-400 sm:h-10 sm:min-h-10"
           >
             <X className="h-3.5 w-3.5" />
             {busy === "cancel" ? "Cancelling…" : "Cancel"}
