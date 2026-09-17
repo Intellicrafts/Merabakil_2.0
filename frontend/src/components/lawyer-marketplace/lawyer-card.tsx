@@ -18,6 +18,7 @@ function MatchBadge({ score }: { score: number }) {
       : "bg-black/[0.04] text-muted-foreground ring-black/[0.06] dark:bg-white/[0.06] dark:ring-white/[0.08]";
   return (
     <span
+      title="AI relevance score — based on practice area, jurisdiction, experience, and case type"
       className={cn(
         "inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums ring-1",
         cls,
@@ -201,15 +202,23 @@ export const LawyerCard = memo(function LawyerCard({
         {/* Vertical divider */}
         <div className="h-9 w-px shrink-0 bg-black/[0.05] dark:bg-white/[0.07]" />
 
-        {/* Practice areas (grows) */}
-        <div className="flex flex-1 flex-wrap gap-1.5">{areaChips}</div>
+        {/* Practice areas + bio (grows) */}
+        <div className="flex flex-1 flex-col gap-1.5">
+          <div className="flex flex-wrap gap-1.5">{areaChips}</div>
+          {lawyer.bio && (
+            <p className="line-clamp-1 text-[11.5px] leading-snug text-muted-foreground/70">
+              {lawyer.bio}
+            </p>
+          )}
+        </div>
 
-        {/* Rate + match + actions */}
+        {/* Rate + match label + actions */}
         <div className="flex shrink-0 items-center gap-3">
           <div className="text-right">
             <p className="text-[13.5px] font-semibold">{formatRate(lawyer.hourly_rate_inr)}</p>
-            <div className="mt-1 flex justify-end">
+            <div className="mt-1 flex flex-col items-end gap-0.5">
               <MatchBadge score={lawyer.match_score} />
+              <p className="text-[9.5px] text-muted-foreground/50">AI match</p>
             </div>
           </div>
           {actionButtons}

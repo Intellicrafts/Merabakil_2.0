@@ -192,17 +192,12 @@ export default function LawyerMarketplacePage() {
   }), [appointments, aptSearch, aptStatus, aptDate]);
 
   const verifiedCount = catalog.filter((l) => l.verified).length;
-  const avgMatch =
-    lawyers.length > 0
-      ? Math.round(lawyers.reduce((s, l) => s + l.match_score, 0) / lawyers.length)
-      : 0;
 
   return (
     <div className="mx-auto w-full max-w-[1180px] space-y-3 pb-8 sm:space-y-6 sm:pb-10">
       <MarketplaceHero
         counselCount={catalog.length}
         verifiedCount={verifiedCount}
-        avgMatch={avgMatch}
       />
 
       <Tabs value={tab} onValueChange={setTab}>
