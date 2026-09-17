@@ -289,7 +289,7 @@ export default function LawyerMarketplacePage() {
         </TabsContent>
 
         <TabsContent value="appointments" className="mt-4 space-y-4">
-          {!appointmentsLoading && (
+          {!appointmentsLoading && appointments.length > 0 && (
             <>
               <ConsultationsHero appointments={appointments} embedded />
               <ConsultationFilters

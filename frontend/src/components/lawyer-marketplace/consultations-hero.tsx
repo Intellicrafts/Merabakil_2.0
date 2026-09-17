@@ -38,9 +38,6 @@ export function ConsultationsHero({ appointments, now = Date.now(), embedded }: 
     <header className={cn("mp-card-enter space-y-3 sm:space-y-4")}>
       <div className="flex items-end justify-between gap-4">
         <div className="min-w-0 space-y-1">
-          <p className="hidden text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:block">
-            Consultations
-          </p>
           <h1 className="text-[1.35rem] font-semibold leading-tight tracking-tight sm:text-[1.75rem]">
             {t("appointments.myConsultations")}
           </h1>

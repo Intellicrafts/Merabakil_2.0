@@ -38,7 +38,7 @@ export function DashboardFeaturedCard({ mod }: { mod: DashboardModule }) {
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/12 ring-1 ring-white/15 dark:bg-black/10 dark:ring-black/10">
                 <Sparkles className="h-4 w-4" />
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/55 dark:text-zinc-600">
+              <span className="text-[10px] font-semibold text-white/55 dark:text-zinc-600">
                 {meta.tag}
               </span>
             </div>

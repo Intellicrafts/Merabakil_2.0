@@ -113,7 +113,7 @@ export function DashboardModuleCard({ mod }: { mod: DashboardModule }) {
     >
       {/* Tag + CTA */}
       <div className="relative flex items-center justify-between gap-2">
-        <span className="inline-flex items-center rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground dark:bg-white/[0.08]">
+        <span className="inline-flex items-center rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:bg-white/[0.08]">
           {tagKey ? t(tagKey) : meta.tag}
         </span>
         <span
@@ -124,7 +124,7 @@ export function DashboardModuleCard({ mod }: { mod: DashboardModule }) {
             "dark:border-white/[0.08] dark:bg-white/[0.05]",
           )}
         >
-          {ctaKey ? t(ctaKey) : t("modules.walletCta")}
+          {ctaKey ? t(ctaKey) : "Open"}
           <ArrowUpRight className="h-3 w-3 transition-transform duration-150 group-hover:-translate-y-px group-hover:translate-x-px" />
         </span>
       </div>

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Calendar,
-  Clock,
   Languages,
   MapPin,
   Scale,
@@ -79,7 +78,7 @@ export function LawyerProfileDrawer({
         <div className="relative overflow-hidden border-b border-black/[0.06] px-4 pb-4 pt-3 dark:border-white/[0.08]">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-500/[0.06] via-transparent to-transparent" />
           <div className="relative flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="text-[11px] font-semibold text-muted-foreground">
               Counsel profile
             </p>
             <Button variant="ghost" size="sm" className="h-8 w-8 rounded-full p-0" onClick={onClose}>
@@ -136,19 +135,19 @@ export function LawyerProfileDrawer({
           <div className="grid grid-cols-2 gap-2">
             {[
               { icon: Scale, label: "Experience", value: `${lawyer.years_experience} yrs` },
-              { icon: Clock, label: "Response", value: "< 2 hrs" },
               { icon: MapPin, label: "City", value: lawyer.city },
+              { icon: Calendar, label: "Bar council", value: lawyer.bar_council_id || "—" },
               {
                 icon: Languages,
                 label: "Languages",
-                value: lawyer.languages.slice(0, 2).join(", "),
+                value: lawyer.languages.slice(0, 2).join(", ") || "—",
               },
             ].map(({ icon: Icon, label, value }) => (
               <div
                 key={label}
                 className="mp-surface-card rounded-xl p-2.5 shadow-none"
               >
-                <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
                   <Icon className="h-3 w-3" />
                   {label}
                 </div>
@@ -158,7 +157,7 @@ export function LawyerProfileDrawer({
           </div>
 
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-[11px] font-semibold text-muted-foreground">
               Practice areas
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -175,7 +174,7 @@ export function LawyerProfileDrawer({
 
           {lawyer.jurisdictions.length > 0 && (
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="text-[11px] font-semibold text-muted-foreground">
                 Jurisdictions
               </p>
               <p className="mt-1.5 text-[13px] text-muted-foreground">
@@ -192,7 +191,7 @@ export function LawyerProfileDrawer({
             <span className="font-semibold">
               {lawyer.hourly_rate_inr != null
                 ? `₹${lawyer.hourly_rate_inr.toLocaleString("en-IN")}/hr`
-                : "Available"}
+                : "Quote on request"}
             </span>
           </div>
           <button

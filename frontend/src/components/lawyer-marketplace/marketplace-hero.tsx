@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 interface MarketplaceHeroProps {
   counselCount: number;
   verifiedCount: number;
-  avgMatch: number;
 }
 
 export function MarketplaceHero({
@@ -16,12 +15,8 @@ export function MarketplaceHero({
     <header className={cn("mp-card-enter space-y-0.5 pt-0.5 sm:pt-1")}>
       <div className="flex items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="hidden text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:block">
-            Advocate booking
-          </p>
           <h1 className="text-[1.35rem] font-semibold leading-tight tracking-tight sm:text-[1.75rem]">
-            <span className="sm:hidden">Find an Advocate</span>
-            <span className="hidden sm:inline">Find an Advocate</span>
+            Find an Advocate
           </h1>
           <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground sm:text-[14px]">
             <span className="sm:hidden">
