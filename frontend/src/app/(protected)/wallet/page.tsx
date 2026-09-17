@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
   Bot,
   CalendarCheck,
   CircleDollarSign,
-  Clock,
   Gift,
+  Plus,
   RefreshCcw,
   Sparkles,
   TrendingUp,
@@ -26,9 +24,14 @@ import type { AuthUser } from "@/lib/types";
 import type { TransactionType, WalletTransaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-function formatPts(amount: string | number): string {
+// ─── Formatting ──────────────────────────────────────────────────────────────
+
+function formatAmount(amount: string | number): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount;
-  return `${new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)} pts`;
+  return new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
 }
 
 function formatRelativeTime(iso: string, t: (key: string) => string): string {
@@ -43,6 +46,8 @@ function formatRelativeTime(iso: string, t: (key: string) => string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+// ─── Transaction metadata ─────────────────────────────────────────────────────
+
 const TX_LABEL_KEY: Record<TransactionType, string> = {
   TOP_UP: "wallet.txTopUp",
   CHATBOT_USAGE: "wallet.txAiQuery",
@@ -54,23 +59,25 @@ const TX_LABEL_KEY: Record<TransactionType, string> = {
 const DEBIT_TYPES = new Set<TransactionType>(["CHATBOT_USAGE", "APPOINTMENT_BOOKING"]);
 
 const TX_ICON_BG: Record<TransactionType, string> = {
-  TOP_UP:               "bg-emerald-100/80 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
-  CHATBOT_USAGE:        "bg-violet-100/80 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400",
-  APPOINTMENT_BOOKING:  "bg-sky-100/80 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400",
-  APPOINTMENT_REFUND:   "bg-amber-100/80 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400",
-  ADVOCATE_EARNING:     "bg-emerald-100/80 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
+  TOP_UP: "bg-emerald-100/80 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
+  CHATBOT_USAGE: "bg-violet-100/80 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400",
+  APPOINTMENT_BOOKING: "bg-sky-100/80 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400",
+  APPOINTMENT_REFUND: "bg-amber-100/80 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400",
+  ADVOCATE_EARNING: "bg-emerald-100/80 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
 };
 
 function TxIcon({ type }: { type: TransactionType }) {
   const icons: Record<TransactionType, React.ReactNode> = {
-    TOP_UP:              <Wallet className="h-4 w-4" />,
-    CHATBOT_USAGE:       <Bot className="h-4 w-4" />,
+    TOP_UP: <Wallet className="h-4 w-4" />,
+    CHATBOT_USAGE: <Bot className="h-4 w-4" />,
     APPOINTMENT_BOOKING: <CalendarCheck className="h-4 w-4" />,
-    APPOINTMENT_REFUND:  <RefreshCcw className="h-4 w-4" />,
-    ADVOCATE_EARNING:    <TrendingUp className="h-4 w-4" />,
+    APPOINTMENT_REFUND: <RefreshCcw className="h-4 w-4" />,
+    ADVOCATE_EARNING: <TrendingUp className="h-4 w-4" />,
   };
   return <>{icons[type] ?? <CircleDollarSign className="h-4 w-4" />}</>;
 }
+
+// ─── Transaction row ──────────────────────────────────────────────────────────
 
 function TransactionRow({ tx }: { tx: WalletTransaction }) {
   const { t } = useTranslation();
@@ -87,10 +94,11 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
       <div className="text-right">
         <p className={cn("text-[13px] font-semibold tabular-nums", isDebit ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
           {isDebit ? "−" : "+"}
-          {formatPts(tx.amount)}
+          {formatAmount(tx.amount)}{" "}
+          <span className="text-[11px] font-normal opacity-50">pts</span>
         </p>
         <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground/60">
-          {t("wallet.balAfter")} {formatPts(tx.balance_after)}
+          {t("wallet.balAfter")} {formatAmount(tx.balance_after)}
         </p>
       </div>
       <p className="hidden w-16 text-right text-[11px] tabular-nums text-muted-foreground/50 sm:block">
@@ -100,6 +108,57 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
   );
 }
 
+// ─── Date grouping ────────────────────────────────────────────────────────────
+
+function groupByDate(items: WalletTransaction[]): [string, WalletTransaction[]][] {
+  const groups = new Map<string, WalletTransaction[]>();
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  for (const tx of items) {
+    const date = new Date(tx.created_at);
+    let label: string;
+    if (date.toDateString() === today.toDateString()) {
+      label = "Today";
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      label = "Yesterday";
+    } else {
+      label = date.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+      });
+    }
+    const group = groups.get(label) ?? [];
+    group.push(tx);
+    groups.set(label, group);
+  }
+  return [...groups.entries()];
+}
+
+// ─── Filter tabs ──────────────────────────────────────────────────────────────
+
+type TxFilter = "ALL" | "AI" | "BOOKINGS" | "CREDITS";
+
+const AI_TYPES = new Set<TransactionType>(["CHATBOT_USAGE"]);
+const BOOKING_TYPES = new Set<TransactionType>(["APPOINTMENT_BOOKING", "APPOINTMENT_REFUND"]);
+const CREDIT_TYPES = new Set<TransactionType>(["TOP_UP", "ADVOCATE_EARNING"]);
+
+function applyFilter(items: WalletTransaction[], filter: TxFilter): WalletTransaction[] {
+  if (filter === "ALL") return items;
+  const allowed = filter === "AI" ? AI_TYPES : filter === "BOOKINGS" ? BOOKING_TYPES : CREDIT_TYPES;
+  return items.filter((tx) => allowed.has(tx.transaction_type));
+}
+
+const FILTER_TABS: { key: TxFilter; label: string }[] = [
+  { key: "ALL", label: "All" },
+  { key: "AI", label: "AI Usage" },
+  { key: "BOOKINGS", label: "Bookings" },
+  { key: "CREDITS", label: "Credits" },
+];
+
+// ─── Info cards ───────────────────────────────────────────────────────────────
 
 function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
   const { t } = useTranslation();
@@ -179,9 +238,12 @@ function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function WalletPage() {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
+  const [txFilter, setTxFilter] = useState<TxFilter>("ALL");
   const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
@@ -206,67 +268,90 @@ export default function WalletPage() {
   const totalPages = txList ? Math.ceil(txList.total / txList.size) : 1;
   const balance = wallet ? parseFloat(wallet.balance) : 0;
 
+  const filteredGroups = useMemo(() => {
+    const items = txList?.items ?? [];
+    return groupByDate(applyFilter(items, txFilter));
+  }, [txList?.items, txFilter]);
+
+  const hasAnyTransactions = (txList?.items.length ?? 0) > 0;
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-5 pb-12 md:px-0 md:pt-2">
 
-      {/* Balance card */}
-      <div className="overflow-hidden rounded-[1.35rem] border border-black/[0.06] bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
-        <div className="flex items-start justify-between px-6 pb-2 pt-6">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-              {t("wallet.walletBalance")}
-            </p>
-            {walletLoading ? (
-              <Skeleton className="mt-3 h-10 w-40" />
-            ) : (
-              <p className="mt-1.5 text-[2.6rem] font-bold tracking-tight leading-none">
-                {formatPts(balance)}
+      {/* Balance card — dark surface so the number is the hero */}
+      <div className="overflow-hidden rounded-[1.35rem] bg-slate-900 dark:bg-zinc-950">
+        <div className="px-6 pb-5 pt-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-slate-500">
+                {t("wallet.walletBalance")}
               </p>
-            )}
-            <p className="mt-2 text-[12px] text-muted-foreground/70">
-              {t("wallet.availableBalance")}
-            </p>
-          </div>
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100/70 dark:bg-amber-500/[0.15]">
-            <Wallet className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="mx-6 my-4 h-px bg-black/[0.05] dark:bg-white/[0.06]" />
-
-        <div className="px-6 pb-5">
-          <div className="flex items-start gap-3 rounded-xl border border-dashed border-black/[0.10] bg-black/[0.02] px-4 py-3.5 dark:border-white/[0.10] dark:bg-white/[0.03]">
-            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
-            <div>
-              <p className="text-[13px] font-medium text-foreground/80">{t("wallet.rechargeSoon")}</p>
-              <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground/60">
-                {t("wallet.rechargeDesc")}
+              {walletLoading ? (
+                <Skeleton className="mt-3 h-11 w-36 bg-white/[0.08]" />
+              ) : (
+                <p className="mt-1.5 text-[3.25rem] font-bold leading-none tracking-tight text-white tabular-nums">
+                  {formatAmount(balance)}
+                </p>
+              )}
+              <p className="mt-1.5 text-[12px] text-slate-500">
+                {t("wallet.availableBalance")}
               </p>
             </div>
+            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.07]">
+              <Wallet className="h-5 w-5 text-slate-400" />
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/[0.07] pt-4">
+            <p className="text-[12px] text-slate-500">
+              {t("wallet.rechargeSoon")}
+            </p>
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              className="flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-white/[0.07] px-3.5 py-2 text-[12px] font-medium text-slate-500 opacity-60"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Points
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Role-aware info cards */}
+      {/* Role-aware pricing info */}
       <InfoCards isAdvocate={isAdvocate} />
 
       {/* Transaction history */}
       <div className="overflow-hidden rounded-[1.35rem] border border-black/[0.06] bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
-        <div className="flex items-center justify-between border-b border-black/[0.05] px-6 py-4 dark:border-white/[0.06]">
+        <div className="border-b border-black/[0.05] px-6 py-4 dark:border-white/[0.06]">
           <p className="text-[15px] font-semibold tracking-tight">{t("wallet.transactionHistory")}</p>
-          <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground/70">
-            <ArrowDownLeft className="h-3 w-3 text-emerald-600" />
-            <span>{t("wallet.credit")}</span>
-            <span className="mx-1 opacity-30">·</span>
-            <ArrowUpRight className="h-3 w-3 text-red-500" />
-            <span>{t("wallet.debit")}</span>
-          </div>
+
+          {/* Type filter — only show if there are transactions to filter */}
+          {hasAnyTransactions && (
+            <div className="mt-3 flex gap-1.5">
+              {FILTER_TABS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setTxFilter(key)}
+                  className={cn(
+                    "rounded-lg px-3 py-1 text-[12px] font-medium transition-colors",
+                    txFilter === key
+                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                      : "bg-black/[0.04] text-muted-foreground hover:bg-black/[0.07] dark:bg-white/[0.06] dark:hover:bg-white/[0.10]",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="px-6 pb-4 pt-1">
+        <div className="px-6 pb-4">
           {txLoading ? (
-            <div className="space-y-4 py-3">
+            <div className="space-y-4 py-4">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <Skeleton className="h-9 w-9 rounded-xl" />
@@ -278,30 +363,56 @@ export default function WalletPage() {
                 </div>
               ))}
             </div>
-          ) : !txList?.items.length ? (
+          ) : filteredGroups.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
               <Sparkles className="h-8 w-8 text-muted-foreground/20" strokeWidth={1.5} />
-              <p className="text-[13px] font-medium text-muted-foreground/70">{t("wallet.noTransactionsYet")}</p>
-              <p className="text-[12px] text-muted-foreground/50">
-                {isAdvocate
-                  ? t("wallet.noTransactionsAdvocate")
-                  : t("wallet.noTransactionsCitizen")}
+              <p className="text-[13px] font-medium text-muted-foreground/70">
+                {txFilter !== "ALL"
+                  ? "No transactions in this category"
+                  : t("wallet.noTransactionsYet")}
               </p>
+              {txFilter === "ALL" && (
+                <p className="text-[12px] text-muted-foreground/50">
+                  {isAdvocate
+                    ? t("wallet.noTransactionsAdvocate")
+                    : t("wallet.noTransactionsCitizen")}
+                </p>
+              )}
             </div>
           ) : (
             <>
-              {txList.items.map((tx) => (
-                <TransactionRow key={tx.id} tx={tx} />
+              {filteredGroups.map(([dateLabel, items]) => (
+                <div key={dateLabel}>
+                  <p className="pb-1 pt-4 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/45">
+                    {dateLabel}
+                  </p>
+                  {items.map((tx) => (
+                    <TransactionRow key={tx.id} tx={tx} />
+                  ))}
+                </div>
               ))}
+
               {totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-between border-t border-black/[0.05] pt-4 dark:border-white/[0.06]">
-                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
                     {t("wallet.previous")}
                   </Button>
                   <span className="text-[12px] text-muted-foreground">
-                    {t("wallet.pageOf").replace("{{page}}", String(page)).replace("{{total}}", String(totalPages))}
+                    {t("wallet.pageOf")
+                      .replace("{{page}}", String(page))
+                      .replace("{{total}}", String(totalPages))}
                   </span>
-                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
                     {t("common.next")}
                   </Button>
                 </div>
