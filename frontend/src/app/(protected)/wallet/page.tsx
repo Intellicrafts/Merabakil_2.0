@@ -6,13 +6,11 @@ import {
   Bot,
   CalendarCheck,
   CircleDollarSign,
-  Gift,
   Plus,
   RefreshCcw,
   Sparkles,
   TrendingUp,
   Wallet,
-  Zap,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +30,10 @@ function formatAmount(amount: string | number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(num);
+}
+
+function formatCount(n: number): string {
+  return new Intl.NumberFormat("en-IN").format(n);
 }
 
 function formatRelativeTime(iso: string, t: (key: string) => string): string {
@@ -158,80 +160,35 @@ const FILTER_TABS: { key: TxFilter; label: string }[] = [
   { key: "CREDITS", label: "Credits" },
 ];
 
-// ─── Info cards ───────────────────────────────────────────────────────────────
+// ─── Pricing strip (inside the balance card) ──────────────────────────────────
 
-function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
-  const { t } = useTranslation();
+interface PricingCol {
+  label: string;
+  value: string;
+  sub: string;
+}
 
-  const citizenCards = [
-    {
-      icon: <Bot className="h-4 w-4" />,
-      bg: "bg-violet-100/70 dark:bg-violet-500/[0.15]",
-      color: "text-violet-600 dark:text-violet-400",
-      label: t("wallet.aiQuery"),
-      value: t("wallet.aiQueryValue"),
-      sub: t("wallet.aiQuerySub"),
-    },
-    {
-      icon: <Gift className="h-4 w-4" />,
-      bg: "bg-emerald-100/70 dark:bg-emerald-500/[0.15]",
-      color: "text-emerald-600 dark:text-emerald-400",
-      label: t("wallet.firstConsultation"),
-      value: t("wallet.firstConsultationValue"),
-      sub: t("wallet.firstConsultationSub"),
-    },
-    {
-      icon: <Zap className="h-4 w-4" />,
-      bg: "bg-sky-100/70 dark:bg-sky-500/[0.15]",
-      color: "text-sky-600 dark:text-sky-400",
-      label: t("wallet.dailyLimit"),
-      value: t("wallet.dailyLimitValue"),
-      sub: t("wallet.dailyLimitSub"),
-    },
-  ];
+const CITIZEN_PRICING: PricingCol[] = [
+  { label: "AI query", value: "0.1 pts", sub: "per query" },
+  { label: "1st booking", value: "Free", sub: "no charge" },
+  { label: "Daily cap", value: "20", sub: "queries / day" },
+];
 
-  const advocateCards = [
-    {
-      icon: <Bot className="h-4 w-4" />,
-      bg: "bg-violet-100/70 dark:bg-violet-500/[0.15]",
-      color: "text-violet-600 dark:text-violet-400",
-      label: t("wallet.aiQuery"),
-      value: t("wallet.aiQueryValue"),
-      sub: t("wallet.aiQuerySub"),
-    },
-    {
-      icon: <CalendarCheck className="h-4 w-4" />,
-      bg: "bg-sky-100/70 dark:bg-sky-500/[0.15]",
-      color: "text-sky-600 dark:text-sky-400",
-      label: t("wallet.bookingReceived"),
-      value: t("wallet.bookingReceivedValue"),
-      sub: t("wallet.bookingReceivedSub"),
-    },
-    {
-      icon: <TrendingUp className="h-4 w-4" />,
-      bg: "bg-amber-100/70 dark:bg-amber-500/[0.12]",
-      color: "text-amber-600 dark:text-amber-500",
-      label: t("wallet.earnings"),
-      value: t("wallet.earningsValue"),
-      sub: t("wallet.earningsSub"),
-    },
-  ];
+const ADVOCATE_PRICING: PricingCol[] = [
+  { label: "AI query", value: "0.1 pts", sub: "per query" },
+  { label: "Booking fee", value: "Your rate", sub: "client-paid" },
+  { label: "Earnings", value: "On complete", sub: "auto-credited" },
+];
 
-  const cards = isAdvocate ? advocateCards : citizenCards;
-
+function PricingStrip({ isAdvocate }: { isAdvocate: boolean }) {
+  const cols = isAdvocate ? ADVOCATE_PRICING : CITIZEN_PRICING;
   return (
-    <div className="grid grid-cols-3 gap-3">
-      {cards.map(({ icon, bg, color, label, value, sub }) => (
-        <div
-          key={label}
-          className="rounded-[1.1rem] border border-black/[0.06] bg-white/70 px-3 py-4 text-center dark:border-white/[0.07] dark:bg-white/[0.04]"
-        >
-          <div className={cn("mx-auto mb-2.5 flex h-9 w-9 items-center justify-center rounded-xl", bg)}>
-            <span className={color}>{icon}</span>
-          </div>
-          <p className="text-[11px] text-muted-foreground">{label}</p>
-          <p className="mt-0.5 text-[13.5px] font-semibold tracking-tight">{value}</p>
-          <p className="mt-0.5 text-[10.5px] text-muted-foreground/60">{sub}</p>
+    <div className="flex divide-x divide-white/[0.07]">
+      {cols.map(({ label, value, sub }) => (
+        <div key={label} className="flex-1 px-3 text-center first:pl-0 last:pr-0">
+          <p className="text-[10px] text-slate-500">{label}</p>
+          <p className="mt-0.5 text-[12.5px] font-semibold text-white/75">{value}</p>
+          <p className="text-[10px] text-slate-600">{sub}</p>
         </div>
       ))}
     </div>
@@ -239,6 +196,8 @@ function InfoCards({ isAdvocate }: { isAdvocate: boolean }) {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
+
+const AI_QUERY_COST_PTS = 0.1;
 
 export default function WalletPage() {
   const { t } = useTranslation();
@@ -267,6 +226,7 @@ export default function WalletPage() {
 
   const totalPages = txList ? Math.ceil(txList.total / txList.size) : 1;
   const balance = wallet ? parseFloat(wallet.balance) : 0;
+  const approxQueries = balance > 0 ? Math.floor(balance / AI_QUERY_COST_PTS) : 0;
 
   const filteredGroups = useMemo(() => {
     const items = txList?.items ?? [];
@@ -278,9 +238,11 @@ export default function WalletPage() {
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-5 pb-12 md:px-0 md:pt-2">
 
-      {/* Balance card — dark surface so the number is the hero */}
+      {/* Balance card — dark surface, pricing strip inside */}
       <div className="overflow-hidden rounded-[1.35rem] bg-slate-900 dark:bg-zinc-950">
-        <div className="px-6 pb-5 pt-6">
+
+        {/* Balance */}
+        <div className="px-6 pb-4 pt-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[11px] font-medium text-slate-500">
@@ -293,41 +255,51 @@ export default function WalletPage() {
                   {formatAmount(balance)}
                 </p>
               )}
-              <p className="mt-1.5 text-[12px] text-slate-500">
-                {t("wallet.availableBalance")}
-              </p>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <p className="text-[12px] text-slate-500">MeraBakil Points</p>
+                {!walletLoading && approxQueries > 0 && (
+                  <>
+                    <span className="text-slate-700">·</span>
+                    <p className="text-[12px] text-slate-400">
+                      ~{formatCount(approxQueries)} queries available
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.07]">
-              <Wallet className="h-5 w-5 text-slate-400" />
+            <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
+              <Wallet className="h-4.5 w-4.5 text-slate-500" />
             </div>
-          </div>
-
-          <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/[0.07] pt-4">
-            <p className="text-[12px] text-slate-500">
-              {t("wallet.rechargeSoon")}
-            </p>
-            <button
-              type="button"
-              disabled
-              aria-disabled="true"
-              className="flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-white/[0.07] px-3.5 py-2 text-[12px] font-medium text-slate-500 opacity-60"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Points
-            </button>
           </div>
         </div>
-      </div>
 
-      {/* Role-aware pricing info */}
-      <InfoCards isAdvocate={isAdvocate} />
+        {/* Pricing strip — what this balance buys */}
+        <div className="border-t border-white/[0.06] px-6 py-4">
+          <PricingStrip isAdvocate={isAdvocate} />
+        </div>
+
+        {/* Add Points footer */}
+        <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] px-6 py-3.5">
+          <p className="text-[11.5px] text-slate-600">
+            {t("wallet.rechargeSoon")}
+          </p>
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            className="flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-white/[0.06] px-3 py-1.5 text-[11.5px] font-medium text-slate-500 opacity-60"
+          >
+            <Plus className="h-3 w-3" />
+            Add Points
+          </button>
+        </div>
+      </div>
 
       {/* Transaction history */}
       <div className="overflow-hidden rounded-[1.35rem] border border-black/[0.06] bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
         <div className="border-b border-black/[0.05] px-6 py-4 dark:border-white/[0.06]">
           <p className="text-[15px] font-semibold tracking-tight">{t("wallet.transactionHistory")}</p>
 
-          {/* Type filter — only show if there are transactions to filter */}
           {hasAnyTransactions && (
             <div className="mt-3 flex gap-1.5">
               {FILTER_TABS.map(({ key, label }) => (
