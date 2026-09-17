@@ -244,11 +244,11 @@ export default function LawyerMarketplacePage() {
           </div>
 
           {catalogLoading ? (
-            <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 lg:gap-4">
+            <div className="flex flex-col gap-2 sm:gap-2.5">
               {[0, 1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-[4.75rem] animate-pulse rounded-[1.15rem] border border-black/[0.06] bg-white/40 dark:border-white/10 sm:h-56"
+                  className="h-[7.5rem] animate-pulse rounded-[1.25rem] border border-black/[0.06] bg-white/40 dark:border-white/10 sm:h-[5.75rem]"
                 />
               ))}
             </div>
@@ -268,7 +268,7 @@ export default function LawyerMarketplacePage() {
             </div>
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 lg:gap-4">
+              <div className="flex flex-col gap-2 sm:gap-2.5">
                 {visibleLawyers.map((lawyer, index) => (
                   <LawyerCard
                     key={lawyer.id}
