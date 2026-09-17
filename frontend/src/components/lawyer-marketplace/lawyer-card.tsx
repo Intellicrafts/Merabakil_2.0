@@ -9,6 +9,26 @@ import { AnalyticsEvents, track } from "@/lib/analytics";
 import type { RankedLawyer } from "@/lib/marketplace-store";
 import { cn } from "@/lib/utils";
 
+function MatchBadge({ score }: { score: number }) {
+  const cls =
+    score >= 90
+      ? "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/25"
+      : score >= 75
+      ? "bg-sky-500/10 text-sky-700 ring-sky-500/15 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/20"
+      : "bg-black/[0.04] text-muted-foreground ring-black/[0.06] dark:bg-white/[0.06] dark:ring-white/[0.08]";
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums ring-1",
+        cls,
+      )}
+    >
+      <Sparkles className="h-2.5 w-2.5" />
+      {score}%
+    </span>
+  );
+}
+
 function formatRate(rate: number | null): string {
   if (rate == null) return "Available";
   return `₹${rate.toLocaleString("en-IN")}/hr`;
@@ -82,10 +102,7 @@ export const LawyerCard = memo(function LawyerCard({
               <h3 className="truncate text-[14.5px] font-semibold tracking-tight sm:text-[15px]">
                 {variant === "counsel" ? displayName : lawyer.full_name}
               </h3>
-              <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground dark:bg-white/[0.06]">
-                <Sparkles className="h-2.5 w-2.5" />
-                {lawyer.match_score}%
-              </span>
+              <MatchBadge score={lawyer.match_score} />
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
               <span className="inline-flex items-center gap-1">
@@ -126,7 +143,7 @@ export const LawyerCard = memo(function LawyerCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 border-t border-black/[0.06] bg-[hsl(40_18%_97%)] p-3 sm:p-3.5 dark:border-white/[0.08] dark:bg-white/[0.03]">
+      <div className="grid grid-cols-2 gap-2 border-t border-black/[0.05] p-3 sm:p-3.5 dark:border-white/[0.07]">
         <button
           type="button"
           className="mp-btn-primary inline-flex h-11 min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl text-[13px] font-semibold sm:h-10 sm:min-h-10"

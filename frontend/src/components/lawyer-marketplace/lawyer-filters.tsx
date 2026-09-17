@@ -73,9 +73,9 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
     }
   }
 
-  const activeCount = useMemo(() => {
+  // Count of non-search panel filters that deviate from defaults
+  const panelActiveCount = useMemo(() => {
     let count = 0;
-    if (value.query.trim()) count += 1;
     if (value.practiceArea) count += 1;
     if (value.city) count += 1;
     if (!value.verifiedOnly) count += 1;
@@ -83,7 +83,7 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
     return count;
   }, [value]);
 
-  const hasActiveFilter = activeCount > 0;
+  const hasAnyFilter = panelActiveCount > 0 || value.query.trim().length > 0;
 
   function clearFilters() {
     onChange({ query: "", practiceArea: "", city: "", verifiedOnly: true, sort: "match" });
@@ -91,47 +91,72 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
 
   return (
     <div className="mp-surface-card overflow-hidden rounded-[1.15rem] sm:rounded-2xl">
+      {/* Always-visible search */}
+      <div className="px-3.5 pb-2.5 pt-3 sm:px-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={value.query}
+            onChange={(e) => patch({ query: e.target.value })}
+            placeholder="Search by name, practice area, city…"
+            className="h-10 rounded-xl border-black/[0.06] bg-white pl-9 pr-9 text-[13px] shadow-inner dark:border-white/10 dark:bg-white/[0.04] sm:h-9"
+            aria-label="Search advocates"
+          />
+          {value.query && (
+            <button
+              type="button"
+              onClick={() => patch({ query: "" })}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-black/[0.06] hover:text-foreground dark:hover:bg-white/[0.08]"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Filter toggle row */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full min-h-11 items-center gap-2.5 px-3.5 py-3 text-left transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.03] sm:min-h-10 sm:px-4"
+        className="flex w-full min-h-9 items-center gap-2 border-t border-black/[0.04] px-3.5 py-2 text-left transition-colors hover:bg-black/[0.02] dark:border-white/[0.05] dark:hover:bg-white/[0.03] sm:px-4"
       >
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-black/[0.04] dark:bg-white/[0.08]">
-          <SlidersHorizontal className="h-4 w-4 text-foreground/70" strokeWidth={1.85} />
+        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.85} />
+        <span className="flex-1 text-[12px] font-medium text-muted-foreground">
+          {panelActiveCount > 0
+            ? `${panelActiveCount} filter${panelActiveCount !== 1 ? "s" : ""} active`
+            : "Filters"}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-semibold tracking-tight">Filters</span>
-          <span className="block text-[11px] text-muted-foreground">
-            {hasActiveFilter ? `${activeCount} active` : "Tap to refine advocates"}
-          </span>
-        </span>
-        {hasActiveFilter && (
-          <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-foreground px-1.5 text-[10px] font-bold text-background">
-            {activeCount}
+        {hasAnyFilter && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              clearFilters();
+            }}
+            className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-black/[0.06] hover:text-foreground dark:hover:bg-white/[0.08]"
+          >
+            <X className="h-3 w-3" />
+            Clear
+          </button>
+        )}
+        {panelActiveCount > 0 && (
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-foreground px-1 text-[9px] font-bold text-background">
+            {panelActiveCount}
           </span>
         )}
         {open ? (
-          <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         )}
       </button>
 
+      {/* Collapsible: practice areas, city, sort, verified */}
       <div className="mp-filter-panel" data-open={open ? "true" : "false"}>
         <div className="mp-filter-panel-inner">
           <div className="space-y-2.5 border-t border-black/[0.05] px-3.5 pb-3.5 pt-2.5 dark:border-white/[0.06] sm:px-4 sm:pb-4 sm:pt-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={value.query}
-                onChange={(e) => patch({ query: e.target.value })}
-                placeholder="Search advocates…"
-                className="h-10 rounded-xl border-black/[0.06] bg-white pl-9 pr-3 text-[13px] shadow-inner dark:border-white/10 dark:bg-white/[0.04] sm:h-9"
-                aria-label="Search advocates"
-              />
-            </div>
-
             <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-0.5 no-scrollbar">
               {PRACTICE_AREAS.map((area) => {
                 const active = value.practiceArea === area;
@@ -210,19 +235,8 @@ export function LawyerFilters({ value, onChange }: LawyerFiltersProps) {
                 aria-pressed={value.verifiedOnly}
               >
                 <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2} />
-                Verified
+                Verified only
               </button>
-
-              {hasActiveFilter && (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Clear
-                </button>
-              )}
             </div>
           </div>
         </div>
