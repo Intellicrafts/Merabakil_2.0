@@ -81,6 +81,12 @@ export const MODULE_META: Record<string, DashboardModuleMeta> = {
     tint: "cases",
     shortLabel: "Wallet",
   },
+  "/admin/wallet": {
+    tag: "Wallet Ops",
+    features: ["All balances", "Credit / debit", "Transaction logs"],
+    tint: "cases",
+    shortLabel: "Wallets",
+  },
 };
 
 export function getModuleMeta(href: string): DashboardModuleMeta {

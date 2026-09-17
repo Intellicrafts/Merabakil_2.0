@@ -116,6 +116,51 @@ class WalletService:
         offset = (page - 1) * size
         return await self._repo.list_transactions(user_id, offset=offset, limit=size)
 
+    async def list_all_wallets(
+        self,
+        *,
+        page: int = 1,
+        size: int = 20,
+    ) -> tuple[list[Wallet], int]:
+        offset = (page - 1) * size
+        return await self._repo.list_all_wallets(offset=offset, limit=size)
+
+    async def admin_adjust(
+        self,
+        user_id: uuid.UUID,
+        amount: Decimal,
+        adjust_type: str,
+        reason: str,
+    ) -> WalletTransaction:
+        if amount <= Decimal("0"):
+            raise AppError("Adjustment amount must be positive")
+        wallet = await self.get_or_create(user_id)
+        if adjust_type == "credit":
+            return await self._credit(
+                wallet,
+                amount=amount,
+                transaction_type=TransactionType.ADMIN_CREDIT,
+                description=reason,
+                reference_id=None,
+            )
+        # debit
+        locked = await self._repo.lock_for_update(wallet.id)
+        if locked.balance < amount:
+            raise InsufficientFundsError(
+                f"Insufficient balance. Available ₹{locked.balance}."
+            )
+        new_balance = locked.balance - amount
+        locked.balance = new_balance
+        await self._repo.save_balance(locked)
+        return await self._repo.add_transaction(
+            wallet=locked,
+            transaction_type=TransactionType.ADMIN_DEBIT,
+            amount=amount,
+            balance_after=new_balance,
+            description=reason,
+            reference_id=None,
+        )
+
     async def _credit(
         self,
         wallet: Wallet,

@@ -391,5 +391,27 @@ class AuthService:
             raise NotFoundError("User not found")
         return user
 
-    async def list_users(self, *, offset: int, limit: int):
-        return await self._users.list_users(offset=offset, limit=limit)
+    async def list_users(
+        self,
+        *,
+        offset: int,
+        limit: int,
+        search: str | None = None,
+        is_active: bool | None = None,
+        role: str | None = None,
+    ):
+        return await self._users.list_users(
+            offset=offset, limit=limit, search=search, is_active=is_active, role=role
+        )
+
+    async def update_user(
+        self,
+        user_id: uuid.UUID,
+        *,
+        full_name: str | None,
+        is_active: bool | None,
+    ):
+        user = await self._users.get_by_id(user_id)
+        if user is None:
+            raise NotFoundError("User not found")
+        return await self._users.update_user(user, full_name=full_name, is_active=is_active)

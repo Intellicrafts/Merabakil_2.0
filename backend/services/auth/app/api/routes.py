@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from app.api.deps import enforce_rate_limit, get_auth_service, get_auth_settings
@@ -22,6 +22,7 @@ from app.api.schemas import (
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+    UpdateUserRequest,
     UserConsentResponse,
     UserResponse,
 )
@@ -195,6 +196,8 @@ def _to_user_response(user) -> UserResponse:
         full_name=user.full_name,
         roles=user.role_names,
         permissions=user.permission_codes,
+        is_active=user.is_active,
+        created_at=user.created_at.isoformat() if user.created_at else None,
     )
 
 
@@ -234,10 +237,15 @@ async def my_consents(
 )
 async def list_users(
     params: PageParams = Depends(PageParams.as_query),
+    search: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    role: str | None = Query(default=None),
     _: CurrentUser = Depends(require_permissions(Permission.USER_MANAGE.value)),
     service: AuthService = Depends(get_auth_service),
 ) -> Page[UserResponse]:
-    users, total = await service.list_users(offset=params.offset, limit=params.size)
+    users, total = await service.list_users(
+        offset=params.offset, limit=params.size, search=search, is_active=is_active, role=role
+    )
     items = [_to_user_response(u) for u in users]
     return paginate(items, total, params)
 
@@ -253,4 +261,19 @@ async def get_user(
     service: AuthService = Depends(get_auth_service),
 ) -> UserResponse:
     user = await service.get_user(user_id)
+    return _to_user_response(user)
+
+
+@users_router.patch(
+    "/{user_id}",
+    response_model=UserResponse,
+    summary="Update a user (admin)",
+)
+async def update_user(
+    user_id: uuid.UUID,
+    body: UpdateUserRequest,
+    _: CurrentUser = Depends(require_permissions(Permission.USER_MANAGE.value)),
+    service: AuthService = Depends(get_auth_service),
+) -> UserResponse:
+    user = await service.update_user(user_id, full_name=body.full_name, is_active=body.is_active)
     return _to_user_response(user)

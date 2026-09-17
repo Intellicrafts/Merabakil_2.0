@@ -18,6 +18,7 @@ import type {
   UserDocument,
   AuthUser,
   WalletBalance,
+  WalletListResponse,
   WalletTransaction,
   WalletTransactionList,
 } from "@/lib/types";
@@ -323,8 +324,33 @@ export async function confirmPasswordReset(
   if (!res.ok) return parseError(res);
 }
 
-export async function listUsers(page = 1, size = 20): Promise<Page<AuthUser>> {
-  return apiFetch(`${authServiceUrl()}/api/v1/users?page=${page}&size=${size}`, {
+export async function listUsers(
+  page = 1,
+  size = 20,
+  opts?: { search?: string; is_active?: boolean; role?: string },
+): Promise<Page<AuthUser>> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (opts?.search) params.set("search", opts.search);
+  if (opts?.is_active !== undefined) params.set("is_active", String(opts.is_active));
+  if (opts?.role) params.set("role", opts.role);
+  return apiFetch(`${authServiceUrl()}/api/v1/users?${params}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function adminUpdateUser(
+  userId: string,
+  body: { full_name?: string; is_active?: boolean },
+): Promise<AuthUser> {
+  return apiFetch<AuthUser>(`${authServiceUrl()}/api/v1/users/${userId}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminGetUserWallet(userId: string): Promise<WalletBalance> {
+  return apiFetch<WalletBalance>(`${billingServiceUrl()}/api/v1/wallet/${userId}`, {
     headers: authHeaders(),
   });
 }
@@ -1316,6 +1342,38 @@ export async function listWalletTransactions(
   return apiFetch<WalletTransactionList>(
     `${billingServiceUrl()}/api/v1/wallet/me/transactions?page=${page}&size=${size}`,
     { headers: authHeaders() },
+  );
+}
+
+export async function adminListWallets(page = 1, size = 20): Promise<WalletListResponse> {
+  return apiFetch<WalletListResponse>(
+    `${billingServiceUrl()}/api/v1/wallet/admin/wallets?page=${page}&size=${size}`,
+    { headers: authHeaders() },
+  );
+}
+
+export async function adminGetUserTransactions(
+  userId: string,
+  page = 1,
+  size = 20,
+): Promise<WalletTransactionList> {
+  return apiFetch<WalletTransactionList>(
+    `${billingServiceUrl()}/api/v1/wallet/admin/${userId}/transactions?page=${page}&size=${size}`,
+    { headers: authHeaders() },
+  );
+}
+
+export async function adminAdjustWallet(
+  userId: string,
+  body: { amount: number; type: "credit" | "debit"; reason: string },
+): Promise<WalletTransaction> {
+  return apiFetch<WalletTransaction>(
+    `${billingServiceUrl()}/api/v1/wallet/admin/${userId}/adjust`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    },
   );
 }
 

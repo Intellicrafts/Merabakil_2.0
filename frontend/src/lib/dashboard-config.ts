@@ -123,6 +123,13 @@ const ALL_MODULES: DashboardModule[] = [
     permission: Permission.RESEARCH_READ,
     feature: FEATURES.WALLET,
   },
+  {
+    href: "/admin/wallet",
+    title: "Wallet Ops",
+    description: "View and manage wallet balances and transaction logs for all users.",
+    icon: Wallet,
+    permission: Permission.USER_MANAGE,
+  },
 ];
 
 const ROLE_CONFIG: Record<
@@ -131,17 +138,12 @@ const ROLE_CONFIG: Record<
 > = {
   admin: {
     headline: "Admin console",
-    subtitle: "Manage users, appointments, and platform configuration.",
+    subtitle: "Users, appointments, and wallet operations.",
     moduleHrefs: [
       "/mera-vakil",
-      "/research",
-      "/lawyer-marketplace",
-      "/cases",
-      "/documents",
-      "/admin/knowledge",
       "/admin/users",
       "/admin/appointments",
-      "/wallet",
+      "/admin/wallet",
     ],
   },
   enterprise: {

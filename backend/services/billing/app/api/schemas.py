@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -62,3 +63,16 @@ class InternalTransactionResponse(BaseModel):
     transaction_id: str
     user_id: str
     balance_after: str
+
+
+class AdminAdjustRequest(BaseModel):
+    amount: Decimal = Field(..., gt=0, le=1000000, description="Amount in INR")
+    type: Literal["credit", "debit"]
+    reason: str = Field(..., min_length=1, max_length=500)
+
+
+class WalletListResponse(BaseModel):
+    items: list[WalletResponse]
+    total: int
+    page: int
+    size: int

@@ -13,17 +13,21 @@ class TransactionType(StrEnum):
     APPOINTMENT_BOOKING = "APPOINTMENT_BOOKING"
     APPOINTMENT_REFUND = "APPOINTMENT_REFUND"
     ADVOCATE_EARNING = "ADVOCATE_EARNING"
+    ADMIN_CREDIT = "ADMIN_CREDIT"
+    ADMIN_DEBIT = "ADMIN_DEBIT"
 
 
 CREDIT_TYPES = frozenset({
     TransactionType.TOP_UP,
     TransactionType.APPOINTMENT_REFUND,
     TransactionType.ADVOCATE_EARNING,
+    TransactionType.ADMIN_CREDIT,
 })
 
 DEBIT_TYPES = frozenset({
     TransactionType.CHATBOT_USAGE,
     TransactionType.APPOINTMENT_BOOKING,
+    TransactionType.ADMIN_DEBIT,
 })
 
 

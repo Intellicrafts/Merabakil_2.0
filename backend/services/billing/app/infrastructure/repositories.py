@@ -117,3 +117,15 @@ class SqlAlchemyWalletRepository:
         )
         rows = list(result.scalars().all())
         return [_to_tx_entity(r) for r in rows], total
+
+    async def list_all_wallets(
+        self,
+        *,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[WalletEntity], int]:
+        total = await self._session.scalar(select(func.count()).select_from(Wallet)) or 0
+        result = await self._session.execute(
+            select(Wallet).order_by(Wallet.created_at.desc()).offset(offset).limit(limit)
+        )
+        return [_to_wallet_entity(r) for r in result.scalars().all()], total

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.models import (
@@ -79,12 +79,45 @@ class SqlAlchemyUserRepository:
         user.hashed_password = hashed_password
         await self._session.flush()
 
-    async def list_users(self, *, offset: int, limit: int) -> tuple[list[User], int]:
-        total = await self._session.scalar(select(func.count()).select_from(User)) or 0
+    async def list_users(
+        self,
+        *,
+        offset: int,
+        limit: int,
+        search: str | None = None,
+        is_active: bool | None = None,
+        role: str | None = None,
+    ) -> tuple[list[User], int]:
+        base = select(User)
+        if search:
+            term = f"%{search.lower()}%"
+            base = base.where(
+                or_(func.lower(User.full_name).like(term), func.lower(User.email).like(term))
+            )
+        if is_active is not None:
+            base = base.where(User.is_active == is_active)
+        if role:
+            base = base.join(User.roles).where(Role.name == role)
+        count_q = select(func.count()).select_from(base.subquery())
+        total = await self._session.scalar(count_q) or 0
         result = await self._session.execute(
-            select(User).order_by(User.created_at.desc()).offset(offset).limit(limit)
+            base.order_by(User.created_at.desc()).offset(offset).limit(limit)
         )
         return list(result.scalars().all()), total
+
+    async def update_user(
+        self,
+        user: User,
+        *,
+        full_name: str | None,
+        is_active: bool | None,
+    ) -> User:
+        if full_name is not None:
+            user.full_name = full_name
+        if is_active is not None:
+            user.is_active = is_active
+        await self._session.flush()
+        return user
 
 
 class SqlAlchemyOAuthIdentityRepository:

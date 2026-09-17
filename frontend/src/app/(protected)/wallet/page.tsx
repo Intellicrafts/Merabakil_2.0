@@ -56,9 +56,11 @@ const TX_LABEL_KEY: Record<TransactionType, string> = {
   APPOINTMENT_BOOKING: "wallet.txBooking",
   APPOINTMENT_REFUND: "wallet.txRefund",
   ADVOCATE_EARNING: "wallet.txEarning",
+  ADMIN_CREDIT: "wallet.txAdminCredit",
+  ADMIN_DEBIT: "wallet.txAdminDebit",
 };
 
-const DEBIT_TYPES = new Set<TransactionType>(["CHATBOT_USAGE", "APPOINTMENT_BOOKING"]);
+const DEBIT_TYPES = new Set<TransactionType>(["CHATBOT_USAGE", "APPOINTMENT_BOOKING", "ADMIN_DEBIT"]);
 
 const TX_ICON_BG: Record<TransactionType, string> = {
   TOP_UP: "bg-emerald-100/80 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
@@ -66,6 +68,8 @@ const TX_ICON_BG: Record<TransactionType, string> = {
   APPOINTMENT_BOOKING: "bg-sky-100/80 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400",
   APPOINTMENT_REFUND: "bg-amber-100/80 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400",
   ADVOCATE_EARNING: "bg-emerald-100/80 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
+  ADMIN_CREDIT: "bg-blue-100/80 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400",
+  ADMIN_DEBIT: "bg-rose-100/80 text-rose-600 dark:bg-rose-500/20 dark:text-rose-400",
 };
 
 function TxIcon({ type }: { type: TransactionType }) {
@@ -75,6 +79,8 @@ function TxIcon({ type }: { type: TransactionType }) {
     APPOINTMENT_BOOKING: <CalendarCheck className="h-4 w-4" />,
     APPOINTMENT_REFUND: <RefreshCcw className="h-4 w-4" />,
     ADVOCATE_EARNING: <TrendingUp className="h-4 w-4" />,
+    ADMIN_CREDIT: <CircleDollarSign className="h-4 w-4" />,
+    ADMIN_DEBIT: <CircleDollarSign className="h-4 w-4" />,
   };
   return <>{icons[type] ?? <CircleDollarSign className="h-4 w-4" />}</>;
 }

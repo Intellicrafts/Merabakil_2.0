@@ -61,6 +61,13 @@ class UserResponse(BaseModel):
     full_name: str
     roles: list[str]
     permissions: list[str]
+    is_active: bool = True
+    created_at: str | None = None
+
+
+class UpdateUserRequest(BaseModel):
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    is_active: bool | None = None
 
 
 class AuthResponse(BaseModel):

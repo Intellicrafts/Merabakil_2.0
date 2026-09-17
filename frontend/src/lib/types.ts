@@ -4,6 +4,8 @@ export interface AuthUser {
   full_name: string;
   roles: string[];
   permissions: string[];
+  is_active?: boolean;
+  created_at?: string | null;
 }
 
 export interface Tokens {
@@ -314,7 +316,9 @@ export type TransactionType =
   | "CHATBOT_USAGE"
   | "APPOINTMENT_BOOKING"
   | "APPOINTMENT_REFUND"
-  | "ADVOCATE_EARNING";
+  | "ADVOCATE_EARNING"
+  | "ADMIN_CREDIT"
+  | "ADMIN_DEBIT";
 
 export interface WalletBalance {
   user_id: string;
@@ -336,6 +340,13 @@ export interface WalletTransaction {
 
 export interface WalletTransactionList {
   items: WalletTransaction[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface WalletListResponse {
+  items: WalletBalance[];
   total: number;
   page: number;
   size: number;

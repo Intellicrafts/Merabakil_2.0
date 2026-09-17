@@ -7,8 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_wallet_service
 from app.api.schemas import (
+    AdminAdjustRequest,
     TopUpRequest,
     TransactionListResponse,
+    WalletListResponse,
     WalletResponse,
     WalletTransactionOut,
 )
@@ -75,6 +77,67 @@ async def list_my_transactions(
         page=page,
         size=size,
     )
+
+
+@router.get(
+    "/admin/wallets",
+    response_model=WalletListResponse,
+    summary="Admin: list all wallets",
+    dependencies=[Depends(require_roles("admin"))],
+)
+async def admin_list_wallets(
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    service: WalletService = Depends(get_wallet_service),
+) -> WalletListResponse:
+    wallets, total = await service.list_all_wallets(page=page, size=size)
+    return WalletListResponse(
+        items=[WalletResponse.from_entity(w.user_id, w.balance, w.currency) for w in wallets],
+        total=total,
+        page=page,
+        size=size,
+    )
+
+
+@router.get(
+    "/admin/{user_id}/transactions",
+    response_model=TransactionListResponse,
+    summary="Admin: list transactions for any user",
+    dependencies=[Depends(require_roles("admin"))],
+)
+async def admin_list_user_transactions(
+    user_id: uuid.UUID,
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    service: WalletService = Depends(get_wallet_service),
+) -> TransactionListResponse:
+    transactions, total = await service.list_transactions(user_id, page=page, size=size)
+    return TransactionListResponse(
+        items=[_tx_out(tx) for tx in transactions],
+        total=total,
+        page=page,
+        size=size,
+    )
+
+
+@router.post(
+    "/admin/{user_id}/adjust",
+    response_model=WalletTransactionOut,
+    summary="Admin: credit or debit a user's wallet",
+    dependencies=[Depends(require_roles("admin"))],
+)
+async def admin_adjust_wallet(
+    user_id: uuid.UUID,
+    body: AdminAdjustRequest,
+    service: WalletService = Depends(get_wallet_service),
+) -> WalletTransactionOut:
+    tx = await service.admin_adjust(
+        user_id,
+        amount=body.amount,
+        adjust_type=body.type,
+        reason=body.reason,
+    )
+    return _tx_out(tx)
 
 
 @router.get(

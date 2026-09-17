@@ -34,3 +34,10 @@ class WalletRepository(Protocol):
         offset: int,
         limit: int,
     ) -> tuple[list[WalletTransaction], int]: ...
+
+    async def list_all_wallets(
+        self,
+        *,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[Wallet], int]: ...
