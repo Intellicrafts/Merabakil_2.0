@@ -19,7 +19,7 @@ export function initLiveKitClient(): void {
 
   void import("livekit-client").then((lk) => {
     lk.setLogLevel(lk.LogLevel.warn);
-    lk.setLogExtension((level, msg) => {
+    lk.setLogExtension((level: number, msg: string) => {
       if (SUPPRESSED_LOG_FRAGMENTS.some((fragment) => msg.includes(fragment))) {
         return;
       }

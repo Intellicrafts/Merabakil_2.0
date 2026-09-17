@@ -164,7 +164,7 @@ function PartyCard({
             </Button>
           ))}
         </div>
-      ) : (
+      ) : pendingAction ? (
         <div className="mt-3 space-y-2 rounded-lg border border-amber-500/30 bg-amber-50/60 p-2.5 dark:bg-amber-950/20">
           <p className="text-[11px] font-semibold text-amber-950 dark:text-amber-100">
             {pendingAction.kind === "kick"
@@ -200,7 +200,7 @@ function PartyCard({
             </Button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

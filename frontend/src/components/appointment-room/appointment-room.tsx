@@ -377,7 +377,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
           disconnectConference();
           void leaveAppointment(appointmentId).catch(() => undefined);
           setActiveAlert({
-            kind: "ops",
+            kind: "ops_message",
             title: "Consultation reassigned",
             body:
               payload.reason ||
@@ -404,7 +404,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
             disconnectConference();
             void leaveAppointment(appointmentId).catch(() => undefined);
             setActiveAlert({
-              kind: "ops",
+              kind: "ops_message",
               title: "Consultation reassigned",
               body: payload.reason || "You no longer have access to this appointment.",
             });
