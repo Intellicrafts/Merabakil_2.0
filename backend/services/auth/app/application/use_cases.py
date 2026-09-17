@@ -199,9 +199,17 @@ class AuthService:
             await self._events.publish_user_registered(user_id=str(user.id), role=role)
         if self._email is not None:
             from legalos_common.email.templates import welcome_email
-            subject, html = welcome_email(user.full_name, role)
+            subject, html, text = welcome_email(
+                user.full_name, role, frontend_url=self._settings.frontend_url
+            )
             asyncio.create_task(
-                self._email.send(to_email=user.email, to_name=user.full_name, subject=subject, html=html)
+                self._email.send(
+                    to_email=user.email,
+                    to_name=user.full_name,
+                    subject=subject,
+                    html=html,
+                    text=text,
+                )
             )
         refreshed = await self._users.get_by_id(user.id)
         assert refreshed is not None
@@ -299,9 +307,17 @@ class AuthService:
             await self._events.publish_user_registered(user_id=str(user.id), role=role)
         if self._email is not None:
             from legalos_common.email.templates import welcome_email
-            subject, html = welcome_email(user.full_name, role)
+            subject, html, text = welcome_email(
+                user.full_name, role, frontend_url=self._settings.frontend_url
+            )
             asyncio.create_task(
-                self._email.send(to_email=user.email, to_name=user.full_name, subject=subject, html=html)
+                self._email.send(
+                    to_email=user.email,
+                    to_name=user.full_name,
+                    subject=subject,
+                    html=html,
+                    text=text,
+                )
             )
 
         refreshed = await self._users.get_by_id(user.id)
@@ -345,9 +361,17 @@ class AuthService:
         if self._email is not None:
             from legalos_common.email.templates import password_reset_email
             reset_url = f"{self._settings.frontend_url}/reset-password?token={raw_token}"
-            subject, html = password_reset_email(user.full_name, reset_url)
+            subject, html, text = password_reset_email(
+                user.full_name, reset_url, frontend_url=self._settings.frontend_url
+            )
             asyncio.create_task(
-                self._email.send(to_email=user.email, to_name=user.full_name, subject=subject, html=html)
+                self._email.send(
+                    to_email=user.email,
+                    to_name=user.full_name,
+                    subject=subject,
+                    html=html,
+                    text=text,
+                )
             )
         return raw_token
 

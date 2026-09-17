@@ -1,121 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
 
 import { AppointmentList } from "@/components/lawyer-marketplace/appointment-list";
-import { Input } from "@/components/ui/input";
+import {
+  ConsultationFilters,
+  type ConsultationDateFilter,
+  type ConsultationStatusFilter,
+} from "@/components/lawyer-marketplace/consultation-filters";
+import { ConsultationsHero } from "@/components/lawyer-marketplace/consultations-hero";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAppointmentJoinState, listAppointments } from "@/lib/api";
-import { useTranslation } from "@/lib/i18n";
 import type { AppointmentRecord } from "@/lib/appointment-types";
-
-type StatusFilter = "all" | "upcoming" | "completed" | "cancelled";
-type DateFilter = "all" | "week" | "month" | "3months";
-
-// ── Filter bar ────────────────────────────────────────────────────────────────
-
-function FilterBar({
-  search,
-  onSearch,
-  status,
-  onStatus,
-  date,
-  onDate,
-  total,
-  filtered,
-}: {
-  search: string;
-  onSearch: (v: string) => void;
-  status: StatusFilter;
-  onStatus: (v: StatusFilter) => void;
-  date: DateFilter;
-  onDate: (v: DateFilter) => void;
-  total: number;
-  filtered: number;
-}) {
-  const { t } = useTranslation();
-  const isActive = search.trim() !== "" || status !== "all" || date !== "all";
-
-  function clear() {
-    onSearch("");
-    onStatus("all");
-    onDate("all");
-  }
-
-  const selectClass =
-    "h-9 rounded-xl border border-input bg-background px-3 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer";
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {/* Name search */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder={t("appointments.searchByName")}
-          className="h-9 w-48 rounded-xl pl-8 text-[13px] sm:w-56"
-        />
-      </div>
-
-      {/* Status */}
-      <select
-        value={status}
-        onChange={(e) => onStatus(e.target.value as StatusFilter)}
-        className={selectClass}
-        aria-label={t("appointments.filterByStatus")}
-      >
-        <option value="all">{t("appointments.allStatuses")}</option>
-        <option value="upcoming">{t("appointments.upcoming")}</option>
-        <option value="completed">{t("appointments.completed")}</option>
-        <option value="cancelled">{t("appointments.cancelled")}</option>
-      </select>
-
-      {/* Date range */}
-      <select
-        value={date}
-        onChange={(e) => onDate(e.target.value as DateFilter)}
-        className={selectClass}
-        aria-label={t("appointments.filterByDate")}
-      >
-        <option value="all">{t("appointments.allTime")}</option>
-        <option value="week">{t("appointments.thisWeek")}</option>
-        <option value="month">{t("appointments.thisMonth")}</option>
-        <option value="3months">{t("appointments.lastThreeMonths")}</option>
-      </select>
-
-      {/* Active filter indicator + clear */}
-      {isActive && (
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-muted-foreground">
-            {filtered} of {total}
-          </span>
-          <button
-            type="button"
-            onClick={clear}
-            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            <X className="h-3 w-3" />
-            {t("common.clear")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AppointmentsPage() {
   const [version, setVersion] = useState(0);
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const { t } = useTranslation();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<ConsultationStatusFilter>("all");
+  const [dateFilter, setDateFilter] = useState<ConsultationDateFilter>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -206,16 +111,11 @@ export default function AppointmentsPage() {
   }, [appointments, search, statusFilter, dateFilter]);
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] space-y-5 px-5 pb-8 md:px-0 md:pt-2">
-      <div>
-        <h1 className="text-[1.4rem] font-semibold tracking-tight">{t("appointments.myConsultations")}</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          {t("appointments.upcomingAndPast")}
-        </p>
-      </div>
+    <div className="mx-auto w-full max-w-[1180px] space-y-4 pb-8 sm:space-y-5 sm:pb-10">
+      {!loading && <ConsultationsHero appointments={appointments} />}
 
       {!loading && (
-        <FilterBar
+        <ConsultationFilters
           search={search}
           onSearch={setSearch}
           status={statusFilter}

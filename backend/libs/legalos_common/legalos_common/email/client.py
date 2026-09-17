@@ -16,8 +16,16 @@ class AsyncEmailClient:
     def __init__(self, settings: SmtpSettings) -> None:
         self._s = settings
 
-    async def send(self, *, to_email: str, to_name: str, subject: str, html: str) -> None:
-        """Send an HTML email. Never raises — logs WARNING on failure."""
+    async def send(
+        self,
+        *,
+        to_email: str,
+        to_name: str,
+        subject: str,
+        html: str,
+        text: str | None = None,
+    ) -> None:
+        """Send HTML email with optional plain-text alternative. Never raises."""
         if not self._s.smtp_enabled or not self._s.smtp_username:
             logger.debug("email_skipped to=%s subject=%s (smtp disabled)", to_email, subject)
             return
@@ -26,6 +34,8 @@ class AsyncEmailClient:
             msg["Subject"] = subject
             msg["From"] = f"{self._s.smtp_from_name} <{self._s.smtp_from_email}>"
             msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
+            if text:
+                msg.attach(MIMEText(text, "plain", "utf-8"))
             msg.attach(MIMEText(html, "html", "utf-8"))
             await aiosmtplib.send(
                 msg,

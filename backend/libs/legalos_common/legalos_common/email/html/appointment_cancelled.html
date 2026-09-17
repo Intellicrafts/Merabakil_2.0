@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set hero_icon_url = icon_url(frontend_url, "calendar-cancel") %}
+{% include "partials/hero_icon.html" %}
+
+{% set pill_bg = colors.background %}
+{% set pill_border = colors.border %}
+{% set pill_color = colors.muted %}
+{% set pill_label = "Cancelled" %}
+{% include "partials/status_pill.html" %}
+
+<h1 style="margin:0 0 16px;font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:24px;line-height:1.3;font-weight:700;color:{{ colors.text }};letter-spacing:-0.02em;">
+  Consultation cancelled
+</h1>
+
+<p style="margin:0 0 14px;font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.65;color:{{ colors.text }};">
+  Hi {{ recipient_name }},
+</p>
+
+<p style="margin:0 0 20px;font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.65;color:{{ colors.text }};">
+  <strong>{{ other_name }}</strong> has cancelled the consultation scheduled for <strong>{{ date_str }} at {{ time_str }}</strong>.
+</p>
+
+{% set cta_url = marketplace_url %}
+{% set cta_label = "Browse Advocates" %}
+{% include "partials/cta_button.html" %}
+{% endblock %}

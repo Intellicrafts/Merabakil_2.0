@@ -1291,6 +1291,67 @@
   border-color: hsl(25 10% 34%);
 }
 
+.mp-filter-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mp-filter-panel[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.mp-filter-panel-inner {
+  overflow: hidden;
+}
+
+.mp-avatar-ring {
+  box-shadow:
+    0 0 0 2px hsl(40 30% 92%),
+    0 0 0 3px hsl(40 20% 88% / 0.5),
+    0 4px 14px rgba(42, 28, 12, 0.12);
+}
+
+.dark .mp-avatar-ring {
+  box-shadow:
+    0 0 0 2px hsl(220 12% 22%),
+    0 0 0 3px hsl(220 10% 30% / 0.6),
+    0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.mp-verified-strip {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    hsl(158 64% 42% / 0.85),
+    hsl(45 90% 55% / 0.75),
+    hsl(158 64% 42% / 0.85)
+  );
+}
+
+.mp-live-strip {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    hsl(199 89% 48% / 0.85),
+    hsl(172 66% 50% / 0.75),
+    hsl(199 89% 48% / 0.85)
+  );
+}
+
+.mp-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
 /* Marketplace professional buttons — charcoal, not loud amber */
 .mp-btn-primary {
   display: inline-flex;
@@ -2043,8 +2104,10 @@
   .mp-card-enter,
   .mp-match-ring,
   .mp-pulse-dot,
-  .mp-float {
+  .mp-float,
+  .mp-filter-panel {
     animation: none;
+    transition: none !important;
   }
 }
 
@@ -3665,6 +3728,17 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0.1rem;
+}
+
+.ui-select-list.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.ui-select-list.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .ui-select-option:hover,

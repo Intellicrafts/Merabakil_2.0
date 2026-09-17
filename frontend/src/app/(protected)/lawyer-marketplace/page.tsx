@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Users } from "lucide-react";
 
 import { AppointmentList } from "@/components/lawyer-marketplace/appointment-list";
 import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
+import {
+  ConsultationFilters,
+  type ConsultationDateFilter,
+  type ConsultationStatusFilter,
+} from "@/components/lawyer-marketplace/consultation-filters";
+import { ConsultationsHero } from "@/components/lawyer-marketplace/consultations-hero";
 import { LawyerCard } from "@/components/lawyer-marketplace/lawyer-card";
-import { Input } from "@/components/ui/input";
 import {
   LawyerFilters,
   type LawyerFilterState,
@@ -16,6 +21,7 @@ import { MarketplaceHero } from "@/components/lawyer-marketplace/marketplace-her
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
   fetchMarketplaceLawyers,
   getAppointmentJoinState,
@@ -26,50 +32,6 @@ import type { AppointmentRecord } from "@/lib/appointment-types";
 import { useTranslation } from "@/lib/i18n";
 import { listLawyers, toRankedLawyer, type RankedLawyer } from "@/lib/marketplace-store";
 import { cn } from "@/lib/utils";
-
-type AptStatusFilter = "all" | "upcoming" | "completed" | "cancelled";
-type AptDateFilter = "all" | "week" | "month" | "3months";
-
-function ConsultationFilterBar({
-  search, onSearch, status, onStatus, date, onDate, total, filtered,
-}: {
-  search: string; onSearch: (v: string) => void;
-  status: AptStatusFilter; onStatus: (v: AptStatusFilter) => void;
-  date: AptDateFilter; onDate: (v: AptDateFilter) => void;
-  total: number; filtered: number;
-}) {
-  const { t } = useTranslation();
-  const isActive = search.trim() !== "" || status !== "all" || date !== "all";
-  const sel = "h-9 rounded-xl border border-input bg-background px-3 text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer";
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(e) => onSearch(e.target.value)} placeholder={t("appointments.searchByName")} className="h-9 w-44 rounded-xl pl-8 text-[13px] sm:w-52" />
-      </div>
-      <select value={status} onChange={(e) => onStatus(e.target.value as AptStatusFilter)} className={sel} aria-label={t("appointments.filterByStatus")}>
-        <option value="all">{t("appointments.allStatuses")}</option>
-        <option value="upcoming">{t("appointments.upcoming")}</option>
-        <option value="completed">{t("appointments.completed")}</option>
-        <option value="cancelled">{t("appointments.cancelled")}</option>
-      </select>
-      <select value={date} onChange={(e) => onDate(e.target.value as AptDateFilter)} className={sel} aria-label={t("appointments.filterByDate")}>
-        <option value="all">{t("appointments.allTime")}</option>
-        <option value="week">{t("appointments.thisWeek")}</option>
-        <option value="month">{t("appointments.thisMonth")}</option>
-        <option value="3months">{t("appointments.lastThreeMonths")}</option>
-      </select>
-      {isActive && (
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] text-muted-foreground">{filtered} of {total}</span>
-          <button type="button" onClick={() => { onSearch(""); onStatus("all"); onDate("all"); }} className="inline-flex items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
-            <X className="h-3 w-3" /> {t("common.clear")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function LawyerMarketplacePage() {
   const { t } = useTranslation();
@@ -90,8 +52,8 @@ export default function LawyerMarketplacePage() {
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [aptSearch, setAptSearch] = useState("");
-  const [aptStatus, setAptStatus] = useState<AptStatusFilter>("all");
-  const [aptDate, setAptDate] = useState<AptDateFilter>("all");
+  const [aptStatus, setAptStatus] = useState<ConsultationStatusFilter>("all");
+  const [aptDate, setAptDate] = useState<ConsultationDateFilter>("all");
   const [catalogTick, setCatalogTick] = useState(0);
   const debouncedQuery = useDebouncedValue(filters.query, 300);
 
@@ -207,6 +169,13 @@ export default function LawyerMarketplacePage() {
     [catalog, filters],
   );
 
+  const filterResetKey = `${debouncedQuery}|${filters.practiceArea}|${filters.city}|${filters.verifiedOnly}|${filters.sort}|${catalog.length}`;
+  const { visibleCount, sentinelRef, hasMore } = useInfiniteScroll(
+    lawyers.length,
+    filterResetKey,
+  );
+  const visibleLawyers = lawyers.slice(0, visibleCount);
+
   const filteredAppointments = useMemo(() => appointments.filter((a) => {
     if (aptSearch.trim()) {
       const q = aptSearch.toLowerCase();
@@ -245,14 +214,14 @@ export default function LawyerMarketplacePage() {
         >
           <TabsTrigger
             value="lawyers"
-            className="min-h-9 flex-1 rounded-xl px-4 text-[13px] font-semibold sm:min-h-8 sm:flex-none sm:text-[12px]"
+            className="min-h-9 flex-1 rounded-xl px-4 text-[13px] font-semibold transition-all duration-200 data-[state=active]:shadow-sm sm:min-h-8 sm:flex-none sm:text-[12px]"
           >
             <span className="sm:hidden">{t("marketplace.advocates")}</span>
             <span className="hidden sm:inline">{t("marketplace.findAdvocate")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="appointments"
-            className="min-h-9 flex-1 rounded-xl px-4 text-[13px] font-semibold sm:min-h-8 sm:flex-none sm:text-[12px]"
+            className="min-h-9 flex-1 rounded-xl px-4 text-[13px] font-semibold transition-all duration-200 data-[state=active]:shadow-sm sm:min-h-8 sm:flex-none sm:text-[12px]"
           >
             <span className="sm:hidden">{t("marketplace.bookings")}</span>
             <span className="hidden sm:inline">{t("appointments.myConsultations")}</span>
@@ -262,10 +231,12 @@ export default function LawyerMarketplacePage() {
         <TabsContent value="lawyers" className="mt-3 space-y-4 sm:mt-5 sm:space-y-5">
           <LawyerFilters value={filters} onChange={setFilters} />
 
-          <div className="flex items-baseline justify-between gap-3 px-0.5">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              <span className="sm:hidden">{t("marketplace.matches")} ({lawyers.length})</span>
-              <span className="hidden sm:inline">{t("marketplace.allAdvocates")} ({lawyers.length})</span>
+          <div className="flex items-center justify-between gap-3 px-0.5">
+            <h2 className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-foreground sm:text-[13px]">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>
+                {lawyers.length} {lawyers.length === 1 ? "advocate" : "advocates"}
+              </span>
             </h2>
             <p className="hidden text-[12px] text-muted-foreground/70 sm:block">
               {t("marketplace.sortedBy")} {filters.sort}
@@ -296,28 +267,47 @@ export default function LawyerMarketplacePage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 lg:gap-4">
-              {lawyers.map((lawyer, index) => (
-                <LawyerCard
-                  key={lawyer.id}
-                  lawyer={lawyer}
-                  index={index}
-                  onView={setProfileLawyer}
-                  onBook={(l) => setBookingLawyer(l)}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 lg:gap-4">
+                {visibleLawyers.map((lawyer, index) => (
+                  <LawyerCard
+                    key={lawyer.id}
+                    lawyer={lawyer}
+                    index={index}
+                    onView={setProfileLawyer}
+                    onBook={(l) => setBookingLawyer(l)}
+                  />
+                ))}
+              </div>
+              {hasMore && (
+                <div ref={sentinelRef} className="flex justify-center py-4">
+                  <div className="h-8 w-8 animate-pulse rounded-full border-2 border-black/10 border-t-foreground/40 dark:border-white/10 dark:border-t-white/50" />
+                </div>
+              )}
+              {!hasMore && lawyers.length > 12 && (
+                <p className="py-2 text-center text-[12px] text-muted-foreground">
+                  All advocates loaded
+                </p>
+              )}
+            </>
           )}
         </TabsContent>
 
         <TabsContent value="appointments" className="mt-4 space-y-4">
           {!appointmentsLoading && (
-            <ConsultationFilterBar
-              search={aptSearch} onSearch={setAptSearch}
-              status={aptStatus} onStatus={setAptStatus}
-              date={aptDate} onDate={setAptDate}
-              total={appointments.length} filtered={filteredAppointments.length}
-            />
+            <>
+              <ConsultationsHero appointments={appointments} embedded />
+              <ConsultationFilters
+                search={aptSearch}
+                onSearch={setAptSearch}
+                status={aptStatus}
+                onStatus={setAptStatus}
+                date={aptDate}
+                onDate={setAptDate}
+                total={appointments.length}
+                filtered={filteredAppointments.length}
+              />
+            </>
           )}
           {appointmentsLoading ? (
             <div className="space-y-3">

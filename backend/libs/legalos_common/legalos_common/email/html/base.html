@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+  <title>{{ brand_name }}</title>
+  <!--[if mso]>
+  <style type="text/css">
+    body, table, td { font-family: Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:{{ colors.background }};width:100%;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+  {% if preheader %}
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:{{ colors.background }};">
+    {{ preheader }}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+  </div>
+  {% endif %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:{{ colors.background }};">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:{{ colors.card }};border-radius:16px;overflow:hidden;border:1px solid {{ colors.border }};box-shadow:0 4px 24px rgba(28,20,16,0.06);">
+          <tr>
+            <td>
+              {% include "partials/header.html" %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 32px 28px;">
+              {% block content %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td>
+              {% include "partials/footer.html" %}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

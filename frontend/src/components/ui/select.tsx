@@ -11,6 +11,7 @@ export interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;
+  icon?: React.ReactNode;
 }
 
 type SelectChangeEvent = { target: { value: string; name?: string } };
@@ -24,6 +25,8 @@ export interface SelectProps {
   options?: SelectOption[];
   className?: string;
   menuClassName?: string;
+  listClassName?: string;
+  hideScrollbar?: boolean;
   wrapperClassName?: string;
   id?: string;
   name?: string;
@@ -85,6 +88,8 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
       className,
       menuClassName,
       wrapperClassName,
+      listClassName,
+      hideScrollbar,
       id,
       name,
       disabled,
@@ -285,7 +290,7 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
                     />
                   </div>
                 )}
-                <div className="ui-select-list">
+                <div className={cn("ui-select-list", (hideScrollbar ?? true) && "no-scrollbar", listClassName)}>
                   {filtered.length === 0 ? (
                     <p className="px-3 py-6 text-center text-[13px] text-muted-foreground">No matches</p>
                   ) : (
@@ -313,6 +318,9 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
                             focused && "ui-select-option-focus",
                           )}
                         >
+                          {opt.icon ? (
+                            <span className="shrink-0 text-muted-foreground">{opt.icon}</span>
+                          ) : null}
                           <span className="min-w-0 flex-1 truncate">{opt.label}</span>
                           {active && <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />}
                         </button>
@@ -343,13 +351,17 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
           onKeyDown={onTriggerKeyDown}
           className={cn(
             "ui-select-trigger",
-            icon && "pl-9",
+            (icon || selected?.icon) && "pl-9",
             open && "ui-select-trigger-open",
             isPlaceholder && "text-muted-foreground",
             className,
           )}
         >
-          {icon ? <span className="ui-select-icon">{icon}</span> : null}
+          {selected?.icon ? (
+            <span className="ui-select-icon">{selected.icon}</span>
+          ) : icon ? (
+            <span className="ui-select-icon">{icon}</span>
+          ) : null}
           <span className="min-w-0 flex-1 truncate text-left">{display}</span>
           <ChevronDown
             className={cn("ui-select-chevron", open && "rotate-180")}

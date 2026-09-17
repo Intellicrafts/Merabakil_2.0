@@ -26,23 +26,22 @@ export function MarketplaceHero({
             <span className="sm:hidden">Advocates</span>
             <span className="hidden sm:inline">Find an Advocate</span>
           </h1>
-          <p className="hidden max-w-xl text-[14px] leading-relaxed text-muted-foreground sm:block">
-            Verified counsel matched to your matter. Review profiles, compare fit, and book a
-            consultation in a few taps.
+          <p className="hidden max-w-lg text-[14px] leading-relaxed text-muted-foreground sm:block">
+            Verified counsel matched to your matter. Book in a few taps.
           </p>
         </div>
 
         <div className="hidden shrink-0 items-center gap-2 sm:flex">
           <StatChip icon={Users} label="Advocates" value={counselCount} />
           <StatChip icon={BadgeCheck} label="Verified" value={verifiedCount} />
-          <StatChip icon={Sparkles} label="Avg match" value={`${avgMatch}%`} />
+          <StatChip icon={Sparkles} label="Match" value={`${avgMatch}%`} />
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2 sm:hidden">
-        <MobileStat label="Advocates" value={counselCount} />
-        <MobileStat label="Verified" value={verifiedCount} />
-        <MobileStat label="Match" value={`${avgMatch}%`} />
+        <MobileStat icon={Users} label="Advocates" value={counselCount} />
+        <MobileStat icon={BadgeCheck} label="Verified" value={verifiedCount} />
+        <MobileStat icon={Sparkles} label="Match" value={`${avgMatch}%`} />
       </div>
 
       <div className="hidden h-px bg-black/[0.05] dark:bg-white/[0.06] sm:block" />
@@ -68,9 +67,18 @@ function StatChip({
   );
 }
 
-function MobileStat({ label, value }: { label: string; value: number | string }) {
+function MobileStat({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: number | string;
+}) {
   return (
-    <div className="mp-surface-card rounded-2xl px-2.5 py-2 text-center">
+    <div className="mp-surface-card flex flex-col items-center rounded-2xl px-2 py-2.5 text-center">
+      <Icon className="mb-1 h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
       <p className="text-[15px] font-semibold tabular-nums tracking-tight">{value}</p>
       <p className="mt-0.5 text-[10px] font-medium text-muted-foreground">{label}</p>
     </div>

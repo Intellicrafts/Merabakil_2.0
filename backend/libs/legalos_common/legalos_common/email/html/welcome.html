@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set hero_icon_url = icon_url(frontend_url, "welcome") %}
+{% include "partials/hero_icon.html" %}
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">
+  <tr>
+    <td style="padding:6px 14px;border-radius:999px;background-color:{{ colors.background }};border:1px solid {{ colors.border }};">
+      <span style="font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:12px;font-weight:600;color:{{ colors.primary }};text-transform:capitalize;">
+        {{ role_label }}
+      </span>
+    </td>
+  </tr>
+</table>
+
+<h1 style="margin:0 0 16px;font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:24px;line-height:1.3;font-weight:700;color:{{ colors.text }};letter-spacing:-0.02em;">
+  Welcome, {{ full_name }}!
+</h1>
+
+<p style="margin:0 0 14px;font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.65;color:{{ colors.text }};">
+  Your {{ brand_name }} account is ready. You're set up for AI-powered legal guidance grounded in Indian law.
+</p>
+
+<p style="margin:0 0 8px;font-family:'Segoe UI',system-ui,-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.65;color:{{ colors.muted }};">
+  {{ role_message }}
+</p>
+
+{% set cta_url = dashboard_url %}
+{% set cta_label = "Go to Dashboard" %}
+{% include "partials/cta_button.html" %}
+{% endblock %}
