@@ -1,121 +1,93 @@
 "use client";
 
-import Link from "next/link";
-import { Scale } from "lucide-react";
+import type { DotLottie } from "@lottiefiles/dotlottie-react";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
 
-import { FeaturedMotif } from "@/components/dashboard/dashboard-visuals";
-import { Skeleton } from "@/components/ui/skeleton";
-import type { HeroTheme } from "@/lib/dashboard-config";
-import type { LegalSpotlight } from "@/lib/legal-spotlight/types";
-import { useTranslation } from "@/lib/i18n";
+import { DASHBOARD_HERO_LOTTIE_SRC } from "@/lib/dashboard-lottie";
 import { cn } from "@/lib/utils";
 
-export function DashboardHeroVisual({
-  theme,
-  variant,
-  spotlight,
-  loading,
-  className,
-}: {
-  theme: HeroTheme;
-  variant: "desktop" | "mobile";
-  spotlight?: LegalSpotlight | null;
-  loading?: boolean;
-  className?: string;
-}) {
-  const { t } = useTranslation();
-  const fallbackSrc = theme.visual.src;
-  const imageSrc = spotlight?.imageUrl ?? fallbackSrc;
-  const isRemote = imageSrc.startsWith("http");
-  const showOverlay = Boolean(spotlight && !spotlight.fallback);
+const DotLottieReact = dynamic(
+  () => import("@lottiefiles/dotlottie-react").then((mod) => mod.DotLottieReact),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full w-full animate-pulse rounded-lg bg-black/[0.03] dark:bg-white/[0.04]" />
+    ),
+  },
+);
 
-  const frameClass =
-    variant === "mobile"
-      ? cn("dash-hero-mobile-banner dash-hero-spotlight relative overflow-hidden rounded-xl lg:hidden", className)
-      : cn(
-          "dash-hero-spotlight relative hidden min-h-[220px] overflow-hidden rounded-2xl lg:block",
-          "ring-1 ring-black/[0.06] shadow-[0_18px_48px_rgba(80,40,10,0.14)]",
-          "dark:ring-white/[0.10] dark:shadow-[0_18px_48px_rgba(0,0,0,0.35)]",
-          className,
-        );
+const MIN_CANVAS = 32;
 
-  if (loading) {
-    return <Skeleton className={cn(frameClass, "min-h-[5rem] lg:min-h-[220px]")} />;
-  }
+function hasValidSize(el: HTMLElement): boolean {
+  const { width, height } = el.getBoundingClientRect();
+  return Math.floor(width) >= MIN_CANVAS && Math.floor(height) >= MIN_CANVAS;
+}
 
-  const imageLayer = (
-    <>
-      <FeaturedMotif className={cn("opacity-30", variant === "desktop" && "opacity-40")} />
-      {isRemote ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageSrc}
-          alt=""
-          className={cn(
-            "dash-hero-spotlight-img absolute inset-0 h-full w-full object-cover",
-            variant === "desktop" && "dark:brightness-[0.92]",
-          )}
-          referrerPolicy="no-referrer"
-        />
-      ) : theme.visual.type === "svg" ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageSrc}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover object-center opacity-90"
-        />
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageSrc}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.92]"
-          style={theme.visual.objectPosition ? { objectPosition: theme.visual.objectPosition } : undefined}
-        />
-      )}
-      <div
-        className={cn(
-          "pointer-events-none absolute inset-0",
-          variant === "mobile"
-            ? "bg-gradient-to-r from-background/85 via-background/30 to-transparent"
-            : "bg-gradient-to-t from-black/55 via-black/10 to-white/10",
-        )}
-      />
-    </>
-  );
+export function DashboardHeroVisual({ className }: { className?: string }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const dotLottieRef = useRef<DotLottie | null>(null);
+  const [canMount, setCanMount] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
-  const overlay = showOverlay ? (
-    <div className="absolute inset-x-0 bottom-0 z-10 p-3 sm:p-4">
-      <div className="flex items-start gap-2">
-        <span className="dash-hero-spotlight-badge">
-          <Scale className="h-3 w-3" strokeWidth={2} />
-          {t("dashboard.legalSpotlight")}
-        </span>
-      </div>
-      {spotlight?.sourceUrl ? (
-        <Link
-          href={spotlight.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 block max-w-full text-[12px] font-medium leading-snug text-white drop-shadow-sm transition-opacity hover:opacity-90 sm:text-[13px]"
-        >
-          {spotlight.topic}
-        </Link>
-      ) : (
-        <p className="mt-2 max-w-full text-[12px] font-medium leading-snug text-white/95 drop-shadow-sm sm:text-[13px]">
-          {spotlight?.topic}
-        </p>
-      )}
-      {spotlight?.imageCredit ? (
-        <p className="mt-1 text-[10px] text-white/70">{spotlight.imageCredit}</p>
-      ) : null}
-    </div>
-  ) : null;
+  useEffect(() => {
+    setReduceMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }, []);
+
+  useEffect(() => {
+    const el = hostRef.current;
+    if (!el || reduceMotion) return undefined;
+
+    const sync = () => {
+      const valid = hasValidSize(el);
+      setCanMount(valid);
+      if (valid) {
+        dotLottieRef.current?.resize();
+      }
+    };
+
+    // Wait for layout before the first measure — avoids 0×0 canvas on mount.
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(sync);
+    });
+
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [reduceMotion]);
 
   return (
-    <div className={frameClass} aria-hidden={!showOverlay}>
-      {imageLayer}
-      {overlay}
+    <div
+      ref={hostRef}
+      className={cn(
+        "dash-hero-lottie relative flex items-center justify-center",
+        "h-[7rem] w-full max-w-[280px] sm:max-w-none",
+        "lg:h-[220px] lg:max-w-full lg:min-h-[200px]",
+        className,
+      )}
+      aria-hidden
+    >
+      {canMount && !reduceMotion ? (
+        <DotLottieReact
+          src={DASHBOARD_HERO_LOTTIE_SRC}
+          loop
+          autoplay
+          className="h-full w-full"
+          dotLottieRefCallback={(instance) => {
+            dotLottieRef.current = instance;
+            instance?.resize();
+          }}
+          renderConfig={{
+            autoResize: true,
+            devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+            freezeOnOffscreen: true,
+          }}
+          layout={{ fit: "contain", align: [0.5, 0.5] }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -504,44 +504,8 @@
   max-height: 7.5rem;
 }
 
-.dash-hero-spotlight {
-  isolation: isolate;
-}
-
-.dash-hero-spotlight-img {
-  animation: dash-spotlight-zoom 18s ease-in-out infinite alternate;
-  transform-origin: center center;
-}
-
-@keyframes dash-spotlight-zoom {
-  from {
-    transform: scale(1);
-  }
-  to {
-    transform: scale(1.06);
-  }
-}
-
-.dash-hero-spotlight-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.14);
-  padding: 0.2rem 0.55rem;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dash-hero-spotlight-img {
-    animation: none !important;
-  }
+.dash-hero-lottie {
+  pointer-events: none;
 }
 
 .dash-hero-stagger-1,

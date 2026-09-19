@@ -6,7 +6,6 @@ import { MessageSquare } from "lucide-react";
 import { DashboardAskBar } from "@/components/dashboard/dashboard-ask-bar";
 import { DashboardHeroVisual } from "@/components/dashboard/dashboard-hero-visual";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useLegalSpotlight } from "@/hooks/use-legal-spotlight";
 import type { DashboardConfig } from "@/lib/dashboard-config";
 import { getHeroTheme } from "@/lib/dashboard-config";
 import type { ChatConversation } from "@/lib/conversations";
@@ -81,7 +80,6 @@ export function DashboardHero({
 }) {
   const { t } = useTranslation();
   const theme = getHeroTheme(config.role);
-  const spotlightQuery = useLegalSpotlight(config.role);
   const context = ready ? contextLine(openCount, appointmentCount, t) : "";
   const accentClass =
     theme.accent === "citizen"
@@ -102,15 +100,9 @@ export function DashboardHero({
       <div className="pointer-events-none absolute -bottom-28 -left-16 hidden h-52 w-52 rounded-full dash-hero-orb dash-hero-glow opacity-70 sm:block" />
 
       <div className="relative grid items-center gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(260px,380px)] lg:gap-10">
-        <div className="space-y-4 sm:space-y-5">
-          <DashboardHeroVisual
-            theme={theme}
-            variant="mobile"
-            spotlight={spotlightQuery.data}
-            loading={spotlightQuery.isLoading}
-            className="dash-hero-stagger-1"
-          />
+        <DashboardHeroVisual className="order-1 dash-hero-stagger-2 lg:order-2 lg:col-start-2 lg:row-start-1" />
 
+        <div className="order-2 space-y-4 sm:space-y-5 lg:order-1 lg:col-start-1">
           <div className="dash-hero-stagger-1 space-y-1.5 sm:space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[12px] text-muted-foreground sm:text-[13px]">
@@ -163,14 +155,6 @@ export function DashboardHero({
             </Link>
           ) : null}
         </div>
-
-        <DashboardHeroVisual
-          theme={theme}
-          variant="desktop"
-          spotlight={spotlightQuery.data}
-          loading={spotlightQuery.isLoading}
-          className="dash-hero-stagger-2"
-        />
       </div>
     </header>
   );
