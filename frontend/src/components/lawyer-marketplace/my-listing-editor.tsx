@@ -7,7 +7,6 @@ import { ProfileSectionCard } from "@/components/profile/profile-hero";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -17,7 +16,7 @@ import {
   verifyMyEnrollment,
 } from "@/lib/api";
 import type { VerifyResult } from "@/lib/types";
-import { PRACTICE_AREAS, CITIES, JURISDICTIONS } from "@/lib/mock/lawyers";
+import { PRACTICE_AREAS, JURISDICTIONS } from "@/lib/mock/lawyers";
 import { cn } from "@/lib/utils";
 
 const SUPPORTED_STATES = ["Uttar Pradesh", "Delhi", "Andhra Pradesh", "Rajasthan"] as const;
@@ -50,6 +49,15 @@ function detectBarCouncilState(enrollment: string): string {
   if (en.startsWith("D/")) return "Delhi";
   if (en.startsWith("AP/")) return "Andhra Pradesh";
   if (en.startsWith("R/")) return "Rajasthan";
+  return "";
+}
+
+function stateToBarCouncil(apiState: string): string {
+  const s = apiState.toLowerCase();
+  if (s.includes("uttar pradesh"))  return "Uttar Pradesh";
+  if (s.includes("delhi"))          return "Delhi";
+  if (s.includes("andhra pradesh")) return "Andhra Pradesh";
+  if (s.includes("rajasthan"))      return "Rajasthan";
   return "";
 }
 
@@ -105,6 +113,10 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   const [verifyState, setVerifyState] = useState("");
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [loadedBarId, setLoadedBarId] = useState("");
+
+  const [pincode, setPincode] = useState("");
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [pincodeInfo, setPincodeInfo] = useState<{ state: string; district: string } | null>(null);
 
   const completion = useCompletion(areas, years, bio, jurisdictions);
   const isComplete = completion.count === COMPLETION_CHECKS.length;
@@ -235,6 +247,32 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
     }
   }
 
+  async function handlePincodeLookup(value: string) {
+    if (value.length !== 6 || !/^\d{6}$/.test(value)) {
+      setPincodeInfo(null);
+      return;
+    }
+    setPincodeLoading(true);
+    setPincodeInfo(null);
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${value}`);
+      const [json] = (await res.json()) as [
+        { Status: string; PostOffice?: { State: string; District: string }[] },
+      ];
+      if (json.Status === "Success" && json.PostOffice?.length) {
+        const po = json.PostOffice[0];
+        setPincodeInfo({ state: po.State, district: po.District });
+        setCity(po.District);
+        const barState = stateToBarCouncil(po.State);
+        if (barState) setVerifyState(barState);
+      }
+    } catch {
+      // silently fail — pincode is a helper, not required
+    } finally {
+      setPincodeLoading(false);
+    }
+  }
+
   async function handleVerify() {
     if (!barId.trim()) return;
     const state = verifyState || detectBarCouncilState(barId);
@@ -330,18 +368,13 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
           </Field>
 
           <Field label="City" htmlFor="adv-city">
-            <Select
+            <Input
               id="adv-city"
               value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="h-11 rounded-xl text-[13px]"
-              aria-label="City"
-            >
-              <option value="">Select city</option>
-              {CITIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </Select>
+              readOnly
+              placeholder="Enter pincode to auto-fill"
+              className="h-11 cursor-default rounded-xl bg-black/[0.02] text-muted-foreground dark:bg-white/[0.03]"
+            />
           </Field>
 
           <Field label="Hourly rate (INR)" htmlFor="adv-rate">
@@ -353,6 +386,40 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
               onChange={(e) => setRate(e.target.value)}
               className="h-11 rounded-xl"
             />
+          </Field>
+
+          <Field label="Pincode" htmlFor="adv-pincode">
+            <div className="relative">
+              <Input
+                id="adv-pincode"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={pincode}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                  setPincode(v);
+                  void handlePincodeLookup(v);
+                }}
+                placeholder="6-digit pincode"
+                className="h-11 rounded-xl pr-8"
+              />
+              {pincodeLoading && (
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                  …
+                </span>
+              )}
+            </div>
+            {pincodeInfo && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {pincodeInfo.district} · {pincodeInfo.state}
+                {stateToBarCouncil(pincodeInfo.state) && (
+                  <span className="ml-1 text-emerald-600 dark:text-emerald-400">
+                    · Bar council state set
+                  </span>
+                )}
+              </p>
+            )}
           </Field>
 
           <Field label="Years of experience *" htmlFor="adv-years">
