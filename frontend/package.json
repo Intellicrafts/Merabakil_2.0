@@ -12,6 +12,7 @@
     "analyze": "ANALYZE=true next build",
     "test:e2e": "playwright test",
     "test:e2e:mobile": "playwright test --project=mobile",
+    "postinstall": "playwright install chromium",
     "check:links": "node scripts/check-links.mjs"
   },
   "dependencies": {

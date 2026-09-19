@@ -13,7 +13,12 @@ All services expose OpenAPI docs at `/docs` and a machine-readable schema at
 | POST | `/api/v1/auth/refresh` | none | Rotate refresh token |
 | POST | `/api/v1/auth/password-reset` | none | Request reset token |
 | POST | `/api/v1/auth/password-reset/confirm` | none | Complete reset |
-| GET | `/api/v1/users/me` | Bearer | Current user claims |
+| GET | `/api/v1/users/me` | Bearer | Current user claims (includes `avatar_url`) |
+| GET | `/api/v1/users/me/profile` | Bearer (citizen) | Citizen profile details |
+| PATCH | `/api/v1/users/me/profile` | Bearer (citizen) | Update citizen profile |
+| POST | `/api/v1/users/me/avatar` | Bearer | Upload profile photo (multipart) |
+| GET | `/api/v1/users/me/avatar` | Bearer | Stream stored profile photo |
+| DELETE | `/api/v1/users/me/avatar` | Bearer | Remove profile photo |
 | GET | `/api/v1/users` | `user:manage` | List users (paginated) |
 | GET | `/api/v1/users/{id}` | `user:manage` | Get a user |
 

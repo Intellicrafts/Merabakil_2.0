@@ -194,6 +194,56 @@ test.describe("Consultation call notifications", () => {
     await page.goto(`/appointments/${APT_ID}/room`);
     await expect(page.getByRole("button", { name: /^Accept$/i })).toBeVisible({ timeout: 15000 });
     await page.getByRole("button", { name: /^Accept$/i }).click();
-    await expect(page.getByRole("button", { name: /^End$/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("button", { name: /End call/i })).toBeVisible({ timeout: 10000 });
+  });
+});
+
+test.describe("Consultation room mobile layout", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as Window & { __E2E_LIVEKIT__?: boolean }).__E2E_LIVEKIT__ = true;
+    });
+  });
+
+  test("room header and composer fit without horizontal overflow", async ({ page }) => {
+    await login(page, "citizen@legalos.in");
+    await installMarketplaceMocks(page, { role: "citizen" });
+
+    await page.goto(`/appointments/${APT_ID}/room`);
+    await expect(page.getByText("Advocate Counsel")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: /Leave room/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Start video call/i })).toBeVisible();
+    await expect(page.getByPlaceholder(/Write a message/i)).toBeVisible();
+
+    const headerOverflow = await page.locator(".apt-room-header").evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    expect(headerOverflow).toBe(false);
+  });
+});
+
+test.describe("Consultation room narrow in-call controls", () => {
+  test.use({ viewport: { width: 320, height: 568 } });
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as Window & { __E2E_LIVEKIT__?: boolean }).__E2E_LIVEKIT__ = true;
+    });
+  });
+
+  test("in-call end control remains visible at 320px width", async ({ page }) => {
+    await login(page, "advocate@legalos.in");
+    await installMarketplaceMocks(page, {
+      role: "advocate",
+      sseFrames: [
+        { type: "join", payload: {} },
+        { type: "incoming_call", payload: incomingCallPayload(CITIZEN_ID, "Citizen Client") },
+      ],
+    });
+
+    await page.goto(`/appointments/${APT_ID}/room`);
+    await expect(page.getByRole("button", { name: /^Accept$/i })).toBeVisible({ timeout: 15000 });
+    await page.getByRole("button", { name: /^Accept$/i }).click();
+    await expect(page.getByRole("button", { name: /End call/i })).toBeVisible({ timeout: 10000 });
   });
 });

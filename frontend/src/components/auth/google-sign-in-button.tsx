@@ -31,13 +31,18 @@ export function GoogleSignInButton({
 
     let cancelled = false;
     let lastWidth = 0;
+    let renderSeq = 0;
 
     const render = () => {
+      if (cancelled) return;
       const width = Math.max(node.offsetWidth || 0, 280);
       if (lastWidth > 0 && Math.abs(width - lastWidth) < 8) return;
       lastWidth = width;
+      const seq = ++renderSeq;
       renderGoogleSignInButton(node, { width }).catch(() => {
-        if (!cancelled) onReadyErrorRef.current?.("Could not load Google sign-in.");
+        if (!cancelled && seq === renderSeq) {
+          onReadyErrorRef.current?.("Could not load Google sign-in.");
+        }
       });
     };
 
@@ -46,6 +51,7 @@ export function GoogleSignInButton({
     observer.observe(node);
     return () => {
       cancelled = true;
+      renderSeq += 1;
       observer.disconnect();
     };
   }, [disabled]);

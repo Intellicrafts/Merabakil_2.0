@@ -111,7 +111,7 @@ export default function AppointmentsPage() {
   }, [appointments, search, statusFilter, dateFilter]);
 
   return (
-    <div className="mx-auto w-full max-w-[1180px] space-y-4 pb-8 sm:space-y-5 sm:pb-10">
+    <div className="mx-auto w-full max-w-[1180px] space-y-4 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:space-y-5 sm:px-0 sm:pb-10">
       {!loading && <ConsultationsHero appointments={appointments} />}
 
       {!loading && (

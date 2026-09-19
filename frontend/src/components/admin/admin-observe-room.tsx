@@ -416,7 +416,7 @@ export function AdminObserveRoom({ appointmentId }: AdminObserveRoomProps) {
           type="button"
           onClick={() => setMobilePanel("transcript")}
           className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition",
+            "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-medium transition",
             mobilePanel === "transcript" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground",
           )}
         >
@@ -427,7 +427,7 @@ export function AdminObserveRoom({ appointmentId }: AdminObserveRoomProps) {
           type="button"
           onClick={() => setMobilePanel("session")}
           className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition",
+            "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-medium transition",
             mobilePanel === "session" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground",
           )}
         >

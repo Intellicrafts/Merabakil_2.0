@@ -31,6 +31,21 @@ export interface DashboardModule {
   feature?: boolean;
 }
 
+export type HeroAccent = "citizen" | "advocate" | "default";
+
+export interface HeroVisual {
+  type: "image" | "svg";
+  src: string;
+  objectPosition?: string;
+}
+
+export interface HeroTheme {
+  accent: HeroAccent;
+  badgeLabel: string;
+  mobileTagline: string;
+  visual: HeroVisual;
+}
+
 export interface DashboardConfig {
   role: PrimaryRole;
   headline: string;
@@ -186,6 +201,43 @@ const ROLE_CONFIG: Record<
     moduleHrefs: ["/mera-vakil", "/lawyer-marketplace", "/cases", "/wallet"],
   },
 };
+
+const HERO_THEME: Record<PrimaryRole, HeroTheme> = {
+  admin: {
+    accent: "default",
+    badgeLabel: "Administrator",
+    mobileTagline: "Manage users, appointments, and platform configuration.",
+    visual: { type: "image", src: "/dashboard/hero-legal.png", objectPosition: "center 40%" },
+  },
+  enterprise: {
+    accent: "default",
+    badgeLabel: "Enterprise",
+    mobileTagline: "AI-powered guidance and expert advocates when you need them.",
+    visual: { type: "svg", src: "/dashboard/mera-vakil-hero.svg" },
+  },
+  law_firm: {
+    accent: "default",
+    badgeLabel: "Law Firm",
+    mobileTagline: "Research, find advocates, and manage your matters.",
+    visual: { type: "image", src: "/dashboard/hero-legal.png", objectPosition: "center 40%" },
+  },
+  advocate: {
+    accent: "advocate",
+    badgeLabel: "Advocate",
+    mobileTagline: "Manage consultations and grow your practice.",
+    visual: { type: "image", src: "/dashboard/hero-legal.png", objectPosition: "center 40%" },
+  },
+  citizen: {
+    accent: "citizen",
+    badgeLabel: "Citizen",
+    mobileTagline: "AI guidance and verified advocates, at your fingertips.",
+    visual: { type: "svg", src: "/dashboard/marketplace-hero.svg" },
+  },
+};
+
+export function getHeroTheme(role: PrimaryRole): HeroTheme {
+  return HERO_THEME[role];
+}
 
 export function getPrimaryRole(
   user: Pick<AuthUser, "roles"> | null | undefined,

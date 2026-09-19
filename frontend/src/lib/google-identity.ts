@@ -9,11 +9,22 @@ interface GoogleCredentialResponse {
   credential?: string;
 }
 
+interface GooglePromptNotification {
+  isNotDisplayed: () => boolean;
+  isSkippedMoment: () => boolean;
+  isDismissedMoment: () => boolean;
+  getNotDisplayedReason: () => string;
+  getSkippedReason: () => string;
+  getDismissedReason: () => string;
+}
+
 interface GoogleIdConfig {
   client_id: string;
   callback: (response: GoogleCredentialResponse) => void;
   use_fedcm_for_prompt?: boolean;
   auto_select?: boolean;
+  cancel_on_tap_outside?: boolean;
+  itp_support?: boolean;
 }
 
 interface GoogleButtonConfig {
@@ -23,6 +34,8 @@ interface GoogleButtonConfig {
   shape?: "rectangular" | "pill" | "circle" | "square";
   width?: number;
   logo_alignment?: "left" | "center";
+  /** Avoid FedCM on localhost where token retrieval often fails. */
+  use_fedcm_for_button?: boolean;
 }
 
 declare global {
@@ -32,7 +45,7 @@ declare global {
         id: {
           initialize: (config: GoogleIdConfig) => void;
           renderButton: (parent: HTMLElement, options: GoogleButtonConfig) => void;
-          prompt: () => void;
+          prompt: (momentListener?: (notification: GooglePromptNotification) => void) => void;
           cancel: () => void;
         };
       };
@@ -44,9 +57,20 @@ const GIS_SCRIPT = "https://accounts.google.com/gsi/client";
 const listeners = new Set<CredentialCallback>();
 let scriptPromise: Promise<void> | null = null;
 let initialized = false;
+let oneTapState: "idle" | "pending" | "active" | "done" = "idle";
+let buttonActivity = 0;
+let promptChain: Promise<boolean> = Promise.resolve(false);
+let renderChain: Promise<boolean> = Promise.resolve(true);
+const renderedButtons = new WeakMap<HTMLElement, number>();
 
 function getClientId(): string {
   return process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+}
+
+function isLocalDevHost(): boolean {
+  if (typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
 }
 
 function dispatchCredential(credential: string): void {
@@ -80,6 +104,17 @@ function loadScript(): Promise<void> {
   return scriptPromise;
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForButtonIdle(timeoutMs = 2500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (buttonActivity > 0 && Date.now() < deadline) {
+    await wait(50);
+  }
+}
+
 export async function ensureGoogleIdentityReady(): Promise<boolean> {
   const clientId = getClientId();
   if (!clientId) return false;
@@ -93,9 +128,11 @@ export async function ensureGoogleIdentityReady(): Promise<boolean> {
       callback: (response) => {
         if (response.credential) dispatchCredential(response.credential);
       },
-      // FedCM is flaky on localhost / embedded browsers; GIS button still works.
+      // FedCM One Tap is flaky on localhost and collides with the GIS button.
       use_fedcm_for_prompt: false,
       auto_select: false,
+      cancel_on_tap_outside: true,
+      itp_support: true,
     });
     initialized = true;
   }
@@ -108,36 +145,128 @@ export function subscribeGoogleCredential(callback: CredentialCallback): () => v
   return () => listeners.delete(callback);
 }
 
+/** Call while the GIS sign-in button overlay is mounting/updating. */
+export function beginGoogleButtonActivity(): void {
+  buttonActivity += 1;
+}
+
+/** Call when the GIS sign-in button overlay is stable. */
+export function endGoogleButtonActivity(): void {
+  buttonActivity = Math.max(0, buttonActivity - 1);
+}
+
+async function renderGoogleSignInButtonInner(
+  container: HTMLElement,
+  options?: GoogleButtonConfig,
+): Promise<boolean> {
+  beginGoogleButtonActivity();
+  try {
+    const ready = await ensureGoogleIdentityReady();
+    if (!ready || !window.google?.accounts?.id) return false;
+
+    const width = Math.max(container.offsetWidth || 0, 280);
+    const previousWidth = renderedButtons.get(container);
+    if (previousWidth !== undefined && Math.abs(previousWidth - width) < 8) {
+      return true;
+    }
+
+    container.replaceChildren();
+    window.google.accounts.id.renderButton(container, {
+      theme: "outline",
+      size: "large",
+      text: "continue_with",
+      shape: "pill",
+      width,
+      logo_alignment: "left",
+      use_fedcm_for_button: isLocalDevHost() ? false : undefined,
+      ...options,
+    });
+    renderedButtons.set(container, width);
+    return true;
+  } finally {
+    endGoogleButtonActivity();
+  }
+}
+
 export async function renderGoogleSignInButton(
   container: HTMLElement,
   options?: GoogleButtonConfig,
 ): Promise<boolean> {
-  const ready = await ensureGoogleIdentityReady();
-  if (!ready || !window.google?.accounts?.id) return false;
+  const task = renderChain.then(() => renderGoogleSignInButtonInner(container, options));
+  renderChain = task.catch(() => false);
+  return task;
+}
 
-  container.replaceChildren();
-  const width = Math.max(container.offsetWidth || 0, 280);
-  window.google.accounts.id.renderButton(container, {
-    theme: "outline",
-    size: "large",
-    text: "continue_with",
-    shape: "pill",
-    width,
-    logo_alignment: "left",
-    ...options,
-  });
-  return true;
+export function cancelGoogleOneTap(): void {
+  if (typeof window === "undefined") return;
+  if (!window.google?.accounts?.id) return;
+  try {
+    window.google.accounts.id.cancel();
+  } catch {
+    /* ignore */
+  }
+  oneTapState = "done";
 }
 
 export async function showGoogleOneTap(): Promise<boolean> {
-  const ready = await ensureGoogleIdentityReady();
-  if (!ready || !window.google?.accounts?.id) return false;
-  window.google.accounts.id.prompt();
-  return true;
+  if (typeof window === "undefined") return false;
+  if (oneTapState !== "idle") return false;
+
+  // FedCM/network errors are common on local dev; the GIS button still works.
+  if (isLocalDevHost()) return false;
+
+  oneTapState = "pending";
+
+  promptChain = promptChain.then(async () => {
+    if (oneTapState !== "pending") return false;
+
+    await waitForButtonIdle();
+    await wait(350);
+
+    const ready = await ensureGoogleIdentityReady();
+    if (!ready || !window.google?.accounts?.id) {
+      oneTapState = "idle";
+      return false;
+    }
+
+    return await new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        oneTapState = value ? "active" : "done";
+        resolve(value);
+      };
+
+      try {
+        window.google!.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            finish(false);
+            return;
+          }
+          if (notification.isDismissedMoment()) {
+            oneTapState = "done";
+          }
+        });
+        finish(true);
+      } catch {
+        oneTapState = "idle";
+        finish(false);
+      }
+    });
+  });
+
+  return promptChain;
 }
 
 export function isGoogleIdentityConfigured(): boolean {
   return Boolean(getClientId());
+}
+
+/** One Tap is disabled on localhost — FedCM token retrieval is unreliable there. */
+export function isGoogleOneTapSupported(): boolean {
+  if (typeof window === "undefined") return false;
+  return !isLocalDevHost();
 }
 
 /** Dev hint when Google returns origin_mismatch. */
@@ -150,4 +279,15 @@ export function getGoogleOriginHint(): string {
 export function getCurrentOrigin(): string {
   if (typeof window === "undefined") return "";
   return window.location.origin;
+}
+
+/** Test helper — reset module singleton state. */
+export function resetGoogleIdentityForTests(): void {
+  oneTapState = "idle";
+  buttonActivity = 0;
+  promptChain = Promise.resolve(false);
+  renderChain = Promise.resolve(true);
+  initialized = false;
+  scriptPromise = null;
+  listeners.clear();
 }

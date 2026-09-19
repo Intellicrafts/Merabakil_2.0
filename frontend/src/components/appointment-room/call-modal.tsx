@@ -141,9 +141,9 @@ export function CallModal({
 
       {/* Header bar — overlaid on video/audio */}
       <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/75 to-transparent pb-10 pl-5 pr-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-[15px] font-semibold leading-tight text-white">{counterpartName}</p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold leading-tight text-white">{counterpartName}</p>
             <p className="mt-0.5 text-[11px] text-white/55">
               {mode === "video" ? t("room.videoConsultation") : t("room.audioConsultation")}
             </p>
@@ -172,7 +172,7 @@ export function CallModal({
       </div>
 
       {/* Controls bar — overlaid at bottom */}
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-4 bg-gradient-to-t from-black/90 via-black/55 to-transparent pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-6 pr-6 pt-12">
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-gradient-to-t from-black/90 via-black/55 to-transparent pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-4 pr-4 pt-12 min-[360px]:gap-4 min-[360px]:pl-6 min-[360px]:pr-6">
         {/* Microphone */}
         <button
           type="button"
@@ -210,10 +210,11 @@ export function CallModal({
           type="button"
           disabled={ending}
           onClick={onEnd}
-          className="flex h-14 flex-shrink-0 items-center gap-2 rounded-full bg-red-500 px-7 text-[13px] font-semibold text-white shadow-lg hover:bg-red-600 disabled:opacity-70"
+          aria-label={t("room.endCall")}
+          className="flex h-14 w-14 flex-shrink-0 items-center justify-center gap-2 rounded-full bg-red-500 text-[13px] font-semibold text-white shadow-lg hover:bg-red-600 disabled:opacity-70 min-[360px]:w-auto min-[360px]:px-7"
         >
           <PhoneOff className="h-5 w-5" />
-          {t("room.endCall")}
+          <span className="hidden min-[360px]:inline">{t("room.endCall")}</span>
         </button>
       </div>
     </div>

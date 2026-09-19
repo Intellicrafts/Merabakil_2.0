@@ -64,6 +64,12 @@ class SqlAlchemyUserRepository:
 
     async def create_role_profile(self, user: User, role_name: str) -> None:
         """Create the mandatory one-to-one profile for a self-service role."""
+        if role_name == "citizen":
+            existing = await self._session.execute(
+                select(CitizenProfile).where(CitizenProfile.user_id == user.id)
+            )
+            if existing.scalar_one_or_none() is not None:
+                return
         profiles = {
             "citizen": CitizenProfile(user_id=user.id),
             "advocate": AdvocateProfile(user_id=user.id, full_name=user.full_name),
@@ -118,6 +124,55 @@ class SqlAlchemyUserRepository:
             user.is_active = is_active
         await self._session.flush()
         return user
+
+    async def get_citizen_profile(self, user_id: uuid.UUID) -> tuple[User, CitizenProfile] | None:
+        user = await self.get_by_id(user_id)
+        if user is None:
+            return None
+        result = await self._session.execute(
+            select(CitizenProfile).where(CitizenProfile.user_id == user_id)
+        )
+        profile = result.scalar_one_or_none()
+        if profile is None:
+            return None
+        return user, profile
+
+    async def update_citizen_profile(
+        self,
+        user: User,
+        profile: CitizenProfile,
+        *,
+        full_name: str | None = None,
+        phone: str | None = None,
+        date_of_birth=None,
+        address: str | None = None,
+        clear_phone: bool = False,
+        clear_date_of_birth: bool = False,
+        clear_address: bool = False,
+    ) -> None:
+        if full_name is not None:
+            user.full_name = full_name
+        if clear_phone:
+            profile.phone = None
+        elif phone is not None:
+            profile.phone = phone
+        if clear_date_of_birth:
+            profile.date_of_birth = None
+        elif date_of_birth is not None:
+            profile.date_of_birth = date_of_birth
+        if clear_address:
+            profile.address = None
+        elif address is not None:
+            profile.address = address
+        await self._session.flush()
+
+    async def update_avatar_url(self, user: User, avatar_url: str | None) -> None:
+        user.avatar_url = avatar_url
+        await self._session.flush()
+
+    async def update_full_name(self, user: User, full_name: str) -> None:
+        user.full_name = full_name
+        await self._session.flush()
 
 
 class SqlAlchemyOAuthIdentityRepository:

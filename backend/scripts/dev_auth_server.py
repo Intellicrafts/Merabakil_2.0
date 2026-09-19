@@ -27,6 +27,7 @@ from app.main import app  # noqa: E402
 from legalos_common.security.passwords import hash_password  # noqa: E402
 from legalos_common.security.rbac import Permission, Role  # noqa: E402
 from tests.fakes import (  # noqa: E402
+    FakeCitizenProfile,
     FakeOAuthIdentityRepository,
     FakePasswordResetRepository,
     FakeRefreshTokenRepository,
@@ -107,11 +108,33 @@ def _advocate_user() -> FakeUser:
     )
 
 
+def _ensure_citizen_profiles() -> None:
+    """Backfill citizen_profiles for accounts registered before profile rows existed."""
+    for user in _users.store.values():
+        if any(r.name == Role.CITIZEN.value for r in user.roles_data):
+            if user.id not in _users.citizen_profiles:
+                _users.citizen_profiles[user.id] = FakeCitizenProfile(user_id=user.id)
+
+
 def _ensure_demo_users() -> None:
     # Always overwrite demo users so permission changes take effect without
     # manually deleting the state file.
     _users.store[CITIZEN_ID] = _citizen_user()
     _users.store[ADVOCATE_ID] = _advocate_user()
+    if CITIZEN_ID not in _users.citizen_profiles:
+        _users.citizen_profiles[CITIZEN_ID] = FakeCitizenProfile(
+            user_id=CITIZEN_ID,
+            phone="+91 98765 43210",
+            address="New Delhi, India",
+        )
+    else:
+        profile = _users.citizen_profiles[CITIZEN_ID]
+        if not profile.phone:
+            profile.phone = "+91 98765 43210"
+        if not profile.address:
+            profile.address = "New Delhi, India"
+    _users.profile_roles[CITIZEN_ID] = "citizen"
+    _users.profile_roles[ADVOCATE_ID] = "advocate"
 
 
 def _save_state() -> None:
@@ -129,6 +152,17 @@ def _save_state() -> None:
                 "roles_data": [
                     {"name": r.name, "permissions": r.permissions} for r in user.roles_data
                 ],
+                "avatar_url": user.avatar_url,
+            }
+        )
+    profiles_payload = []
+    for user_id, profile in _users.citizen_profiles.items():
+        profiles_payload.append(
+            {
+                "user_id": str(user_id),
+                "phone": profile.phone,
+                "date_of_birth": profile.date_of_birth.isoformat() if profile.date_of_birth else None,
+                "address": profile.address,
             }
         )
     refresh_payload = {
@@ -140,7 +174,14 @@ def _save_state() -> None:
         for jti, tok in _refresh.tokens.items()
     }
     STATE_FILE.write_text(
-        json.dumps({"users": users_payload, "refresh_tokens": refresh_payload}, indent=2),
+        json.dumps(
+            {
+                "users": users_payload,
+                "citizen_profiles": profiles_payload,
+                "refresh_tokens": refresh_payload,
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -165,6 +206,7 @@ def _load_state() -> None:
             hashed_password=entry["hashed_password"],
             is_active=entry.get("is_active", True),
             is_verified=entry.get("is_verified", False),
+            avatar_url=entry.get("avatar_url"),
             roles_data=[
                 FakeRole(name=r["name"], permissions=r.get("permissions", []))
                 for r in entry.get("roles_data", [])
@@ -172,9 +214,25 @@ def _load_state() -> None:
         )
         _users.store[user.id] = user
 
+    for entry in raw.get("citizen_profiles", []):
+        dob_raw = entry.get("date_of_birth")
+        dob = None
+        if dob_raw:
+            from datetime import date
+
+            dob = date.fromisoformat(dob_raw)
+        profile = FakeCitizenProfile(
+            user_id=uuid.UUID(entry["user_id"]),
+            phone=entry.get("phone"),
+            date_of_birth=dob,
+            address=entry.get("address"),
+        )
+        _users.citizen_profiles[profile.user_id] = profile
+
     if ADMIN_ID not in _users.store:
         _users.store[ADMIN_ID] = _admin_user()
     _ensure_demo_users()
+    _ensure_citizen_profiles()
     _save_state()
 
     for jti, tok in raw.get("refresh_tokens", {}).items():
@@ -221,6 +279,20 @@ class PersistingAuthService(AuthService):
         )
         _save_state()
         return result
+
+    async def update_citizen_profile(self, user_id, **kwargs):
+        result = await super().update_citizen_profile(user_id, **kwargs)
+        _save_state()
+        return result
+
+    async def upload_avatar(self, user_id, *, raw: bytes, content_type: str):
+        result = await super().upload_avatar(user_id, raw=raw, content_type=content_type)
+        _save_state()
+        return result
+
+    async def delete_avatar(self, user_id):
+        await super().delete_avatar(user_id)
+        _save_state()
 
 
 _load_state()

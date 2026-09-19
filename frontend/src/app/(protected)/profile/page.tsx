@@ -1,17 +1,54 @@
 "use client";
 
+import { CitizenProfileEditor } from "@/components/profile/citizen-profile-editor";
+import { ProfileHero } from "@/components/profile/profile-hero";
+import { ProfilePhotoEditor } from "@/components/profile/profile-photo-editor";
 import { MyListingEditor } from "@/components/lawyer-marketplace/my-listing-editor";
+import { useCitizenProfile } from "@/hooks/use-citizen-profile";
+import { getStoredUser } from "@/lib/api";
 
 export default function ProfilePage() {
+  const user = getStoredUser();
+  const isAdvocate = Boolean(user?.roles.includes("advocate"));
+  const isCitizen = Boolean(user?.roles.includes("citizen"));
+  const showCitizenProfile = isCitizen && !isAdvocate;
+
+  const citizen = useCitizenProfile(showCitizenProfile);
+
+  const displayName = showCitizenProfile
+    ? citizen.form.full_name || user?.full_name || "User"
+    : user?.full_name ?? "User";
+  const displayEmail = showCitizenProfile ? citizen.form.email || user?.email : user?.email;
+  const displayAvatar = showCitizenProfile
+    ? citizen.profile?.avatar_url ?? user?.avatar_url
+    : user?.avatar_url;
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6 py-4">
-      <div>
-        <h1 className="text-[18px] font-semibold tracking-tight">My profile</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
-          Keep your profile complete so the AI can match you with the right clients.
-        </p>
-      </div>
-      <MyListingEditor />
+    <div className="mx-auto max-w-2xl space-y-4 px-4 py-2 pb-6 sm:space-y-5 sm:px-0 sm:py-4">
+      <ProfileHero isAdvocate={isAdvocate} />
+      <ProfilePhotoEditor
+        avatarUrl={displayAvatar}
+        fullName={displayName}
+        email={displayEmail}
+        onAvatarChange={() => {
+          void citizen.refresh();
+        }}
+      />
+      {showCitizenProfile && (
+        <CitizenProfileEditor
+          loading={citizen.loading}
+          saving={citizen.saving}
+          error={citizen.error}
+          form={citizen.form}
+          isDirty={citizen.isDirty}
+          setField={citizen.setField}
+          onUpdate={async () => {
+            await citizen.updateProfile();
+          }}
+          onRetry={() => void citizen.refresh()}
+        />
+      )}
+      {isAdvocate && <MyListingEditor />}
     </div>
   );
 }

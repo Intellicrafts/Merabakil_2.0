@@ -25,7 +25,43 @@ test.describe("Legal OS smoke", () => {
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/dashboard/);
     await expect(page.getByRole("heading", { name: /good (morning|afternoon|evening)/i })).toBeVisible();
-    await expect(page.getByPlaceholder(/ask mera vakil/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/ask saarthi/i)).toBeVisible();
+  });
+});
+
+test.describe("Dashboard hero by role", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "legalos.consent",
+        JSON.stringify({
+          version: 2,
+          analytics: true,
+          acceptedAt: new Date().toISOString(),
+        }),
+      );
+    });
+  });
+
+  test("citizen dashboard shows citizen badge and greeting", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel(/email/i).fill("citizen@legalos.in");
+    await page.getByLabel(/password/i).fill("ChangeMe!2026");
+    await page.getByRole("button", { name: /sign in/i }).click();
+    await expect(page).toHaveURL(/dashboard/);
+    await expect(page.getByRole("heading", { name: /good (morning|afternoon|evening)/i })).toBeVisible();
+    await expect(page.locator(".dash-hero-role-badge", { hasText: /^Citizen$/i })).toBeVisible();
+    await expect(page.getByPlaceholder(/ask saarthi/i)).toBeVisible();
+  });
+
+  test("advocate dashboard shows advocate badge and first name not honorific", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel(/email/i).fill("advocate@legalos.in");
+    await page.getByLabel(/password/i).fill("ChangeMe!2026");
+    await page.getByRole("button", { name: /sign in/i }).click();
+    await expect(page).toHaveURL(/dashboard/);
+    await expect(page.getByRole("heading", { name: /good (morning|afternoon|evening), Priya/i })).toBeVisible();
+    await expect(page.locator(".dash-hero-role-badge", { hasText: /^Advocate$/i })).toBeVisible();
   });
 });
 
@@ -83,6 +119,6 @@ test.describe("Mobile viewport", () => {
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/dashboard/);
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect(page.getByPlaceholder(/ask mera vakil/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/ask saarthi/i)).toBeVisible();
   });
 });

@@ -170,7 +170,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
       <button
         type="button"
         onClick={() => void start()}
-        className="mb-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/10"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/10"
         aria-label={t("room.recordVoiceNote")}
       >
         <Mic className="h-4 w-4" />
@@ -201,7 +201,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
             <button
               type="button"
               onClick={reset}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/[0.05]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/[0.05]"
               aria-label={t("room.cancelRecording")}
             >
               <X className="h-3.5 w-3.5" />
@@ -209,7 +209,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
             <button
               type="button"
               onClick={finish}
-              className="mp-btn-accent inline-flex h-8 items-center rounded-lg px-2.5 text-[11px] font-semibold"
+              className="mp-btn-accent inline-flex min-h-11 items-center rounded-lg px-3 text-[12px] font-semibold"
             >
               <Square className="mr-1 h-3 w-3" />
               {t("room.stopRecording")}
@@ -221,7 +221,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
             <button
               type="button"
               onClick={togglePreview}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
               aria-label={playing ? t("room.pausePreview") : t("room.playPreview")}
             >
               {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
@@ -230,7 +230,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
             <button
               type="button"
               onClick={reset}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/[0.05]"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/[0.05]"
               aria-label={t("room.discardVoiceNote")}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -239,7 +239,7 @@ export function VoiceNoteComposer({ onSend, onActiveChange }: VoiceNoteComposerP
               type="button"
               onClick={() => void send()}
               disabled={sending}
-              className={cn("mp-btn-accent inline-flex h-8 items-center rounded-lg px-2.5 text-[11px] font-semibold", sending && "opacity-60")}
+              className={cn("mp-btn-accent inline-flex min-h-11 items-center rounded-lg px-3 text-[12px] font-semibold", sending && "opacity-60")}
             >
               <Check className="mr-1 h-3 w-3" />
               {sending ? t("room.sendingVoiceNote") : t("room.sendVoiceNote")}

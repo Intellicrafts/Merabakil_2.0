@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
@@ -61,6 +61,7 @@ class UserResponse(BaseModel):
     full_name: str
     roles: list[str]
     permissions: list[str]
+    avatar_url: str | None = None
     is_active: bool = True
     created_at: str | None = None
 
@@ -68,6 +69,26 @@ class UserResponse(BaseModel):
 class UpdateUserRequest(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=255)
     is_active: bool | None = None
+
+
+class CitizenProfileResponse(BaseModel):
+    full_name: str
+    email: str
+    phone: str | None = None
+    date_of_birth: date | None = None
+    address: str | None = None
+    avatar_url: str | None = None
+
+
+class CitizenProfileUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    phone: str | None = Field(default=None, max_length=30)
+    date_of_birth: date | None = None
+    address: str | None = Field(default=None, max_length=2000)
+
+
+class AvatarUploadResponse(BaseModel):
+    avatar_url: str
 
 
 class AuthResponse(BaseModel):

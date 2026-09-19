@@ -93,7 +93,7 @@ export function VoiceNotePlayer({ appointmentId, attachment, mine }: VoiceNotePl
   const max = duration || 0;
 
   return (
-    <div className={cn("mt-1 flex min-w-[196px] items-center gap-2", mine ? "text-white dark:text-slate-900" : "")}>
+    <div className={cn("mt-1 flex min-w-0 max-w-full items-center gap-2", mine ? "text-white dark:text-slate-900" : "")}>
       <audio ref={audioRef} preload="metadata" className="hidden" />
       <button
         type="button"
@@ -117,7 +117,7 @@ export function VoiceNotePlayer({ appointmentId, attachment, mine }: VoiceNotePl
           step={0.1}
           value={Math.min(current, max)}
           onChange={(e) => seek(Number(e.target.value))}
-          className="h-1 w-full cursor-pointer accent-current"
+          className="apt-voice-range w-full"
           aria-label="Voice note position"
         />
         <div className={cn("mt-0.5 flex justify-between text-[10px] tabular-nums", mine ? "opacity-70" : "text-muted-foreground")}>

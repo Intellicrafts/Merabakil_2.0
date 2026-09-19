@@ -17,6 +17,8 @@ import type {
   UploadDocumentResponse,
   UserDocument,
   AuthUser,
+  CitizenProfile,
+  CitizenProfileInput,
   WalletBalance,
   WalletListResponse,
   WalletTransaction,
@@ -41,7 +43,7 @@ import {
   setAnalyticsUser,
   track,
 } from "@/lib/analytics";
-import { clearAvatarUrl } from "@/lib/avatar";
+import { clearAvatarUrl, storeAvatarUrl } from "@/lib/avatar";
 import {
   authServiceUrl,
   billingServiceUrl,
@@ -87,6 +89,9 @@ function setTokens(accessToken: string, refreshToken: string): void {
 export function setSession(auth: AuthResponse): void {
   setTokens(auth.tokens.access_token, auth.tokens.refresh_token);
   window.localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
+  if (auth.user.avatar_url) {
+    storeAvatarUrl(auth.user.avatar_url);
+  }
   void setAnalyticsUser(auth.user.user_id);
 }
 
@@ -173,20 +178,62 @@ export function updateStoredUser(patch: Partial<AuthUser>): AuthUser | null {
   return updated;
 }
 
-/** Refresh JWT from DB and merge latest roles/permissions into cached user. */
+/** Refresh JWT from DB and merge latest user fields into cached session. */
 export async function syncStoredUser(): Promise<AuthUser | null> {
   const stored = getStoredUser();
   if (!stored) return null;
   try {
     await refreshAccessToken();
-    const me = await apiFetch<Pick<AuthUser, "roles" | "permissions">>(
-      `${authServiceUrl()}/api/v1/users/me`,
-      { headers: authHeaders() },
-    );
-    return updateStoredUser({ roles: me.roles, permissions: me.permissions });
+    const me = await apiFetch<AuthUser>(`${authServiceUrl()}/api/v1/users/me`, {
+      headers: authHeaders(),
+    });
+    const updated = updateStoredUser({
+      roles: me.roles,
+      permissions: me.permissions,
+      full_name: me.full_name,
+      avatar_url: me.avatar_url ?? null,
+    });
+    if (me.avatar_url) storeAvatarUrl(me.avatar_url);
+    return updated;
   } catch {
     return stored;
   }
+}
+
+export async function getCitizenProfile(): Promise<CitizenProfile> {
+  return apiFetch<CitizenProfile>(`${authServiceUrl()}/api/v1/users/me/profile`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function updateCitizenProfile(payload: CitizenProfileInput): Promise<CitizenProfile> {
+  return apiFetch<CitizenProfile>(`${authServiceUrl()}/api/v1/users/me/profile`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function uploadProfileAvatar(blob: Blob): Promise<string> {
+  const form = new FormData();
+  form.append("file", blob, blob.type.includes("webp") ? "avatar.webp" : "avatar.jpg");
+  const res = await authorizedFetch(`${authServiceUrl()}/api/v1/users/me/avatar`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) return parseError(res);
+  const body = (await res.json()) as { avatar_url: string };
+  updateStoredUser({ avatar_url: body.avatar_url });
+  return body.avatar_url;
+}
+
+export async function deleteProfileAvatar(): Promise<void> {
+  await apiFetch<void>(`${authServiceUrl()}/api/v1/users/me/avatar`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  updateStoredUser({ avatar_url: null });
+  clearAvatarUrl();
 }
 
 const AUTH_OFFLINE_MESSAGE =

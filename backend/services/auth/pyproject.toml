@@ -14,6 +14,7 @@ dependencies = [
     "redis>=5.1.0",
     "email-validator>=2.2.0",
     "google-auth>=2.36.0",
+    "pillow>=10.4.0",
 ]
 
 [dependency-groups]

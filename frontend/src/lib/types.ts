@@ -6,6 +6,23 @@ export interface AuthUser {
   permissions: string[];
   is_active?: boolean;
   created_at?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface CitizenProfile {
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  address?: string | null;
+  avatar_url?: string | null;
+}
+
+export interface CitizenProfileInput {
+  full_name?: string;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  address?: string | null;
 }
 
 export interface Tokens {

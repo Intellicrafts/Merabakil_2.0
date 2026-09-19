@@ -406,7 +406,7 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
             )}
           </div>
 
-          <div className="shrink-0 border-t border-black/[0.06] px-5 py-4 dark:border-white/[0.08]">
+          <div className="shrink-0 border-t border-black/[0.06] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-white/[0.08]">
             <div className="flex gap-2">
               {step > 0 && (
                 <button
@@ -423,7 +423,7 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
               )}
               <button
                 type="submit"
-                className="mp-btn-accent h-10 flex-1 rounded-xl text-[13px] font-semibold disabled:opacity-50"
+                className="mp-btn-accent min-h-11 flex-1 rounded-xl text-[13px] font-semibold disabled:opacity-50 sm:min-h-10"
                 disabled={submitting || (step === 2 && !allValid)}
               >
                 {submitting ? "Booking…" : step === 2 ? "Confirm booking" : "Continue"}

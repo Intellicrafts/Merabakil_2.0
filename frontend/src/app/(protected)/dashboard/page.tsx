@@ -11,6 +11,7 @@ import { useDashboardSnapshot } from "@/hooks/use-dashboard-snapshot";
 import { AnalyticsEvents, track } from "@/lib/analytics";
 import { getStoredUser, syncStoredUser } from "@/lib/api";
 import { getDashboardConfig } from "@/lib/dashboard-config";
+import { getGreetingName } from "@/lib/display-name";
 import { useTranslation } from "@/lib/i18n";
 import type { AuthUser } from "@/lib/types";
 
@@ -21,7 +22,7 @@ export default function DashboardPage() {
   const snapshot = useDashboardSnapshot();
 
   const config = getDashboardConfig(user);
-  const firstName = user?.full_name?.split(" ")[0] ?? "there";
+  const firstName = getGreetingName(user?.full_name);
 
   useEffect(() => {
     setUser(getStoredUser());

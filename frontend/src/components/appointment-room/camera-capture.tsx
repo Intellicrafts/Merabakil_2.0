@@ -176,7 +176,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
         role="dialog"
         aria-modal="true"
         aria-labelledby="camera-title"
-        className="relative z-[81] w-full max-w-lg overflow-hidden rounded-t-3xl border border-black/[0.08] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[hsl(220_14%_9%)] sm:rounded-3xl"
+        className="apt-bottom-sheet apt-bottom-sheet-panel relative z-[81] w-full max-w-lg overflow-hidden rounded-t-3xl border border-black/[0.08] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[hsl(220_14%_9%)] sm:rounded-3xl"
       >
         <div className="flex items-center justify-between px-4 pt-4">
           <h2 id="camera-title" className="text-[15px] font-semibold tracking-tight">
@@ -185,7 +185,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/[0.05] dark:hover:bg-white/10"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-black/[0.05] dark:hover:bg-white/10"
             aria-label={t("room.closeCamera")}
           >
             <X className="h-4 w-4" />
@@ -240,7 +240,7 @@ export function CameraCapture({ open, reuseStream, onClose, onSend }: CameraCapt
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-center gap-2 px-4 py-4">
+        <div className="grid grid-cols-2 gap-2 px-4 py-4 sm:flex sm:flex-wrap sm:items-center sm:justify-center">
           {phase === "live" && (
             <>
               {!reuseStream && (

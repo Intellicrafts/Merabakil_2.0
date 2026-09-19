@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Moon, Search, Sun, UserCircle, Wallet } from "lucide-react";
+import { LogOut, Moon, Search, Sun, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ProfileAvatar } from "@/components/auth/profile-avatar";
+import {
+  AccountMenuItem,
+  CircleUserRound,
+  Home,
+} from "@/components/layout/account-menu-item";
 import { DashboardCommandPalette } from "@/components/dashboard/dashboard-command-palette";
 import { BrandLockup } from "@/components/layout/brand-lockup";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -18,14 +23,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
-import { getStoredUser, getWalletBalance, signOut } from "@/lib/api";
+import { getStoredUser, getWalletBalance, signOut, syncStoredUser } from "@/lib/api";
 import { clearConsent } from "@/lib/consent";
-import { readAvatarUrl } from "@/lib/avatar";
+import { pickAvatarCandidate, readAvatarUrl } from "@/lib/avatar";
+import { useResolvedAvatarSrc } from "@/hooks/use-resolved-avatar-src";
 import { useTranslation } from "@/lib/i18n";
 import { markNavigationStart } from "@/lib/navigation-feedback";
 import { FEATURES } from "@/lib/features";
@@ -63,6 +68,7 @@ function AppTopBar({
   pageTitle,
   isHome,
   walletBalance,
+  avatarSrc,
   onToggleTheme,
   onGoHome,
   onGoToProfile,
@@ -75,6 +81,7 @@ function AppTopBar({
   pageTitle: string;
   isHome: boolean;
   walletBalance: string | null;
+  avatarSrc: string | null;
   onToggleTheme: () => void;
   onGoHome: () => void;
   onGoToProfile: () => void;
@@ -142,7 +149,7 @@ function AppTopBar({
         <DropdownMenu>
           <DropdownMenuTrigger className="ml-1 flex items-center gap-2 rounded-xl border border-transparent px-1.5 py-1 text-sm transition-colors hover:border-black/[0.06] hover:bg-white/80 dark:hover:border-white/10 dark:hover:bg-white/[0.07]" aria-label={t("nav.accountMenu")}>
             <ProfileAvatar
-              src={readAvatarUrl()}
+              src={avatarSrc}
               name={user?.full_name ?? "User"}
               className="h-7 w-7"
             />
@@ -153,35 +160,39 @@ function AppTopBar({
               </p>
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {!isHome && (
-              <>
-                <DropdownMenuItem onClick={onGoHome}>{t("nav.home")}</DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            {user?.roles?.includes("advocate") && (
-              <DropdownMenuItem onClick={onGoToProfile}>
-                <UserCircle className="mr-2 h-4 w-4" />
-                {t("nav.myProfile")}
-              </DropdownMenuItem>
-            )}
+          <DropdownMenuContent align="end" className="min-w-[15rem]">
+            <AccountMenuItem
+              icon={Home}
+              label={t("nav.home")}
+              accent="home"
+              onClick={onGoHome}
+            />
+            <AccountMenuItem
+              icon={CircleUserRound}
+              label={t("nav.myProfile")}
+              accent="profile"
+              onClick={onGoToProfile}
+            />
             {FEATURES.WALLET && (
-              <DropdownMenuItem onClick={onGoToWallet}>
-                <Wallet className="mr-2 h-4 w-4" />
-                <span>{t("nav.wallet")}</span>
-                {walletBalance && (
-                  <span className="ml-auto text-[11px] font-medium text-muted-foreground">
-                    {walletBalance}
-                  </span>
-                )}
-              </DropdownMenuItem>
+              <AccountMenuItem
+                icon={Wallet}
+                label={t("nav.wallet")}
+                accent="wallet"
+                onClick={onGoToWallet}
+                trailing={
+                  walletBalance ? (
+                    <span className="ml-auto text-[11px] font-medium text-muted-foreground">
+                      {walletBalance}
+                    </span>
+                  ) : null
+                }
+              />
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => clearConsent()}>{t("nav.cookieSettings")}</DropdownMenuItem>
-            <DropdownMenuItem destructive onClick={onSignOut}>
+            <DropdownMenuItem onClick={() => clearConsent()} className="min-h-11">
+              {t("nav.cookieSettings")}
+            </DropdownMenuItem>
+            <DropdownMenuItem destructive onClick={onSignOut} className="min-h-11">
               <LogOut className="mr-2 h-4 w-4" />
               {t("nav.signOut")}
             </DropdownMenuItem>
@@ -219,7 +230,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUser(getStoredUser());
     setDark(initTheme());
+    void syncStoredUser().then((fresh) => {
+      if (fresh) setUser(fresh);
+    });
   }, []);
+
+  const avatarCandidate = pickAvatarCandidate(user?.avatar_url, readAvatarUrl());
+  const avatarSrc = useResolvedAvatarSrc(avatarCandidate);
 
   useEffect(() => {
     if (!isRoom) return;
@@ -268,28 +285,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(100,116,139,0.07),transparent)] dark:bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(148,163,184,0.06),transparent)]" />
       </div>
       <div className={isRoom ? "relative flex h-full flex-col overflow-hidden" : "relative flex min-h-screen flex-col"}>
-        <AppTopBar
-          user={user}
-          dark={dark}
-          pageTitle={pageTitle}
-          isHome={isHome}
-          walletBalance={walletBalance}
-          onToggleTheme={handleToggleTheme}
-          onGoHome={() => {
-            markNavigationStart();
-            router.push("/dashboard");
-          }}
-          onGoToProfile={() => {
-            markNavigationStart();
-            router.push("/profile");
-          }}
-          onGoToWallet={() => {
-            markNavigationStart();
-            router.push("/wallet");
-          }}
-          onSignOut={handleSignOut}
-          onOpenPalette={() => setPaletteOpen(true)}
-        />
+        <div className={isRoom ? "hidden md:block" : undefined}>
+          <AppTopBar
+            user={user}
+            dark={dark}
+            pageTitle={pageTitle}
+            isHome={isHome}
+            walletBalance={walletBalance}
+            avatarSrc={avatarSrc}
+            onToggleTheme={handleToggleTheme}
+            onGoHome={() => {
+              markNavigationStart();
+              router.push("/dashboard");
+            }}
+            onGoToProfile={() => {
+              markNavigationStart();
+              router.push("/profile");
+            }}
+            onGoToWallet={() => {
+              markNavigationStart();
+              router.push("/wallet");
+            }}
+            onSignOut={handleSignOut}
+            onOpenPalette={() => setPaletteOpen(true)}
+          />
+        </div>
         <SummonAlertHost />
         <IncomingCallHost />
         {!isRoom && (
@@ -304,7 +324,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             isHome
               ? "flex-1 px-0 pb-0 pt-0 md:px-8"
               : isRoom
-                ? "flex min-h-0 flex-1 flex-col overflow-hidden px-0 pt-0"
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden px-0 pt-[env(safe-area-inset-top,0px)] md:pt-0"
                 : "flex-1 px-5 pb-10 pt-2 md:px-8"
           }
         >

@@ -78,6 +78,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(String(512))
 
     roles: Mapped[list[Role]] = relationship(
         secondary="user_roles", back_populates="users", lazy="selectin"

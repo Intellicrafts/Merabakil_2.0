@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 import uuid
 
-from fastapi import APIRouter, Depends, Query, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
+from fastapi.responses import JSONResponse, Response
 
 from app.api.deps import enforce_rate_limit, get_auth_service, get_auth_settings
 from app.api.schemas import (
@@ -22,6 +22,9 @@ from app.api.schemas import (
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+    AvatarUploadResponse,
+    CitizenProfileResponse,
+    CitizenProfileUpdate,
     UpdateUserRequest,
     UserConsentResponse,
     UserResponse,
@@ -47,11 +50,36 @@ def _to_auth_response(result: AuthResult) -> AuthResponse:
             full_name=result.full_name,
             roles=result.roles,
             permissions=result.permissions,
+            avatar_url=None,
         ),
         tokens=TokenResponse(
             access_token=result.tokens.access_token,
             refresh_token=result.tokens.refresh_token,
         ),
+    )
+
+
+async def _to_auth_response_with_avatar(result: AuthResult, service: AuthService) -> AuthResponse:
+    db_user = await service.get_user(uuid.UUID(result.user_id))
+    return AuthResponse(
+        user=_to_user_response(db_user, service),
+        tokens=TokenResponse(
+            access_token=result.tokens.access_token,
+            refresh_token=result.tokens.refresh_token,
+        ),
+    )
+
+
+def _to_user_response(user, service: AuthService) -> UserResponse:
+    return UserResponse(
+        user_id=str(user.id),
+        email=user.email,
+        full_name=user.full_name,
+        roles=user.role_names,
+        permissions=user.permission_codes,
+        avatar_url=service.resolve_avatar_url(user),
+        is_active=getattr(user, "is_active", True),
+        created_at=getattr(user, "created_at", None) and user.created_at.isoformat(),
     )
 
 
@@ -91,7 +119,7 @@ async def register(
         privacy_version=body.privacy_version,
         ip_hash=_hash_client_ip(request),
     )
-    return _to_auth_response(result)
+    return await _to_auth_response_with_avatar(result, service)
 
 
 @router.post(
@@ -105,7 +133,7 @@ async def login(
     service: AuthService = Depends(get_auth_service),
 ) -> AuthResponse:
     result = await service.authenticate(email=body.email, password=body.password)
-    return _to_auth_response(result)
+    return await _to_auth_response_with_avatar(result, service)
 
 
 @router.post(
@@ -123,7 +151,7 @@ async def google_auth(
             status_code=status.HTTP_200_OK,
             content=_to_google_needs_role_response(result).model_dump(),
         )
-    return _to_auth_response(result)
+    return await _to_auth_response_with_avatar(result, service)
 
 
 @router.post(
@@ -145,7 +173,7 @@ async def google_complete(
         privacy_version=body.privacy_version,
         ip_hash=_hash_client_ip(request),
     )
-    return _to_auth_response(result)
+    return await _to_auth_response_with_avatar(result, service)
 
 
 @router.post("/refresh", response_model=TokenResponse, summary="Rotate refresh token")
@@ -189,15 +217,14 @@ async def confirm_password_reset(
     return MessageResponse(message="Password updated successfully.")
 
 
-def _to_user_response(user) -> UserResponse:
-    return UserResponse(
-        user_id=str(user.id),
-        email=user.email,
-        full_name=user.full_name,
-        roles=user.role_names,
-        permissions=user.permission_codes,
-        is_active=getattr(user, "is_active", True),
-        created_at=getattr(user, "created_at", None) and user.created_at.isoformat(),
+def _to_citizen_profile_response(profile) -> CitizenProfileResponse:
+    return CitizenProfileResponse(
+        full_name=profile.full_name,
+        email=profile.email,
+        phone=profile.phone,
+        date_of_birth=profile.date_of_birth,
+        address=profile.address,
+        avatar_url=profile.avatar_url,
     )
 
 
@@ -207,7 +234,83 @@ async def me(
     service: AuthService = Depends(get_auth_service),
 ) -> UserResponse:
     user = await service.get_user(uuid.UUID(current.user_id))
-    return _to_user_response(user)
+    return _to_user_response(user, service)
+
+
+@users_router.get(
+    "/me/profile",
+    response_model=CitizenProfileResponse,
+    summary="Get citizen profile details",
+)
+async def get_my_profile(
+    current: CurrentUser = Depends(get_current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> CitizenProfileResponse:
+    profile = await service.get_citizen_profile(uuid.UUID(current.user_id))
+    return _to_citizen_profile_response(profile)
+
+
+@users_router.patch(
+    "/me/profile",
+    response_model=CitizenProfileResponse,
+    summary="Update citizen profile details",
+)
+async def update_my_profile(
+    body: CitizenProfileUpdate,
+    current: CurrentUser = Depends(get_current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> CitizenProfileResponse:
+    profile = await service.update_citizen_profile(
+        uuid.UUID(current.user_id),
+        full_name=body.full_name,
+        phone=body.phone,
+        date_of_birth=body.date_of_birth,
+        address=body.address,
+        fields_set=body.model_fields_set,
+    )
+    return _to_citizen_profile_response(profile)
+
+
+@users_router.post(
+    "/me/avatar",
+    response_model=AvatarUploadResponse,
+    summary="Upload profile photo",
+)
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    current: CurrentUser = Depends(get_current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> AvatarUploadResponse:
+    raw = await file.read()
+    content_type = file.content_type or "application/octet-stream"
+    avatar_url = await service.upload_avatar(
+        uuid.UUID(current.user_id),
+        raw=raw,
+        content_type=content_type,
+    )
+    return AvatarUploadResponse(avatar_url=avatar_url)
+
+
+@users_router.delete(
+    "/me/avatar",
+    response_model=MessageResponse,
+    summary="Remove profile photo",
+)
+async def delete_my_avatar(
+    current: CurrentUser = Depends(get_current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> MessageResponse:
+    await service.delete_avatar(uuid.UUID(current.user_id))
+    return MessageResponse(message="Profile photo removed.")
+
+
+@users_router.get("/me/avatar", summary="Download current user profile photo")
+async def get_my_avatar(
+    current: CurrentUser = Depends(get_current_user),
+    service: AuthService = Depends(get_auth_service),
+) -> Response:
+    data, content_type = await service.get_avatar_file(uuid.UUID(current.user_id))
+    return Response(content=data, media_type=content_type, headers={"Cache-Control": "private, max-age=300"})
 
 
 @users_router.get(
@@ -246,7 +349,7 @@ async def list_users(
     users, total = await service.list_users(
         offset=params.offset, limit=params.size, search=search, is_active=is_active, role=role
     )
-    items = [_to_user_response(u) for u in users]
+    items = [_to_user_response(u, service) for u in users]
     return paginate(items, total, params)
 
 
@@ -261,7 +364,7 @@ async def get_user(
     service: AuthService = Depends(get_auth_service),
 ) -> UserResponse:
     user = await service.get_user(user_id)
-    return _to_user_response(user)
+    return _to_user_response(user, service)
 
 
 @users_router.patch(
@@ -276,4 +379,4 @@ async def update_user(
     service: AuthService = Depends(get_auth_service),
 ) -> UserResponse:
     user = await service.update_user(user_id, full_name=body.full_name, is_active=body.is_active)
-    return _to_user_response(user)
+    return _to_user_response(user, service)

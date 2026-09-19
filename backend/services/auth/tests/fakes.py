@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 
 @dataclass
 class FakeRole:
     name: str
     permissions: list[str]
+
+
+@dataclass
+class FakeCitizenProfile:
+    user_id: uuid.UUID
+    phone: str | None = None
+    date_of_birth: date | None = None
+    address: str | None = None
 
 
 @dataclass
@@ -21,6 +29,8 @@ class FakeUser:
     hashed_password: str | None
     is_active: bool = True
     is_verified: bool = False
+    avatar_url: str | None = None
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     roles_data: list[FakeRole] = field(default_factory=list)
 
     @property
@@ -82,6 +92,7 @@ class FakeUserRepository:
     def __init__(self) -> None:
         self.store: dict[uuid.UUID, FakeUser] = {}
         self.profile_roles: dict[uuid.UUID, str] = {}
+        self.citizen_profiles: dict[uuid.UUID, FakeCitizenProfile] = {}
 
     async def get_by_email(self, email: str) -> FakeUser | None:
         return next((u for u in self.store.values() if u.email.lower() == email.lower()), None)
@@ -115,9 +126,54 @@ class FakeUserRepository:
     async def create_role_profile(self, user: FakeUser, role_name: str) -> None:
         if role_name != "admin":
             self.profile_roles[user.id] = role_name
+        if role_name == "citizen" and user.id not in self.citizen_profiles:
+            self.citizen_profiles[user.id] = FakeCitizenProfile(user_id=user.id)
 
     async def update_password(self, user: FakeUser, hashed_password: str) -> None:
         user.hashed_password = hashed_password
+
+    async def get_citizen_profile(self, user_id: uuid.UUID):
+        user = self.store.get(user_id)
+        profile = self.citizen_profiles.get(user_id)
+        if user is None or profile is None:
+            return None
+        return user, profile
+
+    async def update_citizen_profile(
+        self,
+        user: FakeUser,
+        profile: FakeCitizenProfile,
+        *,
+        full_name: str | None = None,
+        phone: str | None = None,
+        date_of_birth=None,
+        address: str | None = None,
+        clear_phone: bool = False,
+        clear_date_of_birth: bool = False,
+        clear_address: bool = False,
+    ) -> None:
+        if full_name is not None:
+            user.full_name = full_name
+        if clear_phone:
+            profile.phone = None
+        elif phone is not None:
+            profile.phone = phone
+        if clear_date_of_birth:
+            profile.date_of_birth = None
+        elif date_of_birth is not None:
+            profile.date_of_birth = date_of_birth
+        if clear_address:
+            profile.address = None
+        elif address is not None:
+            profile.address = address
+        user.updated_at = datetime.now(UTC)
+
+    async def update_avatar_url(self, user: FakeUser, avatar_url: str | None) -> None:
+        user.avatar_url = avatar_url
+        user.updated_at = datetime.now(UTC)
+
+    async def update_full_name(self, user: FakeUser, full_name: str) -> None:
+        user.full_name = full_name
 
     async def list_users(self, *, offset: int, limit: int) -> tuple[list[FakeUser], int]:
         users = list(self.store.values())

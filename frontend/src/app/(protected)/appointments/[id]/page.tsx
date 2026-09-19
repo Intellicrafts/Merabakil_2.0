@@ -217,15 +217,22 @@ export default function AppointmentDetailsPage() {
   const opponentWaiting = join?.opponent_present ?? apt.opponent_present;
   const hasCaseBrief = Boolean(apt.case_id);
 
+  const minutesUntil = apt.scheduled_at
+    ? (new Date(apt.scheduled_at).getTime() - Date.now()) / 60_000
+    : Infinity;
+  const refundEligible = apt.my_role === "lawyer" || minutesUntil >= 5;
+
   return (
-    <div className="mx-auto w-full max-w-[720px] space-y-5 pb-8">
+    <div
+      className={`mx-auto w-full max-w-[720px] space-y-5 pb-[max(2rem,env(safe-area-inset-bottom))] ${joinable ? "pb-28 sm:pb-[max(2rem,env(safe-area-inset-bottom))]" : ""}`}
+    >
       {/* Tabs when case_id is set */}
       {hasCaseBrief && (
         <div className="flex gap-1 rounded-xl bg-black/[0.04] p-1 dark:bg-white/[0.06]">
           <button
             type="button"
             onClick={() => setActiveTab("details")}
-            className={`flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors ${
+            className={`flex-1 rounded-lg py-2.5 min-h-11 text-[13px] font-medium transition-colors ${
               activeTab === "details"
                 ? "bg-white shadow-sm dark:bg-white/[0.12]"
                 : "text-muted-foreground hover:text-foreground"
@@ -236,7 +243,7 @@ export default function AppointmentDetailsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("brief")}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[13px] font-medium transition-colors ${
+            className={`flex-1 flex min-h-11 items-center justify-center gap-1.5 rounded-lg py-2.5 text-[13px] font-medium transition-colors ${
               activeTab === "brief"
                 ? "bg-white shadow-sm dark:bg-white/[0.12]"
                 : "text-muted-foreground hover:text-foreground"
@@ -285,7 +292,7 @@ export default function AppointmentDetailsPage() {
               {joinable && (
                 <Link
                   href={`/appointments/${apt.id}/room`}
-                  className="mp-btn-accent inline-flex h-9 rounded-xl px-4 text-[13px] font-semibold"
+                  className="mp-btn-accent inline-flex h-11 min-h-11 items-center rounded-xl px-4 text-[13px] font-semibold sm:h-10 sm:min-h-10"
                 >
                   {isRejoin ? t("appointments.rejoinRoom") : t("appointments.joinRoom")}
                 </Link>
@@ -295,7 +302,7 @@ export default function AppointmentDetailsPage() {
                   <button
                     type="button"
                     disabled={busy !== null}
-                    className="mp-btn-accent inline-flex h-9 rounded-xl px-4 text-[13px] font-semibold"
+                    className="mp-btn-accent inline-flex h-11 min-h-11 items-center rounded-xl px-4 text-[13px] font-semibold sm:h-10 sm:min-h-10"
                     onClick={async () => {
                       setBusy("confirm");
                       try {
@@ -315,7 +322,7 @@ export default function AppointmentDetailsPage() {
                       type="button"
                       disabled={busy !== null}
                       onClick={() => setShowRejectInput(true)}
-                      className="inline-flex h-9 rounded-xl border border-red-200 px-4 text-[13px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300"
+                      className="inline-flex h-11 min-h-11 items-center rounded-xl border border-red-200 px-4 text-[13px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300 sm:h-10 sm:min-h-10"
                     >
                       {t("appointments.rejectBtn")}
                     </button>
@@ -326,32 +333,27 @@ export default function AppointmentDetailsPage() {
                 <button
                   type="button"
                   disabled={busy !== null}
-                  className="inline-flex h-9 rounded-xl border border-red-200 px-4 text-[13px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300"
+                  className="inline-flex h-11 min-h-11 items-center rounded-xl border border-red-200 px-4 text-[13px] font-semibold text-red-700 dark:border-red-900/40 dark:text-red-300 sm:h-10 sm:min-h-10"
                   onClick={() => setConfirmCancel(true)}
                 >
                   {t("common.cancel")}
                 </button>
               )}
             </div>
-          {/* Cancel confirmation bar */}
-          {confirmCancel && (() => {
-            const minutesUntil = apt.scheduled_at
-              ? (new Date(apt.scheduled_at).getTime() - Date.now()) / 60_000
-              : Infinity;
-            const refundEligible = apt.my_role === "lawyer" || minutesUntil >= 5;
-            return (
-              <div className="mt-3 rounded-xl border border-red-200/70 bg-red-50/60 p-4 dark:border-red-900/30 dark:bg-red-900/10">
+          {/* Cancel confirmation — desktop inline */}
+          {confirmCancel && (
+              <div className="mt-3 hidden rounded-xl border border-red-200/70 bg-red-50/60 p-4 dark:border-red-900/30 dark:bg-red-900/10 sm:block">
                 <p className="text-[13px] font-semibold text-red-800 dark:text-red-200">{t("appointments.cancelThisAppointment")}</p>
                 <p className="mt-1 text-[12px] text-red-700/80 dark:text-red-300/70">
                   {refundEligible
                     ? t("appointments.cancelRefundEligible")
                     : t("appointments.cancelNoRefund")}
                 </p>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={busy === "cancel"}
-                    className="inline-flex h-8 items-center rounded-lg bg-red-600 px-4 text-[12px] font-semibold text-white disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center rounded-lg bg-red-600 px-4 text-[12px] font-semibold text-white disabled:opacity-50"
                     onClick={async () => {
                       setBusy("cancel");
                       try {
@@ -370,18 +372,17 @@ export default function AppointmentDetailsPage() {
                   <button
                     type="button"
                     onClick={() => setConfirmCancel(false)}
-                    className="inline-flex h-8 items-center rounded-lg border border-input px-4 text-[12px] font-medium"
+                    className="inline-flex min-h-11 items-center rounded-lg border border-input px-4 text-[12px] font-medium"
                   >
                     {t("appointments.goBack")}
                   </button>
                 </div>
               </div>
-            );
-          })()}
+          )}
 
-          {/* Reject reason input */}
+          {/* Reject reason input — desktop inline */}
           {showRejectInput && apt.my_role === "lawyer" && apt.status === "requested" && (
-            <div className="mt-4 space-y-2 rounded-xl border border-red-200/60 bg-red-50/40 p-4 dark:border-red-900/30 dark:bg-red-900/10">
+            <div className="mt-4 hidden space-y-2 rounded-xl border border-red-200/60 bg-red-50/40 p-4 dark:border-red-900/30 dark:bg-red-900/10 sm:block">
               <p className="text-[13px] font-medium">{t("appointments.reasonForRejection")}</p>
               <textarea
                 value={rejectReason}
@@ -390,11 +391,11 @@ export default function AppointmentDetailsPage() {
                 placeholder={t("appointments.rejectionPlaceholder")}
                 className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={!rejectReason.trim() || busy === "reject"}
-                  className="inline-flex h-8 items-center rounded-lg bg-red-600 px-4 text-[12px] font-semibold text-white disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center rounded-lg bg-red-600 px-4 text-[12px] font-semibold text-white disabled:opacity-50"
                   onClick={async () => {
                     setBusy("reject");
                     try {
@@ -413,7 +414,7 @@ export default function AppointmentDetailsPage() {
                 <button
                   type="button"
                   onClick={() => { setShowRejectInput(false); setRejectReason(""); }}
-                  className="inline-flex h-8 items-center rounded-lg border border-input px-4 text-[12px] font-medium"
+                  className="inline-flex min-h-11 items-center rounded-lg border border-input px-4 text-[12px] font-medium"
                 >
                   {t("common.cancel")}
                 </button>
@@ -487,6 +488,106 @@ export default function AppointmentDetailsPage() {
           </section>
         </>
       )}
+
+      {joinable && (!hasCaseBrief || activeTab === "details") ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-black/[0.06] bg-background/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden dark:border-white/10">
+          <Link
+            href={`/appointments/${apt.id}/room`}
+            className="mp-btn-accent flex min-h-11 w-full items-center justify-center rounded-xl text-[14px] font-semibold"
+          >
+            {isRejoin ? t("appointments.rejoinRoom") : t("appointments.joinRoom")}
+          </Link>
+        </div>
+      ) : null}
+
+      {confirmCancel ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:hidden">
+          <button type="button" className="absolute inset-0" onClick={() => setConfirmCancel(false)} aria-label={t("appointments.goBack")} />
+          <div className="relative w-full rounded-t-3xl bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl">
+            <p className="text-[15px] font-semibold text-red-800 dark:text-red-200">{t("appointments.cancelThisAppointment")}</p>
+            <p className="mt-1 text-[13px] text-red-700/80 dark:text-red-300/70">
+              {refundEligible ? t("appointments.cancelRefundEligible") : t("appointments.cancelNoRefund")}
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={busy === "cancel"}
+                className="min-h-11 rounded-xl bg-red-600 text-[13px] font-semibold text-white disabled:opacity-50"
+                onClick={async () => {
+                  setBusy("cancel");
+                  try {
+                    setApt(await cancelAppointment(apt.id));
+                    toast({ title: t("appointments.appointmentCancelled"), description: refundEligible ? t("appointments.refundProcessed") : undefined });
+                    setConfirmCancel(false);
+                  } catch (err) {
+                    toast({ title: t("appointments.couldNotCancel"), description: (err as Error).message, variant: "destructive" });
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {busy === "cancel" ? t("appointments.cancellingDots") : t("appointments.confirmCancellation")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmCancel(false)}
+                className="min-h-11 rounded-xl border border-input text-[13px] font-medium"
+              >
+                {t("appointments.goBack")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showRejectInput && apt.my_role === "lawyer" && apt.status === "requested" ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:hidden">
+          <button
+            type="button"
+            className="absolute inset-0"
+            onClick={() => { setShowRejectInput(false); setRejectReason(""); }}
+            aria-label={t("common.cancel")}
+          />
+          <div className="relative w-full rounded-t-3xl bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl">
+            <p className="text-[15px] font-semibold">{t("appointments.reasonForRejection")}</p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              placeholder={t("appointments.rejectionPlaceholder")}
+              className="mt-3 w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={!rejectReason.trim() || busy === "reject"}
+                className="min-h-11 rounded-xl bg-red-600 text-[13px] font-semibold text-white disabled:opacity-50"
+                onClick={async () => {
+                  setBusy("reject");
+                  try {
+                    setApt(await rejectAppointment(apt.id, rejectReason.trim()));
+                    toast({ title: t("appointments.appointmentRejected") });
+                    setShowRejectInput(false);
+                  } catch (err) {
+                    toast({ title: t("appointments.couldNotReject"), description: (err as Error).message, variant: "destructive" });
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                {busy === "reject" ? t("appointments.rejectingDots") : t("appointments.confirmRejection")}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowRejectInput(false); setRejectReason(""); }}
+                className="min-h-11 rounded-xl border border-input text-[13px] font-medium"
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

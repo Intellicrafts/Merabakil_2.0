@@ -71,6 +71,11 @@ class S3Storage:
         )
         return resp["Body"].read()
 
+    async def delete_object(self, key: str) -> None:
+        await asyncio.to_thread(
+            partial(self._client.delete_object, Bucket=self._bucket, Key=key)
+        )
+
     async def presigned_url(self, key: str, *, expires_in: int = 3600) -> str:
         return await asyncio.to_thread(
             partial(
@@ -108,6 +113,11 @@ class LocalFileStorage:
     async def get_object(self, key: str) -> bytes:
         dest = self._base / key
         return await asyncio.to_thread(dest.read_bytes)
+
+    async def delete_object(self, key: str) -> None:
+        dest = self._base / key
+        if dest.exists():
+            await asyncio.to_thread(dest.unlink)
 
     async def presigned_url(self, key: str, *, expires_in: int = 3600) -> str:
         return f"file://{(self._base / key).resolve()}"

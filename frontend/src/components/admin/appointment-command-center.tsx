@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type CommandTab = "overview" | "logs" | "transcript";
+type MobilePanel = "controls" | CommandTab;
 
 interface AppointmentCommandCenterProps {
   appointmentId: string;
@@ -51,6 +52,7 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
   const queryClient = useQueryClient();
   const me = getStoredUser();
   const [tab, setTab] = useState<CommandTab>("overview");
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("overview");
   const [logsPage, setLogsPage] = useState(1);
   const [sysMsg, setSysMsg] = useState("");
   const [reason, setReason] = useState("");
@@ -247,16 +249,17 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
     <div className="mx-auto flex min-h-[100dvh] max-w-7xl flex-col px-4 py-4 pb-8">
       <header className="sticky top-0 z-30 -mx-4 border-b border-black/[0.06] bg-background/95 px-4 py-3 backdrop-blur-md dark:border-white/10">
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/admin/appointments" className="rounded-xl p-2 hover:bg-muted">
+          <Link href="/admin/appointments" className="inline-flex h-11 w-11 items-center justify-center rounded-xl hover:bg-muted">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Command center</p>
-            <p className="truncate text-lg font-semibold">
-              Citizen: {apt.citizen_name} · Counsel: {apt.lawyer_name}
+            <p className="truncate text-base font-semibold sm:text-lg">
+              <span className="sm:hidden">{apt.citizen_name} ↔ {apt.lawyer_name}</span>
+              <span className="hidden sm:inline">Citizen: {apt.citizen_name} · Counsel: {apt.lawyer_name}</span>
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <Badge variant="secondary" className="capitalize">
               {apt.status.replace("_", " ")}
             </Badge>
@@ -281,8 +284,40 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
         </div>
       </header>
 
-      <div className="mt-4 grid flex-1 gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-        <aside className="space-y-4 lg:max-h-[calc(100dvh-140px)] lg:overflow-y-auto lg:pr-1">
+      <div className="mt-3 flex shrink-0 gap-1 overflow-x-auto border-b border-black/[0.06] pb-2 lg:hidden dark:border-white/10">
+        {(
+          [
+            ["controls", UserCog, "Controls"],
+            ["overview", ScrollText, "Overview"],
+            ["logs", Clock, "Logs"],
+            ["transcript", MessageSquare, "Transcript"],
+          ] as const
+        ).map(([id, Icon, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              setMobilePanel(id);
+              if (id !== "controls") setTab(id);
+            }}
+            className={cn(
+              "flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-medium transition",
+              mobilePanel === id ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground",
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <aside
+          className={cn(
+            "space-y-4 lg:max-h-[calc(100dvh-140px)] lg:overflow-y-auto lg:pr-1",
+            mobilePanel !== "controls" && "hidden lg:block",
+          )}
+        >
           <SessionDiagnostics
             health={healthQuery.data}
             loading={healthQuery.isFetching}
@@ -328,10 +363,10 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
               Quick actions
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" className="rounded-xl" disabled={summonMut.isPending} onClick={() => summonMut.mutate()}>
+              <Button size="sm" variant="outline" className="min-h-11 rounded-xl sm:min-h-9" disabled={summonMut.isPending} onClick={() => summonMut.mutate()}>
                 Summon
               </Button>
-              <Button size="sm" variant="outline" className="rounded-xl" disabled={resetCallMut.isPending} onClick={() => resetCallMut.mutate()}>
+              <Button size="sm" variant="outline" className="min-h-11 rounded-xl sm:min-h-9" disabled={resetCallMut.isPending} onClick={() => resetCallMut.mutate()}>
                 Reset call
               </Button>
               {(["normal", "urgent", "emergency"] as const).map((p) => (
@@ -339,7 +374,7 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
                   key={p}
                   size="sm"
                   variant={apt.priority === p ? "default" : "outline"}
-                  className="rounded-xl capitalize"
+                  className="min-h-11 rounded-xl capitalize sm:min-h-9"
                   disabled={priorityMut.isPending}
                   onClick={() => priorityMut.mutate(p)}
                 >
@@ -350,8 +385,13 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
           </div>
         </aside>
 
-        <section className="flex min-h-[480px] flex-col rounded-2xl border border-black/[0.06] dark:border-white/10 lg:max-h-[calc(100dvh-140px)]">
-          <div className="flex shrink-0 gap-1 border-b border-black/[0.06] p-2 dark:border-white/10">
+        <section
+          className={cn(
+            "flex min-h-0 flex-1 flex-col rounded-2xl border border-black/[0.06] dark:border-white/10 lg:max-h-[calc(100dvh-140px)]",
+            mobilePanel === "controls" && "hidden lg:flex",
+          )}
+        >
+          <div className="hidden shrink-0 gap-1 border-b border-black/[0.06] p-2 dark:border-white/10 lg:flex">
             {(
               [
                 ["overview", ScrollText, "Overview"],
@@ -364,7 +404,10 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
                 size="sm"
                 variant={tab === id ? "default" : "ghost"}
                 className="rounded-xl"
-                onClick={() => setTab(id)}
+                onClick={() => {
+                  setTab(id);
+                  setMobilePanel(id);
+                }}
               >
                 <Icon className="mr-1.5 h-3.5 w-3.5" />
                 {label}

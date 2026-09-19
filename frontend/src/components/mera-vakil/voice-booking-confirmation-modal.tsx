@@ -36,7 +36,7 @@ export function VoiceBookingConfirmationModal({
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-end justify-center p-4 sm:items-center sm:p-6"
+      className="fixed inset-0 z-[110] flex items-end justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="voice-booking-title"

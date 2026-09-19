@@ -58,6 +58,7 @@ public-restore: ## Restore local-only frontend API URLs after public tunnel
 .PHONY: native
 native: env ## Run native stack with raw-data + Gemini (no Docker)
 	bash scripts/stop_native.sh 2>/dev/null || true
+	bash scripts/bootstrap_native_deps.sh
 	. .venv/bin/activate && python backend/scripts/run_native_stack.py
 
 .PHONY: dev

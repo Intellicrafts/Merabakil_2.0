@@ -21,8 +21,8 @@ export function OutgoingCallOverlay({
 }: OutgoingCallOverlayProps) {
   const { t } = useTranslation();
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-950/95 p-6 text-center text-white shadow-2xl">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center">
+      <div className="w-full max-w-sm rounded-t-3xl border border-white/10 bg-slate-950/95 p-6 text-center text-white shadow-2xl sm:rounded-3xl">
         <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-white/10 ring-2 ring-white/15">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
         </div>

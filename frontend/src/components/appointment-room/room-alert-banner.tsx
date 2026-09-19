@@ -57,7 +57,7 @@ export function RoomAlertBanner({ kind, title, body, actionLabel, onAction, onDi
           type="button"
           aria-label={muted ? "Unmute alerts" : "Mute alerts"}
           onClick={() => setAlertsMuted(!muted)}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-lg opacity-70 hover:bg-black/[0.05] hover:opacity-100 dark:hover:bg-white/10"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg opacity-70 hover:bg-black/[0.05] hover:opacity-100 dark:hover:bg-white/10"
         >
           {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
         </button>
@@ -66,7 +66,7 @@ export function RoomAlertBanner({ kind, title, body, actionLabel, onAction, onDi
             type="button"
             aria-label="Dismiss"
             onClick={onDismiss}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-lg opacity-70 hover:bg-black/[0.05] hover:opacity-100 dark:hover:bg-white/10"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg opacity-70 hover:bg-black/[0.05] hover:opacity-100 dark:hover:bg-white/10"
           >
             <X className="h-3.5 w-3.5" />
           </button>

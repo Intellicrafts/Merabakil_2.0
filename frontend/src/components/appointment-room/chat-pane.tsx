@@ -200,18 +200,22 @@ export function ChatPane({
                             type="button"
                             title={item.label}
                             onClick={() => onReact(msg.id, item.key)}
-                            className={cn(
-                              "apt-react-chip inline-flex h-6 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-medium transition-transform hover:scale-110 active:scale-95",
-                              active
-                                ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
-                                : "text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10",
-                            )}
+                            className="apt-react-hit"
                           >
-                            <item.Icon
-                              className={cn("h-3 w-3", item.key === "helpful" && active && "fill-current")}
-                            />
-                            {holders.length > 0 ? holders.length : null}
-                            <span className="sr-only">{item.label}</span>
+                            <span
+                              className={cn(
+                                "apt-react-chip inline-flex h-7 min-w-[1.75rem] items-center justify-center gap-0.5 rounded-full px-2 text-[10px] font-medium transition-transform active:scale-95",
+                                active
+                                  ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
+                                  : "text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10",
+                              )}
+                            >
+                              <item.Icon
+                                className={cn("h-3 w-3", item.key === "helpful" && active && "fill-current")}
+                              />
+                              {holders.length > 0 ? holders.length : null}
+                              <span className="sr-only">{item.label}</span>
+                            </span>
                           </button>
                         );
                       })}

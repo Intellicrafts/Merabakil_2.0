@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Camera, Paperclip, Phone, Send, Siren, Video, X } from "lucide-react";
+import { ArrowLeft, Camera, MoreVertical, Paperclip, Phone, Send, Siren, Video, X } from "lucide-react";
+
+import "./room.css";
+import { useVisualViewportInset } from "@/hooks/use-visual-viewport-inset";
+import { cn } from "@/lib/utils";
 
 import { CallModal } from "@/components/appointment-room/call-modal";
 import { IncomingCallOverlay } from "@/components/appointment-room/calls/incoming-call-overlay";
@@ -169,6 +173,8 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpReason, setHelpReason] = useState("");
   const [helpSending, setHelpSending] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const keyboardInset = useVisualViewportInset();
   const [activeAlert, setActiveAlert] = useState<{
     kind: RoomAlertKind;
     title: string;
@@ -1083,32 +1089,162 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     }
   }
 
+  const callStatusLabel = livekitReady
+    ? "Calls on"
+    : livekitConfigured && livekitConnectFailed
+      ? "Call failed"
+      : livekitConfigured
+        ? "Connecting"
+        : "Chat only";
+
   return (
     <div className="apt-room flex min-h-0 flex-1 flex-col overflow-hidden">
-      <header className="mx-auto flex w-full max-w-[680px] shrink-0 items-center justify-between gap-3 px-4 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-[15px] font-semibold tracking-tight">{counterpart}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {present ? "In the room" : "Not present"} · <RoomCountdown endAt={endAt} /> remaining
-            {sseOn ? " · Live" : " · Reconnecting"}
-            {livekitReady
-              ? " · Calls available"
-              : livekitConfigured && livekitConnectFailed
-                ? " · Call connect failed"
-                : livekitConfigured
-                  ? " · Connecting calls…"
-                  : " · Chat only"}
-          </p>
+      <header className="apt-room-header mx-auto w-full max-w-[680px] shrink-0 px-4 pb-2 pt-1 sm:py-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={leave}
+            aria-label="Leave room"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/10"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold tracking-tight">{counterpart}</p>
+            <p className="mt-0.5 hidden truncate text-[11px] text-muted-foreground sm:block">
+              {present ? "In the room" : "Not present"} · <RoomCountdown endAt={endAt} /> remaining
+              {sseOn ? " · Live" : " · Reconnecting"} · {callStatusLabel}
+            </p>
+          </div>
+          <div className="hidden shrink-0 items-center gap-2 sm:flex">
+            {callPhase === "idle" && livekitReady && !sessionBlocked && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void startCall("audio")}
+                  disabled={callBusy}
+                  aria-label="Start audio call"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-black/[0.08] bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-primary disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/10"
+                >
+                  <Phone className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void startCall("video")}
+                  disabled={callBusy}
+                  aria-label="Start video call"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-40"
+                >
+                  <Video className="h-4 w-4" />
+                </button>
+                <div className="h-4 w-px bg-black/10 dark:bg-white/10" />
+              </>
+            )}
+            {!emergencyActive ? (
+              <button
+                type="button"
+                onClick={() => setHelpOpen(true)}
+                className="inline-flex min-h-11 items-center rounded-xl border border-amber-500/40 bg-amber-50 px-3 text-[12px] font-semibold text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-100"
+              >
+                <Siren className="mr-1 h-3.5 w-3.5" />
+                Request help
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void resolveAppointmentEmergency(appointmentId).then(setApt).catch(() => undefined)}
+                className="inline-flex min-h-11 items-center rounded-xl border border-emerald-500/40 px-3 text-[12px] font-semibold text-emerald-800 dark:text-emerald-200"
+              >
+                Mark resolved
+              </button>
+            )}
+            <button type="button" className="mp-btn-primary min-h-11 rounded-xl px-3 text-[12px] font-semibold" onClick={leave}>
+              <X className="mr-1 h-3.5 w-3.5" />
+              Leave
+            </button>
+          </div>
+          <div className="relative sm:hidden">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Room menu"
+              aria-expanded={menuOpen}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] dark:hover:bg-white/10"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+            {menuOpen ? (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-40"
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="Close menu"
+                />
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-black/[0.08] bg-background py-1 shadow-lg dark:border-white/10">
+                  {!emergencyActive ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHelpOpen(true);
+                        setMenuOpen(false);
+                      }}
+                      className="flex w-full min-h-11 items-center px-4 text-left text-[13px] font-medium"
+                    >
+                      <Siren className="mr-2 h-4 w-4 shrink-0" />
+                      Request help
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void resolveAppointmentEmergency(appointmentId).then(setApt).catch(() => undefined);
+                        setMenuOpen(false);
+                      }}
+                      className="flex w-full min-h-11 items-center px-4 text-left text-[13px] font-medium text-emerald-700 dark:text-emerald-300"
+                    >
+                      Mark resolved
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      leave();
+                    }}
+                    className="flex w-full min-h-11 items-center px-4 text-left text-[13px] font-medium text-red-600 dark:text-red-400"
+                  >
+                    <X className="mr-2 h-4 w-4 shrink-0" />
+                    Leave room
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {callPhase === "idle" && livekitReady && !sessionBlocked && (
-            <>
+        <div className="mt-2 flex items-center gap-2 sm:hidden">
+          <div className="apt-room-actions-scroll min-w-0 flex-1">
+            <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-1 text-[10px] font-medium dark:bg-white/[0.08]">
+              {present ? "In room" : "Waiting"}
+            </span>
+            <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-1 text-[10px] font-medium tabular-nums dark:bg-white/[0.08]">
+              <RoomCountdown endAt={endAt} /> left
+            </span>
+            <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-1 text-[10px] font-medium dark:bg-white/[0.08]">
+              {sseOn ? "Live" : "Reconnecting"}
+            </span>
+            <span className="shrink-0 rounded-full bg-black/[0.04] px-2 py-1 text-[10px] font-medium dark:bg-white/[0.08]">
+              {callStatusLabel}
+            </span>
+          </div>
+          {callPhase === "idle" && livekitReady && !sessionBlocked ? (
+            <div className="flex shrink-0 items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => void startCall("audio")}
                 disabled={callBusy}
                 aria-label="Start audio call"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-black/[0.08] bg-white text-slate-600 shadow-sm hover:bg-slate-50 hover:text-primary disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300 dark:hover:bg-white/10"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-black/[0.08] bg-white text-slate-600 shadow-sm disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.05] dark:text-slate-300"
               >
                 <Phone className="h-4 w-4" />
               </button>
@@ -1117,35 +1253,12 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
                 onClick={() => void startCall("video")}
                 disabled={callBusy}
                 aria-label="Start video call"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-40"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm disabled:opacity-40"
               >
                 <Video className="h-4 w-4" />
               </button>
-              <div className="h-4 w-px bg-black/10 dark:bg-white/10" />
-            </>
-          )}
-          {!emergencyActive ? (
-            <button
-              type="button"
-              onClick={() => setHelpOpen(true)}
-              className="inline-flex h-9 items-center rounded-xl border border-amber-500/40 bg-amber-50 px-3 text-[12px] font-semibold text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-100"
-            >
-              <Siren className="mr-1 h-3.5 w-3.5" />
-              Request help
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void resolveAppointmentEmergency(appointmentId).then(setApt).catch(() => undefined)}
-              className="inline-flex h-9 items-center rounded-xl border border-emerald-500/40 px-3 text-[12px] font-semibold text-emerald-800 dark:text-emerald-200"
-            >
-              Mark resolved
-            </button>
-          )}
-          <button type="button" className="mp-btn-primary h-9 rounded-xl px-3 text-[12px] font-semibold" onClick={leave}>
-            <X className="mr-1 h-3.5 w-3.5" />
-            Leave
-          </button>
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -1224,8 +1337,18 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
       <form
         onSubmit={handleSend}
         className="mx-auto w-full max-w-[680px] shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+        style={
+          keyboardInset > 0
+            ? { paddingBottom: `calc(max(0.75rem, env(safe-area-inset-bottom)) + ${keyboardInset}px)` }
+            : undefined
+        }
       >
-        <div className="flex items-end gap-2 border-t border-black/[0.06] pt-3 dark:border-white/[0.08]">
+        <div
+          className={cn(
+            "flex gap-2 border-t border-black/[0.06] pt-3 dark:border-white/[0.08]",
+            voiceOn ? "flex-col sm:flex-row sm:items-end" : "items-end",
+          )}
+        >
           <input
             ref={fileRef}
             type="file"
@@ -1237,26 +1360,35 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
               if (file) void shareFile(file, file.type.startsWith("image/") ? "image" : "document").catch(() => undefined);
             }}
           />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="mb-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/10"
-            aria-label="Attach file"
-          >
-            <Paperclip className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setCameraOpen(true)}
-            className="mb-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/10"
-            aria-label="Camera shot"
-          >
-            <Camera className="h-4 w-4" />
-          </button>
-          <VoiceNoteComposer
-            onActiveChange={setVoiceOn}
-            onSend={(file, caption) => shareFile(file, "voice", caption)}
-          />
+          {!voiceOn ? (
+            <div className="flex shrink-0 items-end gap-2">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/10"
+                aria-label="Attach file"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCameraOpen(true)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/10"
+                aria-label="Camera shot"
+              >
+                <Camera className="h-4 w-4" />
+              </button>
+              <VoiceNoteComposer
+                onActiveChange={setVoiceOn}
+                onSend={(file, caption) => shareFile(file, "voice", caption)}
+              />
+            </div>
+          ) : (
+            <VoiceNoteComposer
+              onActiveChange={setVoiceOn}
+              onSend={(file, caption) => shareFile(file, "voice", caption)}
+            />
+          )}
           {!voiceOn ? (
             <>
               <textarea
@@ -1279,9 +1411,9 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
                 }}
                 rows={1}
                 placeholder="Write a message"
-                className="no-scrollbar max-h-28 min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-[13.5px] outline-none"
+                className="no-scrollbar max-h-28 min-h-11 flex-1 resize-none bg-transparent px-1 py-2.5 text-[13.5px] outline-none"
               />
-              <button type="submit" className="mp-btn-accent h-10 w-10 rounded-xl" disabled={sending || !draft.trim()}>
+              <button type="submit" className="mp-btn-accent h-11 w-11 shrink-0 rounded-xl" disabled={sending || !draft.trim()}>
                 <Send className="h-4 w-4" />
               </button>
             </>
@@ -1310,8 +1442,14 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         onSend={(file, caption) => shareFile(file, "screenshot", caption)}
       />
       {helpOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-background p-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
+          <button
+            type="button"
+            className="absolute inset-0"
+            onClick={() => setHelpOpen(false)}
+            aria-label="Close help request"
+          />
+          <div className="apt-bottom-sheet apt-bottom-sheet-panel relative w-full max-w-sm rounded-t-3xl bg-background p-4 shadow-xl sm:rounded-2xl">
             <h3 className="text-[15px] font-semibold">Request ops help</h3>
             <p className="mt-1 text-[12px] text-muted-foreground">Describe what you need. Admins can extend time, reassign counsel, or send guidance.</p>
             <textarea
@@ -1321,14 +1459,18 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
               placeholder="Brief reason…"
               className="mt-3 w-full resize-none rounded-xl border border-black/[0.08] bg-transparent px-3 py-2 text-[13px] outline-none dark:border-white/10"
             />
-            <div className="mt-3 flex justify-end gap-2">
-              <button type="button" className="h-9 rounded-xl px-3 text-[12px]" onClick={() => setHelpOpen(false)}>
+            <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="min-h-11 rounded-xl px-3 text-[12px] font-medium"
+                onClick={() => setHelpOpen(false)}
+              >
                 Cancel
               </button>
               <button
                 type="button"
                 disabled={helpSending}
-                className="mp-btn-accent h-9 rounded-xl px-3 text-[12px] font-semibold"
+                className="mp-btn-accent min-h-11 rounded-xl px-4 text-[12px] font-semibold"
                 onClick={() => void handleRequestHelp()}
               >
                 {helpSending ? "Sending…" : "Notify ops"}

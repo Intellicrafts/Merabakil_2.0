@@ -200,43 +200,73 @@ export default function AdminAppointmentsPage() {
       </CardHeader>
       <CardContent>
         {lawyersQuery.data && (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Counsel</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead>Verified</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lawyersQuery.data.map((lawyer) => (
-                  <TableRow key={lawyer.id}>
-                    <TableCell className="font-medium">{lawyer.full_name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{lawyer.city}</TableCell>
-                    <TableCell>{lawyer.is_verified || lawyer.verified ? "Yes" : "No"}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl"
-                        disabled={verifyMut.isPending}
-                        onClick={() =>
-                          verifyMut.mutate({
-                            id: lawyer.id,
-                            verified: !(lawyer.is_verified || lawyer.verified),
-                          })
-                        }
-                      >
-                        {lawyer.is_verified || lawyer.verified ? "Unverify" : "Verify"}
-                      </Button>
-                    </TableCell>
+          <>
+            <ul className="space-y-3 md:hidden">
+              {lawyersQuery.data.map((lawyer) => (
+                <li
+                  key={lawyer.id}
+                  className="rounded-2xl border border-black/[0.06] bg-white/60 p-4 dark:border-white/10 dark:bg-white/[0.04]"
+                >
+                  <p className="font-semibold">{lawyer.full_name}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{lawyer.city}</p>
+                  <p className="mt-2 text-[12px] text-muted-foreground">
+                    Verified: {lawyer.is_verified || lawyer.verified ? "Yes" : "No"}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 min-h-11 w-full rounded-xl"
+                    disabled={verifyMut.isPending}
+                    onClick={() =>
+                      verifyMut.mutate({
+                        id: lawyer.id,
+                        verified: !(lawyer.is_verified || lawyer.verified),
+                      })
+                    }
+                  >
+                    {lawyer.is_verified || lawyer.verified ? "Unverify" : "Verify"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Counsel</TableHead>
+                    <TableHead>City</TableHead>
+                    <TableHead>Verified</TableHead>
+                    <TableHead />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {lawyersQuery.data.map((lawyer) => (
+                    <TableRow key={lawyer.id}>
+                      <TableCell className="font-medium">{lawyer.full_name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{lawyer.city}</TableCell>
+                      <TableCell>{lawyer.is_verified || lawyer.verified ? "Yes" : "No"}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl"
+                          disabled={verifyMut.isPending}
+                          onClick={() =>
+                            verifyMut.mutate({
+                              id: lawyer.id,
+                              verified: !(lawyer.is_verified || lawyer.verified),
+                            })
+                          }
+                        >
+                          {lawyer.is_verified || lawyer.verified ? "Unverify" : "Verify"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

@@ -27,7 +27,7 @@ export function RejoinPromptModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="rejoin-prompt-title"
-        className="relative z-[81] w-full max-w-md overflow-hidden rounded-t-3xl border border-black/[0.08] bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[hsl(220_14%_9%)] sm:rounded-3xl"
+        className="apt-bottom-sheet apt-bottom-sheet-panel relative z-[81] w-full max-w-md overflow-hidden rounded-t-3xl border border-black/[0.08] bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[hsl(220_14%_9%)] sm:rounded-3xl"
       >
         <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-slate-100 dark:from-sky-950/50 dark:to-white/10">
           <Radio className="h-5 w-5 text-sky-700 dark:text-sky-300" />
