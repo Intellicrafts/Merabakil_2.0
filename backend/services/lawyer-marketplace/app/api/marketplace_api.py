@@ -798,7 +798,7 @@ async def match_lawyers(
                     lawyer = await repo.get_lawyer(uuid.UUID(lawyer_id_str))
                 except (ValueError, Exception):
                     continue
-                if lawyer:
+                if lawyer and (lawyer.hourly_rate or 0) > 0:
                     ordered.append(lawyer)
             if ordered:
                 logger.info("match_lawyers source=qdrant count=%d query=%r", len(ordered), query)
