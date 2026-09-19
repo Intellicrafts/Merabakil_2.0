@@ -63,6 +63,8 @@ class LawyerPublic(BaseModel):
     bar_council_id: str | None = None
     practice_areas: list[str] = []
     city: str = ""
+    pincode: str = ""
+    location_state: str = ""
     jurisdictions: list[str] = []
     languages: list[str] = []
     years_experience: int = 0
@@ -222,6 +224,8 @@ class LawyerMeUpdate(BaseModel):
     jurisdictions: list[str] | None = None
     languages: list[str] | None = None
     city: str | None = None
+    pincode: str | None = None
+    location_state: str | None = None
     years_experience: int | None = Field(default=None, ge=0, le=70)
     hourly_rate: float | None = Field(default=None, ge=0)
     bio: str | None = None

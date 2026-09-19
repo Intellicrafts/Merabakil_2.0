@@ -83,6 +83,8 @@ class MarketplaceRepository:
         jurisdictions: list[str] | None = None,
         languages: list[str] | None = None,
         city: str | None = None,
+        pincode: str | None = None,
+        location_state: str | None = None,
         years_experience: int | None = None,
         hourly_rate: float | None = None,
         bio: str | None = None,
@@ -103,6 +105,8 @@ class MarketplaceRepository:
                 jurisdictions=jurisdictions or [],
                 languages=languages or [],
                 city=city or "",
+                pincode=pincode or "",
+                location_state=location_state or "",
                 years_experience=years_experience or 0,
                 hourly_rate=Decimal(str(hourly_rate)) if hourly_rate is not None else None,
                 bar_council_id=bar_council_id,
@@ -124,6 +128,10 @@ class MarketplaceRepository:
             row.languages = languages
         if city is not None:
             row.city = city
+        if pincode is not None:
+            row.pincode = pincode
+        if location_state is not None:
+            row.location_state = location_state
         if years_experience is not None:
             row.years_experience = years_experience
         if hourly_rate is not None:

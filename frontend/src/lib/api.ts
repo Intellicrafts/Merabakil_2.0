@@ -1150,6 +1150,8 @@ export interface LawyerListingInput {
   jurisdictions?: string[];
   languages?: string[];
   city?: string;
+  pincode?: string;
+  location_state?: string;
   years_experience?: number;
   hourly_rate?: number | null;
   bio?: string;

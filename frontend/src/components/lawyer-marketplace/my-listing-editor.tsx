@@ -140,6 +140,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   const [loadedBarId, setLoadedBarId] = useState("");
 
   const [pincode, setPincode] = useState("");
+  const [locationState, setLocationState] = useState("");
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeInfo, setPincodeInfo] = useState<{ state: string; district: string } | null>(null);
 
@@ -162,6 +163,8 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
       const row = await getMyLawyerListing();
       setFullName(row.full_name || user?.full_name || "");
       setCity(row.city || "");
+      setPincode((row as { pincode?: string }).pincode ?? "");
+      setLocationState((row as { location_state?: string }).location_state ?? "");
       const bar = row.bar_council_id || "";
       setBarId(bar);
       setLoadedBarId(bar);
@@ -254,6 +257,8 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
       await upsertMyLawyerListing({
         full_name: fullName.trim() || user?.full_name,
         city: city.trim(),
+        pincode: pincode.trim(),
+        location_state: locationState.trim(),
         bar_council_id: barId.trim() || null,
         hourly_rate: rate ? Number(rate) : null,
         years_experience: Number(years) || 0,
@@ -297,6 +302,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         const po = json.PostOffice[0];
         setPincodeInfo({ state: po.State, district: po.District });
         setCity(po.District);
+        setLocationState(po.State);
         const barState = stateToBarCouncil(po.State);
         if (barState) setVerifyState(barState);
         const detectedJurisdictions = stateToJurisdictions(po.State);
@@ -412,6 +418,16 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             <Input
               id="adv-city"
               value={city}
+              readOnly
+              placeholder="Enter pincode to auto-fill"
+              className="h-11 cursor-default rounded-xl bg-black/[0.02] text-muted-foreground dark:bg-white/[0.03]"
+            />
+          </Field>
+
+          <Field label="State" htmlFor="adv-state">
+            <Input
+              id="adv-state"
+              value={locationState}
               readOnly
               placeholder="Enter pincode to auto-fill"
               className="h-11 cursor-default rounded-xl bg-black/[0.02] text-muted-foreground dark:bg-white/[0.03]"

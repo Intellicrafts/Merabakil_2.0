@@ -23,6 +23,8 @@ class Lawyer(Base, TimestampMixin):
     bar_council_id: Mapped[str | None] = mapped_column(String(120))
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     city: Mapped[str | None] = mapped_column(String(80))
+    pincode: Mapped[str | None] = mapped_column(String(10))
+    location_state: Mapped[str | None] = mapped_column(String(100))
     practice_areas: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     jurisdictions: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     years_experience: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

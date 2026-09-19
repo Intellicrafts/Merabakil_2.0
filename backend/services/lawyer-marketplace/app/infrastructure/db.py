@@ -99,6 +99,8 @@ def _ensure_lawyers_columns(sync_conn) -> None:
     new_cols = (
         ("verification_data", "JSON",        "JSONB"),
         ("verified_at",       "DATETIME",    "TIMESTAMPTZ"),
+        ("pincode",           "TEXT",        "TEXT"),
+        ("location_state",    "TEXT",        "TEXT"),
     )
     if dialect == "sqlite":
         existing = {
