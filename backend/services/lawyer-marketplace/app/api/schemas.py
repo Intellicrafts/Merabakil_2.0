@@ -253,6 +253,11 @@ class VerifyRequest(BaseModel):
     state: str | None = None
 
 
+class MeVerifyRequest(BaseModel):
+    enrollment_number: str
+    state: str | None = None
+
+
 class VerifyResponse(BaseModel):
     lawyer_id: uuid.UUID
     status: str

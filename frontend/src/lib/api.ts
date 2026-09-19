@@ -404,6 +404,17 @@ export async function adminGetUserWallet(userId: string): Promise<WalletBalance>
   });
 }
 
+export async function verifyMyEnrollment(
+  enrollmentNumber: string,
+  state?: string,
+): Promise<VerifyResult> {
+  return apiFetch<VerifyResult>(`${marketplaceServiceUrl()}/api/v1/lawyers/me/verify`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ enrollment_number: enrollmentNumber, state: state ?? null }),
+  });
+}
+
 export async function adminGetLawyerByUser(userId: string): Promise<LawyerMatchResult> {
   return apiFetch<LawyerMatchResult>(
     `${marketplaceServiceUrl()}/api/v1/admin/lawyers/by-user/${userId}`,

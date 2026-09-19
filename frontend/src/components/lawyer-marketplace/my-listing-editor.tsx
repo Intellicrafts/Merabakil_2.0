@@ -13,9 +13,22 @@ import {
   getMyLawyerListing,
   getStoredUser,
   upsertMyLawyerListing,
+  verifyMyEnrollment,
 } from "@/lib/api";
+import type { VerifyResult } from "@/lib/types";
 import { PRACTICE_AREAS, CITIES, JURISDICTIONS } from "@/lib/mock/lawyers";
 import { cn } from "@/lib/utils";
+
+const SUPPORTED_STATES = ["Uttar Pradesh", "Delhi", "Andhra Pradesh", "Rajasthan"] as const;
+
+function detectBarCouncilState(enrollment: string): string {
+  const en = enrollment.toUpperCase().trim();
+  if (en.startsWith("UP")) return "Uttar Pradesh";
+  if (en.startsWith("D/")) return "Delhi";
+  if (en.startsWith("AP/")) return "Andhra Pradesh";
+  if (en.startsWith("R/")) return "Rajasthan";
+  return "";
+}
 
 interface MyListingEditorProps {
   onSaved?: () => void;
@@ -60,7 +73,12 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   const [jurisdictions, setJurisdictions] = useState<string[]>([]);
   const [languages, setLanguages] = useState("English, Hindi");
   const [bio, setBio] = useState("");
-  const [verified, setVerified] = useState(true);
+  const [verified, setVerified] = useState(false);
+
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<Pick<VerifyResult, "status" | "data"> | null>(null);
+  const [verifyState, setVerifyState] = useState("");
+  const [showStatePicker, setShowStatePicker] = useState(false);
 
   const completion = useCompletion(areas, years, bio, jurisdictions);
   const isComplete = completion.count === COMPLETION_CHECKS.length;
@@ -79,9 +97,15 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         setLanguages((row.languages ?? []).join(", ") || "English, Hindi");
         setBio(row.bio || "");
         setVerified(Boolean(row.is_verified ?? row.verified));
+        setVerifyState(detectBarCouncilState(row.bar_council_id || ""));
       })
       .catch(() => undefined);
   }, [canEdit, user?.full_name]);
+
+  useEffect(() => {
+    setVerifyResult(null);
+    setShowStatePicker(false);
+  }, [barId]);
 
   if (!canEdit) return null;
 
@@ -115,6 +139,34 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
       });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleVerify() {
+    if (!barId.trim()) return;
+    const state = verifyState || detectBarCouncilState(barId);
+    if (!state) {
+      setShowStatePicker(true);
+      return;
+    }
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const result = await verifyMyEnrollment(barId.trim(), state);
+      setVerified(result.is_verified);
+      setVerifyResult({ status: result.status, data: result.data });
+      if (result.status === "success") {
+        toast({
+          title: `Verified — ${result.data?.name ?? "enrollment confirmed"}`,
+          variant: "success",
+        });
+      } else {
+        toast({ title: "Not found on bar council records", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Verification failed. Try again later.", variant: "destructive" });
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -207,11 +259,63 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         </Field>
 
         <Field label="Bar council ID">
-          <Input
-            value={barId}
-            onChange={(e) => setBarId(e.target.value)}
-            className="h-9 rounded-xl"
-          />
+          <div className="flex gap-2">
+            <Input
+              value={barId}
+              onChange={(e) => setBarId(e.target.value)}
+              placeholder="e.g. UP1234/25, D/105/2005"
+              className="h-9 flex-1 rounded-xl"
+            />
+            <button
+              type="button"
+              disabled={!barId.trim() || verifying}
+              onClick={() => void handleVerify()}
+              className={cn(
+                "shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+                verifyResult?.status === "success"
+                  ? "border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950 dark:text-emerald-400"
+                  : "border-black/[0.08] bg-black/[0.02] text-muted-foreground hover:bg-black/[0.06] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.02]",
+              )}
+            >
+              {verifying ? "Verifying…" : verifyResult?.status === "success" ? "✓ Verified" : "Verify"}
+            </button>
+          </div>
+
+          {showStatePicker && (
+            <div className="mt-2 flex items-center gap-2">
+              <select
+                value={verifyState}
+                onChange={(e) => setVerifyState(e.target.value)}
+                className="flex-1 rounded-xl border border-black/[0.08] bg-white px-3 py-1.5 text-sm text-foreground dark:border-white/10 dark:bg-zinc-900"
+              >
+                <option value="">Select your state bar council</option>
+                {SUPPORTED_STATES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!verifyState || verifying}
+                onClick={() => void handleVerify()}
+                className="rounded-xl border border-black/[0.08] bg-black/[0.02] px-3 py-1.5 text-xs font-semibold disabled:opacity-40 hover:bg-black/[0.06] dark:border-white/10 dark:bg-white/[0.02]"
+              >
+                {verifying ? "Verifying…" : "Verify"}
+              </button>
+            </div>
+          )}
+
+          {verifyResult && (
+            <p className={cn(
+              "mt-1.5 text-xs font-medium",
+              verifyResult.status === "success"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-amber-600 dark:text-amber-400",
+            )}>
+              {verifyResult.status === "success"
+                ? `Verified as ${verifyResult.data?.name ?? ""}`
+                : "Not found on bar council records"}
+            </p>
+          )}
         </Field>
 
         <Field label="Hourly rate (INR)">

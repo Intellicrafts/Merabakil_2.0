@@ -17,6 +17,7 @@ from app.api.schemas import (
     ActivityLogPageOut,
     AdminEventOut,
     AdminLawyerPatch,
+    MeVerifyRequest,
     VerifyRequest,
     VerifyResponse,
     AppointmentOut,
@@ -688,6 +689,55 @@ async def upsert_my_listing(
     if _is_indexable(lawyer):
         asyncio.create_task(_generate_and_index(lawyer.id))
     return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
+
+
+@lawyers_router.post("/me/verify", response_model=VerifyResponse)
+async def verify_my_enrollment(
+    body: MeVerifyRequest,
+    current: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> VerifyResponse:
+    import os
+    from datetime import timezone
+
+    import httpx
+
+    repo = MarketplaceRepository(session)
+    lawyer = await repo.get_lawyer_by_user(uuid.UUID(current.user_id))
+    if not lawyer:
+        raise HTTPException(status_code=404, detail="Lawyer profile not found")
+
+    state = body.state or _detect_bar_council_state(body.enrollment_number)
+    if not state:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot determine state bar council. Provide 'state' in request body.",
+        )
+
+    satyapan_url = os.getenv("SATYAPAN_URL", "http://satyapan:8000")
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            r = await client.post(
+                f"{satyapan_url}/api/v1/verify",
+                json={"enrollment_number": body.enrollment_number, "state": state},
+            )
+        result = r.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Satyapan service unavailable: {exc}") from exc
+
+    lawyer.bar_council_id = body.enrollment_number
+    lawyer.verification_data = result
+    lawyer.verified_at = datetime.now(timezone.utc)
+    lawyer.is_verified = result.get("status") == "success"
+
+    return VerifyResponse(
+        lawyer_id=lawyer.id,
+        status=result.get("status", "error"),
+        message=result.get("message", ""),
+        is_verified=lawyer.is_verified,
+        verified_at=lawyer.verified_at.isoformat(),
+        data=result.get("data"),
+    )
 
 
 @lawyers_router.get("/{lawyer_id}", response_model=LawyerPublic)
