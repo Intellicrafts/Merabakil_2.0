@@ -147,6 +147,13 @@ def _is_indexable(lawyer: Lawyer) -> bool:
     )
 
 
+async def _remove_from_index(lawyer_id: uuid.UUID) -> None:
+    try:
+        await get_lawyer_vector_store().delete(lawyer_id)
+    except Exception as exc:
+        logger.warning("lawyer_index_delete_failed lawyer_id=%s error=%s", lawyer_id, exc)
+
+
 async def _generate_and_index(lawyer_id: uuid.UUID) -> None:
     """Background task: generate LLM summary, persist it, then index into Qdrant."""
     try:
@@ -694,6 +701,8 @@ async def upsert_my_listing(
     await session.commit()
     if _is_indexable(lawyer):
         asyncio.create_task(_generate_and_index(lawyer.id))
+    else:
+        asyncio.create_task(_remove_from_index(lawyer.id))
     return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
 
 

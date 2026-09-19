@@ -32,7 +32,12 @@ class MarketplaceRepository:
         city: str | None = None,
         verified_only: bool = True,
     ) -> list[Lawyer]:
-        stmt: Select[tuple[Lawyer]] = select(Lawyer).where(Lawyer.user_id.is_not(None))
+        stmt: Select[tuple[Lawyer]] = (
+            select(Lawyer)
+            .where(Lawyer.user_id.is_not(None))
+            .where(Lawyer.hourly_rate.is_not(None))
+            .where(Lawyer.hourly_rate > 0)
+        )
         if verified_only:
             stmt = stmt.where(Lawyer.is_verified.is_(True))
         lawyers = list((await self._session.execute(stmt)).scalars().all())

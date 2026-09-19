@@ -10,7 +10,7 @@ from fastapi import FastAPI
 logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.marketplace_api import admin_router, appointments_router, lawyers_router
+from app.api.marketplace_api import _is_indexable, admin_router, appointments_router, lawyers_router
 from app.infrastructure.appointment_repo import MarketplaceRepository
 from app.infrastructure.db import get_engine, init_db, session_scope
 from app.infrastructure.lawyer_vector_store import get_lawyer_vector_store
@@ -54,8 +54,10 @@ async def lifespan(_: FastAPI):
         async with session_scope() as idx_session:
             idx_repo = MarketplaceRepository(idx_session)
             for lawyer in await idx_repo.list_all_lawyers():
-                if lawyer.summary:
+                if lawyer.summary and _is_indexable(lawyer):
                     await store.upsert(lawyer)
+                else:
+                    await store.delete(lawyer.id)
         logger.info("startup_lawyer_index_complete")
 
     yield
