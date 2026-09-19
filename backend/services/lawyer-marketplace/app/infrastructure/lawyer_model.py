@@ -37,3 +37,4 @@ class Lawyer(Base, TimestampMixin):
     summary: Mapped[str | None] = mapped_column(Text)
     verification_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    photo_url: Mapped[str | None] = mapped_column(String(512))

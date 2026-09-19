@@ -26,12 +26,14 @@ export function ProfilePhotoEditor({
   email,
   onAvatarChange,
   className,
+  uploadFn,
 }: {
   avatarUrl?: string | null;
   fullName: string;
   email?: string | null;
   onAvatarChange?: (url: string | null) => void;
   className?: string;
+  uploadFn?: (file: File) => Promise<string>;
 }) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +50,9 @@ export function ProfilePhotoEditor({
       prepared = await prepareProfileImage(file);
       setLocalPreview(prepared.previewUrl);
       setUploading(true);
-      const url = await uploadProfileAvatar(prepared.blob);
+      const url = uploadFn
+        ? await uploadFn(file)
+        : await uploadProfileAvatar(prepared.blob);
       updateStoredUser({ avatar_url: url });
       onAvatarChange?.(url);
       toast({ title: "Profile photo updated", variant: "success" });

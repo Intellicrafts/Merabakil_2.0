@@ -227,6 +227,18 @@ export async function uploadProfileAvatar(blob: Blob): Promise<string> {
   return body.avatar_url;
 }
 
+export async function uploadLawyerAvatar(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await authorizedFetch(`${marketplaceServiceUrl()}/api/v1/lawyers/me/avatar`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) return parseError(res);
+  const body = (await res.json()) as { photo_url: string };
+  return body.photo_url;
+}
+
 export async function deleteProfileAvatar(): Promise<void> {
   await apiFetch<void>(`${authServiceUrl()}/api/v1/users/me/avatar`, {
     method: "DELETE",

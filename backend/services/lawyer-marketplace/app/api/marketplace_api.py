@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
@@ -211,6 +213,7 @@ def _lawyer_public(lawyer: Lawyer, *, match_score: int = 0, recommended: bool = 
         ai_recommended=recommended,
         verification_data=getattr(lawyer, "verification_data", None),
         verified_at=_iso(getattr(lawyer, "verified_at", None)),
+        photo_url=getattr(lawyer, "photo_url", None),
     )
 
 
@@ -704,6 +707,34 @@ async def upsert_my_listing(
     else:
         asyncio.create_task(_remove_from_index(lawyer.id))
     return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
+
+
+@lawyers_router.post("/me/avatar")
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    await _require_advocate(user)
+    if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=400, detail="Image must be JPEG, PNG, or WebP.")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image must be under 5 MB.")
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[file.content_type]
+    avatars_dir = Path(os.getenv("LAWYER_AVATARS_DIR", "/data/lawyer-avatars"))
+    avatars_dir.mkdir(parents=True, exist_ok=True)
+    repo = MarketplaceRepository(session)
+    lawyer = await repo.get_lawyer_by_user(uuid.UUID(user.user_id))
+    if not lawyer:
+        raise HTTPException(status_code=404, detail="Lawyer profile not found.")
+    filename = f"{lawyer.id}.{ext}"
+    (avatars_dir / filename).write_bytes(data)
+    base = os.getenv("MARKETPLACE_PUBLIC_URL", "").rstrip("/")
+    photo_url = f"{base}/lawyer-avatars/{filename}"
+    lawyer.photo_url = photo_url
+    await session.commit()
+    return {"photo_url": photo_url}
 
 
 @lawyers_router.post("/me/verify", response_model=VerifyResponse)

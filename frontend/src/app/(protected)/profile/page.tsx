@@ -5,7 +5,7 @@ import { ProfileHero } from "@/components/profile/profile-hero";
 import { ProfilePhotoEditor } from "@/components/profile/profile-photo-editor";
 import { MyListingEditor } from "@/components/lawyer-marketplace/my-listing-editor";
 import { useCitizenProfile } from "@/hooks/use-citizen-profile";
-import { getStoredUser } from "@/lib/api";
+import { getStoredUser, uploadLawyerAvatar } from "@/lib/api";
 
 export default function ProfilePage() {
   const user = getStoredUser();
@@ -30,6 +30,7 @@ export default function ProfilePage() {
         avatarUrl={displayAvatar}
         fullName={displayName}
         email={displayEmail}
+        uploadFn={isAdvocate ? uploadLawyerAvatar : undefined}
         onAvatarChange={() => {
           void citizen.refresh();
         }}

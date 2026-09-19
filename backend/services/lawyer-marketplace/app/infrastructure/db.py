@@ -101,6 +101,7 @@ def _ensure_lawyers_columns(sync_conn) -> None:
         ("verified_at",       "DATETIME",    "TIMESTAMPTZ"),
         ("pincode",           "TEXT",        "TEXT"),
         ("location_state",    "TEXT",        "TEXT"),
+        ("photo_url",         "TEXT",        "TEXT"),
     )
     if dialect == "sqlite":
         existing = {

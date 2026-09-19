@@ -154,6 +154,9 @@ services:
       MARKETPLACE_NATIVE: "false"
       BILLING_SERVICE_URL: "http://billing:8000"
       SATYAPAN_URL: "http://satyapan:8000"
+      MARKETPLACE_PUBLIC_URL: "https://merabakil.in/svc/marketplace"
+    volumes:
+      - ./data/lawyer-avatars:/data/lawyer-avatars
     depends_on:
       postgres: { condition: service_healthy }
       auth:     { condition: service_healthy }

@@ -78,6 +78,7 @@ class LawyerPublic(BaseModel):
     ai_recommended: bool = False
     verification_data: dict | None = None
     verified_at: str | None = None
+    photo_url: str | None = None
 
 
 class ParticipantModeration(BaseModel):
