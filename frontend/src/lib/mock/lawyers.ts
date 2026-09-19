@@ -24,17 +24,24 @@ export const CITIES = [
 
 export const JURISDICTIONS = [
   "Supreme Court of India",
+  "Allahabad High Court",
   "Delhi High Court",
   "Bombay High Court",
   "Madras High Court",
   "Calcutta High Court",
   "Karnataka High Court",
-  "Allahabad High Court",
   "Punjab and Haryana High Court",
   "Gujarat High Court",
   "Rajasthan High Court",
   "Hyderabad High Court",
   "Kerala High Court",
+  "Patna High Court",
+  "Madhya Pradesh High Court",
+  "Orissa High Court",
+  "Gauhati High Court",
+  "Himachal Pradesh High Court",
+  "Uttarakhand High Court",
+  "Jammu & Kashmir and Ladakh High Court",
 ] as const;
 
 export const MOCK_LAWYERS: LawyerProfile[] = [

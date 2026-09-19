@@ -61,6 +61,31 @@ function stateToBarCouncil(apiState: string): string {
   return "";
 }
 
+function stateToJurisdictions(apiState: string): string[] {
+  const s = apiState.toLowerCase();
+  if (s.includes("uttar pradesh"))                             return ["Allahabad High Court"];
+  if (s.includes("uttarakhand"))                               return ["Uttarakhand High Court"];
+  if (s.includes("delhi"))                                     return ["Delhi High Court"];
+  if (s.includes("andhra pradesh") || s.includes("telangana")) return ["Hyderabad High Court"];
+  if (s.includes("rajasthan"))                                 return ["Rajasthan High Court"];
+  if (s.includes("maharashtra") || s.includes("goa"))          return ["Bombay High Court"];
+  if (s.includes("karnataka"))                                 return ["Karnataka High Court"];
+  if (s.includes("tamil nadu") || s.includes("puducherry"))    return ["Madras High Court"];
+  if (s.includes("west bengal") || s.includes("andaman"))      return ["Calcutta High Court"];
+  if (s.includes("kerala") || s.includes("lakshadweep"))       return ["Kerala High Court"];
+  if (s.includes("gujarat") || s.includes("dadra"))            return ["Gujarat High Court"];
+  if (s.includes("punjab") || s.includes("haryana") || s.includes("chandigarh")) return ["Punjab and Haryana High Court"];
+  if (s.includes("himachal"))                                  return ["Himachal Pradesh High Court"];
+  if (s.includes("bihar") || s.includes("jharkhand"))          return ["Patna High Court"];
+  if (s.includes("madhya pradesh") || s.includes("chhattisgarh")) return ["Madhya Pradesh High Court"];
+  if (s.includes("odisha") || s.includes("orissa"))            return ["Orissa High Court"];
+  if (s.includes("assam") || s.includes("manipur") || s.includes("meghalaya") ||
+      s.includes("nagaland") || s.includes("mizoram") || s.includes("arunachal") ||
+      s.includes("tripura") || s.includes("sikkim"))           return ["Gauhati High Court"];
+  if (s.includes("jammu") || s.includes("kashmir") || s.includes("ladakh")) return ["Jammu & Kashmir and Ladakh High Court"];
+  return [];
+}
+
 interface MyListingEditorProps {
   onSaved?: () => void;
 }
@@ -120,6 +145,15 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
 
   const completion = useCompletion(areas, years, bio, jurisdictions);
   const isComplete = completion.count === COMPLETION_CHECKS.length;
+
+  const sortedJurisdictions = useMemo(() => {
+    if (!pincodeInfo) return JURISDICTIONS as unknown as string[];
+    const primary = stateToJurisdictions(pincodeInfo.state);
+    return [
+      ...primary.filter((j) => (JURISDICTIONS as readonly string[]).includes(j)),
+      ...(JURISDICTIONS as readonly string[]).filter((j) => !primary.includes(j)),
+    ];
+  }, [pincodeInfo]);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -265,6 +299,10 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         setCity(po.District);
         const barState = stateToBarCouncil(po.State);
         if (barState) setVerifyState(barState);
+        const detectedJurisdictions = stateToJurisdictions(po.State);
+        if (detectedJurisdictions.length > 0) {
+          setJurisdictions((prev) => [...new Set([...detectedJurisdictions, ...prev])]);
+        }
       }
     } catch {
       // silently fail — pincode is a helper, not required
@@ -576,7 +614,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
           <div>
             <p className="mb-2 text-[12px] font-medium text-muted-foreground">Jurisdictions *</p>
             <div className="flex flex-wrap gap-1.5">
-              {JURISDICTIONS.map((j) => {
+              {sortedJurisdictions.map((j) => {
                 const on = jurisdictions.includes(j);
                 return (
                   <button
