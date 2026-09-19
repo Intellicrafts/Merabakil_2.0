@@ -33,7 +33,7 @@ export function AdminOpsLayout({
   moreContent,
 }: AdminOpsLayoutProps) {
   return (
-    <div className="mx-auto max-w-7xl pb-24 md:pb-10">
+    <div className="mx-auto max-w-7xl pb-16 md:pb-10">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">

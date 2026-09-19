@@ -111,7 +111,7 @@ export function LawyerProfileDrawer({
           </div>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-24 sm:pb-4">
+        <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-20 sm:pb-4">
           <div>
             <p
               className={cn(

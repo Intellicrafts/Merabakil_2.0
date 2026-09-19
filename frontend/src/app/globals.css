@@ -4232,3 +4232,14 @@
     transition: none !important;
   }
 }
+
+/* Prevent iOS Safari from zooming the viewport when an input is focused.
+   Safari zooms when font-size < 16px. We set a floor of 1rem (16px) on all
+   interactive text inputs for touch-screen widths. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: max(1rem, 1em) !important;
+  }
+}

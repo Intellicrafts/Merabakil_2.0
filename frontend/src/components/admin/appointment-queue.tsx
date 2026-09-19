@@ -94,7 +94,7 @@ export function AppointmentQueue({
   }
 
   return (
-    <Card className="min-h-[320px] max-h-[calc(100dvh-280px)] flex flex-col">
+    <Card className="min-h-[320px] max-h-[calc(100dvh-20rem)] flex flex-col">
       <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle className="text-base">Queue ({total})</CardTitle>
         <div className="hidden sm:block">{filters}</div>

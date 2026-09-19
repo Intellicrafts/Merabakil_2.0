@@ -11,7 +11,8 @@ export default function ProfilePage() {
   const user = getStoredUser();
   const isAdvocate = Boolean(user?.roles.includes("advocate"));
   const isCitizen = Boolean(user?.roles.includes("citizen"));
-  const showCitizenProfile = isCitizen && !isAdvocate;
+  const isAdmin = Boolean(user?.roles.includes("admin"));
+  const showCitizenProfile = (isCitizen || isAdmin) && !isAdvocate;
 
   const citizen = useCitizenProfile(showCitizenProfile);
 

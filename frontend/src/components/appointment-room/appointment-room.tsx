@@ -1181,7 +1181,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
                   onClick={() => setMenuOpen(false)}
                   aria-label="Close menu"
                 />
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-black/[0.08] bg-background py-1 shadow-lg dark:border-white/10">
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[11rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-black/[0.08] bg-background py-1 shadow-lg dark:border-white/10">
                   {!emergencyActive ? (
                     <button
                       type="button"
