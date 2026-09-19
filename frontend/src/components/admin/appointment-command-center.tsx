@@ -31,8 +31,6 @@ import {
   adminSessionHealth,
   adminSetDuration,
   adminSetPriority,
-  adminSuspendParticipant,
-  adminSystemMessage,
   adminAllowRejoinParticipant,
   getStoredUser,
 } from "@/lib/api";
@@ -54,7 +52,6 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
   const [tab, setTab] = useState<CommandTab>("overview");
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("overview");
   const [logsPage, setLogsPage] = useState(1);
-  const [sysMsg, setSysMsg] = useState("");
   const [reason, setReason] = useState("");
   const [reassignId, setReassignId] = useState("");
   const [reassignReason, setReassignReason] = useState("");
@@ -129,16 +126,6 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
     onError: (err: Error) => toast({ title: "Reassign failed", description: err.message, variant: "destructive" }),
   });
 
-  const sysMut = useMutation({
-    mutationFn: (body: string) => adminSystemMessage(appointmentId, body),
-    onSuccess: () => {
-      toast({ title: "System message sent" });
-      setSysMsg("");
-      invalidate();
-    },
-    onError: (err: Error) => toast({ title: "Message failed", description: err.message, variant: "destructive" }),
-  });
-
   const summonMut = useMutation({
     mutationFn: () => adminForceSummon(appointmentId),
     onSuccess: () => {
@@ -167,15 +154,6 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
     mutationFn: (target: "citizen" | "lawyer") => adminKickParticipant(appointmentId, target, "Removed by operations"),
     onSuccess: () => {
       toast({ title: "Participant kicked" });
-      invalidate();
-    },
-  });
-
-  const suspendMut = useMutation({
-    mutationFn: ({ target, minutes }: { target: "citizen" | "lawyer"; minutes: 5 | 15 | 30 }) =>
-      adminSuspendParticipant(appointmentId, target, minutes, "Suspended by operations"),
-    onSuccess: () => {
-      toast({ title: "Participant suspended" });
       invalidate();
     },
   });
@@ -341,18 +319,16 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
               label="Citizen"
               present={Boolean(apt.citizen_present)}
               moderation={apt.citizen_moderation}
-              disabled={kickMut.isPending || suspendMut.isPending || allowRejoinMut.isPending}
+              disabled={kickMut.isPending || allowRejoinMut.isPending}
               onKick={() => kickMut.mutate("citizen")}
-              onSuspend={(m) => suspendMut.mutate({ target: "citizen", minutes: m })}
               onAllowRejoin={() => allowRejoinMut.mutate("citizen")}
             />
             <PartyModerationCard
               label="Counsel"
               present={Boolean(apt.lawyer_present)}
               moderation={apt.lawyer_moderation}
-              disabled={kickMut.isPending || suspendMut.isPending || allowRejoinMut.isPending}
+              disabled={kickMut.isPending || allowRejoinMut.isPending}
               onKick={() => kickMut.mutate("lawyer")}
-              onSuspend={(m) => suspendMut.mutate({ target: "lawyer", minutes: m })}
               onAllowRejoin={() => allowRejoinMut.mutate("lawyer")}
             />
           </div>
@@ -472,18 +448,6 @@ export function AppointmentCommandCenter({ appointmentId }: AppointmentCommandCe
                     onClick={() => reassignMut.mutate()}
                   >
                     Reassign counsel
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  <Input
-                    value={sysMsg}
-                    onChange={(e) => setSysMsg(e.target.value)}
-                    placeholder="System message to both parties"
-                    className="h-9 rounded-xl"
-                  />
-                  <Button size="sm" className="rounded-xl" disabled={sysMut.isPending || !sysMsg.trim()} onClick={() => sysMut.mutate(sysMsg.trim())}>
-                    Send system message
                   </Button>
                 </div>
 

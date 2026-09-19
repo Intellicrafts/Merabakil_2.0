@@ -51,7 +51,6 @@ interface OpsDetailPanelProps {
   onRefreshHealth?: () => void;
   onResetCall?: () => void;
   onKick: (target: "citizen" | "lawyer") => void;
-  onSuspend: (target: "citizen" | "lawyer", minutes: 5 | 15 | 30) => void;
   onAllowRejoin: (target: "citizen" | "lawyer") => void;
 }
 
@@ -82,7 +81,6 @@ export function OpsDetailPanel({
   onRefreshHealth,
   onResetCall,
   onKick,
-  onSuspend,
   onAllowRejoin,
 }: OpsDetailPanelProps) {
   const me = getStoredUser();
@@ -143,7 +141,6 @@ export function OpsDetailPanel({
                 moderation={selected.citizen_moderation}
                 disabled={pending.moderation}
                 onKick={() => onKick("citizen")}
-                onSuspend={(m) => onSuspend("citizen", m)}
                 onAllowRejoin={() => onAllowRejoin("citizen")}
               />
               <PartyModerationCard
@@ -152,7 +149,6 @@ export function OpsDetailPanel({
                 moderation={selected.lawyer_moderation}
                 disabled={pending.moderation}
                 onKick={() => onKick("lawyer")}
-                onSuspend={(m) => onSuspend("lawyer", m)}
                 onAllowRejoin={() => onAllowRejoin("lawyer")}
               />
             </div>

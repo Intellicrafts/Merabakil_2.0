@@ -1,6 +1,6 @@
 "use client";
 
-import { UserMinus, UserX } from "lucide-react";
+import { UserMinus } from "lucide-react";
 
 import { formatClock, PresenceDot } from "@/components/admin/admin-ops-utils";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,6 @@ interface PartyModerationCardProps {
   present: boolean;
   moderation?: ModerationState;
   onKick?: () => void;
-  onSuspend?: (minutes: 5 | 15 | 30) => void;
   onAllowRejoin?: () => void;
   disabled?: boolean;
 }
@@ -23,7 +22,6 @@ export function PartyModerationCard({
   present,
   moderation,
   onKick,
-  onSuspend,
   onAllowRejoin,
   disabled,
 }: PartyModerationCardProps) {
@@ -68,21 +66,6 @@ export function PartyModerationCard({
                 Kick
               </Button>
             ) : null}
-            {onSuspend
-              ? ([5, 15, 30] as const).map((m) => (
-                  <Button
-                    key={m}
-                    size="sm"
-                    variant="outline"
-                    className="h-7 rounded-lg text-[11px]"
-                    disabled={disabled}
-                    onClick={() => onSuspend(m)}
-                  >
-                    <UserX className="mr-1 h-3 w-3" />
-                    {m}m
-                  </Button>
-                ))
-              : null}
           </>
         )}
       </div>
