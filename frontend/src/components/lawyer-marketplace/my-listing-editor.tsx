@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BadgeCheck, CheckCircle2, Circle } from "lucide-react";
 
+import { ProfileSectionCard } from "@/components/profile/profile-hero";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,10 +50,10 @@ function useCompletion(
 ) {
   return useMemo(() => {
     const checks = [
-      { label: "Practice areas", done: areas.length > 0 },
-      { label: "Experience",     done: Number(years) > 0 },
+      { label: "Practice areas",  done: areas.length > 0 },
+      { label: "Experience",      done: Number(years) > 0 },
       { label: "Bio (50+ chars)", done: bio.trim().length >= 50 },
-      { label: "Jurisdictions",  done: jurisdictions.length > 0 },
+      { label: "Jurisdictions",   done: jurisdictions.length > 0 },
     ];
     return { checks, count: checks.filter((c) => c.done).length };
   }, [areas, years, bio, jurisdictions]);
@@ -63,6 +64,8 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   const user = getStoredUser();
   const canEdit = Boolean(user?.roles.includes("advocate"));
 
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [city, setCity] = useState("");
@@ -84,29 +87,40 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   const completion = useCompletion(areas, years, bio, jurisdictions);
   const isComplete = completion.count === COMPLETION_CHECKS.length;
 
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const row = await getMyLawyerListing();
+      setFullName(row.full_name || user?.full_name || "");
+      setCity(row.city || "");
+      const bar = row.bar_council_id || "";
+      setBarId(bar);
+      setLoadedBarId(bar);
+      setRate(row.hourly_rate != null ? String(row.hourly_rate) : "");
+      setYears(String(row.years_experience ?? 0));
+      setAreas(row.practice_areas ?? []);
+      setJurisdictions(row.jurisdictions ?? []);
+      setLanguages((row.languages ?? []).join(", ") || "English, Hindi");
+      setBio(row.bio || "");
+      const isV = Boolean(row.is_verified ?? row.verified);
+      setVerified(isV);
+      setVerifyState(detectBarCouncilState(bar));
+      const savedVData = (row.verification_data as { data?: Record<string, string> } | null)?.data;
+      if (isV && savedVData?.name) {
+        setVerifyResult({ status: "success", data: savedVData });
+      }
+    } catch {
+      setLoadError("Could not load your profile.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.full_name]);
+
   useEffect(() => {
     if (!canEdit) return;
-    void getMyLawyerListing()
-      .then((row) => {
-        setFullName(row.full_name || user?.full_name || "");
-        setCity(row.city || "");
-        setBarId(row.bar_council_id || "");
-        setRate(row.hourly_rate != null ? String(row.hourly_rate) : "");
-        setYears(String(row.years_experience ?? 0));
-        setAreas(row.practice_areas ?? []);
-        setJurisdictions(row.jurisdictions ?? []);
-        setLanguages((row.languages ?? []).join(", ") || "English, Hindi");
-        setBio(row.bio || "");
-        setVerified(Boolean(row.is_verified ?? row.verified));
-        setVerifyState(detectBarCouncilState(row.bar_council_id || ""));
-        setLoadedBarId(row.bar_council_id || "");
-        const savedVData = (row.verification_data as { data?: Record<string, string> } | null)?.data;
-        if ((row.is_verified ?? row.verified) && savedVData?.name) {
-          setVerifyResult({ status: "success", data: savedVData });
-        }
-      })
-      .catch(() => undefined);
-  }, [canEdit, user?.full_name]);
+    void loadProfile();
+  }, [canEdit, loadProfile]);
 
   useEffect(() => {
     if (barId === loadedBarId) return;
@@ -115,6 +129,56 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   }, [barId, loadedBarId]);
 
   if (!canEdit) return null;
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <ProfileSectionCard>
+          <div className="animate-pulse space-y-3">
+            <div className="h-3.5 w-1/3 rounded-lg bg-black/[0.05] dark:bg-white/[0.07]" />
+            <div className="h-1.5 rounded-full bg-black/[0.05] dark:bg-white/[0.07]" />
+            <div className="flex gap-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-3 w-16 rounded bg-black/[0.05] dark:bg-white/[0.07]" />
+              ))}
+            </div>
+          </div>
+        </ProfileSectionCard>
+        <ProfileSectionCard>
+          <div className="animate-pulse grid gap-4 sm:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-3 w-1/3 rounded bg-black/[0.05] dark:bg-white/[0.07]" />
+                <div className="h-11 rounded-xl bg-black/[0.05] dark:bg-white/[0.07]" />
+              </div>
+            ))}
+          </div>
+        </ProfileSectionCard>
+        <ProfileSectionCard>
+          <div className="animate-pulse space-y-3">
+            <div className="h-3 w-1/4 rounded bg-black/[0.05] dark:bg-white/[0.07]" />
+            <div className="h-11 rounded-xl bg-black/[0.05] dark:bg-white/[0.07]" />
+          </div>
+        </ProfileSectionCard>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ProfileSectionCard>
+        <p className="text-[13px] text-destructive">{loadError}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          className="mt-3 h-10 rounded-xl"
+          onClick={() => void loadProfile()}
+        >
+          Try again
+        </Button>
+      </ProfileSectionCard>
+    );
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -134,7 +198,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         title: "Profile saved",
         description: isComplete
           ? "AI summary will be generated shortly — your listing is now indexable."
-          : `Complete all ${COMPLETION_CHECKS.length} fields to enable AI matching.`,
+          : `Complete all ${COMPLETION_CHECKS.length} sections to enable AI matching.`,
         variant: isComplete ? "success" : "default",
       });
       onSaved?.();
@@ -178,49 +242,42 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   }
 
   return (
-    <section className="rounded-2xl border border-black/[0.06] bg-white/55 p-5 dark:border-white/[0.08] dark:bg-white/[0.035]">
-      {/* Header */}
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-[13px] font-semibold tracking-tight">My profile</p>
-          <p className={cn(
-            "mt-0.5 flex items-center gap-1 text-[11px]",
-            verified ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
-          )}>
-            {verified && <BadgeCheck className="h-3 w-3 shrink-0" />}
-            {verified
-              ? "Bar council verified — visible in search results"
-              : "Verify your bar council enrollment to appear in search"}
-          </p>
-        </div>
-        <span
-          className={cn(
-            "rounded-full px-2.5 py-1 text-[11px] font-medium",
-            isComplete
-              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-              : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-          )}
-        >
-          {completion.count}/{COMPLETION_CHECKS.length} complete
-        </span>
-      </div>
+    <div className="space-y-4 pb-28 sm:pb-0">
 
-      {/* Completion bar */}
-      <div className="mb-5 space-y-2">
+      {/* ── Completion progress ─────────────────────────────── */}
+      <ProfileSectionCard>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-[13px] font-semibold">Profile completeness</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {isComplete
+                ? "Complete — your listing is indexed for AI matching"
+                : `${COMPLETION_CHECKS.length - completion.count} section${completion.count === COMPLETION_CHECKS.length - 1 ? "" : "s"} remaining`}
+            </p>
+          </div>
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[11px] font-medium",
+              isComplete
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+            )}
+          >
+            {completion.count}/{COMPLETION_CHECKS.length}
+          </span>
+        </div>
         <div className="flex gap-1">
           {completion.checks.map((c) => (
             <div
               key={c.label}
               className={cn(
                 "h-1.5 flex-1 rounded-full transition-colors duration-300",
-                c.done
-                  ? "bg-emerald-500"
-                  : "bg-black/[0.08] dark:bg-white/10",
+                c.done ? "bg-emerald-500" : "bg-black/[0.08] dark:bg-white/10",
               )}
             />
           ))}
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
           {completion.checks.map((c) => (
             <span
               key={c.label}
@@ -235,47 +292,100 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             </span>
           ))}
         </div>
-        {isComplete && (
-          <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-            Profile complete — your listing will be indexed for AI matching
-          </p>
-        )}
-      </div>
+      </ProfileSectionCard>
 
-      {/* Form fields */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Display name">
-          <Input
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="h-9 rounded-xl"
-          />
-        </Field>
+      {/* ── Professional details ────────────────────────────── */}
+      <ProfileSectionCard title="Professional details">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Display name" htmlFor="adv-name">
+            <Input
+              id="adv-name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="h-11 rounded-xl"
+              autoComplete="name"
+            />
+          </Field>
 
-        <Field label="City">
-          <Select
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="h-11 rounded-xl text-[13px] sm:h-9"
-            aria-label="City"
-            placeholder="Select city"
-          >
-            <option value="">Select city</option>
-            {CITIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Select>
-        </Field>
+          <Field label="City" htmlFor="adv-city">
+            <Select
+              id="adv-city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="h-11 rounded-xl text-[13px]"
+              aria-label="City"
+            >
+              <option value="">Select city</option>
+              {CITIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </Select>
+          </Field>
 
-        <Field label="Bar council ID">
+          <Field label="Hourly rate (INR)" htmlFor="adv-rate">
+            <Input
+              id="adv-rate"
+              type="number"
+              min={0}
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              className="h-11 rounded-xl"
+            />
+          </Field>
+
+          <Field label="Years of experience *" htmlFor="adv-years">
+            <Input
+              id="adv-years"
+              type="number"
+              min={0}
+              value={years}
+              onChange={(e) => setYears(e.target.value)}
+              className="h-11 rounded-xl"
+            />
+          </Field>
+
+          <div className="sm:col-span-2">
+            <Field label="Languages" htmlFor="adv-languages">
+              <Input
+                id="adv-languages"
+                value={languages}
+                onChange={(e) => setLanguages(e.target.value)}
+                className="h-11 rounded-xl"
+              />
+            </Field>
+          </div>
+        </div>
+      </ProfileSectionCard>
+
+      {/* ── Bar council verification ────────────────────────── */}
+      <ProfileSectionCard>
+        <div className="mb-4 flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold">Bar council verification</p>
+            <p
+              className={cn(
+                "mt-0.5 flex items-center gap-1 text-[11px]",
+                verified
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-muted-foreground",
+              )}
+            >
+              {verified && <BadgeCheck className="h-3 w-3 shrink-0" />}
+              {verified
+                ? "Verified — visible in search results"
+                : "Verify your enrollment number to appear in search"}
+            </p>
+          </div>
+        </div>
+
+        <Field label="Enrollment number" htmlFor="adv-bar-id">
           <div className="flex gap-2">
             <Input
+              id="adv-bar-id"
               value={barId}
               onChange={(e) => setBarId(e.target.value)}
               placeholder="e.g. UP1234/25, D/105/2005"
-              className="h-9 flex-1 rounded-xl"
+              className="h-11 flex-1 rounded-xl"
             />
             <button
               type="button"
@@ -297,7 +407,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
               <select
                 value={verifyState}
                 onChange={(e) => setVerifyState(e.target.value)}
-                className="flex-1 rounded-xl border border-black/[0.08] bg-white px-3 py-1.5 text-sm text-foreground dark:border-white/10 dark:bg-zinc-900"
+                className="flex-1 rounded-xl border border-black/[0.08] bg-white px-3 py-2.5 text-sm text-foreground dark:border-white/10 dark:bg-zinc-900"
               >
                 <option value="">Select your state bar council</option>
                 {SUPPORTED_STATES.map((s) => (
@@ -308,7 +418,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
                 type="button"
                 disabled={!verifyState || verifying}
                 onClick={() => void handleVerify()}
-                className="rounded-xl border border-black/[0.08] bg-black/[0.02] px-3 py-1.5 text-xs font-semibold disabled:opacity-40 hover:bg-black/[0.06] dark:border-white/10 dark:bg-white/[0.02]"
+                className="rounded-xl border border-black/[0.08] bg-black/[0.02] px-3 py-2.5 text-xs font-semibold disabled:opacity-40 hover:bg-black/[0.06] dark:border-white/10 dark:bg-white/[0.02]"
               >
                 {verifying ? "Verifying…" : "Verify"}
               </button>
@@ -316,13 +426,15 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
           )}
 
           {verifyResult?.status === "success" && (
-            <div className="mt-1.5 flex items-center gap-1.5">
+            <div className="mt-2 flex items-center gap-1.5">
               <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                 {verifyResult.data?.name ?? "Enrollment verified"}
               </span>
               {verifyResult.data?.state && (
-                <span className="text-xs text-muted-foreground">· {verifyResult.data.state}</span>
+                <span className="text-xs text-muted-foreground">
+                  · {verifyResult.data.state}
+                </span>
               )}
             </div>
           )}
@@ -332,140 +444,111 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             </p>
           )}
         </Field>
+      </ProfileSectionCard>
 
-        <Field label="Hourly rate (INR)">
-          <Input
-            type="number"
-            min={0}
-            value={rate}
-            onChange={(e) => setRate(e.target.value)}
-            className="h-9 rounded-xl"
-          />
-        </Field>
-
-        <Field label="Years of experience *">
-          <Input
-            type="number"
-            min={0}
-            value={years}
-            onChange={(e) => setYears(e.target.value)}
-            className="h-9 rounded-xl"
-          />
-        </Field>
-
-        <Field label="Languages">
-          <Input
-            value={languages}
-            onChange={(e) => setLanguages(e.target.value)}
-            className="h-9 rounded-xl"
-          />
-        </Field>
-
-        {/* Practice areas */}
-        <div className="sm:col-span-2">
-          <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-            Practice areas *
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {PRACTICE_AREAS.map((area) => {
-              const on = areas.includes(area);
-              return (
-                <button
-                  key={area}
-                  type="button"
-                  onClick={() =>
-                    setAreas((prev) =>
-                      on ? prev.filter((a) => a !== area) : [...prev, area],
-                    )
-                  }
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                    on
-                      ? "border-slate-400/60 bg-slate-100 dark:border-white/25 dark:bg-white/15"
-                      : "border-black/[0.08] text-muted-foreground dark:border-white/10",
-                  )}
-                >
-                  {area}
-                </button>
-              );
-            })}
+      {/* ── Expertise ───────────────────────────────────────── */}
+      <ProfileSectionCard title="Expertise">
+        <div className="space-y-5">
+          <div>
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground">Practice areas *</p>
+            <div className="flex flex-wrap gap-1.5">
+              {PRACTICE_AREAS.map((area) => {
+                const on = areas.includes(area);
+                return (
+                  <button
+                    key={area}
+                    type="button"
+                    onClick={() =>
+                      setAreas((prev) =>
+                        on ? prev.filter((a) => a !== area) : [...prev, area],
+                      )
+                    }
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                      on
+                        ? "border-slate-400/60 bg-slate-100 dark:border-white/25 dark:bg-white/15"
+                        : "border-black/[0.08] text-muted-foreground dark:border-white/10",
+                    )}
+                  >
+                    {area}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Jurisdictions */}
-        <div className="sm:col-span-2">
-          <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-            Jurisdictions *
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {JURISDICTIONS.map((j) => {
-              const on = jurisdictions.includes(j);
-              return (
-                <button
-                  key={j}
-                  type="button"
-                  onClick={() =>
-                    setJurisdictions((prev) =>
-                      on ? prev.filter((x) => x !== j) : [...prev, j],
-                    )
-                  }
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                    on
-                      ? "border-slate-400/60 bg-slate-100 dark:border-white/25 dark:bg-white/15"
-                      : "border-black/[0.08] text-muted-foreground dark:border-white/10",
-                  )}
-                >
-                  {j}
-                </button>
-              );
-            })}
+          <div>
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground">Jurisdictions *</p>
+            <div className="flex flex-wrap gap-1.5">
+              {JURISDICTIONS.map((j) => {
+                const on = jurisdictions.includes(j);
+                return (
+                  <button
+                    key={j}
+                    type="button"
+                    onClick={() =>
+                      setJurisdictions((prev) =>
+                        on ? prev.filter((x) => x !== j) : [...prev, j],
+                      )
+                    }
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                      on
+                        ? "border-slate-400/60 bg-slate-100 dark:border-white/25 dark:bg-white/15"
+                        : "border-black/[0.08] text-muted-foreground dark:border-white/10",
+                    )}
+                  >
+                    {j}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Bio */}
-        <div className="sm:col-span-2">
-          <Field label="Bio * (min 50 chars for AI matching)">
+          <Field label="Bio * (min 50 chars for AI matching)" htmlFor="adv-bio">
             <Textarea
+              id="adv-bio"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              rows={3}
+              rows={4}
               className="rounded-xl text-[13px]"
             />
+            {bio.trim().length > 0 && bio.trim().length < 50 && (
+              <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">
+                {50 - bio.trim().length} more characters needed
+              </p>
+            )}
           </Field>
-          {bio.trim().length > 0 && bio.trim().length < 50 && (
-            <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">
-              {50 - bio.trim().length} more characters needed
-            </p>
-          )}
         </div>
+      </ProfileSectionCard>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 sm:col-span-2">
-          <Button
-            type="button"
-            className="h-9 rounded-xl"
-            disabled={saving}
-            onClick={() => void handleSave()}
-          >
-            {saving ? "Saving…" : "Save profile"}
-          </Button>
-        </div>
+      {/* ── Save — sticky on mobile, inline on desktop ──────── */}
+      <div className="mp-profile-sticky-footer sm:static sm:border-0 sm:bg-transparent sm:p-0">
+        <Button
+          type="button"
+          className="mp-btn-accent h-11 w-full rounded-xl text-[13px] font-semibold sm:w-auto sm:min-w-[10rem]"
+          disabled={saving}
+          onClick={() => void handleSave()}
+        >
+          {saving ? "Saving…" : "Save profile"}
+        </Button>
       </div>
-    </section>
+    </div>
   );
 }
 
 function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: React.ReactNode;
+  htmlFor?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-[11px] font-medium text-muted-foreground">
+    <div className="mp-profile-field">
+      <Label htmlFor={htmlFor} className="text-[12px] font-medium text-muted-foreground">
         {label}
       </Label>
       {children}
