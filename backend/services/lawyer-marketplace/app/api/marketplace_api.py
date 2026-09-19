@@ -2446,6 +2446,40 @@ async def admin_list_lawyers(
     return [_lawyer_public(l, match_score=score_lawyer(l)) for l in lawyers]
 
 
+@admin_router.post("/lawyers/index/sync")
+async def admin_sync_lawyer_index(
+    _: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Reconcile the Qdrant lawyer index with the database.
+
+    Deletes orphaned Qdrant entries (lawyers not in DB, or no longer indexable),
+    then re-upserts all valid lawyers. Returns operation counts.
+    """
+    store = get_lawyer_vector_store()
+    repo = MarketplaceRepository(session)
+
+    all_lawyers = await repo.list_all_lawyers()
+    valid = {str(l.id): l for l in all_lawyers if l.summary and _is_indexable(l)}
+
+    qdrant_ids = await store.scroll_all_ids()
+
+    orphans = qdrant_ids - set(valid.keys())
+    deleted = 0
+    for oid in orphans:
+        await store.delete_by_lawyer_id(oid)
+        deleted += 1
+        logger.info("lawyer_index_orphan_deleted lawyer_id=%s", oid)
+
+    reindexed = 0
+    for lawyer in valid.values():
+        await store.upsert(lawyer)
+        reindexed += 1
+
+    logger.info("lawyer_index_sync_complete deleted=%s reindexed=%s", deleted, reindexed)
+    return {"deleted_orphans": deleted, "reindexed": reindexed, "total_in_db": len(all_lawyers)}
+
+
 @admin_router.patch("/lawyers/{lawyer_id}")
 async def admin_patch_lawyer(
     lawyer_id: uuid.UUID,

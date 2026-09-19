@@ -111,6 +111,38 @@ class LawyerVectorStore:
         except Exception as exc:
             logger.warning("lawyer_delete_failed lawyer_id=%s error=%s", lawyer_id, exc)
 
+    async def delete_by_lawyer_id(self, lawyer_id_str: str) -> None:
+        try:
+            await self.delete(uuid.UUID(lawyer_id_str))
+        except Exception as exc:
+            logger.warning("lawyer_delete_by_id_failed lawyer_id=%s error=%s", lawyer_id_str, exc)
+
+    async def scroll_all_ids(self) -> set[str]:
+        """Returns the set of lawyer_id strings currently indexed in Qdrant."""
+        if not self._ready:
+            return set()
+        ids: set[str] = set()
+        offset = None
+        try:
+            while True:
+                results, next_offset = await self._qdrant._client.scroll(
+                    collection_name=self._qdrant.collection,
+                    limit=100,
+                    offset=offset,
+                    with_payload=["lawyer_id"],
+                    with_vectors=False,
+                )
+                for point in results:
+                    lid = (point.payload or {}).get("lawyer_id")
+                    if lid:
+                        ids.add(lid)
+                if next_offset is None:
+                    break
+                offset = next_offset
+        except Exception as exc:
+            logger.warning("lawyer_scroll_failed error=%s", exc)
+        return ids
+
     async def search(self, query: str, *, limit: int = 10) -> list[tuple[str, float]]:
         """Returns [(lawyer_id_str, score), ...] sorted by relevance."""
         if not self._ready:
