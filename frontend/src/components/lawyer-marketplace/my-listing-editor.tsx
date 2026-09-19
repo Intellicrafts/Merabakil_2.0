@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { BadgeCheck, CheckCircle2, Circle } from "lucide-react";
 
 import { ProfileSectionCard } from "@/components/profile/profile-hero";
@@ -21,6 +21,28 @@ import { PRACTICE_AREAS, CITIES, JURISDICTIONS } from "@/lib/mock/lawyers";
 import { cn } from "@/lib/utils";
 
 const SUPPORTED_STATES = ["Uttar Pradesh", "Delhi", "Andhra Pradesh", "Rajasthan"] as const;
+
+const FIELD_LABELS: Record<string, string> = {
+  name:              "Name",
+  father_name:       "Father's name",
+  address:           "Address",
+  district:          "District",
+  enrollment_date:   "Enrolled on",
+  transfer_date:     "Transfer date",
+  dob:               "Date of birth",
+  tr_date:           "TR date",
+  mobile_no:         "Mobile",
+  email:             "Email",
+  degree_year:       "Degree year",
+  status:            "Enrolment status",
+  place_of_practice: "Place of practice",
+  aibe_applicable:   "AIBE applicable",
+  fake:              "Flagged as fake",
+  licence_removed:   "Licence removed",
+  licence_cancelled: "Licence cancelled",
+};
+
+const SKIP_FIELDS = new Set(["state", "enrollment_number"]);
 
 function detectBarCouncilState(enrollment: string): string {
   const en = enrollment.toUpperCase().trim();
@@ -425,17 +447,24 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             </div>
           )}
 
-          {verifyResult?.status === "success" && (
-            <div className="mt-2 flex items-center gap-1.5">
-              <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-                {verifyResult.data?.name ?? "Enrollment verified"}
-              </span>
-              {verifyResult.data?.state && (
-                <span className="text-xs text-muted-foreground">
-                  · {verifyResult.data.state}
-                </span>
-              )}
+          {verifyResult?.status === "success" && verifyResult.data && (
+            <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-50/50 p-3 dark:border-emerald-500/15 dark:bg-emerald-900/10">
+              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                Details from {verifyResult.data.state ?? "bar council"} registry — confirm these match your records
+              </p>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
+                {Object.entries(verifyResult.data)
+                  .filter(([k, v]) => !SKIP_FIELDS.has(k) && v != null && String(v).trim() !== "")
+                  .map(([k, v]) => (
+                    <Fragment key={k}>
+                      <dt className="whitespace-nowrap text-[11px] text-muted-foreground">
+                        {FIELD_LABELS[k] ?? k}
+                      </dt>
+                      <dd className="text-[11px] font-medium">{v}</dd>
+                    </Fragment>
+                  ))}
+              </dl>
             </div>
           )}
           {verifyResult?.status === "failed" && (
