@@ -91,3 +91,31 @@ class BillingClient:
                 consultation_id,
                 exc,
             )
+
+    async def deduct_advocate_cancel(
+        self,
+        *,
+        advocate_user_id: uuid.UUID,
+        amount: Decimal,
+        consultation_id: uuid.UUID,
+    ) -> None:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.post(
+                    f"{self._base}/internal/wallet/deduct",
+                    json={
+                        "user_id": str(advocate_user_id),
+                        "amount": str(amount),
+                        "transaction_type": "ADMIN_DEBIT",
+                        "description": f"Force-cancel deduction — consultation {consultation_id}",
+                        "reference_id": str(consultation_id),
+                    },
+                    headers=self._headers(),
+                )
+                resp.raise_for_status()
+        except Exception as exc:
+            logger.warning(
+                "billing_advocate_cancel_deduct_failed consultation_id=%s error=%s",
+                consultation_id,
+                exc,
+            )

@@ -1681,6 +1681,24 @@ async def admin_force_cancel(
     if not row:
         raise HTTPException(status_code=404, detail="Appointment not found")
     row.status = "cancelled"
+    booking_amount_str = (row.metrics or {}).get("booking_amount")
+    if booking_amount_str:
+        from decimal import Decimal
+        _amount = Decimal(booking_amount_str)
+        asyncio.create_task(
+            _billing.credit_refund(
+                user_id=row.citizen_user_id,
+                amount=_amount,
+                consultation_id=row.id,
+            )
+        )
+        asyncio.create_task(
+            _billing.deduct_advocate_cancel(
+                advocate_user_id=row.lawyer_user_id,
+                amount=_amount,
+                consultation_id=row.id,
+            )
+        )
     await repo.add_event(
         row.id,
         "force_cancelled",

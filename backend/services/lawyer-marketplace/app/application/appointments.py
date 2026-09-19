@@ -42,6 +42,8 @@ def parse_slot(date_str: str, time_slot: str) -> datetime:
 
 
 def join_phase(row: Consultation, at: datetime | None = None) -> str:
+    if row.status in TERMINAL:
+        return "expired"
     instant = _aware(at) or now_ist()
     start = _aware(row.scheduled_at)
     end = _aware(row.scheduled_end_at)
