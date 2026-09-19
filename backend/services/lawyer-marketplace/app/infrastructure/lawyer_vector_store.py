@@ -85,11 +85,13 @@ class LawyerVectorStore:
                     "practice_areas": list(lawyer.practice_areas or []),
                     "jurisdictions": list(lawyer.jurisdictions or []),
                     "city": lawyer.city or "",
+                    "location_state": getattr(lawyer, "location_state", None) or "",
                     "years_experience": lawyer.years_experience or 0,
                     "rating": float(lawyer.rating or 0),
                     "rating_count": lawyer.rating_count or 0,
                     "is_verified": bool(lawyer.is_verified),
                     "hourly_rate": float(lawyer.hourly_rate) if lawyer.hourly_rate else None,
+                    "bio": lawyer.bio or "",
                     "summary": lawyer.summary or "",
                 },
             )

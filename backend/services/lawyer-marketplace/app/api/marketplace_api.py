@@ -139,6 +139,7 @@ def _is_indexable(lawyer: Lawyer) -> bool:
     """Profile is complete enough to generate an AI summary and index for matching."""
     return bool(
         lawyer.practice_areas
+        and lawyer.jurisdictions
         and (lawyer.years_experience or 0) > 0
         and lawyer.bio
         and len(lawyer.bio) >= 50
