@@ -239,7 +239,7 @@ class MarketplaceRepository:
             Consultation.lawyer_id == lawyer_id,
             Consultation.scheduled_at < end,
             Consultation.scheduled_end_at > start,
-            Consultation.status.notin_(("cancelled", "expired", "no_show")),
+            Consultation.status.notin_(("cancelled", "expired", "no_show", "completed")),
         )
         return (await self._session.execute(stmt)).scalar_one_or_none() is not None
 
@@ -257,7 +257,7 @@ class MarketplaceRepository:
             Consultation.client_id == client_id,
             Consultation.scheduled_at < end,
             Consultation.scheduled_end_at > start,
-            Consultation.status.notin_(("cancelled", "expired", "no_show")),
+            Consultation.status.notin_(("cancelled", "expired", "no_show", "completed")),
         )
         return (await self._session.execute(stmt)).scalar_one_or_none() is not None
 
