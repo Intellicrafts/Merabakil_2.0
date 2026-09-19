@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  BadgeCheck,
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
@@ -30,11 +31,13 @@ import {
 import { useToast } from "@/components/ui/toast";
 import {
   adminAdjustWallet,
+  adminGetLawyerByUser,
   adminGetUserWallet,
   adminUpdateUser,
+  adminVerifyLawyer,
   listUsers,
 } from "@/lib/api";
-import type { AuthUser, WalletBalance } from "@/lib/types";
+import type { AuthUser, LawyerMatchResult, VerifyResult, WalletBalance } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type TabId = "all" | "citizen" | "advocate" | "admin";
@@ -53,6 +56,17 @@ function formatDate(iso: string | null | undefined): string {
     month: "short",
     year: "numeric",
   }).format(new Date(iso));
+}
+
+const SUPPORTED_STATES = ["Uttar Pradesh", "Delhi", "Andhra Pradesh", "Rajasthan"] as const;
+
+function detectBarCouncilState(enrollment: string): string {
+  const en = enrollment.toUpperCase().trim();
+  if (en.startsWith("UP")) return "Uttar Pradesh";
+  if (en.startsWith("D/")) return "Delhi";
+  if (en.startsWith("AP/")) return "Andhra Pradesh";
+  if (en.startsWith("R/")) return "Rajasthan";
+  return "";
 }
 
 function UserInitials({ name }: { name: string }) {
@@ -229,8 +243,12 @@ interface UserDetailSheetProps {
 function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheetProps) {
   const [mounted, setMounted] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [verifyState, setVerifyState] = useState("");
+  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const isAdvocate = user?.roles.includes("advocate") ?? false;
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -246,10 +264,45 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
     };
   }, [open, onClose]);
 
+  // reset verify state when drawer closes or user changes
+  useEffect(() => {
+    if (!open) { setVerifyResult(null); setVerifyState(""); }
+  }, [open, user?.user_id]);
+
   const { data: wallet, isLoading: walletLoading } = useQuery<WalletBalance>({
     queryKey: ["admin-user-wallet", user?.user_id],
     queryFn: () => adminGetUserWallet(user!.user_id),
     enabled: open && !!user,
+  });
+
+  const { data: lawyer, isLoading: lawyerLoading, refetch: refetchLawyer } = useQuery<LawyerMatchResult>({
+    queryKey: ["admin-lawyer-by-user", user?.user_id],
+    queryFn: () => adminGetLawyerByUser(user!.user_id),
+    enabled: open && isAdvocate && !!user,
+    retry: false,
+  });
+
+  // pre-fill state from enrollment number when lawyer data arrives
+  useEffect(() => {
+    if (lawyer?.bar_council_id && !verifyState) {
+      setVerifyState(detectBarCouncilState(lawyer.bar_council_id));
+    }
+  }, [lawyer?.bar_council_id]);
+
+  const verifyMutation = useMutation({
+    mutationFn: () => adminVerifyLawyer(lawyer!.id, verifyState || undefined),
+    onSuccess: (result) => {
+      setVerifyResult(result);
+      refetchLawyer();
+      if (result.status === "success") {
+        toast({ title: `Verified — ${result.data?.name ?? ""}` });
+      } else {
+        toast({ title: "Not found on bar council records", variant: "destructive" });
+      }
+    },
+    onError: (e: Error) => {
+      toast({ title: "Verification failed", description: e.message, variant: "destructive" });
+    },
   });
 
   const toggleActiveMutation = useMutation({
@@ -394,6 +447,86 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
                 <p className="mt-1.5 text-sm text-muted-foreground">No wallet yet</p>
               )}
             </div>
+
+            {/* Advocate Bar Council Verification */}
+            {isAdvocate && (
+              <div className="border-t border-black/[0.06] px-5 py-4 dark:border-white/[0.08]">
+                <div className="mb-3 flex items-center gap-2">
+                  <BadgeCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                  <p className="text-xs font-medium text-muted-foreground">Bar Council Verification</p>
+                </div>
+
+                {lawyerLoading ? (
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                ) : lawyer ? (
+                  <div className="space-y-3">
+                    {/* Enrollment + status row */}
+                    <div className="flex items-center justify-between rounded-xl border border-black/[0.06] bg-black/[0.02] px-4 py-3 dark:border-white/[0.08] dark:bg-white/[0.03]">
+                      <div>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Enrollment No.</p>
+                        <p className="mt-0.5 font-mono text-sm font-medium">
+                          {lawyer.bar_council_id ?? <span className="text-muted-foreground">Not set</span>}
+                        </p>
+                      </div>
+                      <span className={cn(
+                        "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                        lawyer.is_verified
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
+                      )}>
+                        {lawyer.is_verified ? "Verified" : "Unverified"}
+                      </span>
+                    </div>
+
+                    {/* Scraped data if available */}
+                    {lawyer.verification_data?.data && typeof lawyer.verification_data.data === "object" && (
+                      <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/60 px-4 py-3 text-xs dark:border-emerald-800/40 dark:bg-emerald-950/30">
+                        <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                          {(lawyer.verification_data.data as Record<string, string>).name}
+                        </p>
+                        {(lawyer.verification_data.data as Record<string, string>).enrollment_date && (
+                          <p className="mt-0.5 text-emerald-700/70 dark:text-emerald-400/70">
+                            Enrolled {(lawyer.verification_data.data as Record<string, string>).enrollment_date}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* State selector + verify button */}
+                    {lawyer.bar_council_id && (
+                      <div className="flex gap-2">
+                        <select
+                          value={verifyState}
+                          onChange={(e) => setVerifyState(e.target.value)}
+                          className="flex-1 rounded-xl border border-black/[0.08] bg-white px-3 py-2 text-sm text-foreground dark:border-white/10 dark:bg-zinc-900"
+                        >
+                          <option value="">Auto-detect state</option>
+                          {SUPPORTED_STATES.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                        <Button
+                          size="sm"
+                          className="shrink-0 rounded-xl"
+                          disabled={verifyMutation.isPending}
+                          onClick={() => verifyMutation.mutate()}
+                        >
+                          {verifyMutation.isPending ? "Verifying…" : "Verify"}
+                        </Button>
+                      </div>
+                    )}
+
+                    {!lawyer.bar_council_id && (
+                      <p className="text-xs text-muted-foreground">
+                        Advocate has not set their enrollment number yet.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No lawyer profile found.</p>
+                )}
+              </div>
+            )}
           </div>
         </aside>
       </div>

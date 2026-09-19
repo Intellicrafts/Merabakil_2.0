@@ -246,6 +246,17 @@ export interface LawyerMatchResult {
   summary: string;
   match_score: number;
   ai_recommended: boolean;
+  verification_data?: Record<string, string> | null;
+  verified_at?: string | null;
+}
+
+export interface VerifyResult {
+  lawyer_id: string;
+  status: "success" | "failed" | "error";
+  message: string;
+  is_verified: boolean;
+  verified_at: string | null;
+  data: Record<string, string> | null;
 }
 
 export type AppointmentStatus =

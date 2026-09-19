@@ -98,7 +98,7 @@ class MarketplaceRepository:
                 user_id=user_id,
                 slug=slug,
                 full_name=full_name.strip() or "Advocate",
-                is_verified=True if is_verified is None else is_verified,
+                is_verified=False if is_verified is None else is_verified,
                 practice_areas=practice_areas or [],
                 jurisdictions=jurisdictions or [],
                 languages=languages or [],

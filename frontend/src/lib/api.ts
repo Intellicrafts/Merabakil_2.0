@@ -21,6 +21,8 @@ import type {
   WalletListResponse,
   WalletTransaction,
   WalletTransactionList,
+  LawyerMatchResult,
+  VerifyResult,
 } from "@/lib/types";
 import type {
   ActivityLogPage,
@@ -353,6 +355,24 @@ export async function adminGetUserWallet(userId: string): Promise<WalletBalance>
   return apiFetch<WalletBalance>(`${billingServiceUrl()}/api/v1/wallet/${userId}`, {
     headers: authHeaders(),
   });
+}
+
+export async function adminGetLawyerByUser(userId: string): Promise<LawyerMatchResult> {
+  return apiFetch<LawyerMatchResult>(
+    `${marketplaceServiceUrl()}/api/v1/admin/lawyers/by-user/${userId}`,
+    { headers: authHeaders() },
+  );
+}
+
+export async function adminVerifyLawyer(lawyerId: string, state?: string): Promise<VerifyResult> {
+  return apiFetch<VerifyResult>(
+    `${marketplaceServiceUrl()}/api/v1/admin/lawyers/${lawyerId}/verify`,
+    {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ state: state ?? null }),
+    },
+  );
 }
 
 export async function listCategories(): Promise<Category[]> {

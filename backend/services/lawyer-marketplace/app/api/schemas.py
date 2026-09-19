@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -73,6 +74,8 @@ class LawyerPublic(BaseModel):
     summary: str = ""
     match_score: int = 0
     ai_recommended: bool = False
+    verification_data: dict | None = None
+    verified_at: str | None = None
 
 
 class ParticipantModeration(BaseModel):
@@ -244,6 +247,19 @@ class CallCancelRequest(BaseModel):
 
 class AdminLawyerPatch(BaseModel):
     is_verified: bool
+
+
+class VerifyRequest(BaseModel):
+    state: str | None = None
+
+
+class VerifyResponse(BaseModel):
+    lawyer_id: uuid.UUID
+    status: str
+    message: str
+    is_verified: bool
+    verified_at: str | None
+    data: dict | None = None
 
 
 class ReasonRequest(BaseModel):

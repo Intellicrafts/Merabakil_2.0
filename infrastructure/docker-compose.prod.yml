@@ -2,8 +2,8 @@ name: merabakil
 
 # ---------------------------------------------------------------------------
 # Production stack — merabakil.in
-# 13 containers: postgres, redis, minio, auth, billing, search, research,
-#                marketplace, case, document, ingestion, frontend, nginx
+# 14 containers: postgres, redis, minio, auth, billing, search, research,
+#                marketplace, case, document, ingestion, satyapan, frontend, nginx
 #
 # Usage (on GCP, from repo root):
 #   docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env up -d
@@ -153,6 +153,7 @@ services:
     environment:
       MARKETPLACE_NATIVE: "false"
       BILLING_SERVICE_URL: "http://billing:8000"
+      SATYAPAN_URL: "http://satyapan:8000"
     depends_on:
       postgres: { condition: service_healthy }
       auth:     { condition: service_healthy }
@@ -224,6 +225,22 @@ services:
       interval: 15s
       timeout: 5s
       retries: 6
+
+  satyapan:
+    <<: *svc-defaults
+    build:
+      context: ../backend/services/satyapan
+      dockerfile: Dockerfile
+    image: merabakil/satyapan:latest
+    environment:
+      HOME: /tmp
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      HEADLESS: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
 
   frontend:
     <<: *svc-defaults

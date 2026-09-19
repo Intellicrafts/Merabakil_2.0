@@ -94,6 +94,32 @@ def _ensure_sqlite_columns(sync_conn) -> None:
                 sync_conn.exec_driver_sql(f"ALTER TABLE appointment_participants ADD COLUMN {name} {decl}")
 
 
+def _ensure_lawyers_columns(sync_conn) -> None:
+    dialect = sync_conn.dialect.name
+    new_cols = (
+        ("verification_data", "JSON",        "JSONB"),
+        ("verified_at",       "DATETIME",    "TIMESTAMPTZ"),
+    )
+    if dialect == "sqlite":
+        existing = {
+            row[1]
+            for row in sync_conn.exec_driver_sql("PRAGMA table_info(lawyers)").fetchall()
+        }
+        for col, sqlite_decl, _ in new_cols:
+            if col not in existing:
+                sync_conn.exec_driver_sql(f"ALTER TABLE lawyers ADD COLUMN {col} {sqlite_decl}")
+    elif dialect == "postgresql":
+        existing = {
+            row[0]
+            for row in sync_conn.exec_driver_sql(
+                "SELECT column_name FROM information_schema.columns WHERE table_name='lawyers'"
+            ).fetchall()
+        }
+        for col, _, pg_decl in new_cols:
+            if col not in existing:
+                sync_conn.exec_driver_sql(f"ALTER TABLE lawyers ADD COLUMN {col} {pg_decl}")
+
+
 async def init_db() -> None:
     # Import models so metadata is populated.
     from app.infrastructure import appointment_models as _am  # noqa: F401
@@ -103,6 +129,7 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_sqlite_columns)
+        await conn.run_sync(_ensure_lawyers_columns)
 
 
 @asynccontextmanager

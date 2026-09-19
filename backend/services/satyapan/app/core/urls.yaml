@@ -1,0 +1,5 @@
+scrapers:
+  uttar_pradesh: "http://upbarcouncil.com/AdvocateOnRoll.aspx"
+  delhi: "https://delhibarcouncil.com/bcd/enrolment_index.php"
+  andhra_pradesh: "https://barcouncilap.org/search-by-enrollment-number/"
+  rajasthan: "https://barcouncilofrajasthan.org/Advocate/"
