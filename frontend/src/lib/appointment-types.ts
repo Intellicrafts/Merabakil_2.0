@@ -20,6 +20,8 @@ export interface RankedMarketplaceLawyer {
   hourly_rate_inr?: number | null;
   is_verified?: boolean;
   verified?: boolean;
+  verification_data?: Record<string, unknown> | null;
+  verified_at?: string | null;
   summary?: string;
   bio?: string;
   photo_url?: string | null;

@@ -79,6 +79,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   const [verifyResult, setVerifyResult] = useState<Pick<VerifyResult, "status" | "data"> | null>(null);
   const [verifyState, setVerifyState] = useState("");
   const [showStatePicker, setShowStatePicker] = useState(false);
+  const [loadedBarId, setLoadedBarId] = useState("");
 
   const completion = useCompletion(areas, years, bio, jurisdictions);
   const isComplete = completion.count === COMPLETION_CHECKS.length;
@@ -98,14 +99,20 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         setBio(row.bio || "");
         setVerified(Boolean(row.is_verified ?? row.verified));
         setVerifyState(detectBarCouncilState(row.bar_council_id || ""));
+        setLoadedBarId(row.bar_council_id || "");
+        const savedVData = (row.verification_data as { data?: Record<string, string> } | null)?.data;
+        if ((row.is_verified ?? row.verified) && savedVData?.name) {
+          setVerifyResult({ status: "success", data: savedVData });
+        }
       })
       .catch(() => undefined);
   }, [canEdit, user?.full_name]);
 
   useEffect(() => {
+    if (barId === loadedBarId) return;
     setVerifyResult(null);
     setShowStatePicker(false);
-  }, [barId]);
+  }, [barId, loadedBarId]);
 
   if (!canEdit) return null;
 
@@ -176,10 +183,14 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-[13px] font-semibold tracking-tight">My profile</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className={cn(
+            "mt-0.5 flex items-center gap-1 text-[11px]",
+            verified ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
+          )}>
+            {verified && <BadgeCheck className="h-3 w-3 shrink-0" />}
             {verified
-              ? "Verified and bookable"
-              : "Hidden until an admin re-enables verification"}
+              ? "Bar council verified — visible in search results"
+              : "Verify your bar council enrollment to appear in search"}
           </p>
         </div>
         <span
@@ -304,16 +315,20 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             </div>
           )}
 
-          {verifyResult && (
-            <p className={cn(
-              "mt-1.5 text-xs font-medium",
-              verifyResult.status === "success"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-amber-600 dark:text-amber-400",
-            )}>
-              {verifyResult.status === "success"
-                ? `Verified as ${verifyResult.data?.name ?? ""}`
-                : "Not found on bar council records"}
+          {verifyResult?.status === "success" && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                {verifyResult.data?.name ?? "Enrollment verified"}
+              </span>
+              {verifyResult.data?.state && (
+                <span className="text-xs text-muted-foreground">· {verifyResult.data.state}</span>
+              )}
+            </div>
+          )}
+          {verifyResult?.status === "failed" && (
+            <p className="mt-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+              Not found on bar council records
             </p>
           )}
         </Field>
@@ -426,11 +441,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 sm:col-span-2">
-          <p className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <BadgeCheck className="h-3.5 w-3.5" />
-            New advocates are verified by default
-          </p>
+        <div className="flex items-center justify-end gap-3 sm:col-span-2">
           <Button
             type="button"
             className="h-9 rounded-xl"
