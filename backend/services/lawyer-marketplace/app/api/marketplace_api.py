@@ -143,6 +143,7 @@ def _is_indexable(lawyer: Lawyer) -> bool:
         and (lawyer.years_experience or 0) > 0
         and lawyer.bio
         and len(lawyer.bio) >= 50
+        and (lawyer.hourly_rate or 0) > 0
     )
 
 

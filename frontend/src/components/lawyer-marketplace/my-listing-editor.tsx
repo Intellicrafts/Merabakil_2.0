@@ -95,6 +95,7 @@ const COMPLETION_CHECKS = [
   { key: "experience",    label: "Experience" },
   { key: "bio",           label: "Bio (50+ chars)" },
   { key: "jurisdictions", label: "Jurisdictions" },
+  { key: "rate",          label: "Hourly rate" },
 ] as const;
 
 function useCompletion(
@@ -102,6 +103,7 @@ function useCompletion(
   years: string,
   bio: string,
   jurisdictions: string[],
+  rate: string,
 ) {
   return useMemo(() => {
     const checks = [
@@ -109,9 +111,10 @@ function useCompletion(
       { label: "Experience",      done: Number(years) > 0 },
       { label: "Bio (50+ chars)", done: bio.trim().length >= 50 },
       { label: "Jurisdictions",   done: jurisdictions.length > 0 },
+      { label: "Hourly rate",     done: Number(rate) > 0 },
     ];
     return { checks, count: checks.filter((c) => c.done).length };
-  }, [areas, years, bio, jurisdictions]);
+  }, [areas, years, bio, jurisdictions, rate]);
 }
 
 export function MyListingEditor({ onSaved }: MyListingEditorProps) {
@@ -144,7 +147,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeInfo, setPincodeInfo] = useState<{ state: string; district: string } | null>(null);
 
-  const completion = useCompletion(areas, years, bio, jurisdictions);
+  const completion = useCompletion(areas, years, bio, jurisdictions, rate);
   const isComplete = completion.count === COMPLETION_CHECKS.length;
 
   const sortedJurisdictions = useMemo(() => {
