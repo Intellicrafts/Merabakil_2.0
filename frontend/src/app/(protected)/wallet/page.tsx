@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowUpFromLine,
   Bot,
   CalendarCheck,
   CircleDollarSign,
@@ -284,19 +285,27 @@ export default function WalletPage() {
           <PricingStrip isAdvocate={isAdvocate} />
         </div>
 
-        {/* Add Points footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] px-6 py-3.5">
-          <p className="text-[11.5px] text-slate-600">
-            {t("wallet.rechargeSoon")}
-          </p>
+        {/* Add Points + Withdraw footer */}
+        <div className="flex items-center gap-2 border-t border-white/[0.06] px-6 py-3.5">
           <button
             type="button"
             disabled
             aria-disabled="true"
-            className="flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-white/[0.06] px-3 py-1.5 text-[11.5px] font-medium text-slate-500 opacity-60"
+            className="flex flex-1 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg bg-white/[0.05] px-3 py-2 text-[11.5px] font-medium text-slate-500 opacity-60"
           >
             <Plus className="h-3 w-3" />
             Add Points
+            <span className="ml-1 text-[10px] text-slate-600">· soon</span>
+          </button>
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            className="flex flex-1 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg bg-white/[0.05] px-3 py-2 text-[11.5px] font-medium text-slate-500 opacity-60"
+          >
+            <ArrowUpFromLine className="h-3 w-3" />
+            Withdraw
+            <span className="ml-1 text-[10px] text-slate-600">· soon</span>
           </button>
         </div>
       </div>
