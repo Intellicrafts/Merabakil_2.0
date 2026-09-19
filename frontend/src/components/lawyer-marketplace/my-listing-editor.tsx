@@ -324,6 +324,9 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
       const result = await verifyMyEnrollment(barId.trim(), state);
       setVerified(result.is_verified);
       setVerifyResult({ status: result.status, data: result.data });
+      if (result.status === "success" && result.data?.name) {
+        setFullName(result.data.name);
+      }
       if (result.status === "success") {
         toast({
           title: `Verified — ${result.data?.name ?? "enrollment confirmed"}`,
@@ -395,7 +398,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
       {/* ── Professional details ────────────────────────────── */}
       <ProfileSectionCard title="Professional details">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Display name" htmlFor="adv-name">
+          <Field label="Name" htmlFor="adv-name">
             <Input
               id="adv-name"
               value={fullName}
