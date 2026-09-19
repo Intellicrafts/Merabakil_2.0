@@ -704,6 +704,8 @@
 
 /* Premium Saarthi ask bar — unified pill on all breakpoints */
 .dash-ask-bar-premium .dash-ask-shell {
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: row;
   align-items: stretch;
