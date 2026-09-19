@@ -725,18 +725,26 @@ async def verify_my_enrollment(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Satyapan service unavailable: {exc}") from exc
 
+    # Satyapan wraps the scraper result in its own envelope:
+    # {status, message, data: {status, data: {name, father_name, ...}}}
+    # We need the inner layer for the real status and flat field dict.
+    scraper_result = result.get("data") or {}
+    scraper_status = scraper_result.get("status", "error")
+    actual_data = scraper_result.get("data") or None
+
     lawyer.bar_council_id = body.enrollment_number
-    lawyer.verification_data = result
-    lawyer.verified_at = datetime.now(timezone.utc)
-    lawyer.is_verified = result.get("status") == "success"
+    lawyer.verification_data = scraper_result
+    lawyer.is_verified = scraper_status == "success"
+    if lawyer.is_verified:
+        lawyer.verified_at = datetime.now(timezone.utc)
 
     return VerifyResponse(
         lawyer_id=lawyer.id,
-        status=result.get("status", "error"),
-        message=result.get("message", ""),
+        status=scraper_status,
+        message=scraper_result.get("message", result.get("message", "")),
         is_verified=lawyer.is_verified,
-        verified_at=lawyer.verified_at.isoformat(),
-        data=result.get("data"),
+        verified_at=lawyer.verified_at.isoformat() if lawyer.verified_at else None,
+        data=actual_data,
     )
 
 
@@ -2404,17 +2412,22 @@ async def admin_verify_lawyer(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Satyapan service unavailable: {exc}") from exc
 
-    lawyer.verification_data = result
-    lawyer.verified_at = datetime.now(timezone.utc)
-    lawyer.is_verified = result.get("status") == "success"
+    scraper_result = result.get("data") or {}
+    scraper_status = scraper_result.get("status", "error")
+    actual_data = scraper_result.get("data") or None
+
+    lawyer.verification_data = scraper_result
+    lawyer.is_verified = scraper_status == "success"
+    if lawyer.is_verified:
+        lawyer.verified_at = datetime.now(timezone.utc)
 
     return VerifyResponse(
         lawyer_id=lawyer.id,
-        status=result.get("status", "error"),
-        message=result.get("message", ""),
+        status=scraper_status,
+        message=scraper_result.get("message", result.get("message", "")),
         is_verified=lawyer.is_verified,
-        verified_at=lawyer.verified_at.isoformat(),
-        data=result.get("data"),
+        verified_at=lawyer.verified_at.isoformat() if lawyer.verified_at else None,
+        data=actual_data,
     )
 
 
