@@ -23,7 +23,8 @@ def upgrade() -> None:
         "ix_appointment_participants_consultation_lastseen",
         "appointment_participants",
         ["consultation_id", "last_seen_at"],
-        schema="public"
+        schema="public",
+        if_not_exists=True
     )
 
     # Index for consultations queries filtering by lawyer_user_id
@@ -31,7 +32,8 @@ def upgrade() -> None:
         "ix_consultations_lawyer_user_id",
         "consultations",
         ["lawyer_user_id"],
-        schema="public"
+        schema="public",
+        if_not_exists=True
     )
 
 
