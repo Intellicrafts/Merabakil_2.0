@@ -66,6 +66,13 @@ class MarketplaceRepository:
     async def get_lawyer(self, lawyer_id: uuid.UUID) -> Lawyer | None:
         return await self._session.get(Lawyer, lawyer_id)
 
+    async def get_lawyers_by_ids(self, lawyer_ids: list[uuid.UUID]) -> list[Lawyer]:
+        if not lawyer_ids:
+            return []
+        from sqlalchemy import select
+        stmt = select(Lawyer).where(Lawyer.id.in_(lawyer_ids))
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def get_lawyer_by_slug(self, slug: str) -> Lawyer | None:
         result = await self._session.execute(select(Lawyer).where(Lawyer.slug == slug))
         return result.scalar_one_or_none()
@@ -229,6 +236,8 @@ class MarketplaceRepository:
         *,
         as_lawyer: bool,
         case_id: uuid.UUID | None = None,
+        limit: int = 20,
+        offset: int = 0,
     ) -> list[Consultation]:
         if as_lawyer:
             stmt = select(Consultation).where(Consultation.lawyer_user_id == user_id)
@@ -236,7 +245,7 @@ class MarketplaceRepository:
             stmt = select(Consultation).where(Consultation.client_id == user_id)
         if case_id is not None:
             stmt = stmt.where(Consultation.case_id == case_id)
-        stmt = stmt.order_by(Consultation.scheduled_at.desc())
+        stmt = stmt.order_by(Consultation.scheduled_at.desc()).limit(limit).offset(offset)
         return list((await self._session.execute(stmt)).scalars().all())
 
     async def slot_taken(self, lawyer_id: uuid.UUID, start: datetime, end: datetime) -> bool:

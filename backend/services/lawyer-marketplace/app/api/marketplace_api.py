@@ -927,18 +927,26 @@ async def list_appointments(
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     case_id: str | None = None,
+    limit: int = Query(20, le=100, ge=1),
+    offset: int = Query(0, ge=0),
 ) -> list[AppointmentOut]:
     repo = MarketplaceRepository(session)
     uid = uuid.UUID(user.user_id)
     parsed_case_id = uuid.UUID(case_id) if case_id else None
     lawyer_row = await repo.get_lawyer_by_user(uid)
     as_lawyer = lawyer_row is not None or user.has_role("advocate")
-    rows = await repo.list_consultations_for_user(uid, as_lawyer=as_lawyer, case_id=parsed_case_id)
+    rows = await repo.list_consultations_for_user(uid, as_lawyer=as_lawyer, case_id=parsed_case_id, limit=limit, offset=offset)
     if as_lawyer and not rows:
-        rows = await repo.list_consultations_for_user(uid, as_lawyer=False, case_id=parsed_case_id)
+        rows = await repo.list_consultations_for_user(uid, as_lawyer=False, case_id=parsed_case_id, limit=limit, offset=offset)
+
+    # Batch load all lawyers at once instead of N+1 queries
+    lawyer_ids = list(set(row.lawyer_id for row in rows))
+    lawyers = await repo.get_lawyers_by_ids(lawyer_ids) if lawyer_ids else []
+    lawyers_map = {lawyer.id: lawyer for lawyer in lawyers}
+
     out: list[AppointmentOut] = []
     for row in rows:
-        lawyer = await repo.get_lawyer(row.lawyer_id)
+        lawyer = lawyers_map.get(row.lawyer_id)
         out.append(await _to_appointment(repo, row, user, lawyer=lawyer))
     return out
 
