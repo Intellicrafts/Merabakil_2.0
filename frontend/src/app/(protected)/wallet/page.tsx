@@ -190,12 +190,12 @@ const ADVOCATE_PRICING: PricingCol[] = [
 function PricingStrip({ isAdvocate }: { isAdvocate: boolean }) {
   const cols = isAdvocate ? ADVOCATE_PRICING : CITIZEN_PRICING;
   return (
-    <div className="flex divide-x divide-white/[0.07]">
+    <div className="flex divide-x divide-black/[0.07] dark:divide-white/[0.07]">
       {cols.map(({ label, value, sub }) => (
         <div key={label} className="flex-1 px-3 text-center first:pl-0 last:pr-0">
-          <p className="text-[10px] text-slate-500">{label}</p>
-          <p className="mt-0.5 text-[12.5px] font-semibold text-white/75">{value}</p>
-          <p className="text-[10px] text-slate-600">{sub}</p>
+          <p className="text-[10px] text-muted-foreground">{label}</p>
+          <p className="mt-0.5 text-[12.5px] font-semibold text-foreground dark:text-white/75">{value}</p>
+          <p className="text-[10px] text-muted-foreground/60">{sub}</p>
         </div>
       ))}
     </div>
@@ -245,67 +245,67 @@ export default function WalletPage() {
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 px-5 pb-12 md:px-0 md:pt-2">
 
-      {/* Balance card — dark surface, pricing strip inside */}
-      <div className="overflow-hidden rounded-[1.35rem] bg-slate-900 dark:bg-zinc-950">
+      {/* Balance card — theme-responsive surface, pricing strip inside */}
+      <div className="overflow-hidden rounded-[1.35rem] border border-black/[0.06] bg-white dark:border-transparent dark:bg-zinc-950">
 
         {/* Balance */}
         <div className="px-6 pb-4 pt-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-medium text-slate-500">
+              <p className="text-[11px] font-medium text-muted-foreground">
                 {t("wallet.walletBalance")}
               </p>
               {walletLoading ? (
-                <Skeleton className="mt-3 h-11 w-36 bg-white/[0.08]" />
+                <Skeleton className="mt-3 h-11 w-36 bg-black/[0.06] dark:bg-white/[0.08]" />
               ) : (
-                <p className="mt-1.5 text-[3.25rem] font-bold leading-none tracking-tight text-white tabular-nums">
+                <p className="mt-1.5 text-[3.25rem] font-bold leading-none tracking-tight text-foreground tabular-nums">
                   {formatAmount(balance)}
                 </p>
               )}
               <div className="mt-1.5 flex items-baseline gap-1.5">
-                <p className="text-[12px] text-slate-500">MeraBakil Points</p>
+                <p className="text-[12px] text-muted-foreground">MeraBakil Points</p>
                 {!walletLoading && approxQueries > 0 && (
                   <>
-                    <span className="text-slate-700">·</span>
-                    <p className="text-[12px] text-slate-400">
+                    <span className="text-muted-foreground/40">·</span>
+                    <p className="text-[12px] text-muted-foreground/70">
                       ~{formatCount(approxQueries)} queries available
                     </p>
                   </>
                 )}
               </div>
             </div>
-            <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
-              <Wallet className="h-4.5 w-4.5 text-slate-500" />
+            <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/[0.04] dark:bg-white/[0.06]">
+              <Wallet className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
           </div>
         </div>
 
         {/* Pricing strip — what this balance buys */}
-        <div className="border-t border-white/[0.06] px-6 py-4">
+        <div className="border-t border-black/[0.06] px-6 py-4 dark:border-white/[0.06]">
           <PricingStrip isAdvocate={isAdvocate} />
         </div>
 
         {/* Add Points + Withdraw footer */}
-        <div className="flex items-center gap-2 border-t border-white/[0.06] px-6 py-3.5">
+        <div className="flex items-center gap-2 border-t border-black/[0.06] px-6 py-3.5 dark:border-white/[0.06]">
           <button
             type="button"
             disabled
             aria-disabled="true"
-            className="flex flex-1 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg bg-white/[0.05] px-3 py-2 text-[11.5px] font-medium text-slate-500 opacity-60"
+            className="flex flex-1 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg bg-black/[0.03] px-3 py-2 text-[11.5px] font-medium text-muted-foreground opacity-60 dark:bg-white/[0.05] dark:text-slate-400"
           >
             <Plus className="h-3 w-3" />
             Add Points
-            <span className="ml-1 text-[10px] text-slate-600">· soon</span>
+            <span className="ml-1 text-[10px] text-muted-foreground/50">· soon</span>
           </button>
           <button
             type="button"
             disabled
             aria-disabled="true"
-            className="flex flex-1 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg bg-white/[0.05] px-3 py-2 text-[11.5px] font-medium text-slate-500 opacity-60"
+            className="flex flex-1 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg bg-black/[0.03] px-3 py-2 text-[11.5px] font-medium text-muted-foreground opacity-60 dark:bg-white/[0.05] dark:text-slate-400"
           >
             <ArrowUpFromLine className="h-3 w-3" />
             Withdraw
-            <span className="ml-1 text-[10px] text-slate-600">· soon</span>
+            <span className="ml-1 text-[10px] text-muted-foreground/50">· soon</span>
           </button>
         </div>
       </div>
