@@ -73,7 +73,7 @@ services:
     image: merabakil/auth:latest
     env_file: .env
     environment:
-      RUN_MIGRATIONS: "true"    # alembic upgrade head on every startup
+      RUN_MIGRATIONS: "false"   # migrations already applied manually
       RUN_SEED: "true"          # idempotent: seeds roles/permissions if missing
     depends_on:
       postgres: { condition: service_healthy }
