@@ -188,39 +188,39 @@ export default function FamilyLawPage() {
       <section id="faq" className="mb-12 space-y-6">
         <h2 className="text-2xl font-bold">Frequently Asked Questions About Family Law</h2>
 
-        <div itemscope itemtype="https://schema.org/FAQPage">
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">How long does divorce take in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Uncontested divorce: 6 months to 2 years (with mandatory 6-month cooling-off period). Contested divorce: 2-5 years or more depending on case complexity, evidence disputes, and court backlog. Some courts expedite mutual divorces to 4-6 months.</p>
+        <div itemScope itemType="https://schema.org/FAQPage">
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">How long does divorce take in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Uncontested divorce: 6 months to 2 years (with mandatory 6-month cooling-off period). Contested divorce: 2-5 years or more depending on case complexity, evidence disputes, and court backlog. Some courts expedite mutual divorces to 4-6 months.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">Does divorce automatically give custody to mother in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">No. While younger children (below 5) are traditionally with mothers (Tender Years Doctrine), courts now apply &quot;best interest of child&quot; principle. Fathers can get custody if they prove it&apos;s better for the child. Gender is not the determining factor anymore.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">Does divorce automatically give custody to mother in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">No. While younger children (below 5) are traditionally with mothers (Tender Years Doctrine), courts now apply &quot;best interest of child&quot; principle. Fathers can get custody if they prove it&apos;s better for the child. Gender is not the determining factor anymore.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">How is maintenance (alimony) calculated in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">There&apos;s no fixed formula. Courts consider: (1) Earning capacity of both spouses, (2) Standard of living during marriage, (3) Age and health, (4) Contributions to marriage, (5) Responsibility for child care. Typically 20-40% of earning spouse&apos;s income for dependent spouse, plus child maintenance.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">How is maintenance (alimony) calculated in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">There&apos;s no fixed formula. Courts consider: (1) Earning capacity of both spouses, (2) Standard of living during marriage, (3) Age and health, (4) Contributions to marriage, (5) Responsibility for child care. Typically 20-40% of earning spouse&apos;s income for dependent spouse, plus child maintenance.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">Can unmarried couples get legal protection for their children?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Yes. Unmarried parents can seek custody, succession, and maintenance rights through courts. However, legitimacy laws vary by state and personal law. Marriage registration provides clarity and legal protection for both parents and children.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">Can unmarried couples get legal protection for their children?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Yes. Unmarried parents can seek custody, succession, and maintenance rights through courts. However, legitimacy laws vary by state and personal law. Marriage registration provides clarity and legal protection for both parents and children.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">What happens to shared property in divorce?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Shared property is divided based on contribution and personal law applicable. In Hindu marriage: 50-50 split is common unless one spouse proves greater contribution. Islamic law: Wife gets dower and 1/8 or 1/4 of property. Modern courts ensure fair division reflecting both spouses&apos; contributions to marriage.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">What happens to shared property in divorce?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Shared property is divided based on contribution and personal law applicable. In Hindu marriage: 50-50 split is common unless one spouse proves greater contribution. Islamic law: Wife gets dower and 1/8 or 1/4 of property. Modern courts ensure fair division reflecting both spouses&apos; contributions to marriage.</p>
             </div>
           </div>
         </div>

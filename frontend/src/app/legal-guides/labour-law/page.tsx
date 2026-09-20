@@ -255,39 +255,39 @@ export default function LabourLawPage() {
       <section id="faq" className="mb-12 space-y-6">
         <h2 className="text-2xl font-bold">Frequently Asked Questions About Labour Law</h2>
 
-        <div itemscope itemtype="https://schema.org/FAQPage">
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">Can an employer terminate an employee without notice in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">No, employer must follow legal procedure. Except for serious misconduct, employer must give 30 days&apos; notice or pay notice period wages. Termination without procedure is unlawful and gives employee right to compensation and reinstatement.</p>
+        <div itemScope itemType="https://schema.org/FAQPage">
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">Can an employer terminate an employee without notice in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">No, employer must follow legal procedure. Except for serious misconduct, employer must give 30 days&apos; notice or pay notice period wages. Termination without procedure is unlawful and gives employee right to compensation and reinstatement.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">How is gratuity calculated if service is less than 5 years?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Typically, gratuity is not payable for service less than 5 years. Exception: If company has 50+ employees, pro-rata gratuity is payable. Calculation: (Amount for 5 years) × (Months of service ÷ 60). Example: If 5-year gratuity is ₹100,000 and service is 3 years, pro-rata = 100,000 × 36/60 = ₹60,000.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">How is gratuity calculated if service is less than 5 years?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Typically, gratuity is not payable for service less than 5 years. Exception: If company has 50+ employees, pro-rata gratuity is payable. Calculation: (Amount for 5 years) × (Months of service ÷ 60). Example: If 5-year gratuity is ₹100,000 and service is 3 years, pro-rata = 100,000 × 36/60 = ₹60,000.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">What should I do if harassed at workplace?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Steps: (1) Document incidents (date, time, details), (2) Inform harasser to stop in writing, (3) File complaint with company&apos;s Internal Complaints Committee or HR, (4) If no action, file complaint with external labor authority or police, (5) Seek legal help for compensation. You&apos;re protected against retaliation for filing complaints.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">What should I do if harassed at workplace?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Steps: (1) Document incidents (date, time, details), (2) Inform harasser to stop in writing, (3) File complaint with company&apos;s Internal Complaints Committee or HR, (4) If no action, file complaint with external labor authority or police, (5) Seek legal help for compensation. You&apos;re protected against retaliation for filing complaints.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">Can employer recover loan from gratuity in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">No, gratuity cannot be forfeited or offset against loans unless employee explicitly consents. Any clause in employment contract forfeiting gratuity is void and unenforceable. Employee has absolute right to gratuity despite any outstanding dues.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">Can employer recover loan from gratuity in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">No, gratuity cannot be forfeited or offset against loans unless employee explicitly consents. Any clause in employment contract forfeiting gratuity is void and unenforceable. Employee has absolute right to gratuity despite any outstanding dues.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">What is the minimum notice period before resignation?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Typically 30 days for regular employees, but varies by contract and position. Senior positions may require 60-90 days. If employee doesn&apos;t serve notice, employer can deduct one month&apos;s salary or notice period salary from final settlement. Employee cannot waive this procedure.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">What is the minimum notice period before resignation?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Typically 30 days for regular employees, but varies by contract and position. Senior positions may require 60-90 days. If employee doesn&apos;t serve notice, employer can deduct one month&apos;s salary or notice period salary from final settlement. Employee cannot waive this procedure.</p>
             </div>
           </div>
         </div>

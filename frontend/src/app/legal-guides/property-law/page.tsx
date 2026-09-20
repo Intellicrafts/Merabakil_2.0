@@ -180,39 +180,39 @@ export default function PropertyLawPage() {
       <section id="faq" className="mb-12 space-y-6">
         <h2 className="text-2xl font-bold">Frequently Asked Questions About Property Law</h2>
 
-        <div itemscope itemtype="https://schema.org/FAQPage">
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">What is the limitation period for filing a property suit in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Under Article 65 of the Limitation Act, 1963, the limitation period for a suit to recover possession of immovable property is 12 years from when possession becomes adverse to the owner. However, if the owner files a suit to recover possession within 12 years, they can still recover it after that period if they establish their right.</p>
+        <div itemScope itemType="https://schema.org/FAQPage">
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">What is the limitation period for filing a property suit in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Under Article 65 of the Limitation Act, 1963, the limitation period for a suit to recover possession of immovable property is 12 years from when possession becomes adverse to the owner. However, if the owner files a suit to recover possession within 12 years, they can still recover it after that period if they establish their right.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">How long can a landlord evict a tenant without notice in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">A landlord cannot evict a tenant without proper notice and court order. Most states require 30-90 days&apos; notice. The Model Tenancy Act, 2021 mandates 60 days&apos; notice. Eviction is only valid through court order for valid grounds like non-payment of rent or violation of lease terms.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">How long can a landlord evict a tenant without notice in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">A landlord cannot evict a tenant without proper notice and court order. Most states require 30-90 days&apos; notice. The Model Tenancy Act, 2021 mandates 60 days&apos; notice. Eviction is only valid through court order for valid grounds like non-payment of rent or violation of lease terms.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">What documents are needed for property transfer in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Essential documents include: (1) Original property deed and previous sale deeds, (2) Tax receipts/property tax paid receipts, (3) Encumbrance certificate from local authority, (4) Mutation certificate showing ownership records, (5) No-objection certificate if property is mortgaged, (6) Affidavit confirming no disputes, (7) Photo ID and proof of residence of buyer and seller.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">What documents are needed for property transfer in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Essential documents include: (1) Original property deed and previous sale deeds, (2) Tax receipts/property tax paid receipts, (3) Encumbrance certificate from local authority, (4) Mutation certificate showing ownership records, (5) No-objection certificate if property is mortgaged, (6) Affidavit confirming no disputes, (7) Photo ID and proof of residence of buyer and seller.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">Can a tenant be evicted for non-payment of rent?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Yes, non-payment of rent is valid grounds for eviction, but landlords must follow legal procedure: (1) Serve notice to pay rent within 15 days, (2) If tenant doesn&apos;t pay, file eviction suit in appropriate court, (3) Tenant gets opportunity to defend or pay pending rent, (4) Court orders eviction if tenant fails to pay. Simply locking out the tenant is illegal.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">Can a tenant be evicted for non-payment of rent?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Yes, non-payment of rent is valid grounds for eviction, but landlords must follow legal procedure: (1) Serve notice to pay rent within 15 days, (2) If tenant doesn&apos;t pay, file eviction suit in appropriate court, (3) Tenant gets opportunity to defend or pay pending rent, (4) Court orders eviction if tenant fails to pay. Simply locking out the tenant is illegal.</p>
             </div>
           </div>
 
-          <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-            <h3 itemprop="name" className="font-semibold">How much does hiring a property lawyer cost in India?</h3>
-            <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Property lawyer fees vary based on complexity: (1) Simple consultations: ₹500-2000, (2) Document review/drafting: ₹5000-20,000, (3) Representation in court: ₹10,000-50,000+ depending on case complexity and lawyer experience. Many lawyers also charge based on property value or work hours. Some offer free initial consultation.</p>
+          <div itemScope itemProp="mainEntity" itemType="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 itemProp="name" className="font-semibold">How much does hiring a property lawyer cost in India?</h3>
+            <div itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+              <p itemProp="text" className="text-sm text-muted-foreground">Property lawyer fees vary based on complexity: (1) Simple consultations: ₹500-2000, (2) Document review/drafting: ₹5000-20,000, (3) Representation in court: ₹10,000-50,000+ depending on case complexity and lawyer experience. Many lawyers also charge based on property value or work hours. Some offer free initial consultation.</p>
             </div>
           </div>
         </div>
