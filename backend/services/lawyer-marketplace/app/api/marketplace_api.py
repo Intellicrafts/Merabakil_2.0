@@ -1770,16 +1770,12 @@ async def admin_force_cancel(
     if booking_amount_str:
         from decimal import Decimal
         _amount = Decimal(booking_amount_str)
+        # Refund the citizen only. The advocate is never debited on cancel:
+        # advocates are only credited on completion, so there is no prior
+        # earning to reverse here.
         asyncio.create_task(
             _billing.credit_refund(
                 user_id=row.citizen_user_id,
-                amount=_amount,
-                consultation_id=row.id,
-            )
-        )
-        asyncio.create_task(
-            _billing.deduct_advocate_cancel(
-                advocate_user_id=row.lawyer_user_id,
                 amount=_amount,
                 consultation_id=row.id,
             )
