@@ -29,7 +29,8 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "tailwind-merge": "^2.5.2"
+    "tailwind-merge": "^2.5.2",
+    "web-vitals": "^4.0.0"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^15.0.0",
