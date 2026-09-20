@@ -62,9 +62,13 @@ if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
     echo "==> SSL cert generated."
 fi
 
-# ── Start / restart stack ─────────────────────────────────────────────────
-echo "==> Starting Docker Compose stack..."
-$COMPOSE up -d --build
+# ── Build and start / restart stack ──────────────────────────────────────
+echo "==> Building and starting Docker Compose stack..."
+echo "    (This may take 5-10 minutes on first build or with major changes)"
+$COMPOSE build --pull
+echo ""
+echo "==> Starting services..."
+$COMPOSE up -d --remove-orphans
 
 # Restart nginx so it re-resolves container IPs after any container rebuilds
 echo "==> Reloading nginx..."

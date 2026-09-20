@@ -115,7 +115,11 @@
       "Bash(pkill -f \"next dev\")",
       "mcp__claude_ai_Claude_Docs__batch",
       "mcp__claude_ai_Claude_Docs__guide",
-      "Bash(git rebase *)"
+      "Bash(git rebase *)",
+      "Bash(gh workflow *)",
+      "Bash(env)",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219)",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"bash /opt/merabakil/repo/scripts/deploy.sh\")"
     ],
     "additionalDirectories": [
       "/Users/aman/Projects/MeraVail-Aug-2026/backend/services/satyapan/.git"
