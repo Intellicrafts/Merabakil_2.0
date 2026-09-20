@@ -16,35 +16,35 @@ export function FooterSection() {
             <p className="mt-1.5 text-xs text-muted-foreground">Your Legal Saarthi</p>
           </div>
 
-          <nav className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground md:justify-end">
-            <Link href="/mera-vakil" className="hover:text-foreground">
-              Saarthi
-            </Link>
-            <Link href="/faq" className="hover:text-foreground">
-              FAQ
-            </Link>
-            <Link href="/privacy" className="hover:text-foreground">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-foreground">
-              Terms
-            </Link>
-            <CookieSettingsLink />
-            <a href="mailto:support@merabakil.in" className="hover:text-foreground">
-              Contact
-            </a>
-            <Link href="/login" className="hover:text-foreground">
-              Sign In
-            </Link>
-            <Link href="/register" className="hover:text-foreground">
-              Get Started
-            </Link>
-          </nav>
+          <div className="flex flex-col items-center gap-3 md:items-end">
+            <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-[13px] text-muted-foreground md:justify-end">
+              <Link href="/mera-vakil" className="hover:text-foreground">Saarthi</Link>
+              <Link href="/faq" className="hover:text-foreground">FAQ</Link>
+              <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+              <Link href="/terms" className="hover:text-foreground">Terms</Link>
+              <CookieSettingsLink />
+              <a href="mailto:support@merabakil.in" className="hover:text-foreground">Contact</a>
+            </nav>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/login"
+                className="rounded-full border border-black/[0.10] px-3.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:border-black/[0.15] hover:text-foreground dark:border-white/[0.12] dark:hover:border-white/20"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/register"
+                className="rounded-full bg-foreground px-3.5 py-1.5 text-[13px] font-medium text-background transition-opacity hover:opacity-90"
+              >
+                Get Started
+              </Link>
+            </div>
+          </div>
         </div>
 
         <div className="border-t border-black/[0.05] pt-6 dark:border-white/[0.06]">
           <p className="text-center text-[11px] text-muted-foreground">
-            © MeraBakil · For informational purposes only — not a substitute for licensed legal advice
+            © 2025 MeraBakil · For informational purposes only — not a substitute for licensed legal advice
           </p>
         </div>
       </div>

@@ -1,4 +1,5 @@
-import { Scale, User } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Scale, User } from "lucide-react";
 // Building2, Shield — reserved for law firm / enterprise at launch
 
 const ROLES = [
@@ -9,6 +10,7 @@ const ROLES = [
     description:
       "Ask Saarthi, understand your rights in plain language, and let Smart Matching connect you with verified advocates suited to your matter — no legal background needed.",
     gradient: "from-blue-600 to-blue-800",
+    cta: { label: "Start for free", href: "/register" },
   },
   {
     icon: Scale,
@@ -17,6 +19,7 @@ const ROLES = [
     description:
       "Receive clients who have already been guided and briefed by AI — cases that are structured, documented, and matched to your practice area. Focus on advocacy, not intake.",
     gradient: "from-slate-600 to-slate-800",
+    cta: { label: "Join as an advocate", href: "/register" },
   },
   // Not available at beta launch:
   // {
@@ -26,6 +29,7 @@ const ROLES = [
   //   description:
   //     "Centralise case management, build a firm knowledge base, and equip every team member with AI-powered research tools — in one workspace.",
   //   gradient: "from-zinc-600 to-zinc-800",
+  //   cta: { label: "Learn more", href: "/register" },
   // },
   // {
   //   icon: Shield,
@@ -34,6 +38,7 @@ const ROLES = [
   //   description:
   //     "Get AI-powered compliance guidance, review contracts, manage legal documents, and understand regulatory obligations relevant to your business.",
   //   gradient: "from-emerald-700 to-emerald-900",
+  //   cta: { label: "Learn more", href: "/register" },
   // },
 ];
 
@@ -54,7 +59,7 @@ export function RolesSection() {
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {ROLES.map((role) => {
             const Icon = role.icon;
             return (
@@ -71,9 +76,16 @@ export function RolesSection() {
                 <p className="mt-1.5 text-[12px] italic text-muted-foreground/70">
                   &ldquo;{role.scenario}&rdquo;
                 </p>
-                <p className="mt-2.5 line-clamp-4 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
                   {role.description}
                 </p>
+                <Link
+                  href={role.cta.href}
+                  className="mt-4 inline-flex items-center gap-1 text-[13px] font-medium text-foreground/70 transition-colors hover:text-foreground"
+                >
+                  {role.cta.label}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
             );
           })}

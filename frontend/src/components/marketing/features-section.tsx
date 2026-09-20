@@ -1,4 +1,4 @@
-import { Briefcase, FileText, Gavel, MessageSquare, Scale, Search } from "lucide-react";
+import { BadgeCheck, BookOpen, Briefcase, FileText, Gavel, Lock, MessageSquare, Scale, Search } from "lucide-react";
 
 const SERVICES = [
   {
@@ -19,7 +19,7 @@ const SERVICES = [
     icon: Briefcase,
     title: "Find the right lawyer, not just any lawyer",
     description:
-      "Browse verified advocates by practice area, city, and availability. Book a timed consultation, review a structured case brief before committing, and meet in a built-in video consultation room — all without leaving the platform.",
+      "Browse verified advocates by practice area, city, and availability. Book a timed consultation, review a structured case brief before committing, and meet in a built-in consultation room with chat, voice, and video — all without leaving the platform.",
     tag: "Marketplace",
   },
   {
@@ -46,6 +46,13 @@ const SERVICES = [
     tag: "AI Courtroom",
     upcoming: true,
   },
+];
+
+const TRUST_STATS = [
+  { icon: BookOpen, stat: "1,250+", label: "Indian laws and judgments indexed" },
+  { icon: FileText, stat: "Every answer", label: "cites its legal source — no guesswork" },
+  { icon: Lock, stat: "Your data", label: "stays private — secure, role-controlled access" },
+  { icon: BadgeCheck, stat: "Every advocate", label: "verified before they appear in a match" },
 ];
 
 export function FeaturesSection() {
@@ -110,31 +117,29 @@ export function FeaturesSection() {
 
 export function TrustSection() {
   return (
-    <section id="trust" className="px-4 py-16 md:px-6">
+    <section id="trust" className="px-4 py-20 md:px-6">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 text-center">
+        <div className="mb-12 text-center">
           <p className="text-xs font-medium text-muted-foreground">Why MeraBakil</p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">
             Built to be trusted with your matter
           </h2>
         </div>
-        <div className="grid gap-6 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-slate-50 to-white p-8 dark:border-white/10 dark:from-zinc-900 dark:to-zinc-950 sm:grid-cols-2 md:grid-cols-4">
-          <div className="text-center sm:text-left">
-            <p className="text-xl font-semibold sm:text-2xl">1,250+</p>
-            <p className="text-xs text-muted-foreground sm:text-sm">Indian laws and judgments indexed</p>
-          </div>
-          <div className="text-center">
-            <p className="text-xl font-semibold sm:text-2xl">Every answer</p>
-            <p className="text-xs text-muted-foreground sm:text-sm">cites its legal source — no guesswork</p>
-          </div>
-          <div className="text-center">
-            <p className="text-xl font-semibold sm:text-2xl">Your data</p>
-            <p className="text-xs text-muted-foreground sm:text-sm">stays private — secure, role-controlled access</p>
-          </div>
-          <div className="text-center md:text-right">
-            <p className="text-xl font-semibold sm:text-2xl">Every advocate</p>
-            <p className="text-xs text-muted-foreground sm:text-sm">verified before they appear in a match</p>
-          </div>
+        <div className="grid gap-8 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-slate-50 to-white p-8 dark:border-white/10 dark:from-zinc-900 dark:to-zinc-950 sm:grid-cols-2 md:grid-cols-4">
+          {TRUST_STATS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.stat} className="flex flex-col items-center gap-3 text-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/[0.06] bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
+                  <Icon className="h-[18px] w-[18px] text-slate-500 dark:text-slate-400" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <p className="text-xl font-semibold sm:text-2xl">{item.stat}</p>
+                  <p className="text-xs text-muted-foreground sm:text-sm">{item.label}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>
