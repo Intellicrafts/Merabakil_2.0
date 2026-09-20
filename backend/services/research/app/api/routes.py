@@ -173,7 +173,7 @@ async def _run_research(state: OrchestratorState) -> ResearchResponse:
     if state.user_id and _CHATBOT_FEE > _Decimal("0"):
         import asyncio
         asyncio.create_task(
-            _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE)
+            _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE, session_id=state.session_id)
         )
 
     return ResearchResponse(
@@ -370,7 +370,7 @@ async def research_stream(
 
         if answer and state.user_id and _CHATBOT_FEE > _Decimal("0"):
             asyncio.create_task(
-                _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE)
+                _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE, session_id=state.session_id)
             )
 
         if draft_task is not None:

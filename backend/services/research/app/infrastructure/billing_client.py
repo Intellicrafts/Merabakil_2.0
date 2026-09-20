@@ -15,7 +15,7 @@ class BillingClient:
         self._base = base_url.rstrip("/")
         self._secret = internal_secret
 
-    async def deduct_chatbot_query(self, *, user_id: str, fee: Decimal) -> None:
+    async def deduct_chatbot_query(self, *, user_id: str, fee: Decimal, session_id: str | None = None) -> None:
         """Fire-and-forget: deduct chatbot usage fee. Never raises."""
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
@@ -26,7 +26,7 @@ class BillingClient:
                         "amount": str(fee),
                         "transaction_type": "CHATBOT_USAGE",
                         "description": "AI legal assistant query",
-                        "reference_id": None,
+                        "reference_id": session_id,
                     },
                     headers={"X-Internal-Secret": self._secret},
                 )

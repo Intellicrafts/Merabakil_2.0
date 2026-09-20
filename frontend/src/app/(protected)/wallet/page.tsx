@@ -6,6 +6,8 @@ import {
   ArrowUpFromLine,
   Bot,
   CalendarCheck,
+  ChevronDown,
+  ChevronRight,
   CircleDollarSign,
   Plus,
   RefreshCcw,
@@ -88,11 +90,14 @@ function TxIcon({ type }: { type: TransactionType }) {
 
 // ─── Transaction row ──────────────────────────────────────────────────────────
 
-function TransactionRow({ tx }: { tx: WalletTransaction }) {
+function TransactionRow({ tx, compact }: { tx: WalletTransaction; compact?: boolean }) {
   const { t } = useTranslation();
   const isDebit = DEBIT_TYPES.has(tx.transaction_type);
   return (
-    <div className="flex items-center gap-3 border-b border-black/[0.05] py-3 last:border-0 dark:border-white/[0.06]">
+    <div className={cn(
+      "flex items-center gap-3 border-b border-black/[0.05] last:border-0 dark:border-white/[0.06]",
+      compact ? "py-2" : "py-3",
+    )}>
       <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", TX_ICON_BG[tx.transaction_type])}>
         <TxIcon type={tx.transaction_type} />
       </div>
@@ -114,6 +119,94 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
         {formatRelativeTime(tx.created_at, t)}
       </p>
     </div>
+  );
+}
+
+// ─── Display item types ───────────────────────────────────────────────────────
+
+type DisplayItem =
+  | { kind: "single"; tx: WalletTransaction }
+  | { kind: "group"; referenceId: string; txs: WalletTransaction[]; totalAmount: number };
+
+function toDisplayItems(txs: WalletTransaction[]): DisplayItem[] {
+  const result: DisplayItem[] = [];
+  const groupIdx = new Map<string, number>();
+
+  for (const tx of txs) {
+    if (tx.transaction_type === "CHATBOT_USAGE" && tx.reference_id) {
+      const idx = groupIdx.get(tx.reference_id);
+      if (idx !== undefined) {
+        const g = result[idx] as Extract<DisplayItem, { kind: "group" }>;
+        g.txs.push(tx);
+        g.totalAmount += parseFloat(tx.amount);
+      } else {
+        groupIdx.set(tx.reference_id, result.length);
+        result.push({ kind: "group", referenceId: tx.reference_id, txs: [tx], totalAmount: parseFloat(tx.amount) });
+      }
+    } else {
+      result.push({ kind: "single", tx });
+    }
+  }
+
+  // Unwrap single-item groups — no point collapsing a group of 1
+  return result.map((item) =>
+    item.kind === "group" && item.txs.length === 1
+      ? { kind: "single" as const, tx: item.txs[0]! }
+      : item,
+  );
+}
+
+// ─── Grouped AI query row ─────────────────────────────────────────────────────
+
+function TxGroupRow({
+  group,
+  expanded,
+  onToggle,
+}: {
+  group: Extract<DisplayItem, { kind: "group" }>;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const lastTx = group.txs[group.txs.length - 1]!;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 border-b border-black/[0.05] py-3 text-left last:border-0 dark:border-white/[0.06]"
+      >
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", TX_ICON_BG["CHATBOT_USAGE"])}>
+          <Bot className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-medium leading-none">AI Queries</p>
+          <p className="mt-1 text-[11.5px] text-muted-foreground">
+            {group.txs.length} {group.txs.length === 1 ? "query" : "queries"} this session
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[13px] font-semibold tabular-nums text-red-600 dark:text-red-400">
+            −{formatAmount(group.totalAmount)}{" "}
+            <span className="text-[11px] font-normal opacity-50">pts</span>
+          </p>
+          <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground/60">
+            Bal {formatAmount(lastTx.balance_after)}
+          </p>
+        </div>
+        <div className="ml-1 shrink-0 text-muted-foreground/40">
+          {expanded
+            ? <ChevronDown className="h-4 w-4" />
+            : <ChevronRight className="h-4 w-4" />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-b border-black/[0.05] pl-12 dark:border-white/[0.06]">
+          {group.txs.map((tx) => (
+            <TransactionRow key={tx.id} tx={tx} compact />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -211,6 +304,14 @@ export default function WalletPage() {
   const [page, setPage] = useState(1);
   const [txFilter, setTxFilter] = useState<TxFilter>("ALL");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (id: string) =>
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
 
   useEffect(() => {
     setUser(getStoredUser());
@@ -373,9 +474,18 @@ export default function WalletPage() {
                   <p className="pb-1 pt-4 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/45">
                     {dateLabel}
                   </p>
-                  {items.map((tx) => (
-                    <TransactionRow key={tx.id} tx={tx} />
-                  ))}
+                  {toDisplayItems(items).map((item) =>
+                    item.kind === "single" ? (
+                      <TransactionRow key={item.tx.id} tx={item.tx} />
+                    ) : (
+                      <TxGroupRow
+                        key={item.referenceId}
+                        group={item}
+                        expanded={expandedGroups.has(item.referenceId)}
+                        onToggle={() => toggleGroup(item.referenceId)}
+                      />
+                    )
+                  )}
                 </div>
               ))}
 
