@@ -155,6 +155,7 @@ services:
       BILLING_SERVICE_URL: "http://billing:8000"
       SATYAPAN_URL: "http://satyapan:8000"
       MARKETPLACE_PUBLIC_URL: "https://merabakil.in/svc/marketplace"
+      LAWYER_AVATARS_DIR: "/data/lawyer-avatars"
     volumes:
       - ./data/lawyer-avatars:/data/lawyer-avatars
     depends_on:
