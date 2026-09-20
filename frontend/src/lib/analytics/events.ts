@@ -36,6 +36,8 @@ export const AnalyticsEvents = {
   DOCUMENT_UPLOAD_COMPLETED: "document_upload_completed",
   DOCUMENT_ANALYSIS_STARTED: "document_analysis_started",
   DOCUMENT_ANALYSIS_COMPLETED: "document_analysis_completed",
+  DOCUMENT_GENERATED: "document_generated",
+  DOCUMENT_DOWNLOADED: "document_downloaded",
 
   // Lawyer discovery
   LAWYER_SEARCH_STARTED: "lawyer_search_started",
@@ -43,6 +45,9 @@ export const AnalyticsEvents = {
   LAWYER_FILTER_USED: "lawyer_filter_used",
   LAWYER_PROFILE_VIEWED: "lawyer_profile_viewed",
   APPOINTMENT_CTA_CLICKED: "appointment_cta_clicked",
+  AI_MATCH_STARTED: "ai_match_started",
+  AI_MATCH_COMPLETED: "ai_match_completed",
+  AI_MATCH_LAWYER_SELECTED: "ai_match_lawyer_selected",
 
   // Appointment funnel
   BOOKING_ABANDONED: "booking_abandoned",
@@ -61,9 +66,9 @@ export const AnalyticsEvents = {
   CONSULTATION_DURATION_RECORDED: "consultation_duration_recorded",
 
   // Wallet / payment
-  PAYMENT_STARTED: "payment_started",
-  PAYMENT_COMPLETED: "payment_completed",
   WALLET_BALANCE_VIEWED: "wallet_balance_viewed",
+  WALLET_RECHARGE_CLICKED: "wallet_recharge_clicked",
+  WALLET_WITHDRAW_CLICKED: "wallet_withdraw_clicked",
 
   // Profile
   PROFILE_PAGE_VIEWED: "profile_page_viewed",
@@ -73,6 +78,10 @@ export const AnalyticsEvents = {
   FEATURE_DISCOVERED: "feature_discovered",
   DASHBOARD_VIEWED: "dashboard_viewed",
   ERROR_PAGE_VIEWED: "error_page_viewed",
+
+  // Research console
+  RESEARCH_QUERY_STARTED: "research_query_started",
+  RESEARCH_QUERY_COMPLETED: "research_query_completed",
 } as const;
 
 export type AnalyticsEventName = (typeof AnalyticsEvents)[keyof typeof AnalyticsEvents];

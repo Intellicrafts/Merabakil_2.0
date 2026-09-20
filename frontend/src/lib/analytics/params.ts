@@ -63,6 +63,10 @@ export const ALLOWED_PARAM_KEYS = new Set([
   "profile_type",
   "profile_strength",
   "fields_changed_count",
+  // Google Ads attribution
+  "gclid",
+  // AI matching
+  "match_result_count",
 ]);
 
 export type AnalyticsParamValue = string | number | boolean;

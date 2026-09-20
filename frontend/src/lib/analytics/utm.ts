@@ -17,6 +17,13 @@ export function captureUtmFromSearch(search: string): UtmParams | null {
     }
   }
 
+  // Capture Google Ads gclid for attribution
+  const gclid = params.get("gclid");
+  if (gclid && gclid.length <= 100) {
+    (utm as Record<string, string>)["gclid"] = gclid;
+    found = true;
+  }
+
   if (!found) return null;
 
   try {
