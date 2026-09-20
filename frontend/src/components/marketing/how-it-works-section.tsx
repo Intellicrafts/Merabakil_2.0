@@ -207,6 +207,11 @@ export function HowItWorksSection() {
                 Next: {tab.handoff}
               </p>
             )}
+            {active === 2 && (
+              <p className="text-[12px] text-muted-foreground">
+                <span className="font-semibold text-foreground">First consultation free</span> — book your matched advocate at no cost.
+              </p>
+            )}
           </div>
 
           {/* Right panel — keyed to active so demos remount fresh on tab switch */}
@@ -232,6 +237,11 @@ export function HowItWorksSection() {
                       </div>
                     );
                   })}
+                </div>
+                <div className="mt-5 border-t border-black/[0.06] pt-4 dark:border-white/10">
+                  <p className="text-[12px] text-muted-foreground">
+                    <span className="font-semibold text-foreground">First consultation free</span> — book your matched advocate at no cost, no card required.
+                  </p>
                 </div>
               </div>
             ) : inView ? (

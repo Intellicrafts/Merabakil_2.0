@@ -11,7 +11,7 @@ export function ClosingCtaSection() {
     <section className="px-4 py-20 md:px-6">
       <div className="mx-auto max-w-6xl">
         <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 px-8 py-16 text-center">
-          <p className="text-xs font-medium text-white/50">Open beta · free to start</p>
+          <p className="text-xs font-medium text-white/50">First consultation free · open beta</p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-3xl">
             Start with a question
           </h2>
