@@ -111,6 +111,7 @@ function RegisterForm() {
           e.preventDefault();
           setGoogleError(null);
           track(AnalyticsEvents.SIGNUP_STARTED, { signup_method: "email", account_type: role });
+          track(AnalyticsEvents.ONBOARDING_STARTED, { signup_method: "email" });
           mutation.mutate();
         }}
       >

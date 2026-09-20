@@ -136,7 +136,8 @@
       "Bash(mkdir -p ~/.agents/skills/seo-optimizer)",
       "Bash(curl -fsSL \"https://raw.githubusercontent.com/davila7/claude-code-templates/main/cli-tool/components/skills/business-marketing/seo-optimizer/SKILL.md\" -o ~/.agents/skills/seo-optimizer/SKILL.md)",
       "Bash(ln -s ~/.agents/skills/seo-optimizer ~/.claude/skills/seo-optimizer)",
-      "WebFetch(domain:merabakil.in)"
+      "WebFetch(domain:merabakil.in)",
+      "Bash(ssh aman@8.231.69.219 \"cd /opt/merabakil/repo && git pull origin main && cd infrastructure && docker compose -f docker-compose.prod.yml up -d --build frontend nginx && docker compose -f docker-compose.prod.yml logs frontend -f\")"
     ],
     "additionalDirectories": [
       "/Users/aman/Projects/MeraVail-Aug-2026/backend/services/satyapan/.git",

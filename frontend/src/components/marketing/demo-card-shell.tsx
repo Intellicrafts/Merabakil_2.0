@@ -55,7 +55,7 @@ export function DemoCardShell({
           <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
             {branded ? (
               <div className="relative shrink-0">
-                <AppIcon className="h-11 w-11 sm:h-12 sm:w-12" alt="MeraBakil" />
+                <AppIcon className="h-11 w-11 sm:h-12 sm:w-12" alt="MeraBakil platform logo - India's Legal AI Platform" />
                 <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-950">
                   <span className="demo-live-pulse absolute inset-0 rounded-full bg-emerald-400" />
                 </span>

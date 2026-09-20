@@ -174,7 +174,7 @@ export function MeraVakilLiveDemo({
             <div key={`think-${sceneIndex}`} className="flex items-center gap-3 demo-msg-in">
               <div className="relative h-8 w-8 shrink-0">
                 <div className="spinner-glow absolute inset-0 rounded-[22%] bg-emerald-400/25 blur-md" />
-                <AppIcon className="relative h-8 w-8" alt="Saarthi" />
+                <AppIcon className="relative h-8 w-8" alt="Saarthi AI Legal Assistant processing legal question" />
               </div>
               <div className="rounded-2xl border border-black/[0.05] bg-black/[0.03] px-4 py-2.5 text-xs text-muted-foreground dark:border-white/10 dark:bg-white/[0.04]">
                 <span className="demo-shimmer inline-block">{thinkingLabel}</span>
@@ -185,7 +185,7 @@ export function MeraVakilLiveDemo({
           {isStreaming && (
             <div key={`assist-${sceneIndex}`} className="space-y-3 demo-msg-in">
               <div className="flex gap-2.5">
-                <AppIcon className="mt-0.5 h-8 w-8 shrink-0" alt="Saarthi" />
+                <AppIcon className="mt-0.5 h-8 w-8 shrink-0" alt="Saarthi AI providing legal answer with citations" />
                 <div className="min-w-0 flex-1 space-y-2.5">
                   {!compact && showCitations && (
                     <div className="rounded-xl border border-black/[0.06] bg-gradient-to-br from-white to-slate-50/80 px-3.5 py-2.5 dark:border-white/10 dark:from-white/[0.06] dark:to-transparent">
@@ -239,7 +239,7 @@ export function MeraVakilLiveDemo({
             <span className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground/70" aria-hidden>
               <Mic className="h-3.5 w-3.5" />
             </span>
-            <AppIcon className="h-8 w-8" alt="Saarthi" />
+            <AppIcon className="h-8 w-8" alt="Saarthi AI voice input ready" />
           </div>
         )}
       </div>
