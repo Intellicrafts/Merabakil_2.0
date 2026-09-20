@@ -110,17 +110,16 @@ export default function MeraVakilPage() {
   const totalMessageCount = activeConversation?.messages.length ?? 0;
   const sessionId = activeConversation?.id ?? null;
 
-  // Refs so cleanup/unmount handlers can read latest values without stale closures
+  // Refs so cleanup/unmount handlers can read latest values without stale closures.
+  // Updated inline (not just in effects) so they are always current during the same render.
   const sessionIdRef = useRef<string | null>(sessionId);
   const draftCaseIdRef = useRef<string | null>(draftCaseId);
   const totalMessageCountRef = useRef<number>(totalMessageCount);
   const activeConversationRef = useRef<ChatConversation | null>(activeConversation);
-  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
-  useEffect(() => { draftCaseIdRef.current = draftCaseId; }, [draftCaseId]);
-  useEffect(() => { totalMessageCountRef.current = totalMessageCount; }, [totalMessageCount]);
-  useEffect(() => {
-    activeConversationRef.current = activeConversation;
-  }, [activeConversation]);
+  sessionIdRef.current = sessionId;
+  draftCaseIdRef.current = draftCaseId;
+  totalMessageCountRef.current = totalMessageCount;
+  activeConversationRef.current = activeConversation;
 
   useEffect(() => {
     const msgId = assistantMsgIdRef.current;
@@ -685,7 +684,9 @@ export default function MeraVakilPage() {
     const query = (queryText ?? input).trim();
     if (query.length < 3 || isResearching) return;
 
-    let conv = activeConversation;
+    // Use ref to always read the latest conversation state, regardless of when
+    // this function was created (avoids stale closure when called from memoized callbacks).
+    let conv = activeConversationRef.current;
     if (!conv) {
       conv = createConversation({
         title: deriveTitleFromQuery(query),
@@ -950,9 +951,10 @@ export default function MeraVakilPage() {
     (prompt: string) => {
       void sendMessage(prompt);
     },
-    // sendMessage is intentionally omitted — stable identity would require a large refactor
+    // sendMessage reads activeConversationRef.current (always fresh) so stale closure is not
+    // a concern; isResearching in deps ensures the guard inside sendMessage is re-evaluated.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isResearching, activeConversation, documentId, jurisdiction],
+    [isResearching],
   );
 
   const handleReadAloudToggle = useCallback(
