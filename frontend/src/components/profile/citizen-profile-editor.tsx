@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import type { CitizenProfileFormState } from "@/hooks/use-citizen-profile";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 const STRENGTH_CHECKS = [
@@ -54,6 +55,11 @@ export function CitizenProfileEditor({
   async function handleUpdate() {
     try {
       await onUpdate();
+      track(AnalyticsEvents.PROFILE_SAVED, {
+        profile_type: "citizen",
+        profile_strength: strength.count,
+        fields_changed_count: strength.count,
+      });
       toast({ title: "Profile updated successfully", variant: "success" });
     } catch (err) {
       toast({

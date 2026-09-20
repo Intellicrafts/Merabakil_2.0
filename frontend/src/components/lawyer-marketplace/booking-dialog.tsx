@@ -127,6 +127,10 @@ export function BookingDialog({ lawyer, open, onClose, onBooked, source = "manua
   }
 
   function handleClose() {
+    track(AnalyticsEvents.BOOKING_ABANDONED, {
+      booking_step: step,
+      booking_source: source,
+    });
     onClose();
   }
 

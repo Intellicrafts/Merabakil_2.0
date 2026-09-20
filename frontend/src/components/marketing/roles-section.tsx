@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, Scale, User } from "lucide-react";
+
+import { trackMarketingCta } from "@/lib/analytics/track-cta";
 // Building2, Shield — reserved for law firm / enterprise at launch
 
 const ROLES = [
@@ -82,6 +86,7 @@ export function RolesSection() {
                 <Link
                   href={role.cta.href}
                   className="mt-4 inline-flex items-center gap-1 text-[13px] font-medium text-foreground/70 transition-colors hover:text-foreground"
+                  onClick={() => trackMarketingCta("roles", role.title.toLowerCase(), role.cta.href)}
                 >
                   {role.cta.label}
                   <ArrowRight className="h-3.5 w-3.5" />

@@ -50,6 +50,19 @@ export const ALLOWED_PARAM_KEYS = new Set([
   "modules_available_count",
   "error_type",
   "feedback_type",
+  // Saarthi
+  "matter_type",
+  "voice_supported",
+  "doc_count_in_session",
+  // Booking funnel
+  "booking_step",
+  // Consultation room
+  "consultation_action",
+  "room_duration_bucket",
+  // Profile
+  "profile_type",
+  "profile_strength",
+  "fields_changed_count",
 ]);
 
 export type AnalyticsParamValue = string | number | boolean;

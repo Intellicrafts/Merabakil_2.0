@@ -22,6 +22,7 @@ import { useStreamingReveal } from "@/hooks/use-streaming-reveal";
 import {
   AnalyticsEvents,
   bucketCount,
+  bucketFileSize,
   bucketLatency,
   track,
   trackAiSessionCompleted,
@@ -243,6 +244,12 @@ export default function MeraVakilPage() {
       setHydrated(true);
     })();
   }, []);
+
+  useEffect(() => {
+    if (voiceModeOpen) {
+      track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { voice_supported: voiceSupported });
+    }
+  }, [voiceModeOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setRightPanelOpenPersisted(open: boolean) {
     setRightPanelOpen(open);
@@ -480,6 +487,7 @@ export default function MeraVakilPage() {
   }
 
   function handleMatterTypeChange(type: MatterType) {
+    track(AnalyticsEvents.SAARTHI_MATTER_TYPE_SELECTED, { matter_type: type ?? "general" });
     setActiveConversation((prev) => {
       const base =
         prev ?? createConversation({ documentId, jurisdiction: jurisdiction || null, matterType: type });
@@ -554,6 +562,11 @@ export default function MeraVakilPage() {
 
     const ready = uploaded.status === "ready" || uploaded.status === "indexed";
     setUploadProgress({ fileName: file.name, percent: 100, stage: ready ? "ready" : "failed", startedAt });
+    track(AnalyticsEvents.SAARTHI_DOCUMENT_ATTACHED, {
+      file_type_category: file.type.split("/")[0] || "other",
+      file_size_bucket: bucketFileSize(file.size),
+      processing_status: ready ? "ready" : "pending",
+    });
     toast({
       title: ready ? "Document ready" : "Document uploaded",
       description: ready

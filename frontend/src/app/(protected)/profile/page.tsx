@@ -1,10 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { CitizenProfileEditor } from "@/components/profile/citizen-profile-editor";
 import { ProfileHero } from "@/components/profile/profile-hero";
 import { ProfilePhotoEditor } from "@/components/profile/profile-photo-editor";
 import { MyListingEditor } from "@/components/lawyer-marketplace/my-listing-editor";
 import { useCitizenProfile } from "@/hooks/use-citizen-profile";
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { getStoredUser, uploadLawyerAvatar } from "@/lib/api";
 
 export default function ProfilePage() {
@@ -13,6 +16,12 @@ export default function ProfilePage() {
   const isCitizen = Boolean(user?.roles.includes("citizen"));
   const isAdmin = Boolean(user?.roles.includes("admin"));
   const showCitizenProfile = (isCitizen || isAdmin) && !isAdvocate;
+
+  useEffect(() => {
+    track(AnalyticsEvents.PROFILE_PAGE_VIEWED, {
+      profile_type: isAdvocate ? "advocate" : "citizen",
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const citizen = useCitizenProfile(showCitizenProfile);
 

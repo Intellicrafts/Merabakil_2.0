@@ -19,6 +19,11 @@ export const AnalyticsEvents = {
   ONBOARDING_STARTED: "onboarding_started",
   ONBOARDING_COMPLETED: "onboarding_completed",
 
+  // AI / Saarthi
+  SAARTHI_MATTER_TYPE_SELECTED: "saarthi_matter_type_selected",
+  SAARTHI_VOICE_MODE_ACTIVATED: "saarthi_voice_mode_activated",
+  SAARTHI_DOCUMENT_ATTACHED: "saarthi_document_attached",
+
   // AI
   AI_CHAT_STARTED: "ai_chat_started",
   AI_MESSAGE_SENT: "ai_message_sent",
@@ -40,6 +45,7 @@ export const AnalyticsEvents = {
   APPOINTMENT_CTA_CLICKED: "appointment_cta_clicked",
 
   // Appointment funnel
+  BOOKING_ABANDONED: "booking_abandoned",
   APPOINTMENT_STARTED: "appointment_started",
   APPOINTMENT_SLOT_SELECTED: "appointment_slot_selected",
   APPOINTMENT_DETAILS_COMPLETED: "appointment_details_completed",
@@ -51,11 +57,17 @@ export const AnalyticsEvents = {
   CONSULTATION_JOINED: "consultation_joined",
   CONSULTATION_COMPLETED: "consultation_completed",
   CONSULTATION_CANCELLED: "consultation_cancelled",
+  CONSULTATION_ACTION_PERFORMED: "consultation_action_performed",
+  CONSULTATION_DURATION_RECORDED: "consultation_duration_recorded",
 
   // Wallet / payment
   PAYMENT_STARTED: "payment_started",
   PAYMENT_COMPLETED: "payment_completed",
   WALLET_BALANCE_VIEWED: "wallet_balance_viewed",
+
+  // Profile
+  PROFILE_PAGE_VIEWED: "profile_page_viewed",
+  PROFILE_SAVED: "profile_saved",
 
   // Engagement
   FEATURE_DISCOVERED: "feature_discovered",

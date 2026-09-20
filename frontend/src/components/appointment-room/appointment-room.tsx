@@ -91,6 +91,14 @@ function secondsUntil(iso: string | null | undefined): number {
   return Math.max(0, Math.round((ts - Date.now()) / 1000));
 }
 
+function bucketRoomMinutes(ms: number): string {
+  const m = ms / 60_000;
+  if (m < 5) return "under_5m";
+  if (m < 15) return "5_15m";
+  if (m < 30) return "15_30m";
+  return "over_30m";
+}
+
 function myModeration(apt: AppointmentRecord): { status?: string; reason?: string; suspended_until?: string | null } | undefined {
   return apt.my_role === "lawyer" ? apt.lawyer_moderation : apt.citizen_moderation;
 }
@@ -162,6 +170,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   const typingTimer = useRef<number | null>(null);
   const typingSent = useRef(false);
   const callStartedAt = useRef<number | null>(null);
+  const joinedAtRef = useRef<number | null>(null);
   const ringTimeoutRef = useRef<number | null>(null);
   const autoAcceptRef = useRef<string | null>(null);
   const sseLive = useRef(false);
@@ -227,6 +236,11 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
   }, []);
 
   const leave = useCallback(() => {
+    if (joinedAtRef.current) {
+      track(AnalyticsEvents.CONSULTATION_DURATION_RECORDED, {
+        room_duration_bucket: bucketRoomMinutes(Date.now() - joinedAtRef.current),
+      });
+    }
     void teardownLiveKit().finally(() => {
       void leaveAppointment(appointmentId).catch(() => undefined);
       router.push("/lawyer-marketplace");
@@ -475,6 +489,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         }
         const token = await fetchRoomToken(appointmentId);
         track(AnalyticsEvents.CONSULTATION_JOINED, { consultation_mode: "video_chat" });
+        joinedAtRef.current = Date.now();
         const configured = Boolean(token.configured && token.token && token.url);
         setLivekitConfigured(configured);
         setLivekitConnectFailed(false);
@@ -807,6 +822,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
     setDraft("");
     if (draftRef.current) draftRef.current.style.height = "auto";
     setTyping(false);
+    track(AnalyticsEvents.CONSULTATION_ACTION_PERFORMED, { consultation_action: "chat_message" });
     setMessages((prev) => [...prev, optimistic]);
     try {
       const saved = await postAppointmentMessage(appointmentId, body);
@@ -848,6 +864,9 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
         pending: true,
       },
     ]);
+    track(AnalyticsEvents.CONSULTATION_ACTION_PERFORMED, {
+      consultation_action: kind === "voice" ? "voice_note" : kind === "document" ? "document_share" : "image_share",
+    });
     try {
       const saved = await uploadAppointmentAttachment(appointmentId, file, { kind, caption: note });
       setMessages((prev) => mergeMessage(prev.filter((item) => item.id !== tempId), saved));
@@ -882,6 +901,9 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
 
   async function enterInCall(mode: CallMode, callId: string) {
     if (!livekitReady) return;
+    track(AnalyticsEvents.CONSULTATION_ACTION_PERFORMED, {
+      consultation_action: mode === "audio" ? "voice_call" : "video_call",
+    });
     const room = roomRef.current as
       | {
           localParticipant?: {
