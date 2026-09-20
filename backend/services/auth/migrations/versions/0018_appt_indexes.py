@@ -1,6 +1,6 @@
 """Add indexes for appointment query performance optimization.
 
-Revision ID: 0018_appointment_performance_indexes
+Revision ID: 0018_appt_indexes
 Revises: 0017_backfill_citizen_profiles
 Create Date: 2026-09-20
 """
@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "0018_appointment_performance_indexes"
+revision: str = "0018_appt_indexes"
 down_revision: str | None = "0017_backfill_citizen_profiles"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
