@@ -14,6 +14,7 @@ bootstrap_dev_env(_ROOT)
 
 os.environ.setdefault("MARKETPLACE_NATIVE", "true")  # SQLite in native mode (no Postgres)
 os.environ.setdefault("MARKETPLACE_AUTO_CONFIRM", "true")
+os.environ.setdefault("LAWYER_AVATARS_DIR", str(_ROOT / "data" / "lawyer-avatars"))
 
 sys.path[:0] = [
     str(_ROOT / "backend" / "libs" / "legalos_common"),

@@ -37,7 +37,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
     <div className="min-h-screen bg-background">
       <header className="app-topbar sticky top-0 z-50">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-6">
-          <Link href="/" className="flex items-center" aria-label="Mera Bakil home">
+          <Link href="/" className="brand-lockup-tight flex items-center" aria-label="Mera Bakil home">
             <BrandLogo variant="mark" className="h-8 w-8 sm:hidden" />
             <BrandLogo variant="wordmark" size="md" className="hidden sm:inline-flex" />
           </Link>

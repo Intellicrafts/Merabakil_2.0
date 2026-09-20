@@ -1,3 +1,5 @@
+import { applyThemedFavicon } from "@/lib/favicon-theme";
+
 export const THEME_KEY = "legalos.theme";
 
 export function loadTheme(): "light" | "dark" {
@@ -11,6 +13,7 @@ export function applyTheme(dark: boolean): void {
   if (typeof document === "undefined") return;
   document.documentElement.classList.toggle("dark", dark);
   localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
+  applyThemedFavicon();
 }
 
 export function toggleTheme(): boolean {

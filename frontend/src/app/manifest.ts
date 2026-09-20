@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { brandAssets, brandThemeColors } from "@/lib/brand-assets";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Mera Bakil",
@@ -9,23 +11,23 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#2f3338",
-    theme_color: "#2f3338",
+    background_color: brandThemeColors.dark,
+    theme_color: brandThemeColors.dark,
     icons: [
       {
-        src: "/brand/app-icon-192.png",
+        src: brandAssets.pwa.icon192,
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/brand/app-icon-512.png",
+        src: brandAssets.pwa.icon512,
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/brand/app-icon-maskable-512.png",
+        src: brandAssets.pwa.maskable512,
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

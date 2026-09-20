@@ -17,14 +17,14 @@ export function BrandLockup({
   const back = useSmartBack();
 
   return (
-    <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+    <div className="flex min-w-0 items-center gap-1 sm:gap-1.5">
       {isHome ? (
         <Link
           href="/dashboard"
-          className="flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15 focus-visible:ring-offset-2"
+          className="brand-lockup-tight flex min-w-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/15 focus-visible:ring-offset-2"
           aria-label="MeraBakil home"
         >
-          <BrandLogo variant="mark" className="h-7 w-7" />
+          <BrandLogo variant="mark" className="brand-mark-nav h-9 w-9 sm:h-[2.375rem] sm:w-[2.375rem]" />
           <Wordmark subtitle="Your Legal Saarthi" />
         </Link>
       ) : (
@@ -49,7 +49,7 @@ export function BrandLockup({
               className="h-3.5 w-3.5 shrink-0 text-foreground/55 transition-transform duration-200 group-hover:-translate-x-px group-hover:text-foreground"
               strokeWidth={2.25}
             />
-            <BrandLogo variant="mark" className="h-[26px] w-[26px]" />
+            <BrandLogo variant="mark" className="brand-mark-nav h-8 w-8" />
           </button>
           <Link
             href="/dashboard"
@@ -68,7 +68,7 @@ function Wordmark({ subtitle }: { subtitle: string }) {
   return (
     <div className="min-w-0">
       <p className="truncate text-[13px] font-semibold leading-none tracking-tight">MeraBakil</p>
-      <p className="mt-0.5 hidden truncate text-[10px] text-muted-foreground sm:block">{subtitle}</p>
+      <p className="mt-1 hidden truncate text-[10px] leading-snug text-muted-foreground sm:block">{subtitle}</p>
     </div>
   );
 }

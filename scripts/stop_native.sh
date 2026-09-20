@@ -27,6 +27,17 @@ for pid in $(pgrep -f "next start" 2>/dev/null || true); do
     kill "$pid" 2>/dev/null || true
   fi
 done
+# Release :3000/:3001 if a stale Next server from this repo is still listening
+if command -v fuser >/dev/null 2>&1; then
+  for port in 3000 3001; do
+    for pid in $(fuser -n tcp "$port" 2>/dev/null || true); do
+      cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || echo "")
+      if [[ "$cwd" == "$ROOT/frontend"* ]]; then
+        kill "$pid" 2>/dev/null || true
+      fi
+    done
+  done
+fi
 
 sleep 2
 echo "Native stack stopped."

@@ -1,5 +1,6 @@
 "use client";
 
+import { AppIcon } from "@/components/brand/brand-logo";
 import { cn } from "@/lib/utils";
 
 export type SaarthiMarkState = "idle" | "thinking" | "streaming";
@@ -19,8 +20,7 @@ export function SaarthiMark({
     >
       <span className="saarthi-mark-glow" aria-hidden />
       <span className="saarthi-mark-orbit" aria-hidden />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/app-icon-192.png" alt="Saarthi" draggable={false} className="saarthi-mark-icon" />
+      <AppIcon alt="Saarthi" className="saarthi-mark-icon" />
     </span>
   );
 }

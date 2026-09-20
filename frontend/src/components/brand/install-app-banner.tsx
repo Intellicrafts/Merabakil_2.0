@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { brandAssets, brandUrl } from "@/lib/brand-assets";
 import { Button } from "@/components/ui/button";
 
 const DISMISS_KEY = "merabakil.install-banner-dismissed";
@@ -59,9 +60,11 @@ export function InstallAppBanner() {
         className="mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-black/[0.08] bg-white/95 p-3 shadow-[0_-8px_32px_rgba(15,23,42,0.16)] backdrop-blur-md dark:border-white/10 dark:bg-zinc-950/95"
       >
         <img
-          src="/brand/app-icon-192.png"
+          src={brandUrl(brandAssets.pwa.icon192)}
           alt="MeraBakil app icon"
-          className="h-14 w-14 shrink-0 rounded-2xl object-cover"
+          width={56}
+          height={56}
+          className="brand-pwa-icon h-14 w-14 shrink-0 rounded-full object-cover"
         />
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-semibold tracking-tight">Install Mera Bakil</p>

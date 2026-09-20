@@ -13,7 +13,7 @@ export function LegalPageShell({ markdown }: LegalPageShellProps) {
     <div className="min-h-screen bg-background">
       <header className="app-topbar sticky top-0 z-50 border-b border-black/[0.06] dark:border-white/10">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 md:px-6">
-          <Link href="/" className="flex items-center gap-2" aria-label="Mera Bakil home">
+          <Link href="/" className="brand-lockup-tight flex items-center" aria-label="Mera Bakil home">
             <BrandLogo variant="mark" className="h-8 w-8" />
             <span className="font-semibold tracking-tight">MeraBakil</span>
           </Link>

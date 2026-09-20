@@ -105,6 +105,48 @@
 }
 
 @layer components {
+  .brand-mark {
+    flex-shrink: 0;
+    background: transparent;
+  }
+
+  /* Navbar lockup — logo + wordmark, balanced spacing */
+  .brand-lockup-tight {
+    gap: 0.4375rem;
+  }
+
+  .brand-mark-wordmark,
+  .brand-lockup-tight .brand-mark {
+    margin-right: -0.125rem;
+  }
+
+  .brand-mark img {
+    background: transparent;
+    image-rendering: auto;
+  }
+
+  .brand-mark-nav img {
+    filter: contrast(1.1) saturate(1.12);
+  }
+
+  .dark .brand-mark-nav img {
+    filter: contrast(1.08) saturate(1.1) brightness(1.05);
+  }
+
+  .brand-pwa-icon {
+    box-shadow:
+      0 0 0 1px rgba(15, 23, 42, 0.08),
+      0 4px 12px rgba(15, 23, 42, 0.12);
+  }
+
+  .dark .brand-pwa-icon {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.1),
+      0 4px 16px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@layer components {
   .glass {
     @apply rounded-2xl border border-black/[0.06] bg-white shadow-sm;
   }
@@ -506,6 +548,13 @@
 
 .dash-hero-lottie {
   pointer-events: none;
+}
+
+@media (max-width: 639px) {
+  .dash-hero-lottie canvas,
+  .dash-hero-lottie svg {
+    margin-inline: auto;
+  }
 }
 
 .dash-hero-stagger-1,
@@ -2807,7 +2856,7 @@
 }
 
 .dark .counsel-rail {
-  background: hsl(var(--card));
+  background: hsl(var(--background));
   border-left-color: rgba(255, 255, 255, 0.06);
 }
 
@@ -2819,9 +2868,7 @@
 }
 
 .dark .counsel-rail-drawer {
-  background:
-    linear-gradient(180deg, rgba(24, 24, 27, 0.98), rgba(15, 23, 42, 0.98)),
-    hsl(var(--card));
+  background: hsl(var(--background));
 }
 
 .mv-mobile-drawer-backdrop {
@@ -2838,6 +2885,7 @@
 }
 
 .dark .mv-mobile-conversation-drawer {
+  background: hsl(var(--background));
   border-left-color: rgba(255, 255, 255, 0.1);
   box-shadow: -18px 0 52px rgba(0, 0, 0, 0.45), -1px 0 0 rgba(255, 255, 255, 0.05) inset;
 }
@@ -2898,7 +2946,7 @@
 
 .dark .mv-history-header {
   border-bottom-color: rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
 }
 
 .mv-history-profile-row,
@@ -3498,7 +3546,7 @@
 
 .mv-assistant-mark {
   float: left;
-  margin: 0.15rem 0.7rem 0.2rem 0;
+  margin: 0.15rem 0.45rem 0.2rem 0;
 }
 
 .mv-assistant-after {
@@ -3648,7 +3696,7 @@
   .mv-assistant {
     display: flex;
     align-items: flex-start;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .mv-assistant-mark {
@@ -3675,19 +3723,16 @@
 .saarthi-mark-icon {
   position: relative;
   z-index: 2;
-  height: calc(100% - 8px);
-  width: calc(100% - 8px);
-  border-radius: 9999px;
-  object-fit: cover;
-  box-shadow:
-    0 0 0 1px rgba(15, 23, 42, 0.08),
-    0 1px 2px rgba(15, 23, 42, 0.08);
+  height: calc(100% - 4px);
+  width: calc(100% - 4px);
+  border-radius: 0;
+  object-fit: contain;
+  background: transparent;
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.12));
 }
 
 .dark .saarthi-mark-icon {
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 1px 3px rgba(0, 0, 0, 0.35);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
 }
 
 .saarthi-mark-orbit,
@@ -4236,7 +4281,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.85rem;
+  gap: 0.25rem;
 }
 
 .saarthi-welcome-mark {
@@ -4262,18 +4307,15 @@
   z-index: 2;
   width: 3.15rem;
   height: 3.15rem;
-  border-radius: 22%;
-  object-fit: cover;
-  box-shadow:
-    0 8px 20px rgba(15, 23, 42, 0.1),
-    0 0 0 1px rgba(15, 23, 42, 0.05);
+  margin-right: -0.35rem;
+  border-radius: 0;
+  object-fit: contain;
+  background: transparent;
+  filter: drop-shadow(0 4px 12px rgba(15, 23, 42, 0.12));
 }
 
 .dark .saarthi-welcome-icon {
-  box-shadow:
-    0 10px 24px rgba(0, 0, 0, 0.38),
-    0 0 20px rgba(46, 204, 138, 0.08),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.4));
 }
 
 .saarthi-welcome-title {

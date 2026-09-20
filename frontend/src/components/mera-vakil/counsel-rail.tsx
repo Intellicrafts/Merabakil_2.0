@@ -50,7 +50,7 @@ function IconButton({
       aria-label={label}
       className={cn(
         "flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors",
-        "hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/[0.08]",
+        "hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.08]",
         "md:h-8 md:w-8",
         active && "bg-black/[0.05] text-foreground dark:bg-white/10",
       )}
@@ -154,10 +154,10 @@ export function ContextPanel({
               <span className="mv-history-avatar-status" aria-hidden />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13.5px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+              <p className="truncate text-[13.5px] font-semibold tracking-tight text-foreground">
                 {user?.full_name ?? "Guest"}
               </p>
-              <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 dark:text-slate-400">
+              <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
                 Conversation history
               </p>
             </div>
@@ -224,8 +224,8 @@ export function ContextPanel({
                       className={cn(
                         "mv-conversation-row group relative flex min-h-12 items-center gap-2 border-l-2 py-1.5 pl-3 pr-1 transition-colors md:min-h-11",
                         active
-                          ? "border-slate-900 bg-slate-100 dark:border-slate-100 dark:bg-white/[0.07]"
-                          : "border-transparent hover:bg-slate-50 dark:hover:bg-white/[0.04]",
+                          ? "border-foreground/20 bg-black/[0.04] dark:border-white/15 dark:bg-white/[0.06]"
+                          : "border-transparent hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
                       )}
                     >
                       {renaming ? (
@@ -255,8 +255,8 @@ export function ContextPanel({
                           onClick={() => onSelectConversation(conv.id)}
                         >
                           <span className="flex items-center gap-2">
-                            <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" strokeWidth={1.75} />
-                            {conv.pinned && <Pin className="h-3 w-3 shrink-0 text-slate-500" />}
+                            <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+                            {conv.pinned && <Pin className="h-3 w-3 shrink-0 text-muted-foreground" />}
                             <span className="truncate text-[13px] font-medium">{conv.title}</span>
                           </span>
                           <span className="mt-0.5 block text-[11px] tabular-nums text-muted-foreground">

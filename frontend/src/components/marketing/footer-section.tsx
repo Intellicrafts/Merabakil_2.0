@@ -9,7 +9,7 @@ export function FooterSection() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="brand-lockup-tight flex items-center">
               <BrandLogo variant="mark" className="h-7 w-7" />
               <span className="font-semibold tracking-tight">MeraBakil</span>
             </div>

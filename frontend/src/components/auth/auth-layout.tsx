@@ -59,8 +59,8 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
       {/* Form panel */}
       <div className="relative flex flex-1 flex-col">
         <div className="flex items-center justify-between px-6 py-4 lg:absolute lg:right-0 lg:top-0 lg:z-10 lg:px-8">
-          <Link href="/" className="inline-flex items-center gap-2 lg:hidden" aria-label="Mera Bakil home">
-            <BrandLogo variant="mark" className="h-7 w-7" />
+          <Link href="/" className="brand-lockup-tight inline-flex items-center lg:hidden" aria-label="Mera Bakil home">
+            <BrandLogo variant="mark" className="h-9 w-9" />
             <span className="font-semibold">MeraBakil</span>
           </Link>
           <div className="ml-auto flex items-center gap-2">

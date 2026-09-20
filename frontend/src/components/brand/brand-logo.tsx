@@ -1,12 +1,15 @@
+"use client";
+
+import { ThemedAppIcon } from "@/components/brand/themed-app-icon";
+import type { BrandLogoSize, BrandLogoVariant, LogoTone } from "@/components/brand/brand-types";
 import { cn } from "@/lib/utils";
 
-export type BrandLogoVariant = "wordmark" | "mark" | "app";
-export type BrandLogoSize = "sm" | "md" | "lg";
+export type { BrandLogoSize, BrandLogoVariant, LogoTone };
 
 const WORDMARK_SIZE: Record<BrandLogoSize, { wrap: string; mark: string; title: string; tag: string }> = {
-  sm: { wrap: "gap-2", mark: "h-7", title: "text-[13.5px]", tag: "text-[8.5px]" },
-  md: { wrap: "gap-2.5", mark: "h-8", title: "text-[15px]", tag: "text-[10px]" },
-  lg: { wrap: "gap-3", mark: "h-[3.25rem]", title: "text-[1.45rem]", tag: "text-[12px]" },
+  sm: { wrap: "brand-lockup-tight gap-1", mark: "h-7", title: "text-[13.5px]", tag: "text-[8.5px]" },
+  md: { wrap: "brand-lockup-tight gap-1", mark: "h-8", title: "text-[15px]", tag: "text-[10px]" },
+  lg: { wrap: "brand-lockup-tight gap-1.5", mark: "h-[3.25rem]", title: "text-[1.45rem]", tag: "text-[12px]" },
 };
 
 function titleClass(force?: "light" | "dark") {
@@ -24,28 +27,16 @@ function tagClass(force?: "light" | "dark") {
 export function AppIcon({
   className,
   alt = "",
+  tone = "auto",
+  force,
 }: {
   className?: string;
   alt?: string;
+  tone?: LogoTone;
+  force?: "light" | "dark";
 }) {
-  return (
-    <>
-      <img
-        src="/brand/logo-optimized-normal.svg"
-        alt={alt}
-        draggable={false}
-        className={cn("dark:hidden shrink-0 object-contain", className)}
-      />
-      <img
-        src="/brand/logo-optimized-dark.svg"
-        alt={alt}
-        draggable={false}
-        className={cn("hidden dark:block shrink-0 object-contain", className)}
-      />
-    </>
-  );
+  return <ThemedAppIcon className={className} alt={alt} tone={tone} force={force} />;
 }
-
 
 export function BrandLogo({
   variant = "mark",
@@ -62,8 +53,8 @@ export function BrandLogo({
 }) {
   if (variant === "app" || variant === "mark") {
     return (
-      <span className={cn("inline-flex items-center justify-center", className)} role="img" aria-label={alt}>
-        <AppIcon alt="" className="h-full w-full" />
+      <span className={cn("brand-mark inline-flex items-center justify-center", className)} role="img" aria-label={alt}>
+        <AppIcon alt="" force={force} className="h-full w-full" />
       </span>
     );
   }
@@ -75,7 +66,7 @@ export function BrandLogo({
       role="img"
       aria-label={alt}
     >
-      <AppIcon alt="" className={cn(scale.mark, "w-auto")} />
+      <AppIcon alt="" force={force} className={cn("brand-mark brand-mark-wordmark", scale.mark, "w-auto")} />
       <span className="flex min-w-0 flex-col justify-center leading-none">
         <span className={cn("font-semibold tracking-tight", scale.title, titleClass(force))}>Mera Bakil</span>
         <span className={cn("mt-1 font-medium tracking-[0.01em]", scale.tag, tagClass(force))}>

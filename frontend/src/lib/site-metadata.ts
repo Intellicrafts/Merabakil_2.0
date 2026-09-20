@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 
+import { BRAND_ASSET_VERSION, brandAssets, brandUrl } from "@/lib/brand-assets";
+
 export const SITE = {
   name: "MeraBakil",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://merabakil.in",
   description:
     "India's legal AI platform — cited answers, verified lawyers, and case management grounded in Indian law.",
-  ogImage: "/brand/og-default.png",
+  ogImage: brandAssets.og,
   locale: "en_IN",
   twitterHandle: "@merabakil",
 } as const;
@@ -87,16 +89,44 @@ export const rootMetadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/brand/logo-optimized-normal.svg?v=circ3",
-        type: "image/svg+xml",
+        url: brandUrl(brandAssets.favicon.light16),
+        sizes: "16x16",
+        type: "image/png",
         media: "(prefers-color-scheme: light)",
       },
       {
-        url: "/brand/logo-optimized-dark.svg?v=circ3",
-        type: "image/svg+xml",
+        url: brandUrl(brandAssets.favicon.light),
+        sizes: "32x32",
+        type: "image/png",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: brandUrl(brandAssets.favicon.light48),
+        sizes: "48x48",
+        type: "image/png",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: brandUrl(brandAssets.favicon.dark16),
+        sizes: "16x16",
+        type: "image/png",
+        media: "(prefers-color-scheme: dark)",
+      },
+      {
+        url: brandUrl(brandAssets.favicon.dark),
+        sizes: "32x32",
+        type: "image/png",
+        media: "(prefers-color-scheme: dark)",
+      },
+      {
+        url: brandUrl(brandAssets.favicon.dark48),
+        sizes: "48x48",
+        type: "image/png",
         media: "(prefers-color-scheme: dark)",
       },
     ],
     apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
+
+export { BRAND_ASSET_VERSION };
