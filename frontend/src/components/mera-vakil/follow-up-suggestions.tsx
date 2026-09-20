@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowUpRight, Sparkles } from "lucide-react";
+
 interface FollowUpSuggestionsProps {
   suggestions: string[];
   onSelect: (prompt: string) => void;
@@ -16,25 +18,28 @@ export function FollowUpSuggestions({
 
   return (
     <div
-      className="ml-10 mt-1 border-t border-black/[0.05] pt-3 dark:border-white/[0.06]"
+      className="mv-followups mt-1"
       aria-label="Suggested follow-up questions"
     >
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/50">
-        Continue
-      </p>
-      <div className="space-y-0.5">
+      <div className="mv-followups-heading">
+        <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
+        <span>Continue exploring</span>
+      </div>
+      <div className="mv-followups-list">
         {visible.map((suggestion) => (
           <button
             key={suggestion}
             type="button"
             disabled={disabled}
             onClick={() => onSelect(suggestion)}
-            className="group flex w-full items-start gap-2 py-1 text-left text-[12.5px] leading-snug text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+            className="mv-followup-action group"
           >
-            <span className="mt-0.5 shrink-0 text-[11px] text-muted-foreground/30 transition-colors group-hover:text-slate-400">
-              →
-            </span>
-            <span>{suggestion}</span>
+            <span className="mv-followup-action-text">{suggestion}</span>
+            <ArrowUpRight
+              className="mv-followup-action-icon h-3.5 w-3.5 shrink-0"
+              strokeWidth={1.8}
+              aria-hidden
+            />
           </button>
         ))}
       </div>

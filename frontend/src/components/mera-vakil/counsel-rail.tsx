@@ -1,68 +1,35 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
-  Building2,
   ChevronRight,
-  FileText,
-  Landmark,
-  LogOut,
+  MessageSquareText,
   MessageSquarePlus,
-  MoreHorizontal,
   Pencil,
   Pin,
   PinOff,
-  Scale,
   Search,
-  ShieldAlert,
   Trash2,
-  Users,
   X,
 } from "lucide-react";
 
+import { ProfileAvatar } from "@/components/auth/profile-avatar";
 import { ConfirmDialog } from "@/components/mera-vakil/confirm-dialog";
-import { LanguagePicker } from "@/components/mera-vakil/language-picker";
-import { Select } from "@/components/ui/select";
-import { getStoredUser, signOut as apiSignOut } from "@/lib/api";
+import { getStoredUser } from "@/lib/api";
 import { useTranslation } from "@/lib/i18n";
-import {
-  JURISDICTION_OPTIONS,
-  MATTER_TYPES,
-  relativeTime,
-  type ChatConversation,
-  type MatterType,
-} from "@/lib/conversations";
-import type { ResearchResponse } from "@/lib/types";
+import { relativeTime, type ChatConversation } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
-
-const MATTER_ICONS = {
-  fir: ShieldAlert,
-  bail: Scale,
-  contract: FileText,
-  property: Building2,
-  family: Users,
-  constitutional: Landmark,
-} as const;
 
 interface ContextPanelProps {
   conversations: ChatConversation[];
   activeId: string | null;
-  activeConversation?: ChatConversation | null;
   onNewChat: () => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
   onRenameConversation?: (id: string, title: string) => void;
   onPinConversation?: (id: string) => void;
-  onMatterTypeChange?: (type: MatterType) => void;
-  onJurisdictionChange?: (value: string) => void;
-  onQuickAction?: (prompt: string) => void;
-  speechLocale: string;
-  onSpeechLocaleChange: (code: string) => void;
-  latestResearch: ResearchResponse | null;
-  isSpeaking?: boolean;
   onClose?: () => void;
-  presentation?: "rail" | "sheet";
+  presentation?: "rail" | "drawer";
 }
 
 function IconButton({
@@ -82,8 +49,8 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors",
-        "hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10",
+        "flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors",
+        "hover:bg-slate-100 hover:text-foreground dark:hover:bg-white/[0.08]",
         "md:h-8 md:w-8",
         active && "bg-black/[0.05] text-foreground dark:bg-white/10",
       )}
@@ -96,20 +63,14 @@ function IconButton({
 export function ContextPanel({
   conversations,
   activeId,
-  activeConversation,
   onNewChat,
   onSelectConversation,
   onDeleteConversation,
   onRenameConversation,
   onPinConversation,
-  onMatterTypeChange,
-  onJurisdictionChange,
-  speechLocale,
-  onSpeechLocaleChange,
   onClose,
   presentation = "rail",
 }: ContextPanelProps) {
-  const router = useRouter();
   const user = getStoredUser();
   const { t } = useTranslation();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
@@ -118,11 +79,9 @@ export function ContextPanel({
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(40);
   const searchRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const sheet = presentation === "sheet";
+  const drawer = presentation === "drawer";
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(query.trim().toLowerCase()), 150);
@@ -145,34 +104,12 @@ export function ContextPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuOpen(false);
-    }
-    if (menuOpen) {
-      document.addEventListener("mousedown", onDoc);
-      document.addEventListener("keydown", onKey);
-    }
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menuOpen]);
-
   const filtered = useMemo(() => {
     if (!debounced) return conversations;
     return conversations.filter((c) => c.title.toLowerCase().includes(debounced));
   }, [conversations, debounced]);
 
   const shown = filtered.slice(0, visibleCount);
-
-  function handleSignOut() {
-    apiSignOut();
-    router.replace("/login");
-  }
 
   return (
     <>
@@ -196,32 +133,35 @@ export function ContextPanel({
       <div
         className={cn(
           "counsel-rail relative flex h-full min-h-0 flex-col overflow-hidden",
-          sheet && "counsel-rail-sheet",
+          drawer && "counsel-rail-drawer",
         )}
       >
-        {!sheet && <div className="counsel-rail-rule" />}
+        {!drawer && <div className="counsel-rail-rule" />}
 
-        {sheet && (
-          <div className="flex shrink-0 justify-center pb-1 pt-2.5" aria-hidden>
-            <span className="h-1 w-10 rounded-full bg-black/15 dark:bg-white/20" />
-          </div>
-        )}
-
-        <div
+        <header
           className={cn(
-            "relative shrink-0 px-3 pb-3",
-            sheet ? "pt-1" : "pt-4",
-            "border-b border-black/[0.05] dark:border-white/[0.07]",
+            "mv-history-header relative shrink-0",
+            drawer ? "px-4 pt-[max(1rem,env(safe-area-inset-top))]" : "px-3 pt-4",
           )}
         >
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-[13px] font-semibold text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900">
-              {user?.full_name?.charAt(0) ?? "?"}
+          <div className="mv-history-profile-row">
+            <div className="mv-history-avatar-wrap">
+              <ProfileAvatar
+                src={user?.avatar_url}
+                name={user?.full_name ?? "Guest"}
+                className="h-10 w-10"
+              />
+              <span className="mv-history-avatar-status" aria-hidden />
             </div>
-            <p className="min-w-0 flex-1 truncate text-[13.5px] font-semibold tracking-tight">
-              {user?.full_name ?? "Guest"}
-            </p>
-            <div className="flex items-center">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13.5px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                {user?.full_name ?? "Guest"}
+              </p>
+              <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500 dark:text-slate-400">
+                Conversation history
+              </p>
+            </div>
+            <div className="mv-history-actions">
               <IconButton onClick={onNewChat} label={t("chat.newChat")}>
                 <MessageSquarePlus className="h-[18px] w-[18px] md:h-4 md:w-4" strokeWidth={1.75} />
               </IconButton>
@@ -232,107 +172,49 @@ export function ContextPanel({
               >
                 <Search className="h-[18px] w-[18px] md:h-4 md:w-4" strokeWidth={1.75} />
               </IconButton>
-              <div className="relative" ref={menuRef}>
-                <IconButton
-                  onClick={() => setMenuOpen((open) => !open)}
-                  label="More"
-                  active={menuOpen}
-                >
-                  <MoreHorizontal className="h-[18px] w-[18px] md:h-4 md:w-4" strokeWidth={1.75} />
-                </IconButton>
-                {menuOpen && (
-                  <div className="ui-select-menu ui-select-popover absolute right-0 top-[calc(100%+6px)] z-50 min-w-[12rem] p-1.5">
-                    <button
-                      type="button"
-                      className="ui-select-option"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        handleSignOut();
-                      }}
-                    >
-                      <LogOut className="h-3.5 w-3.5 text-muted-foreground" />
-                      {t("nav.signOut")}
-                    </button>
-                  </div>
-                )}
-              </div>
               {onClose && (
-                <IconButton onClick={onClose} label="Close panel">
-                  {sheet ? (
-                    <X className="h-[18px] w-[18px]" strokeWidth={1.75} />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
+                <IconButton onClick={onClose} label={drawer ? "Close conversation history" : "Close panel"}>
+                  {drawer ? <X className="h-[18px] w-[18px]" strokeWidth={1.75} /> : <ChevronRight className="h-4 w-4" />}
                 </IconButton>
               )}
             </div>
           </div>
 
           {searchOpen && (
-            <label className="relative mt-3 block">
+            <label className="mv-history-search relative mt-3 block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
                 ref={searchRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t("common.search")}
-                className="h-11 w-full rounded-full border border-black/[0.06] bg-black/[0.03] pl-9 pr-3 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-slate-400 md:h-9 dark:border-white/10 dark:bg-white/[0.04]"
+                className="h-11 w-full rounded-md border border-black/[0.08] bg-white pl-9 pr-3 text-[13px] outline-none placeholder:text-muted-foreground/70 focus:border-slate-500 md:h-9 dark:border-white/10 dark:bg-white/[0.04]"
                 aria-label={t("chat.searchConversations")}
               />
             </label>
           )}
-        </div>
-
-        {activeConversation && (
-          <div className="shrink-0 space-y-2 border-b border-black/[0.05] px-3 py-2.5 dark:border-white/[0.07]">
-            <div className="flex flex-wrap gap-1" aria-label="Matter type">
-              {MATTER_TYPES.map((item) => {
-                const selected = activeConversation.matterType === item.id;
-                const Icon = MATTER_ICONS[item.id];
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    title={item.label}
-                    aria-label={item.label}
-                    aria-pressed={selected}
-                    onClick={() => onMatterTypeChange?.(selected ? null : item.id)}
-                    className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-full transition-colors md:h-8 md:w-8",
-                      selected
-                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                        : "text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" strokeWidth={1.75} />
-                  </button>
-                );
-              })}
+          {!searchOpen && (
+            <div className="mv-history-index" aria-label={`${filtered.length} conversations`}>
+              <span className="flex items-center gap-2">
+                <MessageSquareText className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
+                All conversations
+              </span>
+              <span className="mv-history-count">{filtered.length}</span>
             </div>
-            <Select
-              value={activeConversation.jurisdiction ?? ""}
-              onChange={(e) => onJurisdictionChange?.(e.target.value)}
-              className="h-11 w-full rounded-full text-[13px] md:h-9"
-              aria-label="Jurisdiction"
-              placeholder="Jurisdiction"
-            >
-              <option value="">All jurisdictions</option>
-              {JURISDICTION_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </Select>
-          </div>
-        )}
+          )}
+        </header>
 
-        <nav className="no-scrollbar relative min-h-0 flex-1 overflow-y-auto px-2 py-2" aria-label="Conversation history">
+        <nav className="mv-history-list no-scrollbar relative min-h-0 flex-1 overflow-y-auto" aria-label="Conversation history">
           {shown.length === 0 ? (
-            <p className="px-3 py-10 text-center text-[13px] text-muted-foreground">
-              {debounced ? "No matching matters" : "No conversations yet"}
-            </p>
+            <div className="mv-history-empty">
+              <span className="mv-history-empty-icon" aria-hidden>
+                <MessageSquareText className="h-5 w-5" strokeWidth={1.6} />
+              </span>
+              <p>{debounced ? "No matching conversations" : "No conversations yet"}</p>
+              {!debounced && <span>Start a new chat to keep your legal guidance organised here.</span>}
+            </div>
           ) : (
-            <ul className="space-y-0.5">
+            <ul className="mv-history-items">
               {shown.map((conv) => {
                 const active = conv.id === activeId;
                 const renaming = renameId === conv.id;
@@ -340,18 +222,12 @@ export function ContextPanel({
                   <li key={conv.id} className="mv-hist-row">
                     <div
                       className={cn(
-                        "group relative flex min-h-11 items-center gap-1 rounded-xl py-1.5 pl-3 pr-1 transition-colors md:min-h-10",
+                        "mv-conversation-row group relative flex min-h-12 items-center gap-2 border-l-2 py-1.5 pl-3 pr-1 transition-colors md:min-h-11",
                         active
-                          ? "bg-black/[0.05] dark:bg-white/[0.07]"
-                          : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
+                          ? "border-slate-900 bg-slate-100 dark:border-slate-100 dark:bg-white/[0.07]"
+                          : "border-transparent hover:bg-slate-50 dark:hover:bg-white/[0.04]",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "absolute bottom-2 left-0 top-2 w-0.5 rounded-full bg-slate-900 dark:bg-slate-100",
-                          active ? "opacity-100" : "opacity-0",
-                        )}
-                      />
                       {renaming ? (
                         <input
                           autoFocus
@@ -369,7 +245,7 @@ export function ContextPanel({
                             }
                             if (e.key === "Escape") setRenameId(null);
                           }}
-                          className="h-8 w-full rounded-lg border border-black/10 bg-white px-2 text-[13px] dark:border-white/15 dark:bg-zinc-900"
+                          className="h-8 w-full border border-black/10 bg-white px-2 text-[13px] dark:border-white/15 dark:bg-zinc-900"
                         />
                       ) : (
                         <button
@@ -378,7 +254,8 @@ export function ContextPanel({
                           aria-current={active ? "page" : undefined}
                           onClick={() => onSelectConversation(conv.id)}
                         >
-                          <span className="flex items-center gap-1.5">
+                          <span className="flex items-center gap-2">
+                            <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-slate-400" strokeWidth={1.75} />
                             {conv.pinned && <Pin className="h-3 w-3 shrink-0 text-slate-500" />}
                             <span className="truncate text-[13px] font-medium">{conv.title}</span>
                           </span>
@@ -390,7 +267,7 @@ export function ContextPanel({
                       <div className="flex shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                         <button
                           type="button"
-                          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground md:h-7 md:w-7"
+                          className="flex h-9 w-8 items-center justify-center text-muted-foreground hover:bg-white hover:text-foreground dark:hover:bg-white/10 md:h-7 md:w-6"
                           aria-label={conv.pinned ? "Unpin" : "Pin"}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -401,7 +278,7 @@ export function ContextPanel({
                         </button>
                         <button
                           type="button"
-                          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground md:h-7 md:w-7"
+                          className="flex h-9 w-8 items-center justify-center text-muted-foreground hover:bg-white hover:text-foreground dark:hover:bg-white/10 md:h-7 md:w-6"
                           aria-label={t("common.rename")}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -413,7 +290,7 @@ export function ContextPanel({
                         </button>
                         <button
                           type="button"
-                          className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-destructive md:h-7 md:w-7"
+                          className="flex h-9 w-8 items-center justify-center text-muted-foreground hover:bg-white hover:text-destructive dark:hover:bg-white/10 md:h-7 md:w-6"
                           aria-label={`Delete ${conv.title}`}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -440,9 +317,6 @@ export function ContextPanel({
           )}
         </nav>
 
-        <div className="flex shrink-0 items-center justify-end border-t border-black/[0.05] px-2 py-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] dark:border-white/[0.07]">
-          <LanguagePicker compact value={speechLocale} onChange={onSpeechLocaleChange} />
-        </div>
       </div>
     </>
   );

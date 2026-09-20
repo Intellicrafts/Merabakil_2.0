@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Moon, PanelRight, Sun } from "lucide-react";
 
 import { BackButton } from "@/components/layout/back-button";
@@ -31,7 +31,7 @@ import { streamResearch, uploadUserDocument, extractCaseBrief, createCase, updat
 import type { UploadProgress } from "@/components/mera-vakil/input-dock";
 import { FEATURES } from "@/lib/features";
 import { consumeMeraVakilPrefill, consumeMeraVakilVoiceOpen } from "@/lib/prefill-store";
-import { loadSpeechLocale, saveSpeechLocale } from "@/lib/indian-locales";
+import { loadSpeechLocale } from "@/lib/indian-locales";
 import {
   createAssistantMessage,
   createConversation,
@@ -50,7 +50,6 @@ import {
   type AttachedDocument,
   type ChatConversation,
   type ChatMessage,
-  type MatterType,
 } from "@/lib/conversations";
 import type { LawyerMatchResult, LawyerProfile, ResearchResponse } from "@/lib/types";
 
@@ -92,6 +91,8 @@ export default function MeraVakilPage() {
   const [voiceSupported] = useState(() => isVoiceBotSupported());
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const mobilePanelRef = useRef<HTMLDivElement>(null);
+  const mobilePanelTriggerRef = useRef<HTMLButtonElement>(null);
   const assistantMsgIdRef = useRef<string | null>(null);
   const withUserRef = useRef<ChatConversation | null>(null);
   const streamReveal = useStreamingReveal();
@@ -231,13 +232,21 @@ export default function MeraVakilPage() {
       // Fetch conversations from server (falls back to [] on error)
       const all = await initConversations();
       setConversations(all);
-      const convId = new URLSearchParams(window.location.search).get("c");
+      // A shared/deep link is explicit, otherwise continue the user's last active matter.
+      // The active ID is recorded whenever a conversation is selected or created, so a
+      // browser refresh must not drop the user back onto the empty Saarthi screen.
+      const convId =
+        new URLSearchParams(window.location.search).get("c") || loadActiveConversationId();
       if (convId) {
         const found = all.find((c) => c.id === convId);
         if (found) {
           setActiveConversation(found);
           setDraftCaseId(found.draftCaseId ?? null);
           saveActiveConversationId(found.id);
+        } else if (loadActiveConversationId() === convId) {
+          // Do not repeatedly attempt to restore a conversation that was deleted or is
+          // no longer available to this user.
+          saveActiveConversationId(null);
         }
       }
       setHydrated(true);
@@ -250,6 +259,58 @@ export default function MeraVakilPage() {
     }
   }, [voiceModeOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!mobilePanelOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => {
+      const panel = mobilePanelRef.current;
+      const initialFocus = panel?.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+      );
+      (initialFocus ?? panel)?.focus();
+    });
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobilePanelOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const panel = mobilePanelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("hidden"));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      mobilePanelTriggerRef.current?.focus();
+    };
+  }, [mobilePanelOpen]);
+
   function setRightPanelOpenPersisted(open: boolean) {
     setRightPanelOpen(open);
     localStorage.setItem(CONTEXT_PANEL_KEY, String(open));
@@ -257,19 +318,6 @@ export default function MeraVakilPage() {
 
   const documentId = activeConversation?.documentId ?? null;
   const jurisdiction = activeConversation?.jurisdiction ?? "";
-
-  const latestResearch = useMemo(
-    () =>
-      activeConversation?.messages
-        .filter((m) => m.role === "assistant" && m.research)
-        .at(-1)?.research ?? null,
-    [activeConversation?.messages],
-  );
-
-  function handleSpeechLocaleChange(code: string) {
-    setSpeechLocale(code);
-    saveSpeechLocale(code);
-  }
 
   const runFinalExtraction = useCallback(async (sid: string, currentDraftCaseId: string | null) => {
     if (!FEATURES.CASE_BRIEF) return;
@@ -483,33 +531,6 @@ export default function MeraVakilPage() {
     if (updated && activeConversation?.id === id) {
       setActiveConversation(updated);
     }
-  }
-
-  function handleMatterTypeChange(type: MatterType) {
-    track(AnalyticsEvents.SAARTHI_MATTER_TYPE_SELECTED, { matter_type: type ?? "general" });
-    setActiveConversation((prev) => {
-      const base =
-        prev ?? createConversation({ documentId, jurisdiction: jurisdiction || null, matterType: type });
-      const next = { ...base, matterType: type };
-      upsertConversation(next);
-      setConversations(loadConversations());
-      return next;
-    });
-  }
-
-  function handleJurisdictionChange(value: string) {
-    setActiveConversation((prev) => {
-      if (!prev) {
-        const conv = createConversation({ jurisdiction: value || null });
-        upsertConversation(conv);
-        setConversations(loadConversations());
-        return conv;
-      }
-      const updated = { ...prev, jurisdiction: value || null };
-      upsertConversation(updated);
-      setConversations(loadConversations());
-      return updated;
-    });
   }
 
   async function uploadOneDocument(file: File, targetSessionId: string | null): Promise<ChatAttachment> {
@@ -1020,16 +1041,21 @@ export default function MeraVakilPage() {
       )}
 
       {mobilePanelOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Session panel">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Conversation history">
           <button
             type="button"
-            className="absolute inset-0 bg-black/40"
+            className="mv-mobile-drawer-backdrop absolute inset-0"
             onClick={() => setMobilePanelOpen(false)}
-            aria-label="Dismiss session panel"
+            aria-label="Dismiss conversation history"
           />
-          <div className="absolute inset-x-0 bottom-0 flex h-[min(85dvh,36rem)] flex-col overflow-hidden rounded-t-[1.5rem] shadow-[0_-16px_48px_rgba(0,0,0,0.28)]">
+          <div
+            ref={mobilePanelRef}
+            tabIndex={-1}
+            data-presentation="drawer"
+            className="mv-mobile-conversation-drawer absolute inset-y-0 right-0 flex flex-col overflow-hidden outline-none"
+          >
             <ContextPanel
-              presentation="sheet"
+              presentation="drawer"
               conversations={conversations}
               activeId={activeConversation?.id ?? null}
               onNewChat={() => {
@@ -1043,14 +1069,6 @@ export default function MeraVakilPage() {
               onDeleteConversation={handleDeleteConversation}
               onRenameConversation={handleRenameConversation}
               onPinConversation={handlePinConversation}
-              onMatterTypeChange={handleMatterTypeChange}
-              onJurisdictionChange={handleJurisdictionChange}
-              onQuickAction={setInput}
-              activeConversation={activeConversation}
-              speechLocale={speechLocale}
-              onSpeechLocaleChange={handleSpeechLocaleChange}
-              latestResearch={latestResearch}
-              isSpeaking={readAloud.state.isSpeaking}
               onClose={() => setMobilePanelOpen(false)}
             />
           </div>
@@ -1078,6 +1096,7 @@ export default function MeraVakilPage() {
               <Button
                 variant="ghost"
                 size="sm"
+                ref={mobilePanelTriggerRef}
                 onClick={() => {
                   if (window.matchMedia("(min-width: 1024px)").matches) {
                     setRightPanelOpenPersisted(!rightPanelOpen);
@@ -1170,14 +1189,6 @@ export default function MeraVakilPage() {
           onDeleteConversation={handleDeleteConversation}
           onRenameConversation={handleRenameConversation}
           onPinConversation={handlePinConversation}
-          onMatterTypeChange={handleMatterTypeChange}
-          onJurisdictionChange={handleJurisdictionChange}
-          onQuickAction={setInput}
-          activeConversation={activeConversation}
-          speechLocale={speechLocale}
-          onSpeechLocaleChange={handleSpeechLocaleChange}
-          latestResearch={latestResearch}
-          isSpeaking={readAloud.state.isSpeaking}
           onClose={() => setRightPanelOpenPersisted(false)}
         />
       }

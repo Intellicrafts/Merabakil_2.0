@@ -157,7 +157,7 @@ test.describe("Mera Vakil composer", () => {
     const suggestions = page.locator('[aria-label="Suggested questions"]');
     await expect(suggestions.getByRole("button", { name: "Know my rights" })).toBeVisible();
     await expect(suggestions.getByRole("button", { name: "Draft a complaint" })).toBeVisible();
-    await expect(suggestions.getByRole("button", { name: "Explain a notice" })).toBeVisible();
+    await expect(suggestions.getByRole("button", { name: "Explain this notice" })).toBeVisible();
     await expect(suggestions.getByRole("button", { name: "Find a lawyer" })).toBeVisible();
 
     await suggestions.getByRole("button", { name: "Know my rights" }).click();
@@ -180,6 +180,50 @@ test.describe("Mera Vakil composer", () => {
       page.getByLabel("Chat conversation").getByText("Explain eviction notice timelines in Delhi"),
     ).toBeVisible();
     await expect.poll(() => captured.query).toBe("Explain eviction notice timelines in Delhi");
+  });
+
+  test("reload resumes the last active Saarthi conversation", async ({ page }) => {
+    const now = new Date().toISOString();
+    const conversation = {
+      id: "reload-resume-matter",
+      title: "Landlord deposit dispute",
+      messages: [
+        {
+          id: "reload-message",
+          role: "user",
+          content: "My landlord has not returned my security deposit.",
+          createdAt: now,
+        },
+      ],
+      documentId: null,
+      attachedDocuments: [],
+      jurisdiction: "Delhi",
+      matterType: "property",
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await page.route("**/api/v1/conversations", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ json: [conversation] });
+        return;
+      }
+      await route.fulfill({ status: 204 });
+    });
+    await loginCitizen(page);
+
+    // Select the matter once through the supported deep-link flow; subsequent normal
+    // page loads must restore it from the persisted active-session ID.
+    await page.goto("/mera-vakil?c=reload-resume-matter");
+    await expect(page.getByText(conversation.messages[0].content)).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("legalos.meravakil.active-id")))
+      .toBe("reload-resume-matter");
+    await page.evaluate(() => window.history.replaceState({}, "", "/mera-vakil"));
+    await page.reload();
+
+    await expect(page.getByText(conversation.messages[0].content)).toBeVisible();
+    await expect(page.getByLabel("Session tools and history").getByText(conversation.title)).toBeVisible();
   });
 
   test("voice note records, cancel discards, send delivers transcript", async ({ page }) => {
@@ -262,25 +306,29 @@ test.describe("Mera Vakil composer", () => {
     await expect.poll(() => captured.query).toBe("Review the attached documents.");
   });
 
-  test("counsel rail is icon-led and mobile opens a bottom sheet", async ({ page }) => {
-    await page.addInitScript(() => {
-      const now = new Date().toISOString();
-      const conv = {
-        id: "e2e-matter",
-        title: "Tenant notice",
-        messages: [],
-        documentId: null,
-        jurisdiction: "Delhi",
-        matterType: "property",
-        pinned: false,
-        createdAt: now,
-        updatedAt: now,
-      };
-      localStorage.setItem("legalos.meravakil.conversations", JSON.stringify([conv]));
-      localStorage.setItem("legalos.meravakil.active-id", "e2e-matter");
+  test("counsel rail is icon-led and mobile opens an accessible right-side drawer", async ({ page }) => {
+    const now = new Date().toISOString();
+    const conversation = {
+      id: "e2e-matter",
+      title: "Tenant notice",
+      messages: [],
+      documentId: null,
+      attachedDocuments: [],
+      jurisdiction: "Delhi",
+      matterType: "property",
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await page.route("**/api/v1/conversations", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ json: [conversation] });
+        return;
+      }
+      await route.fulfill({ status: 204 });
     });
     await loginCitizen(page);
-    await page.goto("/mera-vakil");
+    await page.goto("/mera-vakil?c=e2e-matter");
     await expect(page.getByRole("heading", { name: /^Saarthi$/i })).toBeVisible();
 
     const rail = page.getByLabel("Session tools and history");
@@ -288,10 +336,8 @@ test.describe("Mera Vakil composer", () => {
     await expect(rail.getByRole("button", { name: "Search conversations" })).toBeVisible();
     await expect(rail.getByText("Your Legal Guide")).toHaveCount(0);
     await expect(rail.getByText("Common questions")).toHaveCount(0);
-    await expect(rail.getByRole("button", { name: /^Sign out$/i })).toHaveCount(0);
+    await expect(rail.getByRole("button", { name: "More" })).toHaveCount(0);
     await expect(rail.getByText("Tenant notice")).toBeVisible();
-    await expect(rail.getByRole("button", { name: "Property" })).toHaveAttribute("aria-pressed", "true");
-    await expect(rail.getByLabel("Jurisdiction")).toHaveValue("Delhi");
     await rail.getByText("Tenant notice").hover();
     await rail.getByRole("button", { name: "Pin" }).click();
     await rail.getByText("Tenant notice").hover();
@@ -299,20 +345,31 @@ test.describe("Mera Vakil composer", () => {
 
     await rail.getByRole("button", { name: "Search conversations" }).click();
     await expect(page.getByPlaceholder("Search")).toBeVisible();
-    await rail.getByRole("button", { name: "More" }).click();
-    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
-    await expect(rail.getByRole("button", { name: "Select read-aloud language" })).toBeVisible();
-
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("button", { name: /session panel/i }).click();
-    const sheet = page.getByRole("dialog", { name: "Session panel" });
-    await expect(sheet).toBeVisible();
-    await expect(sheet.getByRole("button", { name: "New chat" })).toBeVisible();
-    await expect(sheet.getByLabel("Conversation history")).toBeVisible();
-    await sheet.getByRole("button", { name: "New chat" }).click();
-    await expect(sheet).toHaveCount(0);
+    const drawer = page.getByRole("dialog", { name: "Conversation history" });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "New chat" })).toBeVisible();
+    await expect.poll(() => drawer.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+    await expect(drawer.getByRole("navigation", { name: "Conversation history" })).toBeVisible();
+    const drawerSurface = drawer.locator('[data-presentation="drawer"]');
+    await expect(drawerSurface).toBeVisible();
+    const box = await drawerSurface.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThan(0);
+    expect(box!.y).toBe(0);
+    expect(box!.height).toBe(844);
+
+    await page.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
+    await page.getByRole("button", { name: /session panel/i }).click();
+    // The backdrop remains deliberately exposed on the left of the right-side drawer.
+    await page.mouse.click(8, 422);
+    await expect(drawer).toHaveCount(0);
+
+    await page.getByRole("button", { name: /session panel/i }).click();
+    await drawer.getByRole("button", { name: "New chat" }).click();
+    await expect(drawer).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /^Saarthi$/i })).toBeVisible();
   });
 
