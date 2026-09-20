@@ -152,7 +152,8 @@
       "Bash(ssh -i ~/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo/infrastructure && docker compose -f docker-compose.prod.yml exec -T frontend ls -la /app/.next/server/app/ | grep -E 'legal|property|family|labour' | head -20\")",
       "Bash(ssh -i ~/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo && find frontend -name 'legal-guides' -type d 2>/dev/null\")",
       "Bash(ssh -i ~/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo/infrastructure && docker compose -f docker-compose.prod.yml restart frontend && sleep 15 && curl -s https://merabakil.in/legal-guides | grep -o '<h1[^>]*>[^<]*</h1>' | head -3\")",
-      "Bash(ssh -i ~/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo/infrastructure && docker compose -f docker-compose.prod.yml logs frontend 2>&1 | grep -E 'error|Error|ERROR|legal|BUILD|failed' | head -20\")"
+      "Bash(ssh -i ~/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo/infrastructure && docker compose -f docker-compose.prod.yml logs frontend 2>&1 | grep -E 'error|Error|ERROR|legal|BUILD|failed' | head -20\")",
+      "Bash(ssh -i ~/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo && git pull origin main && cd infrastructure && docker compose -f docker-compose.prod.yml up -d --build frontend nginx && sleep 30 && curl -s https://merabakil.in/legal-guides | grep -o '<h1[^>]*>[^<]*</h1>' | head -1\")"
     ],
     "additionalDirectories": [
       "/Users/aman/Projects/MeraVail-Aug-2026/backend/services/satyapan/.git",

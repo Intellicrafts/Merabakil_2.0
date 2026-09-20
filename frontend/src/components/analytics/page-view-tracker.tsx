@@ -2,7 +2,6 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { getCLS, getFCP, getLCP, getTTFB } from "web-vitals";
 
 import {
   AnalyticsEvents,
@@ -19,7 +18,6 @@ export function PageViewTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const lastPath = useRef<string | null>(null);
-  const cwvTrackedRef = useRef(false);
 
   useEffect(() => {
     if (readConsent()?.analytics !== true) return;
@@ -54,35 +52,6 @@ export function PageViewTracker() {
     }
   }, [pathname, searchParams]);
 
-  useEffect(() => {
-    if (readConsent()?.analytics !== true || cwvTrackedRef.current) return;
-    cwvTrackedRef.current = true;
-
-    getCLS((metric) => {
-      track("web_vital_cls", {
-        score: Math.round(metric.value * 10000) / 10000,
-        rating: metric.rating || "unknown",
-      } as any);
-    });
-    getFCP((metric) => {
-      track("web_vital_fcp", {
-        score: Math.round(metric.value),
-        rating: metric.rating || "unknown",
-      } as any);
-    });
-    getLCP((metric) => {
-      track("web_vital_lcp", {
-        score: Math.round(metric.value),
-        rating: metric.rating || "unknown",
-      } as any);
-    });
-    getTTFB((metric) => {
-      track("web_vital_ttfb", {
-        score: Math.round(metric.value),
-        rating: metric.rating || "unknown",
-      } as any);
-    });
-  }, []);
 
   return null;
 }
