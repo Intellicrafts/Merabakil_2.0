@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const THEME_BOOT = `(function(){try{var s=localStorage.getItem("legalos.theme");var dark=s==="dark"||(s!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",dark);var l=document.getElementById("mb-favicon-32")||document.createElement("link");l.id="mb-favicon-32";l.rel="icon";l.type="image/png";l.sizes="32x32";l.href="/brand/favicon-"+(dark?"dark":"light")+"-32.png?v=circ3";if(!l.parentNode)document.head.appendChild(l);}catch(e){}})();`;
+const THEME_BOOT = `(function(){try{var s=localStorage.getItem("legalos.theme");var dark=s==="dark"||(s!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",dark);var l=document.getElementById("mb-favicon-svg")||document.createElement("link");l.id="mb-favicon-svg";l.rel="icon";l.type="image/svg+xml";l.href="/brand/favicon_"+(dark?"dark":"normal")+".svg?v=circ3";if(!l.parentNode)document.head.appendChild(l);}catch(e){}})();`;
 
 export const metadata = rootMetadata;
 
