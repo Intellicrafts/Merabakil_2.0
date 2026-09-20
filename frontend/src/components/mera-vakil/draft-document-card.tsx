@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Download, ExternalLink, FileText } from "lucide-react";
+import { Check, Copy, Download, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,10 +21,9 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 interface DraftDocumentCardProps {
   draft?: DraftPayload;
   loading?: boolean;
-  onPreview?: () => void;
 }
 
-export function DraftDocumentCard({ draft, loading, onPreview }: DraftDocumentCardProps) {
+export function DraftDocumentCard({ draft, loading }: DraftDocumentCardProps) {
   const [copied, setCopied] = useState(false);
 
   const label = draft ? (DOC_TYPE_LABELS[draft.document_type] ?? "Legal Document") : "Legal Document";
@@ -66,15 +65,6 @@ export function DraftDocumentCard({ draft, loading, onPreview }: DraftDocumentCa
       {/* Actions */}
       {draft && (
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 rounded-lg px-2.5 text-[12px] text-muted-foreground hover:text-foreground"
-            onClick={onPreview}
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            Preview
-          </Button>
           <Button
             variant="ghost"
             size="sm"
