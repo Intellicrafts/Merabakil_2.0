@@ -37,7 +37,7 @@ export default function LabourLawPage() {
       <section id="employee-rights" className="mb-12 space-y-4">
         <h2 className="text-2xl font-bold">Employee Rights in India</h2>
         <p>
-          Indian labour law provides comprehensive protection to employees. These rights are enshrined in various acts including the Industrial Disputes Act, 1947, the Employees' Provident Fund Act, 1952, the Payment of Gratuity Act, 1972, and the Sexual Harassment of Women at Workplace Act, 2013.
+          Indian labour law provides comprehensive protection to employees. These rights are enshrined in various acts including the Industrial Disputes Act, 1947, the Employees&apos; Provident Fund Act, 1952, the Payment of Gratuity Act, 1972, and the Sexual Harassment of Women at Workplace Act, 2013.
         </p>
 
         <h3 className="text-lg font-semibold">Core Employee Rights</h3>
@@ -64,7 +64,7 @@ export default function LabourLawPage() {
 
           <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h4 className="font-semibold">Right to Social Security</h4>
-            <p className="text-sm text-muted-foreground mt-1">Provident fund, gratuity, workers' compensation, health insurance</p>
+            <p className="text-sm text-muted-foreground mt-1">Provident fund, gratuity, workers&apos; compensation, health insurance</p>
           </div>
 
           <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
@@ -259,7 +259,7 @@ export default function LabourLawPage() {
           <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h3 itemprop="name" className="font-semibold">Can an employer terminate an employee without notice in India?</h3>
             <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">No, employer must follow legal procedure. Except for serious misconduct, employer must give 30 days' notice or pay notice period wages. Termination without procedure is unlawful and gives employee right to compensation and reinstatement.</p>
+              <p itemprop="text" className="text-sm text-muted-foreground">No, employer must follow legal procedure. Except for serious misconduct, employer must give 30 days&apos; notice or pay notice period wages. Termination without procedure is unlawful and gives employee right to compensation and reinstatement.</p>
             </div>
           </div>
 
@@ -273,7 +273,7 @@ export default function LabourLawPage() {
           <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h3 itemprop="name" className="font-semibold">What should I do if harassed at workplace?</h3>
             <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Steps: (1) Document incidents (date, time, details), (2) Inform harasser to stop in writing, (3) File complaint with company's Internal Complaints Committee or HR, (4) If no action, file complaint with external labor authority or police, (5) Seek legal help for compensation. You're protected against retaliation for filing complaints.</p>
+              <p itemprop="text" className="text-sm text-muted-foreground">Steps: (1) Document incidents (date, time, details), (2) Inform harasser to stop in writing, (3) File complaint with company&apos;s Internal Complaints Committee or HR, (4) If no action, file complaint with external labor authority or police, (5) Seek legal help for compensation. You&apos;re protected against retaliation for filing complaints.</p>
             </div>
           </div>
 
@@ -287,7 +287,7 @@ export default function LabourLawPage() {
           <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h3 itemprop="name" className="font-semibold">What is the minimum notice period before resignation?</h3>
             <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Typically 30 days for regular employees, but varies by contract and position. Senior positions may require 60-90 days. If employee doesn't serve notice, employer can deduct one month's salary or notice period salary from final settlement. Employee cannot waive this procedure.</p>
+              <p itemprop="text" className="text-sm text-muted-foreground">Typically 30 days for regular employees, but varies by contract and position. Senior positions may require 60-90 days. If employee doesn&apos;t serve notice, employer can deduct one month&apos;s salary or notice period salary from final settlement. Employee cannot waive this procedure.</p>
             </div>
           </div>
         </div>

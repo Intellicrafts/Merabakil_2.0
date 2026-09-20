@@ -108,7 +108,7 @@ export default function PropertyLawPage() {
       <section id="file-suit" className="mb-12 space-y-4">
         <h2 className="text-2xl font-bold">How to File a Property Suit in India: Step-by-Step Guide</h2>
         <p>
-          Filing a property suit requires proper documentation, understanding of jurisdiction, and procedural compliance. Here's a comprehensive guide.
+          Filing a property suit requires proper documentation, understanding of jurisdiction, and procedural compliance. Here&apos;s a comprehensive guide.
         </p>
 
         <h3 className="text-lg font-semibold">Steps to File a Property Suit</h3>
@@ -135,7 +135,7 @@ export default function PropertyLawPage() {
 
           <div className="border-l-4 border-primary pl-4">
             <h4 className="font-semibold">Step 5: File in Civil Court</h4>
-            <p className="text-sm text-muted-foreground mt-1">Submit plaint with supporting documents, court fee (based on claim value), and lawyer's certificate to court registry.</p>
+            <p className="text-sm text-muted-foreground mt-1">Submit plaint with supporting documents, court fee (based on claim value), and lawyer&apos;s certificate to court registry.</p>
           </div>
 
           <div className="border-l-4 border-primary pl-4">
@@ -167,8 +167,8 @@ export default function PropertyLawPage() {
           <li className="text-sm"><strong>Continuous Possession:</strong> Uninterrupted occupation for 12 years (not necessarily physical)</li>
           <li className="text-sm"><strong>Open and Notorious:</strong> Possession must be obvious and known to the owner</li>
           <li className="text-sm"><strong>Exclusive:</strong> Possession must be solely by the adverse possessor</li>
-          <li className="text-sm"><strong>Without Permission:</strong> Possession must not be with owner's consent</li>
-          <li className="text-sm"><strong>Against Owner's Title:</strong> Possession must challenge the owner's right</li>
+          <li className="text-sm"><strong>Without Permission:</strong> Possession must not be with owner&apos;s consent</li>
+          <li className="text-sm"><strong>Against Owner&apos;s Title:</strong> Possession must challenge the owner&apos;s right</li>
         </ul>
 
         <div className="rounded-lg bg-yellow-50 p-4 dark:bg-yellow-950/20">
@@ -191,7 +191,7 @@ export default function PropertyLawPage() {
           <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h3 itemprop="name" className="font-semibold">How long can a landlord evict a tenant without notice in India?</h3>
             <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">A landlord cannot evict a tenant without proper notice and court order. Most states require 30-90 days' notice. The Model Tenancy Act, 2021 mandates 60 days' notice. Eviction is only valid through court order for valid grounds like non-payment of rent or violation of lease terms.</p>
+              <p itemprop="text" className="text-sm text-muted-foreground">A landlord cannot evict a tenant without proper notice and court order. Most states require 30-90 days&apos; notice. The Model Tenancy Act, 2021 mandates 60 days&apos; notice. Eviction is only valid through court order for valid grounds like non-payment of rent or violation of lease terms.</p>
             </div>
           </div>
 
@@ -205,7 +205,7 @@ export default function PropertyLawPage() {
           <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h3 itemprop="name" className="font-semibold">Can a tenant be evicted for non-payment of rent?</h3>
             <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Yes, non-payment of rent is valid grounds for eviction, but landlords must follow legal procedure: (1) Serve notice to pay rent within 15 days, (2) If tenant doesn't pay, file eviction suit in appropriate court, (3) Tenant gets opportunity to defend or pay pending rent, (4) Court orders eviction if tenant fails to pay. Simply locking out the tenant is illegal.</p>
+              <p itemprop="text" className="text-sm text-muted-foreground">Yes, non-payment of rent is valid grounds for eviction, but landlords must follow legal procedure: (1) Serve notice to pay rent within 15 days, (2) If tenant doesn&apos;t pay, file eviction suit in appropriate court, (3) Tenant gets opportunity to defend or pay pending rent, (4) Court orders eviction if tenant fails to pay. Simply locking out the tenant is illegal.</p>
             </div>
           </div>
 

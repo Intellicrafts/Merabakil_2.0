@@ -99,14 +99,14 @@ export default function FamilyLawPage() {
       <section id="custody" className="mb-12 space-y-4">
         <h2 className="text-2xl font-bold">Child Custody Laws in India</h2>
         <p>
-          Indian courts prioritize the child's best interests when deciding custody. The primary principle is "Tender Years Doctrine" - children below 5 years are presumed to be with mother unless she is unfit.
+          Indian courts prioritize the child&apos;s best interests when deciding custody. The primary principle is &quot;Tender Years Doctrine&quot; - children below 5 years are presumed to be with mother unless she is unfit.
         </p>
 
         <h3 className="text-lg font-semibold">Types of Custody</h3>
         <div className="space-y-3">
           <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h4 className="font-semibold">Legal Custody</h4>
-            <p className="text-sm text-muted-foreground mt-1">Right to make decisions about child's education, healthcare, religion, and major life decisions</p>
+            <p className="text-sm text-muted-foreground mt-1">Right to make decisions about child&apos;s education, healthcare, religion, and major life decisions</p>
           </div>
 
           <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
@@ -116,7 +116,7 @@ export default function FamilyLawPage() {
 
           <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h4 className="font-semibold">Joint Custody</h4>
-            <p className="text-sm text-muted-foreground mt-1">Both parents share legal and/or physical custody, working together for child's welfare</p>
+            <p className="text-sm text-muted-foreground mt-1">Both parents share legal and/or physical custody, working together for child&apos;s welfare</p>
           </div>
         </div>
 
@@ -142,7 +142,7 @@ export default function FamilyLawPage() {
         <ul className="list-inside space-y-2">
           <li className="text-sm"><strong>Interim Maintenance:</strong> Support during divorce proceedings</li>
           <li className="text-sm"><strong>Permanent Maintenance:</strong> Support after divorce finalization</li>
-          <li className="text-sm"><strong>Child Maintenance:</strong> Support for children's education and living expenses</li>
+          <li className="text-sm"><strong>Child Maintenance:</strong> Support for children&apos;s education and living expenses</li>
           <li className="text-sm"><strong>Restitution of Conjugal Rights:</strong> In some cases, restoration of marital status with support</li>
         </ul>
 
@@ -199,14 +199,14 @@ export default function FamilyLawPage() {
           <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h3 itemprop="name" className="font-semibold">Does divorce automatically give custody to mother in India?</h3>
             <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">No. While younger children (below 5) are traditionally with mothers (Tender Years Doctrine), courts now apply "best interest of child" principle. Fathers can get custody if they prove it's better for the child. Gender is not the determining factor anymore.</p>
+              <p itemprop="text" className="text-sm text-muted-foreground">No. While younger children (below 5) are traditionally with mothers (Tender Years Doctrine), courts now apply &quot;best interest of child&quot; principle. Fathers can get custody if they prove it&apos;s better for the child. Gender is not the determining factor anymore.</p>
             </div>
           </div>
 
           <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h3 itemprop="name" className="font-semibold">How is maintenance (alimony) calculated in India?</h3>
             <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">There's no fixed formula. Courts consider: (1) Earning capacity of both spouses, (2) Standard of living during marriage, (3) Age and health, (4) Contributions to marriage, (5) Responsibility for child care. Typically 20-40% of earning spouse's income for dependent spouse, plus child maintenance.</p>
+              <p itemprop="text" className="text-sm text-muted-foreground">There&apos;s no fixed formula. Courts consider: (1) Earning capacity of both spouses, (2) Standard of living during marriage, (3) Age and health, (4) Contributions to marriage, (5) Responsibility for child care. Typically 20-40% of earning spouse&apos;s income for dependent spouse, plus child maintenance.</p>
             </div>
           </div>
 
@@ -220,7 +220,7 @@ export default function FamilyLawPage() {
           <div itemscope itemprop="mainEntity" itemtype="https://schema.org/Question" className="space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h3 itemprop="name" className="font-semibold">What happens to shared property in divorce?</h3>
             <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-              <p itemprop="text" className="text-sm text-muted-foreground">Shared property is divided based on contribution and personal law applicable. In Hindu marriage: 50-50 split is common unless one spouse proves greater contribution. Islamic law: Wife gets dower and 1/8 or 1/4 of property. Modern courts ensure fair division reflecting both spouses' contributions to marriage.</p>
+              <p itemprop="text" className="text-sm text-muted-foreground">Shared property is divided based on contribution and personal law applicable. In Hindu marriage: 50-50 split is common unless one spouse proves greater contribution. Islamic law: Wife gets dower and 1/8 or 1/4 of property. Modern courts ensure fair division reflecting both spouses&apos; contributions to marriage.</p>
             </div>
           </div>
         </div>

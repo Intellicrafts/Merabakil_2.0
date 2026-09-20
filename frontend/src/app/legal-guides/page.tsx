@@ -102,7 +102,7 @@ export default function LegalGuidesPage() {
 
       <div className="mt-12 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-blue-50 to-indigo-50 px-6 py-8 dark:border-white/10 dark:from-blue-950/20 dark:to-indigo-950/20 sm:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="mb-3 text-xl font-semibold">Can't Find Your Answer?</h2>
+          <h2 className="mb-3 text-xl font-semibold">Can&apos;t Find Your Answer?</h2>
           <p className="mb-6 text-[14px] text-muted-foreground">
             Ask Saarthi AI any legal question. Get instant answers grounded in Indian law with citations to relevant acts and case law.
           </p>
