@@ -119,7 +119,18 @@
       "Bash(gh workflow *)",
       "Bash(env)",
       "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219)",
-      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"bash /opt/merabakil/repo/scripts/deploy.sh\")"
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"bash /opt/merabakil/repo/scripts/deploy.sh\")",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"ps aux | grep -E 'docker|deploy' | grep -v grep\")",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo && docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env ps\")",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cat ~/.docker/config.json 2>/dev/null | grep -o '\\\\\"[^\\\\\"]*merabakil[^\\\\\"]*\\\\\"' | head -5\")",
+      "Bash(curl -s \"https://api.github.com/repos/Intellicrafts/Merabakil_2.0\")",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"docker images | grep merabakil\")",
+      "Bash(curl -s \"https://api.github.com/repos/Intellicrafts/Merabakil_2.0/actions/runs?per_page=5\")",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"grep -i 'docker\\\\|hub' /opt/merabakil/.env 2>/dev/null || echo 'Not in .env'\")",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cat /opt/merabakil/.env 2>/dev/null | head -20 || echo 'Cannot read .env'\")",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"ps aux | grep -E 'docker|deploy' | grep -v grep | wc -l\")",
+      "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo && docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env ps | grep frontend\")",
+      "Bash(curl -s https://merabakil.in)"
     ],
     "additionalDirectories": [
       "/Users/aman/Projects/MeraVail-Aug-2026/backend/services/satyapan/.git"

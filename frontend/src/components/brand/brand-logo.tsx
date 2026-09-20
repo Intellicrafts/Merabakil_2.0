@@ -31,13 +31,13 @@ export function AppIcon({
   return (
     <>
       <img
-        src="/brand/normal_logo.svg"
+        src="/brand/logo-optimized-normal.svg"
         alt={alt}
         draggable={false}
         className={cn("dark:hidden shrink-0 object-contain", className)}
       />
       <img
-        src="/brand/dark_logo.svg"
+        src="/brand/logo-optimized-dark.svg"
         alt={alt}
         draggable={false}
         className={cn("hidden dark:block shrink-0 object-contain", className)}
