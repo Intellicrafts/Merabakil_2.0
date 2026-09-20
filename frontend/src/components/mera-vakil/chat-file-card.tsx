@@ -1,7 +1,8 @@
 "use client";
 
-import { FileSpreadsheet, FileText, FileType } from "lucide-react";
+import { FileImage, FileSpreadsheet, FileText, FileType } from "lucide-react";
 
+import { isImageFile } from "@/lib/composer-attachments";
 import { cn } from "@/lib/utils";
 
 export function formatFileSize(bytes: number): string {
@@ -10,7 +11,8 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function fileKind(name: string, contentType = ""): "pdf" | "word" | "sheet" | "text" {
+export function fileKind(name: string, contentType = ""): "pdf" | "word" | "sheet" | "text" | "image" {
+  if (isImageFile(name, contentType)) return "image";
   const lower = name.toLowerCase();
   if (lower.endsWith(".pdf") || contentType.includes("pdf")) return "pdf";
   if (lower.endsWith(".doc") || lower.endsWith(".docx") || contentType.includes("word")) return "word";
@@ -20,6 +22,7 @@ export function fileKind(name: string, contentType = ""): "pdf" | "word" | "shee
 
 function KindIcon({ kind }: { kind: ReturnType<typeof fileKind> }) {
   const cls = "h-4 w-4";
+  if (kind === "image") return <FileImage className={cn(cls, "text-violet-700 dark:text-violet-400")} />;
   if (kind === "pdf") return <FileText className={cn(cls, "text-red-700 dark:text-red-400")} />;
   if (kind === "word") return <FileType className={cn(cls, "text-sky-700 dark:text-sky-400")} />;
   if (kind === "sheet") return <FileSpreadsheet className={cn(cls, "text-emerald-700 dark:text-emerald-400")} />;
@@ -32,15 +35,26 @@ export function ChatFileCard({
   contentType,
   onOpen,
   tone = "light",
+  thumbnailUrl,
 }: {
   name: string;
   size?: number;
   contentType?: string;
   onOpen?: () => void;
   tone?: "light" | "onDark" | "user";
+  thumbnailUrl?: string;
 }) {
   const kind = fileKind(name, contentType);
-  const label = kind === "pdf" ? "PDF" : kind === "word" ? "Word" : kind === "sheet" ? "CSV" : "Text";
+  const label =
+    kind === "image"
+      ? "Image"
+      : kind === "pdf"
+        ? "PDF"
+        : kind === "word"
+          ? "Word"
+          : kind === "sheet"
+            ? "CSV"
+            : "Text";
   return (
     <button
       type="button"
@@ -56,7 +70,7 @@ export function ChatFileCard({
     >
       <span
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+          "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg",
           tone === "onDark"
             ? "bg-white/10"
             : tone === "user"
@@ -64,7 +78,12 @@ export function ChatFileCard({
               : "bg-amber-50 dark:bg-amber-950/40",
         )}
       >
-        <KindIcon kind={kind} />
+        {kind === "image" && thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <KindIcon kind={kind} />
+        )}
       </span>
       <span className="min-w-0">
         <span className="block truncate text-[12.5px] font-medium">{name}</span>

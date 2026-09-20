@@ -32,7 +32,15 @@ class DocumentTextClient:
             body = resp.json()
             title = body.get("title") or body.get("filename") or doc_id
             text = (body.get("text") or "").strip()
-            return (title, text) if text else None
+            if text:
+                return (title, text)
+            filename = (body.get("filename") or "").lower()
+            if filename.endswith((".jpg", ".jpeg", ".png", ".webp")):
+                return (
+                    title,
+                    "[Image uploaded — no extracted text available. Ask the user to describe the image or re-upload a clearer photo.]",
+                )
+            return None
         except Exception as exc:
             logger.warning("document_text_fetch_failed document_id=%s error=%s", doc_id, exc)
             return None

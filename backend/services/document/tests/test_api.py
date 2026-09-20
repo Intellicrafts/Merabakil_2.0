@@ -138,6 +138,17 @@ async def test_upload_rejects_oversized_file(client, access_token, monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_upload_accepts_image(client, access_token) -> None:
+    resp = await client.post(
+        "/api/v1/documents/upload",
+        data={"title": "Photo", "doc_type": "user_upload", "visibility": "private"},
+        files={"file": ("photo.jpg", b"\xff\xd8\xff", "image/jpeg")},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.asyncio
 async def test_upload_rejects_unsupported_type(client, access_token) -> None:
     resp = await client.post(
         "/api/v1/documents/upload",

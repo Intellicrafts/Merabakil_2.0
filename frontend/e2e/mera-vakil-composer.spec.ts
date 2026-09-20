@@ -254,16 +254,23 @@ test.describe("Mera Vakil composer", () => {
     expect(gumCalls).toBe(0);
   });
 
-  test("empty dock opens live voice, files stage and send", async ({ page }) => {
+  test("empty dock opens live voice, files upload immediately and send", async ({ page }) => {
     const captured = { query: "" };
+    let uploadCount = 0;
     await mockResearch(page, captured);
     await page.route("**/api/v1/documents/upload", async (route) => {
+      uploadCount += 1;
       await route.fulfill({
-        json: { document_id: "doc-e2e-1", title: "notes", status: "ready", filename: "notice.pdf" },
+        json: {
+          document_id: `doc-e2e-${uploadCount}`,
+          title: "notes",
+          status: "ready",
+          filename: uploadCount === 1 ? "notice.pdf" : "lease.txt",
+        },
       });
     });
     await page.route("**/api/v1/research/sessions/**/documents", async (route) => {
-      await route.fulfill({ json: { session_id: "s", document_ids: ["doc-e2e-1"] } });
+      await route.fulfill({ json: { session_id: "s", document_ids: ["doc-e2e-1", "doc-e2e-2"] } });
     });
 
     await loginCitizen(page);
@@ -274,15 +281,20 @@ test.describe("Mera Vakil composer", () => {
     await page.getByRole("button", { name: "Exit voice mode" }).click();
     await expect(page.getByRole("dialog", { name: "Voice mode" })).toHaveCount(0);
 
+    await page.getByRole("button", { name: "Attach documents" }).click();
+    await page.getByRole("button", { name: "Upload document" }).click();
     await page.locator('input[type="file"]').setInputFiles({
       name: "notice.pdf",
       mimeType: "application/pdf",
       buffer: Buffer.from("%PDF-1.4 test"),
     });
-    await expect(page.getByText("notice.pdf")).toBeVisible();
+    await expect(page.locator(".mv-input-dock").getByText("notice.pdf")).toHaveCount(1);
+    await expect(page.locator('[data-attachment-status="ready"]')).toHaveCount(1);
     await page.getByRole("button", { name: "Remove notice.pdf" }).click();
     await expect(page.getByText("notice.pdf")).toHaveCount(0);
 
+    await page.getByRole("button", { name: "Attach documents" }).click();
+    await page.getByRole("button", { name: "Upload document" }).click();
     await page.locator('input[type="file"]').setInputFiles([
       {
         name: "notice.pdf",
@@ -295,15 +307,51 @@ test.describe("Mera Vakil composer", () => {
         buffer: Buffer.from("lease terms"),
       },
     ]);
-    await expect(page.getByText("notice.pdf")).toBeVisible();
-    await expect(page.getByText("lease.txt")).toBeVisible();
+    await expect(page.locator(".mv-input-dock").getByText("notice.pdf")).toHaveCount(1);
+    await expect(page.locator(".mv-input-dock").getByText("lease.txt")).toHaveCount(1);
+    await expect(page.locator('[data-attachment-status="ready"]')).toHaveCount(2);
 
     await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.locator(".mv-input-dock").getByText("notice.pdf")).toHaveCount(0);
+    await expect(page.locator(".mv-input-dock").getByText("lease.txt")).toHaveCount(0);
+    const defaultDocQuery = "Please summarize and explain the key points in this document.";
     await expect(
-      page.getByLabel("Chat conversation").getByText("Review the attached documents."),
+      page.getByLabel("Chat conversation").getByText(defaultDocQuery),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: /^notice\.pdf/ })).toBeVisible();
-    await expect.poll(() => captured.query).toBe("Review the attached documents.");
+    await expect.poll(() => captured.query).toBe(defaultDocQuery);
+  });
+
+  test("image upload uses document default analysis prompt", async ({ page }) => {
+    const captured = { query: "" };
+    await mockResearch(page, captured);
+    await page.route("**/api/v1/documents/upload", async (route) => {
+      await route.fulfill({
+        json: { document_id: "doc-e2e-img", title: "scan", status: "ready", filename: "scan.jpg" },
+      });
+    });
+    await page.route("**/api/v1/research/sessions/**/documents", async (route) => {
+      await route.fulfill({ json: { session_id: "s", document_ids: ["doc-e2e-img"] } });
+    });
+
+    await loginCitizen(page);
+    await page.goto("/mera-vakil");
+
+    await page.getByRole("button", { name: "Attach documents" }).click();
+    await page.getByRole("button", { name: "Upload document" }).click();
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "scan.jpg",
+      mimeType: "image/jpeg",
+      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+    });
+    await expect(page.locator(".mv-input-dock").getByText("scan.jpg")).toHaveCount(1);
+    await expect(page.locator('[data-attachment-status="ready"]')).toHaveCount(1);
+    await page.getByRole("button", { name: "Send message" }).click();
+    await expect(page.locator(".mv-input-dock").getByText("scan.jpg")).toHaveCount(0);
+
+    const imageQuery =
+      "Please analyze this image and explain what it shows, including any visible text and legal relevance.";
+    await expect.poll(() => captured.query).toBe(imageQuery);
   });
 
   test("counsel rail is icon-led and mobile opens an accessible right-side drawer", async ({ page }) => {

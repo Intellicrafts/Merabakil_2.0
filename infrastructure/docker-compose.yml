@@ -196,6 +196,7 @@ services:
       <<: *backend-build
       args:
         SERVICE_PATH: services/document
+        WITH_OCR: "true"
     environment:
       PORT: "8005"
       INGESTION_SERVICE_URL: http://knowledge-ingestion:8002

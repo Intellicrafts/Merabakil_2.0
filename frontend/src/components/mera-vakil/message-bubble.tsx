@@ -5,7 +5,8 @@ import { Pencil, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
 import { AssistantSkeleton } from "@/components/mera-vakil/assistant-skeleton";
-import { ChatFileCard } from "@/components/mera-vakil/chat-file-card";
+import { ChatFileCard, fileKind } from "@/components/mera-vakil/chat-file-card";
+import { fetchDocumentFile } from "@/lib/api";
 import { SaarthiMark } from "@/components/mera-vakil/saarthi-mark";
 import { DocumentPreviewDialog, type PreviewTarget } from "@/components/mera-vakil/document-preview-dialog";
 import { AppointmentConfirmationCard } from "@/components/mera-vakil/appointment-confirmation-card";
@@ -37,6 +38,41 @@ interface MessageBubbleProps {
   caseId?: string | null;
   question?: string;
   streamingStatus?: string;
+}
+
+function UserAttachmentCard({
+  file,
+  onOpen,
+}: {
+  file: { id: string; name: string; size: number; contentType: string };
+  onOpen: () => void;
+}) {
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (fileKind(file.name, file.contentType) !== "image") return undefined;
+    let revoked: string | null = null;
+    void fetchDocumentFile(file.id)
+      .then((blob) => {
+        revoked = URL.createObjectURL(blob);
+        setThumbnailUrl(revoked);
+      })
+      .catch(() => undefined);
+    return () => {
+      if (revoked) URL.revokeObjectURL(revoked);
+    };
+  }, [file.contentType, file.id, file.name]);
+
+  return (
+    <ChatFileCard
+      name={file.name}
+      size={file.size}
+      contentType={file.contentType}
+      tone="user"
+      thumbnailUrl={thumbnailUrl}
+      onOpen={onOpen}
+    />
+  );
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -122,13 +158,7 @@ export const MessageBubble = memo(function MessageBubble({
             <ul className="flex flex-col items-end gap-1.5">
               {message.attachments.map((file) => (
                 <li key={file.id}>
-                  <ChatFileCard
-                    name={file.name}
-                    size={file.size}
-                    contentType={file.contentType}
-                    tone="user"
-                    onOpen={() => setPreview(file)}
-                  />
+                  <UserAttachmentCard file={file} onOpen={() => setPreview(file)} />
                 </li>
               ))}
             </ul>

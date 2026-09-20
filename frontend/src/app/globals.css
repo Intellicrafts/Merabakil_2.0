@@ -3203,6 +3203,104 @@
   }
 }
 
+.mv-attach-popover {
+  animation: mv-attach-popover-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: bottom left;
+}
+
+.mv-attach-popover::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: var(--mv-attach-caret-x, 22px);
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid rgba(0, 0, 0, 0.07);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 2px 2px 6px rgba(15, 23, 42, 0.06);
+  pointer-events: none;
+}
+
+.dark .mv-attach-popover::after {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(24, 24, 27, 0.95);
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes mv-attach-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.mv-doc-preview {
+  animation: mv-doc-preview-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (max-width: 639px) {
+  .mv-doc-preview {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mv-doc-preview-media {
+    max-height: min(48vh, 420px);
+  }
+
+  .mv-doc-preview-insight {
+    margin-top: -0.75rem;
+    position: relative;
+    z-index: 2;
+  }
+}
+
+@keyframes mv-doc-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  @keyframes mv-doc-preview-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+}
+
+.mv-attach-list {
+  scroll-snap-type: x proximity;
+}
+
+.mv-attach-chip {
+  scroll-snap-align: start;
+}
+
+.mv-voice-overlay {
+  background: var(--mv-voice-bg, #0c0a09);
+  --mv-voice-bg: #0c0a09;
+  --mv-voice-glow-idle: 120, 53, 15;
+  --mv-voice-glow-listen: 217, 119, 6;
+  --mv-voice-glow-think: 180, 83, 9;
+  --mv-voice-glow-speak: 245, 158, 11;
+}
+
 .mv-voice-note-dot {
   animation: mv-voice-note-pulse 1.4s ease-in-out infinite;
 }

@@ -18,31 +18,31 @@ interface VoiceModeOverlayProps {
   onBookLawyer?: (lawyer: LawyerMatchResult) => void;
 }
 
-// Blob gradient per state
+// Blob gradient per state — Saarthi amber brand palette
 const BLOB_BG: Record<VoiceBotState, string> = {
-  idle: "radial-gradient(circle at 35% 35%, #1e293b, #0f172a, #020617)",
+  idle: "radial-gradient(circle at 35% 35%, #292524, #1c1410, #0c0a09)",
   listening:
-    "radial-gradient(circle at 30% 30%, #a5b4fc, #818cf8 25%, #6366f1 50%, #3730a3 75%, #1e1b4b)",
+    "radial-gradient(circle at 30% 30%, #fef3c7, #fcd34d 25%, #f59e0b 50%, #b45309 75%, #451a03)",
   thinking:
-    "radial-gradient(circle at 40% 35%, #c4b5fd, #a78bfa 25%, #7c3aed 55%, #4c1d95 80%, #1e1b4b)",
+    "radial-gradient(circle at 40% 35%, #fde68a, #fbbf24 25%, #d97706 55%, #92400e 80%, #292524)",
   speaking:
-    "radial-gradient(circle at 30% 25%, #ddd6fe, #a5b4fc 20%, #818cf8 45%, #6366f1 65%, #1e1b4b)",
+    "radial-gradient(circle at 30% 25%, #fffbeb, #fde68a 20%, #f59e0b 45%, #92400e 65%, #1c1410)",
 };
 
 // Outer atmospheric halo gradient per state
 const HALO_GRADIENT: Record<VoiceBotState, string> = {
-  idle:      "radial-gradient(circle, rgba(30,27,75,0.12) 0%, transparent 65%)",
-  listening: "radial-gradient(circle, rgba(99,102,241,0.14) 0%, transparent 65%)",
-  thinking:  "radial-gradient(circle, rgba(124,58,237,0.14) 0%, transparent 65%)",
-  speaking:  "radial-gradient(circle, rgba(129,140,248,0.18) 0%, transparent 65%)",
+  idle:      "radial-gradient(circle, rgba(120,53,15,0.12) 0%, transparent 65%)",
+  listening: "radial-gradient(circle, rgba(217,119,6,0.14) 0%, transparent 65%)",
+  thinking:  "radial-gradient(circle, rgba(180,83,9,0.14) 0%, transparent 65%)",
+  speaking:  "radial-gradient(circle, rgba(245,158,11,0.18) 0%, transparent 65%)",
 };
 
 // RGB components for box-shadow glow (combined at render time with dynamic opacity)
 const BLOB_GLOW_RGB: Record<VoiceBotState, string> = {
-  idle:      "30,27,75",
-  listening: "99,102,241",
-  thinking:  "124,58,237",
-  speaking:  "129,140,248",
+  idle:      "120,53,15",
+  listening: "217,119,6",
+  thinking:  "180,83,9",
+  speaking:  "245,158,11",
 };
 
 // Translation key for each voice state label
@@ -117,7 +117,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-[#050508]"
+      className="mv-voice-overlay fixed inset-0 z-[100] flex flex-col"
       role="dialog"
       aria-modal="true"
       aria-label="Voice mode"
@@ -131,7 +131,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
           type="button"
           onClick={handleClose}
           aria-label={t("chat.exitVoiceMode")}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-white/25 transition-colors hover:bg-white/[0.08] hover:text-white/60"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-white/25 transition-colors hover:bg-amber-500/10 hover:text-amber-200/70"
         >
           <X className="h-4 w-4" />
         </button>
@@ -195,7 +195,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
           {/* Listening breathing ring */}
           {botState === "listening" && (
             <span
-              className="absolute rounded-full border border-indigo-400/25 voice-blob-breathe"
+              className="absolute rounded-full border border-amber-400/30 voice-blob-breathe"
               style={{ width: "210px", height: "210px" }}
             />
           )}
@@ -203,8 +203,8 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
           {/* Barge-in indicator: small pulsing mic dot shown during speaking */}
           {botState === "speaking" && (
             <span className="absolute bottom-6 right-6 flex h-5 w-5 items-center justify-center">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/20" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white/40" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400/25" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-300/50" />
             </span>
           )}
         </button>
@@ -226,9 +226,9 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
                 key={lawyer.id}
                 type="button"
                 onClick={() => onBookLawyer?.(lawyer)}
-                className="flex items-center gap-2.5 rounded-full bg-white/[0.08] px-3.5 py-2 ring-1 ring-white/[0.12] transition-all hover:bg-white/[0.15] hover:ring-white/[0.22] active:scale-[0.97]"
+                className="flex items-center gap-2.5 rounded-full bg-amber-950/30 px-3.5 py-2 ring-1 ring-amber-500/20 transition-all hover:bg-amber-900/35 hover:ring-amber-400/35 active:scale-[0.97]"
               >
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold text-white/80">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-800/40 text-[11px] font-semibold text-amber-100/90">
                   {lawyer.full_name.charAt(0)}
                 </div>
                 <div className="text-left">
@@ -239,7 +239,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
                     {lawyer.practice_areas[0] ?? "Advocate"}
                   </p>
                 </div>
-                <CalendarPlus className="ml-0.5 h-3 w-3 text-white/35" />
+                <CalendarPlus className="ml-0.5 h-3 w-3 text-amber-300/50" />
               </button>
             ))}
           </div>
@@ -269,7 +269,12 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
           type="button"
           onClick={handleClose}
           aria-label={t("chat.endVoiceSession")}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.08] text-white/40 ring-1 ring-white/10 transition-all hover:bg-white/[0.15] hover:text-white/70 hover:ring-white/20 active:scale-95"
+          className={cn(
+            "flex h-14 w-14 items-center justify-center rounded-full text-white",
+            "bg-gradient-to-b from-amber-800 to-amber-900",
+            "shadow-[0_4px_14px_rgba(120,53,15,0.35)] transition-all",
+            "hover:from-amber-900 hover:to-amber-950 active:scale-95",
+          )}
         >
           <X className="h-5 w-5" />
         </button>

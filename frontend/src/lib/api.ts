@@ -574,9 +574,10 @@ export async function uploadUserDocument(
   file: File,
   meta: { title: string; doc_type?: string },
   onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<UserDocument> {
   if (onProgress) {
-    return uploadUserDocumentWithProgress(file, meta, onProgress);
+    return uploadUserDocumentWithProgress(file, meta, onProgress, signal);
   }
   const form = new FormData();
   form.append("file", file);
@@ -595,6 +596,7 @@ export async function uploadUserDocumentWithProgress(
   file: File,
   meta: { title: string; doc_type?: string },
   onProgress: (percent: number) => void,
+  signal?: AbortSignal,
 ): Promise<UserDocument> {
   const token = getToken();
   if (!token) throw new Error("Not authenticated");
@@ -607,11 +609,31 @@ export async function uploadUserDocumentWithProgress(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${documentServiceUrl()}/api/v1/documents/upload`);
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
+    };
+
+    const onAbort = () => {
+      cleanup();
+      xhr.abort();
+      reject(new DOMException("Upload aborted", "AbortError"));
+    };
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return;
       onProgress(Math.min(95, Math.round((event.loaded / event.total) * 90)));
     };
     xhr.onload = () => {
+      cleanup();
       if (xhr.status >= 200 && xhr.status < 300) {
         onProgress(100);
         try {
@@ -628,7 +650,10 @@ export async function uploadUserDocumentWithProgress(
         reject(new Error(`Upload failed (${xhr.status})`));
       }
     };
-    xhr.onerror = () => reject(new Error("Could not reach the document service."));
+    xhr.onerror = () => {
+      cleanup();
+      reject(new Error("Could not reach the document service."));
+    };
     xhr.send(form);
   });
 }

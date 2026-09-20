@@ -34,7 +34,10 @@ from legalos_common.security.rbac import (
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
 VISIBILITY_CHOICES = frozenset({"private", "corpus"})
-ALLOWED_SUFFIXES = frozenset({".pdf", ".doc", ".docx", ".txt", ".csv", ".md"})
+ALLOWED_SUFFIXES = frozenset({
+    ".pdf", ".doc", ".docx", ".txt", ".csv", ".md",
+    ".jpg", ".jpeg", ".png", ".webp",
+})
 
 
 def _filename_from_key(storage_key: str | None) -> str | None:
@@ -51,7 +54,7 @@ def _validate_upload(filename: str | None, raw: bytes, max_bytes: int) -> None:
     suffix = PurePath(filename or "").suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise ValidationFailedError(
-            "Unsupported file type. Upload PDF, Word, text, CSV, or Markdown."
+            "Unsupported file type. Upload PDF, Word, text, CSV, Markdown, or image (JPEG/PNG/WebP)."
         )
 
 

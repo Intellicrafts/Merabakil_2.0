@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 
 import { DASHBOARD_HERO_LOTTIE_SRC } from "@/lib/dashboard-lottie";
 import { cn } from "@/lib/utils";
@@ -16,94 +16,100 @@ const DotLottieReact = dynamic(
   },
 );
 
-const MIN_CANVAS = 48;
+/** Fixed even pixel sizes — avoids DotLottie ImageData buffer mismatches from fluid layout. */
+const LOTTIE_SIZES = {
+  mobile: { width: 240, height: 136 },
+  tablet: { width: 280, height: 112 },
+  desktop: { width: 380, height: 220 },
+} as const;
 
-/** Snap to whole even px — avoids DotLottie ImageData buffer mismatches. */
-function snapCanvasSize(el: HTMLElement): { width: number; height: number } | null {
-  const rect = el.getBoundingClientRect();
-  let width = Math.floor(rect.width);
-  let height = Math.floor(rect.height);
-  if (width < MIN_CANVAS || height < MIN_CANVAS) return null;
-  if (width % 2 !== 0) width -= 1;
-  if (height % 2 !== 0) height -= 1;
-  return { width, height };
+type LottieTier = keyof typeof LOTTIE_SIZES;
+
+function readLottieTier(): LottieTier {
+  if (typeof window === "undefined") return "mobile";
+  if (window.matchMedia("(min-width: 1024px)").matches) return "desktop";
+  if (window.matchMedia("(min-width: 640px)").matches) return "tablet";
+  return "mobile";
+}
+
+function subscribeLottieTier(onChange: () => void): () => void {
+  const queries = [
+    window.matchMedia("(min-width: 640px)"),
+    window.matchMedia("(min-width: 1024px)"),
+  ];
+  const handler = () => onChange();
+  queries.forEach((q) => q.addEventListener("change", handler));
+  return () => queries.forEach((q) => q.removeEventListener("change", handler));
+}
+
+class LottieErrorBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (this.state.failed) return this.props.fallback;
+    return this.props.children;
+  }
+}
+
+function LottiePulse() {
+  return (
+    <div className="h-full w-full animate-pulse rounded-lg bg-black/[0.03] dark:bg-white/[0.04]" />
+  );
 }
 
 export function DashboardHeroVisual({ className }: { className?: string }) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const resizeTimerRef = useRef<number | null>(null);
-  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null);
+  const [tier, setTier] = useState<LottieTier>("mobile");
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setReduceMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    setTier(readLottieTier());
+    setMounted(true);
+    return subscribeLottieTier(() => setTier(readLottieTier()));
   }, []);
 
-  useEffect(() => {
-    const el = hostRef.current;
-    if (!el || reduceMotion) return undefined;
-
-    const sync = () => {
-      const next = snapCanvasSize(el);
-      setCanvasSize((prev) => {
-        if (!next) return null;
-        if (prev && prev.width === next.width && prev.height === next.height) return prev;
-        return next;
-      });
-    };
-
-    const scheduleSync = () => {
-      if (resizeTimerRef.current !== null) {
-        window.clearTimeout(resizeTimerRef.current);
-      }
-      resizeTimerRef.current = window.setTimeout(sync, 100);
-    };
-
-    scheduleSync();
-
-    const observer = new ResizeObserver(scheduleSync);
-    observer.observe(el);
-    return () => {
-      observer.disconnect();
-      if (resizeTimerRef.current !== null) {
-        window.clearTimeout(resizeTimerRef.current);
-      }
-    };
-  }, [reduceMotion]);
+  const canvasSize = LOTTIE_SIZES[tier];
+  const showLottie = mounted && !reduceMotion;
 
   return (
     <div
-      ref={hostRef}
       className={cn(
         "dash-hero-lottie relative mx-auto flex items-center justify-center",
         "h-[136px] w-[240px] sm:h-[112px] sm:w-[280px]",
-        "lg:h-[220px] lg:w-full lg:max-w-[380px]",
+        "lg:h-[220px] lg:w-[380px]",
         className,
       )}
       aria-hidden
     >
-      {canvasSize && !reduceMotion ? (
+      {showLottie ? (
         <div
           className="overflow-hidden"
           style={{ width: canvasSize.width, height: canvasSize.height }}
         >
-          <DotLottieReact
-            key={`${canvasSize.width}x${canvasSize.height}`}
-            src={DASHBOARD_HERO_LOTTIE_SRC}
-            loop
-            autoplay
-            width={canvasSize.width}
-            height={canvasSize.height}
-            renderConfig={{
-              autoResize: false,
-              devicePixelRatio: 1,
-              freezeOnOffscreen: true,
-            }}
-            layout={{ fit: "contain", align: [0.5, 0.5] }}
-          />
+          <LottieErrorBoundary fallback={<LottiePulse />}>
+            <DotLottieReact
+              key={`${canvasSize.width}x${canvasSize.height}`}
+              src={DASHBOARD_HERO_LOTTIE_SRC}
+              loop
+              autoplay
+              width={canvasSize.width}
+              height={canvasSize.height}
+              renderConfig={{
+                autoResize: false,
+                devicePixelRatio: 1,
+                freezeOnOffscreen: true,
+              }}
+              layout={{ fit: "contain", align: [0.5, 0.5] }}
+            />
+          </LottieErrorBoundary>
         </div>
       ) : (
-        <div className="h-full w-full animate-pulse rounded-lg bg-black/[0.03] dark:bg-white/[0.04]" />
+        <LottiePulse />
       )}
     </div>
   );

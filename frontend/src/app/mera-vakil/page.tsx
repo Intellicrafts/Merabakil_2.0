@@ -28,7 +28,11 @@ import {
   trackAiSessionCompleted,
 } from "@/lib/analytics";
 import { streamResearch, uploadUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
-import type { UploadProgress } from "@/components/mera-vakil/input-dock";
+import {
+  buildDefaultAttachmentQuery,
+  isImageFile,
+  type ComposerAttachment,
+} from "@/lib/composer-attachments";
 import { FEATURES } from "@/lib/features";
 import { consumeMeraVakilPrefill, consumeMeraVakilVoiceOpen } from "@/lib/prefill-store";
 import { loadSpeechLocale } from "@/lib/indian-locales";
@@ -83,9 +87,9 @@ export default function MeraVakilPage() {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState<string | undefined>();
   const [speechLocale, setSpeechLocale] = useState("en-IN");
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [composerAttachments, setComposerAttachments] = useState<ComposerAttachment[]>([]);
+  const uploadAbortRefs = useRef<Map<string, AbortController>>(new Map());
+  const pendingUploadFilesRef = useRef<Map<string, File>>(new Map());
   const [voiceModeOpen, setVoiceModeOpen] = useState(false);
   const [voiceBookingLawyer, setVoiceBookingLawyer] = useState<LawyerProfile | null>(null);
   const [voiceSupported] = useState(() => isVoiceBotSupported());
@@ -417,6 +421,7 @@ export default function MeraVakilPage() {
     setActiveConversation(conv);
     saveActiveConversationId(conv.id);
     setInput("");
+    clearComposerAttachments();
     setStreamingMessageId(null);
     setPendingStatus(undefined);
     setEditingMessageId(null);
@@ -496,6 +501,7 @@ export default function MeraVakilPage() {
       setActiveConversation(conv);
       saveActiveConversationId(conv.id);
       setInput("");
+      clearComposerAttachments();
       setStreamingMessageId(null);
       setPendingStatus(undefined);
       setEditingMessageId(null);
@@ -533,42 +539,102 @@ export default function MeraVakilPage() {
     }
   }
 
-  async function uploadOneDocument(file: File, targetSessionId: string | null): Promise<ChatAttachment> {
-    const startedAt = Date.now();
-    setUploadProgress({ fileName: file.name, percent: 8, stage: "uploading", startedAt });
-    const uploaded = await uploadUserDocument(
-      file,
-      {
-        title: file.name.replace(/\.[^.]+$/, "") || file.name,
-        doc_type: "user_upload",
-      },
-      (percent) =>
-        setUploadProgress({ fileName: file.name, percent: Math.min(90, percent), stage: "uploading", startedAt }),
-    );
-    setUploadProgress({ fileName: file.name, percent: 94, stage: "reading", startedAt });
-    const documentIdValue = uploaded.document_id;
-    const attachment: ChatAttachment = {
-      id: documentIdValue,
-      name: file.name,
-      size: file.size,
-      contentType: file.type || "application/octet-stream",
-    };
-
-    setActiveConversation((prev) => {
-      if (!prev) return prev;
-      const newDoc: AttachedDocument = {
-        id: documentIdValue,
-        name: file.name,
-        size: file.size,
-        contentType: file.type,
-      };
-      const already = prev.attachedDocuments?.some((d) => d.id === documentIdValue);
-      if (already) return prev;
-      const updated = { ...prev, attachedDocuments: [...(prev.attachedDocuments ?? []), newDoc] };
-      upsertConversation(updated);
-      return updated;
+  function clearComposerAttachments() {
+    setComposerAttachments((prev) => {
+      prev.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
     });
-    if (targetSessionId) {
+    pendingUploadFilesRef.current.clear();
+    uploadAbortRefs.current.forEach((ctrl) => ctrl.abort());
+    uploadAbortRefs.current.clear();
+  }
+
+  function ensureUploadConversation(): ChatConversation {
+    let conv = activeConversationRef.current;
+    if (!conv) {
+      conv = createConversation({ jurisdiction: jurisdiction || null, matterType: null });
+      setActiveConversation(conv);
+      saveActiveConversationId(conv.id);
+      upsertConversation(conv);
+      setConversations(loadConversations());
+    }
+    return conv;
+  }
+
+  async function uploadComposerFile(localId: string, file: File, targetSessionId: string) {
+    const abort = new AbortController();
+    uploadAbortRefs.current.set(localId, abort);
+    pendingUploadFilesRef.current.set(localId, file);
+
+    const previewUrl = isImageFile(file.name, file.type) ? URL.createObjectURL(file) : undefined;
+
+    setComposerAttachments((prev) => {
+      const existing = prev.find((item) => item.localId === localId);
+      if (existing) {
+        return prev.map((item) =>
+          item.localId === localId
+            ? { ...item, status: "uploading", percent: 8, error: undefined }
+            : item,
+        );
+      }
+      return [
+        ...prev,
+        {
+          localId,
+          fileName: file.name,
+          size: file.size,
+          contentType: file.type || "application/octet-stream",
+          previewUrl,
+          status: "uploading",
+          percent: 8,
+        },
+      ];
+    });
+
+    try {
+      const uploaded = await uploadUserDocument(
+        file,
+        {
+          title: file.name.replace(/\.[^.]+$/, "") || file.name,
+          doc_type: "user_upload",
+        },
+        (percent) => {
+          setComposerAttachments((prev) =>
+            prev.map((item) =>
+              item.localId === localId
+                ? { ...item, percent: Math.min(90, percent), status: "uploading" }
+                : item,
+            ),
+          );
+        },
+        abort.signal,
+      );
+
+      setComposerAttachments((prev) =>
+        prev.map((item) =>
+          item.localId === localId ? { ...item, percent: 94, status: "reading" } : item,
+        ),
+      );
+
+      const documentIdValue = uploaded.document_id;
+
+      setActiveConversation((prev) => {
+        if (!prev) return prev;
+        const newDoc: AttachedDocument = {
+          id: documentIdValue,
+          name: file.name,
+          size: file.size,
+          contentType: file.type,
+        };
+        const already = prev.attachedDocuments?.some((doc) => doc.id === documentIdValue);
+        if (already) return prev;
+        const updated = { ...prev, attachedDocuments: [...(prev.attachedDocuments ?? []), newDoc] };
+        upsertConversation(updated);
+        return updated;
+      });
+
       try {
         await attachDocumentToSession(targetSessionId, documentIdValue);
       } catch (err) {
@@ -578,62 +644,116 @@ export default function MeraVakilPage() {
           variant: "destructive",
         });
       }
-    }
 
-    const ready = uploaded.status === "ready" || uploaded.status === "indexed";
-    setUploadProgress({ fileName: file.name, percent: 100, stage: ready ? "ready" : "failed", startedAt });
-    track(AnalyticsEvents.SAARTHI_DOCUMENT_ATTACHED, {
-      file_type_category: file.type.split("/")[0] || "other",
-      file_size_bucket: bucketFileSize(file.size),
-      processing_status: ready ? "ready" : "pending",
-    });
-    toast({
-      title: ready ? "Document ready" : "Document uploaded",
-      description: ready
-        ? `"${file.name}" is in context for this conversation.`
-        : `"${file.name}" was stored. Questions can still use the extracted text when available.`,
-    });
-    return attachment;
+      const ready = uploaded.status === "ready" || uploaded.status === "indexed";
+      setComposerAttachments((prev) =>
+        prev.map((item) =>
+          item.localId === localId
+            ? {
+                ...item,
+                percent: 100,
+                status: "ready",
+                documentId: documentIdValue,
+                error: undefined,
+              }
+            : item,
+        ),
+      );
+
+      track(AnalyticsEvents.SAARTHI_DOCUMENT_ATTACHED, {
+        file_type_category: file.type.split("/")[0] || "other",
+        file_size_bucket: bucketFileSize(file.size),
+        processing_status: ready ? "ready" : "pending",
+      });
+
+    } catch (err) {
+      if ((err as DOMException).name === "AbortError") {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setComposerAttachments((prev) => prev.filter((item) => item.localId !== localId));
+        return;
+      }
+      setComposerAttachments((prev) =>
+        prev.map((item) =>
+          item.localId === localId
+            ? {
+                ...item,
+                status: "failed",
+                percent: 100,
+                error: err instanceof Error ? err.message : "Could not upload document",
+              }
+            : item,
+        ),
+      );
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Could not upload document",
+        variant: "destructive",
+      });
+    } finally {
+      uploadAbortRefs.current.delete(localId);
+    }
   }
 
-  async function handleComposerSend(text: string, files: File[]) {
-    if (isResearching) return;
-    const uploadedAttachments: ChatAttachment[] = [];
-    if (files.length > 0) {
-      // Ensure a conversation exists before uploading so docs can be attached to a real session ID.
-      // If the user uploads on a fresh page (no prior messages), we create the conversation now.
-      let uploadTargetConv = activeConversation;
-      if (!uploadTargetConv) {
-        uploadTargetConv = createConversation({ jurisdiction: jurisdiction || null, matterType: null });
-        setActiveConversation(uploadTargetConv);
-        saveActiveConversationId(uploadTargetConv.id);
-        upsertConversation(uploadTargetConv);
-        setConversations(loadConversations());
-      }
-      setIsUploading(true);
-      try {
-        for (const file of files) {
-          setUploadingFileName(file.name);
-          uploadedAttachments.push(await uploadOneDocument(file, uploadTargetConv.id));
-        }
-      } catch (err) {
-        setUploadProgress((prev) => (prev ? { ...prev, stage: "failed" } : prev));
-        toast({
-          title: "Upload failed",
-          description: err instanceof Error ? err.message : "Could not upload document",
-          variant: "destructive",
-        });
-        throw err;
-      } finally {
-        setIsUploading(false);
-        setUploadingFileName(null);
-        window.setTimeout(() => setUploadProgress(null), 900);
-      }
+  function handleFilesSelected(files: File[]) {
+    if (isResearching || files.length === 0) return;
+    const conv = ensureUploadConversation();
+    for (const file of files) {
+      const localId = crypto.randomUUID?.() ?? `file-${Date.now()}-${Math.random()}`;
+      void uploadComposerFile(localId, file, conv.id);
     }
-    const query =
-      text.trim().length >= 3 ? text.trim() : files.length > 0 ? "Review the attached documents." : "";
+  }
+
+  function handleRemoveComposerAttachment(localId: string) {
+    uploadAbortRefs.current.get(localId)?.abort();
+    uploadAbortRefs.current.delete(localId);
+    pendingUploadFilesRef.current.delete(localId);
+
+    let documentId: string | undefined;
+    let previewUrl: string | undefined;
+
+    setComposerAttachments((prev) => {
+      const item = prev.find((entry) => entry.localId === localId);
+      documentId = item?.documentId;
+      previewUrl = item?.previewUrl;
+      return prev.filter((entry) => entry.localId !== localId);
+    });
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (documentId && sessionIdRef.current) {
+      void detachDocumentFromSession(sessionIdRef.current, documentId).catch(() => undefined);
+      setActiveConversation((prev) => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          attachedDocuments: (prev.attachedDocuments ?? []).filter((doc) => doc.id !== documentId),
+        };
+        upsertConversation(updated);
+        return updated;
+      });
+    }
+  }
+
+  function handleRetryComposerAttachment(localId: string) {
+    const file = pendingUploadFilesRef.current.get(localId);
+    if (!file) return;
+    const conv = ensureUploadConversation();
+    void uploadComposerFile(localId, file, conv.id);
+  }
+
+  async function handleComposerSend(text: string) {
+    if (isResearching) return;
+    const ready = composerAttachments.filter((item) => item.status === "ready" && item.documentId);
+    const query = text.trim().length >= 3 ? text.trim() : buildDefaultAttachmentQuery(ready);
     if (query.length < 3) return;
-    await sendMessage(query, { attachments: uploadedAttachments });
+
+    const uploadedAttachments: ChatAttachment[] = ready.map((item) => ({
+      id: item.documentId!,
+      name: item.fileName,
+      size: item.size,
+      contentType: item.contentType,
+    }));
+
+    await sendMessage(query, { attachments: uploadedAttachments, clearComposerAttachments: true });
   }
 
   function handleStopGeneration() {
@@ -700,7 +820,11 @@ export default function MeraVakilPage() {
 
   async function sendMessage(
     queryText?: string,
-    options?: { editMessageId?: string; attachments?: ChatAttachment[] },
+    options?: {
+      editMessageId?: string;
+      attachments?: ChatAttachment[];
+      clearComposerAttachments?: boolean;
+    },
   ) {
     const query = (queryText ?? input).trim();
     if (query.length < 3 || isResearching) return;
@@ -747,6 +871,9 @@ export default function MeraVakilPage() {
     saveActiveConversationId(withUser.id);
     upsertConversation(withUser);
     setConversations(loadConversations());
+    if (options?.clearComposerAttachments) {
+      clearComposerAttachments();
+    }
     setInput("");
     setEditingMessageId(null);
     abortRef.current?.abort();
@@ -1153,23 +1280,14 @@ export default function MeraVakilPage() {
             value={input}
             onChange={setInput}
             onSend={handleComposerSend}
+            composerAttachments={composerAttachments}
+            onFilesSelected={handleFilesSelected}
+            onRemoveAttachment={handleRemoveComposerAttachment}
+            onRetryAttachment={handleRetryComposerAttachment}
             disabled={false}
             isPending={isResearching}
             isGenerating={isResearching}
             onStop={handleStopGeneration}
-            isUploading={isUploading}
-            uploadingFileName={uploadingFileName}
-            uploadProgress={uploadProgress}
-            attachedDocuments={activeConversation?.attachedDocuments ?? []}
-            onDetachDocument={(id) => {
-              setActiveConversation((prev) => {
-                if (!prev) return prev;
-                const updated = { ...prev, attachedDocuments: (prev.attachedDocuments ?? []).filter((d) => d.id !== id) };
-                upsertConversation(updated);
-                return updated;
-              });
-              if (sessionId) void detachDocumentFromSession(sessionId, id).catch(() => {});
-            }}
             onVoiceModeOpen={FEATURES.VOICE && voiceSupported ? () => setVoiceModeOpen(true) : undefined}
             onVoiceNoteError={(message) =>
               toast({ title: "Voice input", description: message, variant: "destructive" })

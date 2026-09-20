@@ -9,6 +9,77 @@ from app.infrastructure.extract import extract_document_text
 from legalos_common.clients.storage import LocalFileStorage
 
 
+def _fake_prepare_image(_data: bytes):
+    class FakeImg:
+        mode = "RGB"
+
+        def save(self, buf, format="JPEG", quality=90):  # noqa: ANN001, ARG002
+            buf.write(b"jpeg")
+
+    return FakeImg()
+
+
+def test_extract_image_returns_empty_when_all_methods_fail(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.infrastructure.extract as extract_mod
+
+    monkeypatch.setattr(extract_mod, "_prepare_image", _fake_prepare_image)
+    monkeypatch.setattr(extract_mod, "describe_image_with_gemini", lambda *args, **kwargs: "")
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type("M", (), {"image_to_string": staticmethod(lambda _img: "")})(),
+    )
+    text, pages = extract_document_text(
+        b"fake-image-bytes",
+        filename="scan.png",
+        content_type="image/png",
+    )
+    assert text == ""
+    assert pages == 1
+
+
+def test_extract_image_with_mocked_ocr(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.infrastructure.extract as extract_mod
+
+    monkeypatch.setattr(extract_mod, "_prepare_image", _fake_prepare_image)
+    monkeypatch.setattr(extract_mod, "describe_image_with_gemini", lambda *args, **kwargs: "")
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type("M", (), {"image_to_string": staticmethod(lambda _img: "Legal notice dated 2024")})(),
+    )
+    text, pages = extract_document_text(
+        b"fake-image-bytes",
+        filename="notice.jpg",
+        content_type="image/jpeg",
+    )
+    assert "Legal notice" in text
+    assert pages == 1
+
+
+def test_extract_image_uses_gemini_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.infrastructure.extract as extract_mod
+
+    monkeypatch.setattr(extract_mod, "_prepare_image", _fake_prepare_image)
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "pytesseract",
+        type("M", (), {"image_to_string": staticmethod(lambda _img: "")})(),
+    )
+    monkeypatch.setattr(
+        extract_mod,
+        "describe_image_with_gemini",
+        lambda *args, **kwargs: "Scanned rental agreement with Rs 50,000 deposit clause",
+    )
+    text, pages = extract_document_text(
+        b"fake-image-bytes",
+        filename="lease.jpg",
+        content_type="image/jpeg",
+    )
+    assert "rental agreement" in text
+    assert pages == 1
+
+
 def test_extract_plain_text() -> None:
     text, pages = extract_document_text(
         b"Security deposit is Rs 50,000.",
