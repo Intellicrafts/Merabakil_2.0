@@ -93,7 +93,7 @@ app.include_router(admin_router)
 
 from fastapi.staticfiles import StaticFiles
 
-_default_avatars = Path(__file__).resolve().parents[4] / "data" / "lawyer-avatars"
+_default_avatars = Path(__file__).resolve().parents[2] / "data" / "lawyer-avatars"
 _avatars_dir = Path(os.getenv("LAWYER_AVATARS_DIR", str(_default_avatars)))
 _avatars_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/lawyer-avatars", StaticFiles(directory=str(_avatars_dir)), name="lawyer-avatars")
