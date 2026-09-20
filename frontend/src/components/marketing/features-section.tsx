@@ -54,13 +54,13 @@ export function FeaturesSection() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-12 text-center">
           <p className="text-xs font-medium text-muted-foreground">
-            Services
+            The platform
           </p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">
-            The full legal journey, in one platform
+            Everything your matter needs — now and next
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-[13px] text-muted-foreground sm:text-base">
-            From understanding your rights and finding the right lawyer, to managing your case files and preparing for court — MeraVakil covers every step.
+            The guidance and matching you just saw are the start; MeraBakil grows with your matter.
           </p>
         </div>
 
@@ -112,8 +112,14 @@ export function TrustSection() {
   return (
     <section id="trust" className="px-4 py-16 md:px-6">
       <div className="mx-auto max-w-6xl">
-        <div className="grid gap-6 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-slate-50 to-white p-8 dark:border-white/10 dark:from-zinc-900 dark:to-zinc-950 md:grid-cols-3">
-          <div className="text-center md:text-left">
+        <div className="mb-8 text-center">
+          <p className="text-xs font-medium text-muted-foreground">Why MeraBakil</p>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">
+            Built to be trusted with your matter
+          </h2>
+        </div>
+        <div className="grid gap-6 rounded-2xl border border-black/[0.06] bg-gradient-to-br from-slate-50 to-white p-8 dark:border-white/10 dark:from-zinc-900 dark:to-zinc-950 sm:grid-cols-2 md:grid-cols-4">
+          <div className="text-center sm:text-left">
             <p className="text-xl font-semibold sm:text-2xl">1,250+</p>
             <p className="text-xs text-muted-foreground sm:text-sm">Indian laws and judgments indexed</p>
           </div>
@@ -121,9 +127,13 @@ export function TrustSection() {
             <p className="text-xl font-semibold sm:text-2xl">Every answer</p>
             <p className="text-xs text-muted-foreground sm:text-sm">cites its legal source — no guesswork</p>
           </div>
-          <div className="text-center md:text-right">
+          <div className="text-center">
             <p className="text-xl font-semibold sm:text-2xl">Your data</p>
             <p className="text-xs text-muted-foreground sm:text-sm">stays private — secure, role-controlled access</p>
+          </div>
+          <div className="text-center md:text-right">
+            <p className="text-xl font-semibold sm:text-2xl">Every advocate</p>
+            <p className="text-xs text-muted-foreground sm:text-sm">verified before they appear in a match</p>
           </div>
         </div>
       </div>

@@ -7,7 +7,7 @@ const ROLES = [
     title: "Citizens",
     scenario: "I received a legal notice. What do I do?",
     description:
-      "Understand your rights, get plain-language answers about your situation, and find verified lawyers for your matter — no legal background needed.",
+      "Ask Saarthi, understand your rights in plain language, and let Smart Matching connect you with verified advocates suited to your matter — no legal background needed.",
     gradient: "from-blue-600 to-blue-800",
   },
   {
@@ -15,7 +15,7 @@ const ROLES = [
     title: "Advocates",
     scenario: "I want quality clients relevant to my practice.",
     description:
-      "Receive curated client case opportunities matched to your practice area. Get a structured case brief before you accept — key facts, relevant statutes, and a document checklist — then research, draft, and advise with confidence.",
+      "Receive clients who have already been guided and briefed by AI — cases that are structured, documented, and matched to your practice area. Focus on advocacy, not intake.",
     gradient: "from-slate-600 to-slate-800",
   },
   // Not available at beta launch:
@@ -46,11 +46,11 @@ export function RolesSection() {
             Who it&apos;s for
           </p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-3xl">
-            Built for every legal situation
+            One platform, two sides of the matter
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-[13px] text-muted-foreground sm:text-base">
-            Whether you&apos;re a citizen facing a dispute or an advocate building your practice —
-            MeraBakil gives you the right tools for your role.
+            You just saw the citizen&apos;s path. Advocates get the mirror image — qualified,
+            well-briefed clients, ready to engage.
           </p>
         </div>
 

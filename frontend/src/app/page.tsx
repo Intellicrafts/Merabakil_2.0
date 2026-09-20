@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+import { ClosingCtaSection } from "@/components/marketing/closing-cta-section";
 import { FeaturesSection, TrustSection } from "@/components/marketing/features-section";
 import { FooterSection } from "@/components/marketing/footer-section";
 import { HeroSection } from "@/components/marketing/hero-section";
@@ -12,10 +13,10 @@ import { RolesSection } from "@/components/marketing/roles-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getToken } from "@/lib/api";
 
-const MeraVakilSpotlight = dynamic(
+const HowItWorksSection = dynamic(
   () =>
-    import("@/components/marketing/mera-vakil-spotlight").then((m) => ({
-      default: m.MeraVakilSpotlight,
+    import("@/components/marketing/how-it-works-section").then((m) => ({
+      default: m.HowItWorksSection,
     })),
   {
     loading: () => <Skeleton className="mx-auto h-96 max-w-6xl rounded-3xl" />,
@@ -34,10 +35,11 @@ export default function LandingPage() {
   return (
     <MarketingShell>
       <HeroSection />
-      <MeraVakilSpotlight />
+      <HowItWorksSection />
       <RolesSection />
       <FeaturesSection />
       <TrustSection />
+      <ClosingCtaSection />
       <FooterSection />
     </MarketingShell>
   );

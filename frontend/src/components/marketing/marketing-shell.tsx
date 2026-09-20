@@ -12,7 +12,7 @@ import { initTheme, toggleTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "#mera-vakil", label: "How it works" },
+  { href: "#how-it-works", label: "How it works" },
   { href: "#roles", label: "Who it's for" },
   { href: "#features", label: "Services" },
   { href: "#trust", label: "Why MeraBakil" },
