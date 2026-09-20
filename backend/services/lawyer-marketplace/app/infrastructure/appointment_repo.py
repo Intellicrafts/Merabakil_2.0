@@ -73,6 +73,27 @@ class MarketplaceRepository:
         stmt = select(Lawyer).where(Lawyer.id.in_(lawyer_ids))
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def get_user_avatar_urls(
+        self, user_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, str]:
+        """Map user_id -> avatar_url from the shared auth `users` table.
+
+        Used to bridge a Google/OAuth profile photo (stored on the user by the
+        auth service) into the marketplace lawyer response when the advocate has
+        not uploaded a dedicated `lawyers.photo_url`.
+        """
+        if not user_ids:
+            return {}
+        from sqlalchemy import text
+        rows = await self._session.execute(
+            text(
+                "SELECT id, avatar_url FROM users "
+                "WHERE id = ANY(:ids) AND avatar_url IS NOT NULL"
+            ),
+            {"ids": user_ids},
+        )
+        return {row[0]: row[1] for row in rows}
+
     async def get_lawyer_by_slug(self, slug: str) -> Lawyer | None:
         result = await self._session.execute(select(Lawyer).where(Lawyer.slug == slug))
         return result.scalar_one_or_none()

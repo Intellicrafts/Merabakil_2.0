@@ -189,7 +189,13 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
-def _lawyer_public(lawyer: Lawyer, *, match_score: int = 0, recommended: bool = False) -> LawyerPublic:
+def _lawyer_public(
+    lawyer: Lawyer,
+    *,
+    match_score: int = 0,
+    recommended: bool = False,
+    photo_url: str | None = None,
+) -> LawyerPublic:
     return LawyerPublic(
         id=str(lawyer.id),
         slug=lawyer.slug,
@@ -213,8 +219,34 @@ def _lawyer_public(lawyer: Lawyer, *, match_score: int = 0, recommended: bool = 
         ai_recommended=recommended,
         verification_data=getattr(lawyer, "verification_data", None),
         verified_at=_iso(getattr(lawyer, "verified_at", None)),
-        photo_url=getattr(lawyer, "photo_url", None),
+        # Prefer the advocate's uploaded photo; else fall back to the bridged
+        # user avatar (e.g. Google OAuth profile picture) resolved by the caller.
+        photo_url=getattr(lawyer, "photo_url", None) or photo_url,
     )
+
+
+async def _serialize_lawyers(
+    repo: "MarketplaceRepository",
+    items: list[tuple[Lawyer, int, bool]],
+) -> list[LawyerPublic]:
+    """Serialize lawyers, bridging `users.avatar_url` for those without a
+    dedicated `lawyers.photo_url` so Google/OAuth advocates still show a photo.
+    """
+    missing_user_ids = [
+        lawyer.user_id
+        for lawyer, _, _ in items
+        if not getattr(lawyer, "photo_url", None) and lawyer.user_id is not None
+    ]
+    avatars = await repo.get_user_avatar_urls(missing_user_ids)
+    return [
+        _lawyer_public(
+            lawyer,
+            match_score=score,
+            recommended=recommended,
+            photo_url=avatars.get(lawyer.user_id),
+        )
+        for lawyer, score, recommended in items
+    ]
 
 
 def _role_for(user: CurrentUser, row: Consultation) -> str:
@@ -650,10 +682,10 @@ async def list_lawyers(
     ]
     scored.sort(key=lambda item: item[1], reverse=True)
     top = {scored[i][0].id for i in range(min(3, len(scored))) if scored[i][1] >= 78}
-    return [
-        _lawyer_public(lawyer, match_score=score, recommended=lawyer.id in top)
-        for lawyer, score in scored
-    ]
+    return await _serialize_lawyers(
+        repo,
+        [(lawyer, score, lawyer.id in top) for lawyer, score in scored],
+    )
 
 
 async def _require_advocate(user: CurrentUser) -> None:
@@ -804,7 +836,8 @@ async def get_lawyer(
     lawyer = await repo.get_lawyer(lawyer_id)
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer not found")
-    return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
+    [public] = await _serialize_lawyers(repo, [(lawyer, score_lawyer(lawyer), False)])
+    return public
 
 
 @lawyers_router.post("/match", response_model=list[LawyerPublic])
@@ -833,7 +866,9 @@ async def match_lawyers(
                     ordered.append(lawyer)
             if ordered:
                 logger.info("match_lawyers source=qdrant count=%d query=%r", len(ordered), query)
-                return [_lawyer_public(l, match_score=100, recommended=True) for l in ordered]
+                return await _serialize_lawyers(
+                    repo, [(l, 100, True) for l in ordered]
+                )
 
     # Fallback: score and rank from SQL
     logger.info("match_lawyers source=sql practice_areas=%s", body.practice_areas)
@@ -843,7 +878,9 @@ async def match_lawyers(
         for lawyer in lawyers
     ]
     ranked.sort(key=lambda item: item[1], reverse=True)
-    return [_lawyer_public(lawyer, match_score=score, recommended=True) for lawyer, score in ranked[: body.limit]]
+    return await _serialize_lawyers(
+        repo, [(lawyer, score, True) for lawyer, score in ranked[: body.limit]]
+    )
 
 
 @appointments_router.post("", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)

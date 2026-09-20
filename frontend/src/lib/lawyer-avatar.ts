@@ -11,13 +11,12 @@ export function resolveLawyerPhotoSrc(lawyer: {
   slug?: string | null;
   photo_url?: string | null;
 }): string {
-  const key = lawyer.slug || lawyer.id;
-  if (!key) {
-    const remote = lawyer.photo_url?.trim();
-    if (remote && isValidAvatarUrl(remote)) return remote;
-    return DEFAULT_LAWYER_AVATAR;
-  }
-  return lawyerAvatarSrc(key);
+  // Prefer a real uploaded/Google photo, then the bundled slug avatar
+  // (seeded demo lawyers `lw-00x`), then the default placeholder.
+  const remote = lawyer.photo_url?.trim();
+  if (remote && isValidAvatarUrl(remote)) return remote;
+  if (lawyer.slug) return lawyerAvatarSrc(lawyer.slug);
+  return DEFAULT_LAWYER_AVATAR;
 }
 
 function isValidAvatarUrl(url: string): boolean {
