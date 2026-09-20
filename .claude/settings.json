@@ -114,7 +114,8 @@
       "Bash(curl -s -I http://localhost:3000/brand/favicon_normal.svg)",
       "Bash(pkill -f \"next dev\")",
       "mcp__claude_ai_Claude_Docs__batch",
-      "mcp__claude_ai_Claude_Docs__guide"
+      "mcp__claude_ai_Claude_Docs__guide",
+      "Bash(git rebase *)"
     ],
     "additionalDirectories": [
       "/Users/aman/Projects/MeraVail-Aug-2026/backend/services/satyapan/.git"
