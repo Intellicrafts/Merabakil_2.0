@@ -19,6 +19,7 @@ export function FooterSection() {
           <div className="flex flex-col items-center gap-3 md:items-end">
             <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-[13px] text-muted-foreground md:justify-end">
               <Link href="/mera-vakil" className="hover:text-foreground">Saarthi</Link>
+              <Link href="/legal-guides" className="hover:text-foreground">Legal Guides</Link>
               <Link href="/faq" className="hover:text-foreground">FAQ</Link>
               <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
               <Link href="/terms" className="hover:text-foreground">Terms</Link>

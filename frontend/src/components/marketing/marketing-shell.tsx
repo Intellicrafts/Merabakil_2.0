@@ -16,6 +16,7 @@ const NAV_LINKS = [
   { href: "#roles", label: "Who it's for" },
   { href: "#features", label: "Services" },
   { href: "#trust", label: "Why MeraBakil" },
+  { href: "/legal-guides", label: "Legal Guides" },
   { href: "/faq", label: "FAQ" },
 ];
 
