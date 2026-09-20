@@ -169,8 +169,8 @@ export default function LabourLawPage() {
         <h3 className="text-lg font-semibold mt-6">Severance & Notice Pay</h3>
         <ul className="list-inside space-y-2">
           <li className="text-sm"><strong>Notice Period:</strong> 30 days minimum for most employees; can vary by contract</li>
-          <li className="text-sm"><strong>Notice Pay:</strong> One month's wages if not serving notice period</li>
-          <li className="text-sm"><strong>Retrenchment Compensation:</strong> 45 days' average wages for each year of service (minimum)</li>
+          <li className="text-sm"><strong>Notice Pay:</strong> One month&apos;s wages if not serving notice period</li>
+          <li className="text-sm"><strong>Retrenchment Compensation:</strong> 45 days&apos; average wages for each year of service (minimum)</li>
           <li className="text-sm"><strong>Pro-rata Gratuity:</strong> Gratuity for service less than 5 years if company has 50+ employees</li>
         </ul>
 
@@ -248,7 +248,7 @@ export default function LabourLawPage() {
           <li className="text-sm"><strong>Compensation:</strong> Monetary award for damages caused</li>
           <li className="text-sm"><strong>Promotion:</strong> If wrongfully denied</li>
           <li className="text-sm"><strong>Payment of Dues:</strong> Pending wages, gratuity, benefits</li>
-          <li className="text-sm"><strong>Declaration:</strong> Court order declaring employee's right</li>
+          <li className="text-sm"><strong>Declaration:</strong> Court order declaring employee&apos;s right</li>
         </ul>
       </section>
 
