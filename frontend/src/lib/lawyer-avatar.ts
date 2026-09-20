@@ -11,11 +11,21 @@ export function resolveLawyerPhotoSrc(lawyer: {
   slug?: string | null;
   photo_url?: string | null;
 }): string {
-  const remote = lawyer.photo_url?.trim();
-  if (remote) return remote;
   const key = lawyer.slug || lawyer.id;
-  if (!key) return DEFAULT_LAWYER_AVATAR;
+  if (!key) {
+    const remote = lawyer.photo_url?.trim();
+    if (remote && isValidAvatarUrl(remote)) return remote;
+    return DEFAULT_LAWYER_AVATAR;
+  }
   return lawyerAvatarSrc(key);
+}
+
+function isValidAvatarUrl(url: string): boolean {
+  // Only allow URLs that start with http/https and are not Minio internal URLs
+  if (!url.startsWith("http")) return false;
+  // Skip Minio/S3 internal URLs that won't be accessible from browser
+  if (url.includes("minio") || url.includes("localhost")) return false;
+  return true;
 }
 
 export function counselAvatarKey(lawyer: { id: string; slug?: string | null }): string {
