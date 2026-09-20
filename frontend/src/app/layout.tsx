@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { rootMetadata } from "@/lib/site-metadata";
+import { getOrganizationSchema } from "@/lib/schema-markup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const THEME_BOOT = `(function(){try{var s=localStorage.getItem("legalos.theme");var dark=s==="dark"||(s!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",dark);var l=document.getElementById("mb-favicon-svg")||document.createElement("link");l.id="mb-favicon-svg";l.rel="icon";l.type="image/svg+xml";l.href="/brand/favicon_"+(dark?"dark":"normal")+".svg?v=circ3";if(!l.parentNode)document.head.appendChild(l);}catch(e){}})();`;
+const THEME_BOOT = `(function(){try{var s=localStorage.getItem("legalos.theme");var dark=s==="dark"||(s!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",dark);var l=document.getElementById("mb-favicon-svg")||document.createElement("link");l.id="mb-favicon-svg";l.rel="icon";l.type="image/svg+xml";l.href="/brand/logo-optimized-"+(dark?"dark":"normal")+".svg?v=circ3";if(!l.parentNode)document.head.appendChild(l);}catch(e){}})();`;
 
 export const metadata = rootMetadata;
 
@@ -32,6 +33,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(getOrganizationSchema()),
+          }}
+        />
       </head>
       <body>
         <a

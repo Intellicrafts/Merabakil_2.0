@@ -130,10 +130,17 @@
       "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cat /opt/merabakil/.env 2>/dev/null | head -20 || echo 'Cannot read .env'\")",
       "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"ps aux | grep -E 'docker|deploy' | grep -v grep | wc -l\")",
       "Bash(ssh -i /Users/aman/.ssh/merabakil_gce ubuntu@8.231.69.219 \"cd /opt/merabakil/repo && docker compose -f infrastructure/docker-compose.prod.yml --env-file infrastructure/.env ps | grep frontend\")",
-      "Bash(curl -s https://merabakil.in)"
+      "Bash(curl -s https://merabakil.in)",
+      "Bash(sed -i.bak '392s/disabled/disabled\\\\n            onClick={\\(\\) => track\\(AnalyticsEvents.WALLET_RECHARGE_CLICKED\\)}/' \"/Users/aman/Projects/MeraVail-Aug-2026/frontend/src/app/\\(protected\\)/wallet/page.tsx\")",
+      "Bash(sed -i '' '406s/disabled/disabled\\\\n            onClick={\\(\\) => track\\(AnalyticsEvents.WALLET_WITHDRAW_CLICKED\\)}/' \"/Users/aman/Projects/MeraVail-Aug-2026/frontend/src/app/\\(protected\\)/wallet/page.tsx\")",
+      "Bash(mkdir -p ~/.agents/skills/seo-optimizer)",
+      "Bash(curl -fsSL \"https://raw.githubusercontent.com/davila7/claude-code-templates/main/cli-tool/components/skills/business-marketing/seo-optimizer/SKILL.md\" -o ~/.agents/skills/seo-optimizer/SKILL.md)",
+      "Bash(ln -s ~/.agents/skills/seo-optimizer ~/.claude/skills/seo-optimizer)",
+      "WebFetch(domain:merabakil.in)"
     ],
     "additionalDirectories": [
-      "/Users/aman/Projects/MeraVail-Aug-2026/backend/services/satyapan/.git"
+      "/Users/aman/Projects/MeraVail-Aug-2026/backend/services/satyapan/.git",
+      "/Users/aman/.agents/skills/seo-optimizer"
     ]
   }
 }

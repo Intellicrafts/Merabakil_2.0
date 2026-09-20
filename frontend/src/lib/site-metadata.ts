@@ -87,12 +87,12 @@ export const rootMetadata: Metadata = {
   icons: {
     icon: [
       {
-        url: "/brand/favicon_normal.svg?v=circ3",
+        url: "/brand/logo-optimized-normal.svg?v=circ3",
         type: "image/svg+xml",
         media: "(prefers-color-scheme: light)",
       },
       {
-        url: "/brand/favicon_dark.svg?v=circ3",
+        url: "/brand/logo-optimized-dark.svg?v=circ3",
         type: "image/svg+xml",
         media: "(prefers-color-scheme: dark)",
       },

@@ -1,6 +1,7 @@
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
 import { loadLegalMarkdown } from "@/lib/legal-content";
 import { pageMetadata } from "@/lib/site-metadata";
+import { getFAQPageSchema } from "@/lib/schema-markup";
 
 export const metadata = pageMetadata({
   title: "FAQ",
@@ -9,5 +10,15 @@ export const metadata = pageMetadata({
 });
 
 export default function FaqPage() {
-  return <LegalPageShell markdown={loadLegalMarkdown("faq.md")} />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(getFAQPageSchema()),
+        }}
+      />
+      <LegalPageShell markdown={loadLegalMarkdown("faq.md")} />
+    </>
+  );
 }
