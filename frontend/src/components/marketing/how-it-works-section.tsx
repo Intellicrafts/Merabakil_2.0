@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, BadgeCheck, CalendarCheck, MessageSquare, Scale, ShieldCheck, Video } from "lucide-react";
+import { ArrowRight, FileText, MessageSquare, Mic, Scale, ShieldCheck, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,7 +56,7 @@ const TABS = [
     label: "Consult",
     icon: Video,
     heading: "Consult with confidence",
-    body: "Book a timed session and meet your matched advocate in a secure built-in video room. Clear advice, on your schedule — no third-party app needed.",
+    body: "Your matched advocate joins you in a dedicated consultation room — chat, voice, and video in one secure space. Share documents, send voice notes, and get clear advice without leaving the platform.",
     ctaLabel: "Get started free",
     ctaHref: "/register",
     ctaEvent: "how_it_works_consult",
@@ -66,24 +66,24 @@ const TABS = [
 
 const CONSULT_FEATURES = [
   {
-    icon: Video,
-    title: "Secure video room",
-    desc: "Built in to the platform — meet right here, no extra app needed.",
+    icon: MessageSquare,
+    title: "Chat, voice & video",
+    desc: "Text chat, audio call, and video call — all in one room, switch anytime.",
   },
   {
-    icon: CalendarCheck,
-    title: "Timed sessions",
-    desc: "30 or 60 minutes, on a schedule that works for you.",
+    icon: FileText,
+    title: "Share documents",
+    desc: "Upload PDFs, Word files, and images directly in the consultation.",
+  },
+  {
+    icon: Mic,
+    title: "Voice notes",
+    desc: "Record and send voice notes up to 2 minutes — useful when typing isn't enough.",
   },
   {
     icon: ShieldCheck,
-    title: "Private conversation",
-    desc: "Your case details stay between you and your advocate.",
-  },
-  {
-    icon: BadgeCheck,
-    title: "Verified advocate",
-    desc: "The same advocate Smart Matching selected for your matter.",
+    title: "Secure & moderated",
+    desc: "Role-controlled access, session oversight, and an emergency help system built in.",
   },
 ];
 
