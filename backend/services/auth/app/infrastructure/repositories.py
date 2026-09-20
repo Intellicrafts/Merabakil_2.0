@@ -62,24 +62,32 @@ class SqlAlchemyUserRepository:
         user.roles = roles
         await self._session.flush()
 
-    async def create_role_profile(self, user: User, role_name: str) -> None:
-        """Create the mandatory one-to-one profile for a self-service role."""
+    async def create_role_profile(self, user: User, role_name: str) -> CitizenProfile | None:
+        """Create the mandatory one-to-one profile for a self-service role.
+
+        Returns the CitizenProfile when role_name is 'citizen', None otherwise.
+        """
         if role_name == "citizen":
-            existing = await self._session.execute(
+            result = await self._session.execute(
                 select(CitizenProfile).where(CitizenProfile.user_id == user.id)
             )
-            if existing.scalar_one_or_none() is not None:
-                return
+            existing = result.scalar_one_or_none()
+            if existing is not None:
+                return existing
+            profile = CitizenProfile(user_id=user.id)
+            self._session.add(profile)
+            await self._session.flush()
+            return profile
         profiles = {
-            "citizen": CitizenProfile(user_id=user.id),
             "advocate": AdvocateProfile(user_id=user.id, full_name=user.full_name),
             "law_firm": LawFirmProfile(user_id=user.id, firm_name=user.full_name),
             "enterprise": EnterpriseProfile(user_id=user.id, organization_name=user.full_name),
         }
-        profile = profiles.get(role_name)
-        if profile is not None:
-            self._session.add(profile)
+        p = profiles.get(role_name)
+        if p is not None:
+            self._session.add(p)
             await self._session.flush()
+        return None
 
     async def update_password(self, user: User, hashed_password: str) -> None:
         user.hashed_password = hashed_password

@@ -482,10 +482,10 @@ class AuthService:
             raise UnauthorizedError("Citizen profile is only available for citizen accounts")
         row = await self._users.get_citizen_profile(user_id)
         if row is None:
-            await self._users.create_role_profile(user, "citizen")
-            row = await self._users.get_citizen_profile(user_id)
-        if row is None:
-            raise NotFoundError("Citizen profile not found")
+            profile = await self._users.create_role_profile(user, "citizen")
+            if profile is None:
+                raise NotFoundError("Citizen profile not found")
+            row = (user, profile)
         return row
 
     async def get_citizen_profile(self, user_id: uuid.UUID) -> CitizenProfileResult:
