@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, MessageSquare, Scale, Video } from "lucide-react";
+import { ArrowRight, BadgeCheck, CalendarCheck, MessageSquare, Scale, ShieldCheck, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,6 +50,41 @@ const TABS = [
     ctaEvent: "how_it_works_matching",
     handoff: "Your matched advocate joins you in a secure built-in consultation room.",
   },
+  {
+    id: "consult",
+    num: "03",
+    label: "Consult",
+    icon: Video,
+    heading: "Consult with confidence",
+    body: "Book a timed session and meet your matched advocate in a secure built-in video room. Clear advice, on your schedule — no third-party app needed.",
+    ctaLabel: "Get started free",
+    ctaHref: "/register",
+    ctaEvent: "how_it_works_consult",
+    handoff: null,
+  },
+];
+
+const CONSULT_FEATURES = [
+  {
+    icon: Video,
+    title: "Secure video room",
+    desc: "Built in to the platform — meet right here, no extra app needed.",
+  },
+  {
+    icon: CalendarCheck,
+    title: "Timed sessions",
+    desc: "30 or 60 minutes, on a schedule that works for you.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Private conversation",
+    desc: "Your case details stay between you and your advocate.",
+  },
+  {
+    icon: BadgeCheck,
+    title: "Verified advocate",
+    desc: "The same advocate Smart Matching selected for your matter.",
+  },
 ];
 
 export function HowItWorksSection() {
@@ -90,66 +125,54 @@ export function HowItWorksSection() {
           </p>
         </div>
 
-        {/* Step rail — also the tablist */}
-        <div
-          className="mb-10 flex items-center justify-center"
-          role="tablist"
-          aria-label="How MeraBakil works"
-        >
-          {TABS.map((t, i) => {
-            const Icon = t.icon;
-            const isActive = i === active;
-            return (
-              <div key={t.id} className="flex items-center">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-controls={`hiw-panel-${t.id}`}
-                  id={`hiw-tab-${t.id}`}
-                  onClick={() => setActive(i)}
-                  className={cn(
-                    "relative flex flex-col items-center gap-2 rounded-xl px-3 py-2.5 transition-all duration-200 sm:px-4",
-                    isActive ? "opacity-100" : "opacity-45 hover:opacity-70",
-                  )}
-                >
-                  {isActive && (
-                    <span
-                      className="showcase-tab-active absolute inset-0 rounded-xl"
-                      aria-hidden
-                    />
-                  )}
-                  <div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-black/[0.07] bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
-                    <Icon
-                      className="h-[18px] w-[18px] text-slate-600 dark:text-slate-300"
-                      strokeWidth={1.75}
-                    />
-                  </div>
-                  <div className="relative text-center">
-                    <p className="text-[10px] tabular-nums text-muted-foreground">{t.num}</p>
-                    <p className="text-[12px] font-semibold sm:text-[13px]">{t.label}</p>
-                  </div>
-                </button>
-                <div className="mx-1 h-px w-8 shrink-0 bg-black/[0.08] dark:bg-white/10 sm:mx-2 sm:w-12" />
-              </div>
-            );
-          })}
-
-          {/* Step 03 — Consult (destination marker, non-interactive) */}
+        {/* Step rail — horizontally scrollable on mobile so all 3 steps are always visible */}
+        <div className="-mx-4 mb-10 overflow-x-auto md:mx-0">
           <div
-            className="flex flex-col items-center gap-2 px-3 py-2.5 opacity-35 sm:px-4"
-            aria-hidden
+            className="flex min-w-max items-center justify-center px-4 md:px-0"
+            role="tablist"
+            aria-label="How MeraBakil works"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-dashed border-black/[0.10] dark:border-white/[0.12]">
-              <Video
-                className="h-[18px] w-[18px] text-slate-500"
-                strokeWidth={1.75}
-              />
-            </div>
-            <div className="text-center">
-              <p className="text-[10px] tabular-nums text-muted-foreground">03</p>
-              <p className="text-[12px] font-semibold sm:text-[13px]">Consult</p>
-            </div>
+            {TABS.map((t, i) => {
+              const Icon = t.icon;
+              const isActive = i === active;
+              return (
+                <div key={t.id} className="flex items-center">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-controls={`hiw-panel-${t.id}`}
+                    id={`hiw-tab-${t.id}`}
+                    onClick={() => setActive(i)}
+                    className={cn(
+                      "relative flex flex-col items-center gap-2 rounded-xl px-3 py-2.5 transition-all duration-200 sm:px-4",
+                      isActive ? "opacity-100" : "opacity-45 hover:opacity-70",
+                    )}
+                  >
+                    {isActive && (
+                      <span
+                        className="showcase-tab-active absolute inset-0 rounded-xl"
+                        aria-hidden
+                      />
+                    )}
+                    <div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-black/[0.07] bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
+                      <Icon
+                        className="h-[18px] w-[18px] text-slate-600 dark:text-slate-300"
+                        strokeWidth={1.75}
+                      />
+                    </div>
+                    <div className="relative text-center">
+                      <p className="text-[10px] tabular-nums text-muted-foreground">{t.num}</p>
+                      <p className="text-[12px] font-semibold sm:text-[13px]">{t.label}</p>
+                    </div>
+                  </button>
+                  {/* connector line — only between steps, not after the last */}
+                  {i < TABS.length - 1 && (
+                    <div className="mx-1 h-px w-8 shrink-0 bg-black/[0.08] dark:bg-white/10 sm:mx-2 sm:w-12" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -179,29 +202,49 @@ export function HowItWorksSection() {
                 <ArrowRight className="ml-1.5 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </Button>
-            <p className="text-[12px] text-muted-foreground">
-              Next: {tab.handoff}
-            </p>
+            {tab.handoff && (
+              <p className="text-[12px] text-muted-foreground">
+                Next: {tab.handoff}
+              </p>
+            )}
           </div>
 
-          {/* Demo — keyed to active so it remounts fresh on tab switch */}
-          <div key={active} className="min-h-[400px] sm:min-h-[440px]">
-            {inView ? (
+          {/* Right panel — keyed to active so demos remount fresh on tab switch */}
+          <div key={active} className="min-h-[380px] sm:min-h-[420px]">
+            {active === 2 ? (
+              /* Consult tab: feature list card instead of live demo */
+              <div className="rounded-2xl border border-black/[0.06] bg-white p-6 dark:border-white/10 dark:bg-white/[0.04] sm:p-8">
+                <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  What&apos;s included
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {CONSULT_FEATURES.map((f) => {
+                    const FIcon = f.icon;
+                    return (
+                      <div key={f.title} className="flex gap-3">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/[0.06] bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
+                          <FIcon className="h-4 w-4 text-slate-600 dark:text-slate-300" strokeWidth={1.75} />
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-semibold">{f.title}</p>
+                          <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">{f.desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : inView ? (
               active === 0 ? (
                 <MeraVakilLiveDemo active compact={false} className="w-full" />
               ) : (
                 <ConsultationLiveDemo active compact={false} className="w-full" />
               )
             ) : (
-              <Skeleton className="h-[400px] w-full rounded-3xl sm:h-[440px]" />
+              <Skeleton className="h-[380px] w-full rounded-3xl sm:h-[420px]" />
             )}
           </div>
         </div>
-
-        <p className="mt-10 text-center text-[13px] text-muted-foreground">
-          <span className="font-medium text-foreground/80">Step 3 — Consult:</span>{" "}
-          Book a timed consultation and meet in a secure built-in room, included on the platform.
-        </p>
       </div>
     </section>
   );
