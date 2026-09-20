@@ -111,7 +111,7 @@ export default function FamilyLawPage() {
 
           <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
             <h4 className="font-semibold">Physical Custody</h4>
-            <p className="text-sm text-muted-foreground mt-1">Right to child's daily care, residence, and living arrangements</p>
+            <p className="text-sm text-muted-foreground mt-1">Right to child&apos;s daily care, residence, and living arrangements</p>
           </div>
 
           <div className="rounded-lg border border-black/10 p-4 dark:border-white/10">
@@ -122,10 +122,10 @@ export default function FamilyLawPage() {
 
         <h3 className="text-lg font-semibold mt-6">Factors Considered in Custody Decisions</h3>
         <ul className="list-inside space-y-2">
-          <li className="text-sm">Child's age and gender</li>
-          <li className="text-sm">Parent's financial stability and ability to provide</li>
+          <li className="text-sm">Child&apos;s age and gender</li>
+          <li className="text-sm">Parent&apos;s financial stability and ability to provide</li>
           <li className="text-sm">Parent-child relationship and affection</li>
-          <li className="text-sm">Child's preference (if above 7 years)</li>
+          <li className="text-sm">Child&apos;s preference (if above 7 years)</li>
           <li className="text-sm">Moral character and lifestyle of parents</li>
           <li className="text-sm">Educational opportunities available</li>
           <li className="text-sm">Any history of domestic violence or abuse</li>
@@ -171,7 +171,7 @@ export default function FamilyLawPage() {
         <ul className="list-inside space-y-2">
           <li className="text-sm"><strong>Requirements:</strong> Must be in writing, signed by testator, witnessed by 2 persons</li>
           <li className="text-sm"><strong>Registration:</strong> While not mandatory, registration ensures authenticity and safekeeping</li>
-          <li className="text-sm"><strong>Revocation:</strong> Can be revoked or modified during testator's lifetime</li>
+          <li className="text-sm"><strong>Revocation:</strong> Can be revoked or modified during testator&apos;s lifetime</li>
           <li className="text-sm"><strong>Probate:</strong> Will must be proved in court to be enforceable</li>
         </ul>
 
