@@ -9,12 +9,6 @@ const WORDMARK_SIZE: Record<BrandLogoSize, { wrap: string; mark: string; title: 
   lg: { wrap: "gap-3", mark: "h-[3.25rem]", title: "text-[1.45rem]", tag: "text-[12px]" },
 };
 
-function markClass(force?: "light" | "dark") {
-  if (force === "dark") return "fill-[#2ECC8A]";
-  if (force === "light") return "fill-[#163A5C]";
-  return "fill-[#163A5C] dark:fill-[#2ECC8A]";
-}
-
 function titleClass(force?: "light" | "dark") {
   if (force === "dark") return "text-white";
   if (force === "light") return "text-slate-900";
@@ -35,44 +29,23 @@ export function AppIcon({
   alt?: string;
 }) {
   return (
-    <img
-      src="/brand/app-icon-192.png"
-      alt={alt}
-      draggable={false}
-      className={cn(
-        "aspect-square rounded-[22%] object-cover shadow-[0_1px_2px_rgba(15,23,42,0.16)] ring-1 ring-black/[0.06] dark:ring-white/10",
-        className,
-      )}
-    />
+    <>
+      <img
+        src="/brand/normal_logo.svg"
+        alt={alt}
+        draggable={false}
+        className={cn("dark:hidden shrink-0 object-contain", className)}
+      />
+      <img
+        src="/brand/dark_logo.svg"
+        alt={alt}
+        draggable={false}
+        className={cn("hidden dark:block shrink-0 object-contain", className)}
+      />
+    </>
   );
 }
 
-function getLogoSrc(force?: "light" | "dark"): string {
-  if (force === "dark") return "/brand/dark_logo.svg";
-  if (force === "light") return "/brand/normal_logo.svg";
-  return "var(--logo-src)";
-}
-
-export function BrandMark({
-  className,
-  force,
-}: {
-  className?: string;
-  force?: "light" | "dark";
-}) {
-  const isDarkMode = force === "dark" || (!force && typeof window !== "undefined" && document.documentElement.classList.contains("dark"));
-  const src = force ? getLogoSrc(force) : (isDarkMode ? "/brand/dark_logo.svg" : "/brand/normal_logo.svg");
-
-  return (
-    <img
-      src={src}
-      alt=""
-      draggable={false}
-      className={cn("shrink-0 object-contain", className)}
-      aria-hidden
-    />
-  );
-}
 
 export function BrandLogo({
   variant = "mark",
