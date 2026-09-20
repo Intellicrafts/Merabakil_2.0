@@ -19,32 +19,22 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # Index for appointment_participants queries filtering by consultation_id and last_seen_at
-    op.create_index(
-        "ix_appointment_participants_consultation_lastseen",
-        "appointment_participants",
-        ["consultation_id", "last_seen_at"],
-        schema="public",
-        if_not_exists=True
-    )
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_appointment_participants_consultation_lastseen
+        ON public.appointment_participants (consultation_id, last_seen_at)
+    """)
 
     # Index for consultations queries filtering by lawyer_user_id
-    op.create_index(
-        "ix_consultations_lawyer_user_id",
-        "consultations",
-        ["lawyer_user_id"],
-        schema="public",
-        if_not_exists=True
-    )
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_consultations_lawyer_user_id
+        ON public.consultations (lawyer_user_id)
+    """)
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_consultations_lawyer_user_id",
-        table_name="consultations",
-        schema="public"
-    )
-    op.drop_index(
-        "ix_appointment_participants_consultation_lastseen",
-        table_name="appointment_participants",
-        schema="public"
-    )
+    op.execute("""
+        DROP INDEX IF EXISTS public.ix_consultations_lawyer_user_id
+    """)
+    op.execute("""
+        DROP INDEX IF EXISTS public.ix_appointment_participants_consultation_lastseen
+    """)
