@@ -178,6 +178,12 @@ class SqlAlchemyUserRepository:
         user.avatar_url = avatar_url
         await self._session.flush()
 
+    async def refresh(self, user: User) -> None:
+        """Reload the instance (repopulates DB-side onupdate columns like
+        updated_at) so later synchronous attribute access won't trigger a lazy
+        load in an async context (MissingGreenlet)."""
+        await self._session.refresh(user)
+
     async def update_full_name(self, user: User, full_name: str) -> None:
         user.full_name = full_name
         await self._session.flush()

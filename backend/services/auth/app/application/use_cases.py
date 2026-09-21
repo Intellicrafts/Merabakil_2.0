@@ -559,6 +559,9 @@ class AuthService:
             except Exception:
                 logger.warning("avatar_cleanup_failed user_id=%s", user_id)
         refreshed = await self.get_user(user_id)
+        # Load updated_at (DB-side onupdate) within the async context so the
+        # synchronous resolve_avatar_url below doesn't trigger a lazy DB load.
+        await self._users.refresh(refreshed)
         return self.resolve_avatar_url(refreshed) or ""
 
     async def delete_avatar(self, user_id: uuid.UUID) -> None:
