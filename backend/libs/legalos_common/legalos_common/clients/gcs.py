@@ -76,27 +76,32 @@ class GCSStorage:
         return await asyncio.to_thread(self._signed_url_sync, key, ttl)
 
     def _signed_url_sync(self, key: str, ttl: int) -> str:
+        from google.auth.transport.requests import Request
+
         blob = self._bucket.blob(key)
         creds = self._client._credentials
-        kwargs: dict = {
-            "version": "v4",
-            "expiration": timedelta(seconds=ttl),
-            "method": "GET",
-        }
-        # Keyless signing: compute/ADC credentials have no private key, so sign via
-        # IAM SignBlob using the SA email + a fresh access token. Requires the SA to
-        # hold roles/iam.serviceAccountTokenCreator on itself (granted in provisioning).
-        email = getattr(creds, "service_account_email", None)
-        if email and email != "default":
-            token = getattr(creds, "token", None)
-            if not token:
-                from google.auth.transport.requests import Request
+        request = Request()
+        # Ensure a fresh access token (compute/ADC creds start tokenless).
+        if not getattr(creds, "valid", False):
+            creds.refresh(request)
+        # Keyless V4 signing via IAM SignBlob needs the *real* SA email. Compute
+        # credentials report it as "default", so resolve it from the metadata
+        # server once and cache it. (SA holds serviceAccountTokenCreator on itself.)
+        email = getattr(self, "_signer_email", None)
+        if not email:
+            email = getattr(creds, "service_account_email", None)
+            if not email or email == "default":
+                from google.auth.compute_engine import _metadata
 
-                creds.refresh(Request())
-                token = creds.token
-            kwargs["service_account_email"] = email
-            kwargs["access_token"] = token
-        return blob.generate_signed_url(**kwargs)
+                email = _metadata.get_service_account_info(request).get("email")
+            self._signer_email = email
+        return blob.generate_signed_url(
+            version="v4",
+            expiration=timedelta(seconds=ttl),
+            method="GET",
+            service_account_email=email,
+            access_token=creds.token,
+        )
 
 
 def build_storage(settings: StorageSettings):
