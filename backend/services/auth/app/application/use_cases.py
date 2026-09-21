@@ -14,11 +14,16 @@ from datetime import UTC, date, datetime, timedelta
 from jose import JWTError
 
 from app.application.ports import (
+    EmailOtpRepository,
     OAuthIdentityRepository,
     PasswordResetRepository,
     RefreshTokenRepository,
     UserConsentRepository,
     UserRepository,
+)
+from app.infrastructure.email_verification import (
+    create_verification_token,
+    decode_verification_token,
 )
 from app.config import AuthSettings
 from app.infrastructure.google_oauth import (
@@ -49,6 +54,11 @@ logger = logging.getLogger(__name__)
 
 _SELF_SERVICE_ROLES = {"citizen", "advocate", "law_firm", "enterprise"}
 _PHONE_PATTERN = re.compile(r"^[\d+\s\-()]{0,30}$")
+_OTP_EXPIRY_MINUTES = 10
+_OTP_MAX_ATTEMPTS = 5
+_OTP_SEND_LIMIT = 3
+_OTP_SEND_WINDOW_MINUTES = 10
+_VALID_OTP_PURPOSES = {"register", "login"}
 
 
 @dataclass(slots=True)
@@ -87,6 +97,16 @@ class CitizenProfileResult:
     avatar_url: str | None
 
 
+@dataclass(slots=True)
+class OtpSendResult:
+    message: str
+
+
+@dataclass(slots=True)
+class OtpVerifyRegisterResult:
+    verification_token: str
+
+
 class AuthService:
     """Implements register/login/refresh/password-reset business rules."""
 
@@ -97,6 +117,7 @@ class AuthService:
         oauth_identities: OAuthIdentityRepository,
         refresh_tokens: RefreshTokenRepository,
         password_resets: PasswordResetRepository,
+        email_otps: EmailOtpRepository,
         consents: UserConsentRepository,
         settings: AuthSettings,
         events=None,
@@ -107,6 +128,7 @@ class AuthService:
         self._oauth_identities = oauth_identities
         self._refresh_tokens = refresh_tokens
         self._password_resets = password_resets
+        self._email_otps = email_otps
         self._consents = consents
         self._settings = settings
         self._events = events
@@ -228,6 +250,157 @@ class AuthService:
                 ip_hash=ip_hash,
             )
 
+    def _hash_otp(self, code: str) -> str:
+        return hashlib.sha256(code.encode()).hexdigest()
+
+    def _generate_otp(self) -> str:
+        return str(secrets.randbelow(900_000) + 100_000)
+
+    async def _send_critical_email(
+        self,
+        *,
+        to_email: str,
+        to_name: str,
+        subject: str,
+        html: str,
+        text: str,
+    ) -> None:
+        if self._email is None:
+            if self._settings.environment == "production":
+                raise ValidationFailedError(
+                    "Unable to send verification email. Please try again later."
+                )
+            return
+        sent = await self._email.send(
+            to_email=to_email,
+            to_name=to_name,
+            subject=subject,
+            html=html,
+            text=text,
+        )
+        if not sent:
+            raise ValidationFailedError(
+                "Unable to send verification email. Please try again later."
+            )
+
+    def email_health(self) -> dict[str, object]:
+        if self._email is None:
+            return {
+                "configured": False,
+                "from_aligned": False,
+                "warnings": ["Email client not wired"],
+                "last_error": None,
+            }
+        warnings = self._email.validate_config()
+        return {
+            "configured": self._email.is_configured(),
+            "from_aligned": self._settings.smtp.is_from_aligned(),
+            "warnings": warnings,
+            "last_error": self._email.last_error,
+        }
+
+    async def send_otp(self, *, email: str, purpose: str) -> OtpSendResult:
+        normalized_email = email.lower().strip()
+        if purpose not in _VALID_OTP_PURPOSES:
+            raise ValidationFailedError("Invalid OTP purpose")
+
+        if purpose == "register":
+            if await self._users.get_by_email(normalized_email):
+                raise ConflictError("A user with this email already exists")
+        else:
+            user = await self._users.get_by_email(normalized_email)
+            if user is None:
+                return OtpSendResult(
+                    message="If the account exists, a sign-in code has been sent.",
+                )
+
+        since = datetime.now(UTC) - timedelta(minutes=_OTP_SEND_WINDOW_MINUTES)
+        recent = await self._email_otps.count_recent(
+            email=normalized_email, purpose=purpose, since=since
+        )
+        if recent >= _OTP_SEND_LIMIT:
+            raise ValidationFailedError("Too many code requests. Please try again later.")
+
+        await self._email_otps.invalidate_unused(email=normalized_email, purpose=purpose)
+        raw_code = self._generate_otp()
+        code_hash = self._hash_otp(raw_code)
+        expires_at = datetime.now(UTC) + timedelta(minutes=_OTP_EXPIRY_MINUTES)
+        await self._email_otps.create(
+            email=normalized_email,
+            purpose=purpose,
+            code_hash=code_hash,
+            expires_at=expires_at,
+        )
+
+        if purpose == "register":
+            from legalos_common.email.templates import email_verification_otp_email
+
+            subject, html, text = email_verification_otp_email(
+                normalized_email,
+                raw_code,
+                expires_minutes=_OTP_EXPIRY_MINUTES,
+                frontend_url=self._settings.frontend_url,
+            )
+            to_name = normalized_email.split("@")[0]
+        else:
+            from legalos_common.email.templates import login_otp_email
+
+            user = await self._users.get_by_email(normalized_email)
+            to_name = user.full_name if user else normalized_email.split("@")[0]
+            subject, html, text = login_otp_email(
+                to_name,
+                raw_code,
+                expires_minutes=_OTP_EXPIRY_MINUTES,
+                frontend_url=self._settings.frontend_url,
+            )
+        await self._send_critical_email(
+            to_email=normalized_email,
+            to_name=to_name,
+            subject=subject,
+            html=html,
+            text=text,
+        )
+
+        if purpose == "register":
+            message = "A verification code has been sent to your email."
+        else:
+            message = "If the account exists, a sign-in code has been sent."
+        return OtpSendResult(message=message)
+
+    async def verify_otp(
+        self, *, email: str, purpose: str, code: str
+    ) -> OtpVerifyRegisterResult | AuthResult:
+        normalized_email = email.lower().strip()
+        if purpose not in _VALID_OTP_PURPOSES:
+            raise ValidationFailedError("Invalid OTP purpose")
+
+        otp_row = await self._email_otps.get_active(email=normalized_email, purpose=purpose)
+        if otp_row is None:
+            raise UnauthorizedError("Invalid or expired verification code")
+
+        if otp_row.attempt_count >= _OTP_MAX_ATTEMPTS:
+            await self._email_otps.mark_used(otp_row.id)
+            raise UnauthorizedError("Too many failed attempts. Please request a new code.")
+
+        if self._hash_otp(code.strip()) != otp_row.code_hash:
+            attempts = await self._email_otps.increment_attempt(otp_row.id)
+            if attempts >= _OTP_MAX_ATTEMPTS:
+                await self._email_otps.mark_used(otp_row.id)
+                raise UnauthorizedError("Too many failed attempts. Please request a new code.")
+            raise UnauthorizedError("Invalid verification code")
+
+        await self._email_otps.mark_used(otp_row.id)
+
+        if purpose == "register":
+            return OtpVerifyRegisterResult(
+                verification_token=create_verification_token(normalized_email)
+            )
+
+        user = await self._users.get_by_email(normalized_email)
+        if user is None:
+            raise UnauthorizedError("Invalid verification code")
+        return await self._login_user(user)
+
     # ---- use cases ------------------------------------------------------- #
     async def register(
         self,
@@ -235,15 +408,27 @@ class AuthService:
         email: str,
         full_name: str,
         password: str,
+        verification_token: str,
         role: str = "citizen",
         terms_version: str | None = None,
         privacy_version: str | None = None,
         ip_hash: str | None = None,
     ) -> AuthResult:
-        if await self._users.get_by_email(email):
+        normalized_email = email.lower().strip()
+        try:
+            payload = decode_verification_token(verification_token)
+        except JWTError as exc:
+            raise UnauthorizedError("Invalid or expired email verification") from exc
+        if payload.email != normalized_email:
+            raise UnauthorizedError("Email verification does not match")
+
+        if await self._users.get_by_email(normalized_email):
             raise ConflictError("A user with this email already exists")
         user = await self._users.create(
-            email=email, full_name=full_name, hashed_password=hash_password(password)
+            email=normalized_email,
+            full_name=full_name,
+            hashed_password=hash_password(password),
+            is_verified=True,
         )
         await self._users.assign_roles(user, [role])
         await self._users.create_role_profile(user, role)
@@ -418,21 +603,18 @@ class AuthService:
             token_hash=token_hash,
             expires_at=datetime.now(UTC) + timedelta(hours=1),
         )
-        if self._email is not None:
-            from legalos_common.email.templates import password_reset_email
-            reset_url = f"{self._settings.frontend_url}/reset-password?token={raw_token}"
-            subject, html, text = password_reset_email(
-                user.full_name, reset_url, frontend_url=self._settings.frontend_url
-            )
-            asyncio.create_task(
-                self._email.send(
-                    to_email=user.email,
-                    to_name=user.full_name,
-                    subject=subject,
-                    html=html,
-                    text=text,
-                )
-            )
+        from legalos_common.email.templates import password_reset_email
+        reset_url = f"{self._settings.frontend_url}/reset-password?token={raw_token}"
+        subject, html, text = password_reset_email(
+            user.full_name, reset_url, frontend_url=self._settings.frontend_url
+        )
+        await self._send_critical_email(
+            to_email=user.email,
+            to_name=user.full_name,
+            subject=subject,
+            html=html,
+            text=text,
+        )
         return raw_token
 
     async def reset_password(self, *, token: str, new_password: str) -> None:

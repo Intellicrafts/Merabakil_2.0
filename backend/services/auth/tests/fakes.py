@@ -282,3 +282,73 @@ class FakePasswordResetRepository:
             tok["used"] = True
             return tok["user_id"]
         return None
+
+
+@dataclass
+class FakeEmailOtpCode:
+    id: uuid.UUID
+    email: str
+    purpose: str
+    code_hash: str
+    expires_at: datetime
+    used: bool = False
+    attempt_count: int = 0
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+class FakeEmailOtpRepository:
+    def __init__(self) -> None:
+        self.codes: list[FakeEmailOtpCode] = []
+
+    async def invalidate_unused(self, *, email: str, purpose: str) -> None:
+        for code in self.codes:
+            if code.email.lower() == email.lower() and code.purpose == purpose and not code.used:
+                code.used = True
+
+    async def create(
+        self, *, email: str, purpose: str, code_hash: str, expires_at: datetime
+    ) -> FakeEmailOtpCode:
+        row = FakeEmailOtpCode(
+            id=uuid.uuid4(),
+            email=email.lower(),
+            purpose=purpose,
+            code_hash=code_hash,
+            expires_at=expires_at,
+        )
+        self.codes.append(row)
+        return row
+
+    async def get_active(self, *, email: str, purpose: str) -> FakeEmailOtpCode | None:
+        candidates = [
+            c
+            for c in self.codes
+            if c.email.lower() == email.lower()
+            and c.purpose == purpose
+            and not c.used
+            and c.expires_at > datetime.now(UTC)
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda c: c.created_at)
+
+    async def increment_attempt(self, otp_id: uuid.UUID) -> int:
+        for code in self.codes:
+            if code.id == otp_id:
+                code.attempt_count += 1
+                return code.attempt_count
+        return 0
+
+    async def mark_used(self, otp_id: uuid.UUID) -> None:
+        for code in self.codes:
+            if code.id == otp_id:
+                code.used = True
+                return
+
+    async def count_recent(self, *, email: str, purpose: str, since: datetime) -> int:
+        return sum(
+            1
+            for c in self.codes
+            if c.email.lower() == email.lower()
+            and c.purpose == purpose
+            and c.created_at >= since
+        )

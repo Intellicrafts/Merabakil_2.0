@@ -11,11 +11,16 @@ from fastapi.responses import JSONResponse, Response
 from app.api.deps import enforce_rate_limit, get_auth_service, get_auth_settings
 from app.api.schemas import (
     AuthResponse,
+    EmailHealthResponse,
     GoogleAuthRequest,
     GoogleCompleteRequest,
     GoogleNeedsRoleResponse,
     LoginRequest,
     MessageResponse,
+    OtpSendRequest,
+    OtpSendResponse,
+    OtpVerifyRegisterResponse,
+    OtpVerifyRequest,
     PasswordResetConfirm,
     PasswordResetIssued,
     PasswordResetRequest,
@@ -29,7 +34,12 @@ from app.api.schemas import (
     UserConsentResponse,
     UserResponse,
 )
-from app.application.use_cases import AuthResult, AuthService, GoogleNeedsRoleResult
+from app.application.use_cases import (
+    AuthResult,
+    AuthService,
+    GoogleNeedsRoleResult,
+    OtpVerifyRegisterResult,
+)
 from legalos_common.api.pagination import Page, PageParams, paginate
 from legalos_common.security.rbac import (
     CurrentUser,
@@ -114,12 +124,57 @@ async def register(
         email=body.email,
         full_name=body.full_name,
         password=body.password,
+        verification_token=body.verification_token,
         role=body.role.value,
         terms_version=body.terms_version,
         privacy_version=body.privacy_version,
         ip_hash=_hash_client_ip(request),
     )
     return await _to_auth_response_with_avatar(result, service)
+
+
+@router.post(
+    "/otp/send",
+    response_model=OtpSendResponse,
+    dependencies=[Depends(enforce_rate_limit)],
+    summary="Send a one-time verification code to an email",
+)
+async def send_otp(
+    body: OtpSendRequest,
+    service: AuthService = Depends(get_auth_service),
+) -> OtpSendResponse:
+    result = await service.send_otp(email=body.email, purpose=body.purpose)
+    return OtpSendResponse(message=result.message)
+
+
+@router.post(
+    "/otp/verify",
+    dependencies=[Depends(enforce_rate_limit)],
+    summary="Verify a one-time code for registration or login",
+)
+async def verify_otp(
+    body: OtpVerifyRequest,
+    service: AuthService = Depends(get_auth_service),
+):
+    result = await service.verify_otp(
+        email=body.email, purpose=body.purpose, code=body.code
+    )
+    if isinstance(result, OtpVerifyRegisterResult):
+        return OtpVerifyRegisterResponse(verification_token=result.verification_token)
+    return await _to_auth_response_with_avatar(result, service)
+
+
+@router.get(
+    "/email/health",
+    response_model=EmailHealthResponse,
+    summary="SMTP configuration health (admin)",
+)
+async def email_health(
+    service: AuthService = Depends(get_auth_service),
+    _: CurrentUser = Depends(require_permissions(Permission.USER_MANAGE.value)),
+) -> EmailHealthResponse:
+    status = service.email_health()
+    return EmailHealthResponse(**status)
 
 
 @router.post(

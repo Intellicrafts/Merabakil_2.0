@@ -24,10 +24,12 @@ from app.api.deps import enforce_rate_limit, get_auth_service  # noqa: E402
 from app.application.use_cases import AuthService  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
+from legalos_common.email.client import AsyncEmailClient  # noqa: E402
 from legalos_common.security.passwords import hash_password  # noqa: E402
 from legalos_common.security.rbac import Permission, Role  # noqa: E402
 from tests.fakes import (  # noqa: E402
     FakeCitizenProfile,
+    FakeEmailOtpRepository,
     FakeOAuthIdentityRepository,
     FakePasswordResetRepository,
     FakeRefreshTokenRepository,
@@ -45,6 +47,9 @@ _users = FakeUserRepository()
 _oauth = FakeOAuthIdentityRepository()
 _refresh = FakeRefreshTokenRepository()
 _resets = FakePasswordResetRepository()
+_otps = FakeEmailOtpRepository()
+_settings = get_settings()
+_email = AsyncEmailClient(_settings.smtp)
 
 
 def _admin_user() -> FakeUser:
@@ -250,10 +255,21 @@ class PersistingAuthService(AuthService):
         email: str,
         full_name: str,
         password: str,
-        role: str,
+        verification_token: str,
+        role: str = "citizen",
+        terms_version: str | None = None,
+        privacy_version: str | None = None,
+        ip_hash: str | None = None,
     ):
         result = await super().register(
-            email=email, full_name=full_name, password=password, role=role
+            email=email,
+            full_name=full_name,
+            password=password,
+            verification_token=verification_token,
+            role=role,
+            terms_version=terms_version,
+            privacy_version=privacy_version,
+            ip_hash=ip_hash,
         )
         _save_state()
         return result
@@ -312,8 +328,10 @@ def _svc() -> AuthService:
         oauth_identities=_oauth,
         refresh_tokens=_refresh,
         password_resets=_resets,
+        email_otps=_otps,
         consents=_NoOpConsentRepo(),
-        settings=get_settings(),
+        settings=_settings,
+        email_client=_email,
     )
 
 

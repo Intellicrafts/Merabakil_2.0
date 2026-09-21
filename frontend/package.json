@@ -14,7 +14,8 @@
     "test:e2e:mobile": "playwright test --project=mobile",
     "postinstall": "playwright install chromium",
     "check:links": "node scripts/check-links.mjs",
-    "brand:generate": "node scripts/generate-brand-assets.mjs"
+    "brand:generate": "node scripts/generate-brand-assets.mjs",
+    "email:generate": "node scripts/generate-email-assets.mjs"
   },
   "dependencies": {
     "@lottiefiles/dotlottie-react": "^0.13.5",

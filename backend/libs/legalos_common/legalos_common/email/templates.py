@@ -7,6 +7,8 @@ from legalos_common.email.renderer import render
 __all__ = [
     "welcome_email",
     "password_reset_email",
+    "email_verification_otp_email",
+    "login_otp_email",
     "booking_created_email",
     "appointment_confirmed_email",
     "appointment_rejected_email",
@@ -33,7 +35,7 @@ def welcome_email(
         if role_label == "advocate"
         else "Find the right advocate for your legal matters."
     )
-    subject = f"Welcome to {BRAND_NAME}!"
+    subject = f"{BRAND_NAME} · Welcome to your account"
     html = render(
         "welcome.html",
         **_ctx(
@@ -54,13 +56,67 @@ def welcome_email(
     return subject, html, text
 
 
+def email_verification_otp_email(
+    email: str,
+    otp_code: str,
+    *,
+    expires_minutes: int = 10,
+    frontend_url: str | None = None,
+) -> tuple[str, str, str]:
+    subject = f"{BRAND_NAME} · Verify your email"
+    html = render(
+        "email_verification_otp.html",
+        **_ctx(
+            frontend_url,
+            preheader=f"Your {BRAND_NAME} verification code is ready — open this email to continue.",
+            email=email,
+            otp_code=otp_code,
+            expires_minutes=expires_minutes,
+        ),
+    )
+    text = (
+        f"Verify your email for {BRAND_NAME}\n\n"
+        f"Your verification code is: {otp_code}\n\n"
+        f"This code expires in {expires_minutes} minutes.\n"
+        "If you didn't request this, you can safely ignore this email."
+    )
+    return subject, html, text
+
+
+def login_otp_email(
+    full_name: str,
+    otp_code: str,
+    *,
+    expires_minutes: int = 10,
+    frontend_url: str | None = None,
+) -> tuple[str, str, str]:
+    subject = f"{BRAND_NAME} · Your sign-in code"
+    html = render(
+        "login_otp.html",
+        **_ctx(
+            frontend_url,
+            preheader=f"Your secure {BRAND_NAME} sign-in code is inside this email.",
+            full_name=full_name,
+            otp_code=otp_code,
+            expires_minutes=expires_minutes,
+        ),
+    )
+    text = (
+        f"Hi {full_name},\n\n"
+        f"Your sign-in code is: {otp_code}\n\n"
+        f"This code expires in {expires_minutes} minutes.\n"
+        "If you didn't try to sign in, you can ignore this email."
+    )
+    return subject, html, text
+
+
 def password_reset_email(
     full_name: str,
     reset_url: str,
     *,
     frontend_url: str | None = None,
 ) -> tuple[str, str, str]:
-    subject = f"{BRAND_NAME} — Reset your password"
+    subject = f"{BRAND_NAME} · Reset your password"
     html = render(
         "password_reset.html",
         **_ctx(
@@ -89,7 +145,7 @@ def booking_created_email(
     *,
     frontend_url: str | None = None,
 ) -> tuple[str, str, str]:
-    subject = f"New consultation booked — {date_str}"
+    subject = f"{BRAND_NAME} · New consultation booked — {date_str}"
     html = render(
         "booking_created.html",
         **_ctx(
@@ -121,7 +177,7 @@ def appointment_confirmed_email(
     *,
     frontend_url: str | None = None,
 ) -> tuple[str, str, str]:
-    subject = f"Consultation confirmed — {date_str}"
+    subject = f"{BRAND_NAME} · Consultation confirmed — {date_str}"
     html = render(
         "appointment_confirmed.html",
         **_ctx(
@@ -154,7 +210,7 @@ def appointment_rejected_email(
 ) -> tuple[str, str, str]:
     url = normalize_frontend_url(frontend_url)
     marketplace_url = f"{url}/lawyer-marketplace"
-    subject = "Consultation request not accepted"
+    subject = f"{BRAND_NAME} · Consultation request not accepted"
     html = render(
         "appointment_rejected.html",
         **_ctx(
@@ -186,7 +242,7 @@ def appointment_cancelled_email(
 ) -> tuple[str, str, str]:
     url = normalize_frontend_url(frontend_url)
     marketplace_url = f"{url}/lawyer-marketplace"
-    subject = f"Consultation cancelled — {date_str}"
+    subject = f"{BRAND_NAME} · Consultation cancelled — {date_str}"
     html = render(
         "appointment_cancelled.html",
         **_ctx(

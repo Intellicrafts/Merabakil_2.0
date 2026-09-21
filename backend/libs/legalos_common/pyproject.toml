@@ -40,3 +40,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["legalos_common"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"legalos_common/email/assets" = "legalos_common/email/assets"
+"legalos_common/email/html" = "legalos_common/email/html"

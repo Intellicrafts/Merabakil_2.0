@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Protocol
 
-from app.infrastructure.models import OAuthIdentity, RefreshToken, User, UserConsent
+from app.infrastructure.models import EmailOtpCode, OAuthIdentity, RefreshToken, User, UserConsent
 
 
 class UserRepository(Protocol):
@@ -69,6 +69,17 @@ class PasswordResetRepository(Protocol):
         self, *, user_id: uuid.UUID, token_hash: str, expires_at: datetime
     ) -> None: ...
     async def consume(self, token_hash: str) -> uuid.UUID | None: ...
+
+
+class EmailOtpRepository(Protocol):
+    async def invalidate_unused(self, *, email: str, purpose: str) -> None: ...
+    async def create(
+        self, *, email: str, purpose: str, code_hash: str, expires_at: datetime
+    ) -> EmailOtpCode: ...
+    async def get_active(self, *, email: str, purpose: str) -> EmailOtpCode | None: ...
+    async def increment_attempt(self, otp_id: uuid.UUID) -> int: ...
+    async def mark_used(self, otp_id: uuid.UUID) -> None: ...
+    async def count_recent(self, *, email: str, purpose: str, since: datetime) -> int: ...
 
 
 class UserConsentRepository(Protocol):

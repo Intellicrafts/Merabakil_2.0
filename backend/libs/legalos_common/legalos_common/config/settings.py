@@ -122,9 +122,21 @@ class SmtpSettings(BaseSettings):
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
-    smtp_from_email: str = "noreply@merabakil.in"
+    smtp_from_email: str = "notifications@merabakil.in"
     smtp_from_name: str = "MeraBakil"
+    smtp_reply_to: str = "admin@merabakil.in"
     smtp_enabled: bool = False
+
+    def from_domain(self) -> str:
+        return self.smtp_from_email.rsplit("@", 1)[-1].lower()
+
+    def username_domain(self) -> str:
+        return self.smtp_username.rsplit("@", 1)[-1].lower() if self.smtp_username else ""
+
+    def is_from_aligned(self) -> bool:
+        if not self.smtp_username or not self.smtp_from_email:
+            return False
+        return self.from_domain() == self.username_domain()
 
 
 class CommonSettings(BaseSettings):

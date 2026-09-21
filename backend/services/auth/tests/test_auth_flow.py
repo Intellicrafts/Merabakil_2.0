@@ -11,6 +11,7 @@ from app.application.use_cases import AuthService, GoogleNeedsRoleResult
 from app.config import AuthSettings
 from app.infrastructure.google_oauth import GoogleProfile
 from legalos_common.api.errors import ConflictError, UnauthorizedError
+from tests.conftest import register_user
 
 
 def _google_profile(**overrides) -> GoogleProfile:
@@ -27,9 +28,7 @@ def _google_profile(**overrides) -> GoogleProfile:
 
 @pytest.mark.asyncio
 async def test_register_and_authenticate(auth_service: AuthService) -> None:
-    result = await auth_service.register(
-        email="user@example.com", full_name="Test User", password="StrongPass1"
-    )
+    result = await register_user(auth_service, email="user@example.com", full_name="Test User")
     assert result.email == "user@example.com"
     assert "citizen" in result.roles
     assert result.tokens.access_token
@@ -46,10 +45,10 @@ async def test_register_and_authenticate(auth_service: AuthService) -> None:
 async def test_registration_creates_matching_role_profile(
     auth_service: AuthService, role: str
 ) -> None:
-    result = await auth_service.register(
+    result = await register_user(
+        auth_service,
         email=f"{role}@example.com",
         full_name=f"{role} account",
-        password="StrongPass1",
         role=role,
     )
 
@@ -59,21 +58,21 @@ async def test_registration_creates_matching_role_profile(
 
 @pytest.mark.asyncio
 async def test_duplicate_registration_conflicts(auth_service: AuthService) -> None:
-    await auth_service.register(email="dup@example.com", full_name="A", password="StrongPass1")
+    await register_user(auth_service, email="dup@example.com", full_name="A")
     with pytest.raises(ConflictError):
-        await auth_service.register(email="dup@example.com", full_name="B", password="StrongPass1")
+        await register_user(auth_service, email="dup@example.com", full_name="B")
 
 
 @pytest.mark.asyncio
 async def test_bad_password_rejected(auth_service: AuthService) -> None:
-    await auth_service.register(email="x@example.com", full_name="X", password="StrongPass1")
+    await register_user(auth_service, email="x@example.com", full_name="X")
     with pytest.raises(UnauthorizedError):
         await auth_service.authenticate(email="x@example.com", password="wrong")
 
 
 @pytest.mark.asyncio
 async def test_refresh_rotation(auth_service: AuthService) -> None:
-    reg = await auth_service.register(email="r@example.com", full_name="R", password="StrongPass1")
+    reg = await register_user(auth_service, email="r@example.com", full_name="R")
     pair = await auth_service.refresh(refresh_token=reg.tokens.refresh_token)
     assert pair.access_token
     with pytest.raises(UnauthorizedError):
@@ -82,7 +81,7 @@ async def test_refresh_rotation(auth_service: AuthService) -> None:
 
 @pytest.mark.asyncio
 async def test_password_reset_cycle(auth_service: AuthService) -> None:
-    await auth_service.register(email="reset@example.com", full_name="R", password="StrongPass1")
+    await register_user(auth_service, email="reset@example.com", full_name="R")
     token = await auth_service.request_password_reset(email="reset@example.com")
     assert token is not None
     await auth_service.reset_password(token=token, new_password="BrandNewPass9")
@@ -91,10 +90,30 @@ async def test_password_reset_cycle(auth_service: AuthService) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_register_login(client) -> None:
+async def test_api_register_login(client, auth_service) -> None:
+    from unittest.mock import patch
+
+    from tests.conftest import TEST_OTP
+
+    with patch.object(auth_service, "_generate_otp", return_value=TEST_OTP):
+        send = await client.post(
+            "/api/v1/auth/otp/send",
+            json={"email": "api@example.com", "purpose": "register"},
+        )
+    verify = await client.post(
+        "/api/v1/auth/otp/verify",
+        json={"email": "api@example.com", "purpose": "register", "code": TEST_OTP},
+    )
+    verification_token = verify.json()["verification_token"]
+
     resp = await client.post(
         "/api/v1/auth/register",
-        json={"email": "api@example.com", "full_name": "API User", "password": "StrongPass1"},
+        json={
+            "email": "api@example.com",
+            "full_name": "API User",
+            "password": "StrongPass1",
+            "verification_token": verification_token,
+        },
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
@@ -176,9 +195,7 @@ async def test_google_existing_user(mock_verify, auth_service: AuthService) -> N
     mock_verify.return_value = profile
     auth_service._settings.google_oauth_client_id = "test-client-id.apps.googleusercontent.com"
 
-    reg = await auth_service.register(
-        email="existing@example.com", full_name="Existing", password="StrongPass1"
-    )
+    reg = await register_user(auth_service, email="existing@example.com", full_name="Existing")
     user_id = uuid.UUID(reg.user_id)
     await auth_service._oauth_identities.create(
         user_id=user_id,
@@ -199,9 +216,7 @@ async def test_google_link_existing_email(mock_verify, auth_service: AuthService
     mock_verify.return_value = _google_profile(email="linked@example.com", sub="sub-link")
     auth_service._settings.google_oauth_client_id = "test-client-id.apps.googleusercontent.com"
 
-    reg = await auth_service.register(
-        email="linked@example.com", full_name="Linked", password="StrongPass1"
-    )
+    reg = await register_user(auth_service, email="linked@example.com", full_name="Linked")
     result = await auth_service.authenticate_with_google(id_token="fake-token")
     assert result.user_id == reg.user_id
     assert len(auth_service._oauth_identities.store) == 1

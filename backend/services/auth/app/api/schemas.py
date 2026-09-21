@@ -15,9 +15,36 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8, max_length=128)
+    verification_token: str = Field(min_length=1)
     role: Role = Role.CITIZEN
     terms_version: str | None = Field(default=None, max_length=20)
     privacy_version: str | None = Field(default=None, max_length=20)
+
+
+class OtpSendRequest(BaseModel):
+    email: EmailStr
+    purpose: Literal["register", "login"]
+
+
+class OtpVerifyRequest(BaseModel):
+    email: EmailStr
+    purpose: Literal["register", "login"]
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class OtpSendResponse(BaseModel):
+    message: str
+
+
+class EmailHealthResponse(BaseModel):
+    configured: bool
+    from_aligned: bool
+    warnings: list[str]
+    last_error: str | None = None
+
+
+class OtpVerifyRegisterResponse(BaseModel):
+    verification_token: str
 
 
 class LoginRequest(BaseModel):

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.models import (
     AdvocateProfile,
     CitizenProfile,
+    EmailOtpCode,
     EnterpriseProfile,
     LawFirmProfile,
     OAuthIdentity,
@@ -276,6 +277,77 @@ class SqlAlchemyPasswordResetRepository:
         token.used = True
         await self._session.flush()
         return token.user_id
+
+
+class SqlAlchemyEmailOtpRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def invalidate_unused(self, *, email: str, purpose: str) -> None:
+        result = await self._session.execute(
+            select(EmailOtpCode).where(
+                func.lower(EmailOtpCode.email) == email.lower(),
+                EmailOtpCode.purpose == purpose,
+                EmailOtpCode.used.is_(False),
+            )
+        )
+        for row in result.scalars().all():
+            row.used = True
+        await self._session.flush()
+
+    async def create(
+        self, *, email: str, purpose: str, code_hash: str, expires_at: datetime
+    ) -> EmailOtpCode:
+        row = EmailOtpCode(
+            email=email.lower(),
+            purpose=purpose,
+            code_hash=code_hash,
+            expires_at=expires_at,
+            created_at=datetime.now(UTC),
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def get_active(self, *, email: str, purpose: str) -> EmailOtpCode | None:
+        result = await self._session.execute(
+            select(EmailOtpCode)
+            .where(
+                func.lower(EmailOtpCode.email) == email.lower(),
+                EmailOtpCode.purpose == purpose,
+                EmailOtpCode.used.is_(False),
+                EmailOtpCode.expires_at > datetime.now(UTC),
+            )
+            .order_by(EmailOtpCode.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def increment_attempt(self, otp_id: uuid.UUID) -> int:
+        row = await self._session.get(EmailOtpCode, otp_id)
+        if row is None:
+            return 0
+        row.attempt_count += 1
+        await self._session.flush()
+        return row.attempt_count
+
+    async def mark_used(self, otp_id: uuid.UUID) -> None:
+        row = await self._session.get(EmailOtpCode, otp_id)
+        if row is not None:
+            row.used = True
+            await self._session.flush()
+
+    async def count_recent(self, *, email: str, purpose: str, since: datetime) -> int:
+        result = await self._session.scalar(
+            select(func.count())
+            .select_from(EmailOtpCode)
+            .where(
+                func.lower(EmailOtpCode.email) == email.lower(),
+                EmailOtpCode.purpose == purpose,
+                EmailOtpCode.created_at >= since,
+            )
+        )
+        return int(result or 0)
 
 
 class SqlAlchemyUserConsentRepository:

@@ -15,8 +15,10 @@ from app.application.use_cases import AuthResult, AuthService, GoogleNeedsRoleRe
 from app.config import get_settings
 from app.main import app
 from legalos_common.security import create_access_token
+from tests.conftest import register_user
 from tests.fakes import (
     FakeOAuthIdentityRepository,
+    FakeEmailOtpRepository,
     FakePasswordResetRepository,
     FakeRefreshTokenRepository,
     FakeUserConsentRepository,
@@ -66,6 +68,7 @@ def auth_service(avatar_store: InMemoryAvatarStore) -> AuthService:
         oauth_identities=FakeOAuthIdentityRepository(),
         refresh_tokens=FakeRefreshTokenRepository(),
         password_resets=FakePasswordResetRepository(),
+        email_otps=FakeEmailOtpRepository(),
         consents=FakeUserConsentRepository(),
         settings=get_settings(),
         avatar_store=avatar_store,  # type: ignore[arg-type]
@@ -91,8 +94,8 @@ async def profile_client(auth_service: AuthService):
 async def test_citizen_profile_get_and_patch(
     profile_client: AsyncClient, auth_service: AuthService
 ) -> None:
-    reg = await auth_service.register(
-        email="citizen@example.com", full_name="Citizen User", password="StrongPass1"
+    reg = await register_user(
+        auth_service, email="citizen@example.com", full_name="Citizen User"
     )
     headers = _auth_header(reg.user_id, reg.roles)
 
@@ -137,10 +140,10 @@ async def test_citizen_profile_auto_created_when_missing(
 async def test_advocate_cannot_access_citizen_profile(
     profile_client: AsyncClient, auth_service: AuthService
 ) -> None:
-    reg = await auth_service.register(
+    reg = await register_user(
+        auth_service,
         email="adv@example.com",
         full_name="Advocate User",
-        password="StrongPass1",
         role="advocate",
     )
     headers = _auth_header(reg.user_id, reg.roles)
@@ -152,9 +155,7 @@ async def test_advocate_cannot_access_citizen_profile(
 async def test_avatar_upload_and_delete(
     profile_client: AsyncClient, auth_service: AuthService
 ) -> None:
-    reg = await auth_service.register(
-        email="photo@example.com", full_name="Photo User", password="StrongPass1"
-    )
+    reg = await register_user(auth_service, email="photo@example.com", full_name="Photo User")
     headers = _auth_header(reg.user_id, reg.roles)
 
     files = {"file": ("avatar.png", _png_bytes(), "image/png")}

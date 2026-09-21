@@ -8,7 +8,10 @@ All services expose OpenAPI docs at `/docs` and a machine-readable schema at
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/v1/auth/register` | none | Create an account, returns tokens |
+| POST | `/api/v1/auth/otp/send` | none | Send email OTP (`purpose`: `register` or `login`) |
+| POST | `/api/v1/auth/otp/verify` | none | Verify OTP; returns `verification_token` (register) or tokens (login) |
+| GET | `/api/v1/auth/email/health` | `user:manage` | SMTP configuration health check |
+| POST | `/api/v1/auth/register` | none | Create an account (requires `verification_token` from OTP verify), returns tokens |
 | POST | `/api/v1/auth/login` | none | Authenticate, returns tokens |
 | POST | `/api/v1/auth/refresh` | none | Rotate refresh token |
 | POST | `/api/v1/auth/password-reset` | none | Request reset token |

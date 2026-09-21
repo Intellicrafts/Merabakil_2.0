@@ -335,6 +335,7 @@ export async function register(
   full_name: string,
   password: string,
   role: string,
+  verificationToken: string,
   consent?: { terms_version: string; privacy_version: string },
 ): Promise<AuthResponse> {
   return postAuthJson<AuthResponse>("/api/v1/auth/register", {
@@ -342,8 +343,38 @@ export async function register(
     full_name,
     password,
     role,
+    verification_token: verificationToken,
     terms_version: consent?.terms_version,
     privacy_version: consent?.privacy_version,
+  });
+}
+
+export type OtpPurpose = "register" | "login";
+
+export type OtpSendResponse = {
+  message: string;
+};
+
+export async function sendOtp(email: string, purpose: OtpPurpose): Promise<OtpSendResponse> {
+  return postAuthJson<OtpSendResponse>("/api/v1/auth/otp/send", { email, purpose });
+}
+
+export async function verifyRegisterOtp(
+  email: string,
+  code: string,
+): Promise<{ verification_token: string }> {
+  return postAuthJson<{ verification_token: string }>("/api/v1/auth/otp/verify", {
+    email,
+    purpose: "register",
+    code,
+  });
+}
+
+export async function verifyLoginOtp(email: string, code: string): Promise<AuthResponse> {
+  return postAuthJson<AuthResponse>("/api/v1/auth/otp/verify", {
+    email,
+    purpose: "login",
+    code,
   });
 }
 
