@@ -58,7 +58,7 @@ export function pageMetadata({
 export const rootMetadata: Metadata = {
   metadataBase: new URL(SITE.url),
   title: {
-    default: `${SITE.name} (Mera Bakil) — AI Legal Assistant, India`,
+    default: `${SITE.name} — AI Legal Assistant, India`,
     template: `%s | ${SITE.name}`,
   },
   description: "MeraBakil (Mera Bakil) — India's AI legal platform. Ask Saarthi AI legal questions, find verified advocates, get legal guidance grounded in Indian law. Free consultation.",
@@ -78,7 +78,7 @@ export const rootMetadata: Metadata = {
   robots: { index: true, follow: true },
   alternates: { canonical: "/" },
   openGraph: {
-    title: `${SITE.name} (Mera Bakil) — AI Legal Assistant & Advocate Marketplace`,
+    title: `${SITE.name} — AI Legal Assistant & Advocate Marketplace`,
     description: "MeraBakil (Mera Bakil): instant legal guidance from Saarthi AI, verified advocates, and expert help grounded in Indian law.",
     url: "/",
     siteName: SITE.name,
@@ -88,7 +88,7 @@ export const rootMetadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE.name} (Mera Bakil) — AI Legal Assistant & Advocate Marketplace`,
+    title: `${SITE.name} — AI Legal Assistant & Advocate Marketplace`,
     description: "MeraBakil (Mera Bakil): instant legal guidance from Saarthi AI, verified advocates, and expert help grounded in Indian law.",
     images: [SITE.ogImage],
   },
