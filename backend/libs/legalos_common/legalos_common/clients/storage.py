@@ -12,6 +12,9 @@ logger = get_logger(__name__)
 
 
 class ObjectStore(Protocol):
+    @property
+    def bucket(self) -> str: ...
+
     async def ensure_bucket(self) -> None: ...
 
     async def put_object(
@@ -20,16 +23,24 @@ class ObjectStore(Protocol):
 
     async def get_object(self, key: str) -> bytes: ...
 
+    async def delete_object(self, key: str) -> None: ...
+
+    async def signed_url(self, key: str, *, expires_in: int = 3600) -> str: ...
+
 
 class LocalFileStorage:
     """Writes objects under a project data directory (native / offline fallback)."""
 
-    def __init__(self, root: str | Path) -> None:
+    def __init__(self, root: str | Path = "data/uploads") -> None:
         self._root = Path(root)
 
     @property
     def root(self) -> Path:
         return self._root
+
+    @property
+    def bucket(self) -> str:
+        return str(self._root)
 
     async def ensure_bucket(self) -> None:
         await asyncio.to_thread(self._root.mkdir, parents=True, exist_ok=True)
@@ -62,3 +73,15 @@ class LocalFileStorage:
             return path.read_bytes()
 
         return await asyncio.to_thread(_read)
+
+    async def delete_object(self, key: str) -> None:
+        path = self._path(key)
+
+        def _unlink() -> None:
+            if path.is_file():
+                path.unlink()
+
+        await asyncio.to_thread(_unlink)
+
+    async def signed_url(self, key: str, *, expires_in: int = 3600) -> str:
+        return f"file://{self._path(key).resolve()}"

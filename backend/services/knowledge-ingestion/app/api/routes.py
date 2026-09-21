@@ -184,7 +184,7 @@ async def ingest_file(
 
     container = get_container()
     storage_key = f"documents/{uuid.uuid4()}/{file.filename}"
-    source_uri = await container.s3.put_object(
+    source_uri = await container.storage.put_object(
         storage_key, raw, content_type=file.content_type or "application/octet-stream"
     )
 
@@ -240,11 +240,11 @@ async def ingest_from_storage(
 ) -> IngestionResultResponse:
     container = get_container()
     try:
-        raw = await container.s3.get_object(body.storage_key)
+        raw = await container.storage.get_object(body.storage_key)
     except Exception as exc:
         raise ValidationFailedError(f"Could not read file from storage: {exc}") from exc
 
-    source_uri = f"s3://{container.s3.bucket}/{body.storage_key}"
+    source_uri = f"gs://{container.storage.bucket}/{body.storage_key}"
     owner_id = uuid.UUID(body.owner_id) if body.owner_id else uuid.UUID(user.user_id)
     result = await use_case.execute(
         raw=raw,

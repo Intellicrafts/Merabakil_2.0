@@ -10,7 +10,7 @@ from PIL import Image, UnidentifiedImageError
 
 from app.config import AuthSettings, get_settings
 from legalos_common.api.errors import ValidationFailedError
-from legalos_common.clients.s3 import LocalFileStorage, S3Storage, build_storage
+from legalos_common.clients import build_avatar_storage
 
 AVATAR_PREFIX = "avatars/"
 MAX_AVATAR_BYTES = 2 * 1024 * 1024
@@ -38,7 +38,7 @@ def stored_key_from_url(url: str) -> str:
 class AvatarStore:
     def __init__(self, settings: AuthSettings) -> None:
         self._settings = settings
-        self._storage = build_storage(settings.s3)
+        self._storage = build_avatar_storage(settings.storage)
 
     async def ensure_ready(self) -> None:
         await self._storage.ensure_bucket()

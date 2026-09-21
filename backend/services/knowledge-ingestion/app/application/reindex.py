@@ -35,7 +35,7 @@ class ReindexDocumentUseCase:
 
         source_uri = doc.source_uri or ""
         # Corpus file under raw-data/
-        if source_uri and not source_uri.startswith("s3://") and not source_uri.startswith("http"):
+        if source_uri and not source_uri.startswith(("gs://", "s3://", "http")):
             return await self.reindex_by_source_uri(
                 source_uri,
                 force=force,
@@ -51,7 +51,7 @@ class ReindexDocumentUseCase:
                 "Document has no storage_key or corpus source_uri to re-load content"
             )
         container = get_container()
-        raw = await container.s3.get_object(doc.storage_key)
+        raw = await container.storage.get_object(doc.storage_key)
         return await self._ingest.execute(
             raw=raw,
             title=doc.title,

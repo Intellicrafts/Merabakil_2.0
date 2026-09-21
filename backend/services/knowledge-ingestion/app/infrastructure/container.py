@@ -8,8 +8,8 @@ from app.infrastructure.indexer import MultiStoreIndexer
 from legalos_common.clients import (
     Neo4jClient,
     QdrantVectorClient,
-    S3Storage,
     build_embedding_client,
+    build_storage,
 )
 from legalos_common.clients.llm import EmbeddingClient
 from legalos_common.logging import get_logger
@@ -32,7 +32,7 @@ class Container:
         self.neo4j = Neo4jClient(
             settings.neo4j.neo4j_uri, settings.neo4j.neo4j_user, settings.neo4j.neo4j_password
         )
-        self.s3 = S3Storage(settings.s3)
+        self.storage = build_storage(settings.storage)
         self.sparse = SparseEncoder()
         self.indexer = MultiStoreIndexer(
             qdrant=self.qdrant, sparse=self.sparse, neo4j=self.neo4j
@@ -45,7 +45,7 @@ class Container:
         self.sparse.load()
         await self.qdrant.ensure_collection()
         await self.qdrant.ensure_parents_collection()
-        await self.s3.ensure_bucket()
+        await self.storage.ensure_bucket()
         try:
             await self._producer.start()
             self.events = KafkaEventPublisher(

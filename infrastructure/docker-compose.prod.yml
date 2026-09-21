@@ -2,7 +2,7 @@ name: merabakil
 
 # ---------------------------------------------------------------------------
 # Production stack — merabakil.in
-# 14 containers: postgres, redis, minio, auth, billing, search, research,
+# 13 containers: postgres, redis, auth, billing, search, research,
 #                marketplace, case, document, ingestion, satyapan, frontend, nginx
 #
 # Usage (on GCP, from repo root):
@@ -46,20 +46,9 @@ services:
       timeout: 3s
       retries: 10
 
-  minio:
-    <<: *svc-defaults
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
-    volumes:
-      - uploadsdata:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
+  # Object storage is Google Cloud Storage (buckets merabakil-documents +
+  # merabakil-public). The app authenticates via the VM's attached
+  # merabakil-storage service account (ADC) — no MinIO container needed.
 
   # ── Application services ──────────────────────────────────────────────────
 
@@ -155,9 +144,6 @@ services:
       BILLING_SERVICE_URL: "http://billing:8000"
       SATYAPAN_URL: "http://satyapan:8000"
       MARKETPLACE_PUBLIC_URL: "https://merabakil.in/svc/marketplace"
-      LAWYER_AVATARS_DIR: "/data/lawyer-avatars"
-    volumes:
-      - ./data/lawyer-avatars:/data/lawyer-avatars
     depends_on:
       postgres: { condition: service_healthy }
       auth:     { condition: service_healthy }
@@ -197,12 +183,10 @@ services:
     image: merabakil/document:latest
     env_file: .env
     environment:
-      S3_ENDPOINT_URL: "http://minio:9000"
       INGESTION_SERVICE_URL: "http://ingestion:8000"
     depends_on:
       postgres:   { condition: service_healthy }
       auth:       { condition: service_healthy }
-      minio:      { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 15s
@@ -218,13 +202,10 @@ services:
         INSTALL_ORCHESTRATOR: "false"
     image: merabakil/ingestion:latest
     env_file: .env
-    environment:
-      S3_ENDPOINT_URL: "http://minio:9000"
     depends_on:
       postgres: { condition: service_healthy }
       auth:     { condition: service_healthy }
       search:   { condition: service_healthy }
-      minio:    { condition: service_healthy }
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
       interval: 15s
@@ -313,7 +294,6 @@ services:
 volumes:
   pgdata:
   redisdata:
-  uploadsdata:    # MinIO object storage — persists uploaded documents on VM disk
 
 # ── Networks ──────────────────────────────────────────────────────────────
 

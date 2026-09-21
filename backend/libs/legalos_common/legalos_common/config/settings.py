@@ -75,14 +75,22 @@ class OpenSearchSettings(BaseSettings):
     opensearch_index: str = "legal_documents"
 
 
-class S3Settings(BaseSettings):
+class StorageSettings(BaseSettings):
+    """Google Cloud Storage. Auth is via Application Default Credentials
+    (attached VM service account) — no keys. When ``gcs_project`` is unset the
+    app falls back to local filesystem storage (native dev)."""
+
     model_config = _BASE_CONFIG
 
-    s3_endpoint_url: str | None = None
-    s3_region: str = "ap-south-1"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin"
-    s3_bucket: str = "legalos-documents"
+    gcs_project: str | None = None
+    gcs_bucket: str = "merabakil-documents"        # private: documents + extracted text + ingested files
+    gcs_public_bucket: str = "merabakil-public"     # avatars / profile photos (served via signed URLs)
+    signed_url_ttl: int = 604800                    # 7 days
+    local_root: str = "data/uploads"                # dev-only fallback base dir
+
+    @property
+    def use_gcs(self) -> bool:
+        return bool(self.gcs_project)
 
 
 class LLMSettings(BaseSettings):
@@ -153,7 +161,7 @@ class CommonSettings(BaseSettings):
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     neo4j: Neo4jSettings = Field(default_factory=Neo4jSettings)
     opensearch: OpenSearchSettings = Field(default_factory=OpenSearchSettings)
-    s3: S3Settings = Field(default_factory=S3Settings)
+    storage: StorageSettings = Field(default_factory=StorageSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     smtp: SmtpSettings = Field(default_factory=SmtpSettings)
 

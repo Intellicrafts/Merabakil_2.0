@@ -5,8 +5,8 @@ from legalos_common.config.settings import (
     OpenSearchSettings,
     PostgresSettings,
     QdrantSettings,
-    S3Settings,
     SecuritySettings,
+    StorageSettings,
     get_common_settings,
 )
 
@@ -17,7 +17,7 @@ __all__ = [
     "OpenSearchSettings",
     "PostgresSettings",
     "QdrantSettings",
-    "S3Settings",
     "SecuritySettings",
+    "StorageSettings",
     "get_common_settings",
 ]

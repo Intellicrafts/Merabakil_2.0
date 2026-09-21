@@ -31,12 +31,12 @@ async def _handle(raw: bytes, container) -> None:
     if job_id:
         await container.jobs.update(job_id, status=JobStatus.PROCESSING)
 
-    key = storage_key.split(f"{container.s3.bucket}/", 1)[-1]
-    if key.startswith("s3://"):
+    key = storage_key.split(f"{container.storage.bucket}/", 1)[-1]
+    if key.startswith(("gs://", "s3://")):  # s3:// kept for legacy rows
         key = key.split("/", 3)[-1]
 
     try:
-        data = await container.s3.get_object(key)
+        data = await container.storage.get_object(key)
     except Exception as exc:
         if job_id:
             await container.jobs.update(job_id, status=JobStatus.FAILED, error=str(exc))

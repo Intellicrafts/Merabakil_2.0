@@ -56,8 +56,8 @@ async def client(monkeypatch):
     fake_repo.get_for_owner = AsyncMock(return_value=fake_doc)
 
     container_mock = MagicMock()
-    container_mock.s3.put_object = AsyncMock(return_value="s3://legalos-documents/test/doc.pdf")
-    container_mock.s3.get_object = AsyncMock(return_value=b"hello extracted")
+    container_mock.storage.put_object = AsyncMock(return_value="gs://merabakil-documents/test/doc.pdf")
+    container_mock.storage.get_object = AsyncMock(return_value=b"hello extracted")
     container_mock.ingestion.trigger = AsyncMock()
     monkeypatch.setattr("app.api.routes.get_container", lambda: container_mock)
 

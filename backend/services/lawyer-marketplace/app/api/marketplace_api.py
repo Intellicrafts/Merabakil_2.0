@@ -8,7 +8,6 @@ import logging
 import os
 import uuid
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
@@ -99,6 +98,7 @@ from app.infrastructure.file_store import (
     write_bytes,
 )
 from app.infrastructure.lawyer_model import Lawyer
+from legalos_common.clients import build_avatar_storage
 from legalos_common.clients.llm import build_llm_client
 from legalos_common.config import get_common_settings
 from legalos_common.security.rbac import CurrentUser, Role, get_current_user, require_roles
@@ -108,6 +108,9 @@ logger = logging.getLogger(__name__)
 _common_settings = get_common_settings()
 _llm = build_llm_client(_common_settings.llm)
 _summary_generator = LawyerSummaryGenerator(_llm)
+# Avatars/profile photos live in the private GCS avatars bucket and are served
+# to browsers as short-lived signed URLs (local filesystem in native dev).
+_avatar_storage = build_avatar_storage(_common_settings.storage)
 
 from app.infrastructure.billing_client import BillingClient  # noqa: E402
 from legalos_common.email.client import AsyncEmailClient  # noqa: E402
@@ -219,34 +222,55 @@ def _lawyer_public(
         ai_recommended=recommended,
         verification_data=getattr(lawyer, "verification_data", None),
         verified_at=_iso(getattr(lawyer, "verified_at", None)),
-        # Prefer the advocate's uploaded photo; else fall back to the bridged
-        # user avatar (e.g. Google OAuth profile picture) resolved by the caller.
-        photo_url=getattr(lawyer, "photo_url", None) or photo_url,
+        # `photo_url` is the caller-resolved, browser-ready URL (a signed URL for a
+        # GCS object, or a passthrough external avatar). When no override is given,
+        # only pass through a stored external http(s) URL — never a raw gs:// ref.
+        photo_url=photo_url if photo_url is not None else _http_or_none(getattr(lawyer, "photo_url", None)),
     )
+
+
+def _http_or_none(value: str | None) -> str | None:
+    return value if value and value.startswith(("http://", "https://")) else None
+
+
+async def _resolve_photo_url(raw: str | None) -> str | None:
+    """Turn a stored photo ref into a browser-ready URL:
+    gs:// object → short-lived signed URL; external http(s) → passthrough; else None."""
+    if not raw:
+        return None
+    if raw.startswith(("http://", "https://")):
+        return raw
+    if raw.startswith("gs://"):
+        key = raw.split("/", 3)[-1]  # gs://bucket/<key>
+        try:
+            return await _avatar_storage.signed_url(key)
+        except Exception as exc:  # signing failure shouldn't break the listing
+            logger.warning("avatar_sign_failed key=%s error=%s", key, exc)
+            return None
+    return None
 
 
 async def _serialize_lawyers(
     repo: "MarketplaceRepository",
     items: list[tuple[Lawyer, int, bool]],
 ) -> list[LawyerPublic]:
-    """Serialize lawyers, bridging `users.avatar_url` for those without a
-    dedicated `lawyers.photo_url` so Google/OAuth advocates still show a photo.
-    """
+    """Serialize lawyers, resolving each photo to a browser-ready URL. Advocates
+    without an uploaded `lawyers.photo_url` fall back to the bridged
+    `users.avatar_url` (e.g. Google OAuth profile picture)."""
     missing_user_ids = [
         lawyer.user_id
         for lawyer, _, _ in items
         if not getattr(lawyer, "photo_url", None) and lawyer.user_id is not None
     ]
     avatars = await repo.get_user_avatar_urls(missing_user_ids)
-    return [
-        _lawyer_public(
-            lawyer,
-            match_score=score,
-            recommended=recommended,
-            photo_url=avatars.get(lawyer.user_id),
+    out: list[LawyerPublic] = []
+    for lawyer, score, recommended in items:
+        raw = getattr(lawyer, "photo_url", None) or avatars.get(lawyer.user_id)
+        resolved = await _resolve_photo_url(raw)
+        out.append(
+            _lawyer_public(lawyer, match_score=score, recommended=recommended, photo_url=resolved)
         )
-        for lawyer, score, recommended in items
-    ]
+    return out
 
 
 def _role_for(user: CurrentUser, row: Consultation) -> str:
@@ -707,7 +731,8 @@ async def get_my_listing(
             full_name="Advocate",
             is_verified=True,
         )
-    return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
+    [public] = await _serialize_lawyers(repo, [(lawyer, score_lawyer(lawyer), False)])
+    return public
 
 
 @lawyers_router.put("/me", response_model=LawyerPublic)
@@ -738,7 +763,8 @@ async def upsert_my_listing(
         asyncio.create_task(_generate_and_index(lawyer.id))
     else:
         asyncio.create_task(_remove_from_index(lawyer.id))
-    return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
+    [public] = await _serialize_lawyers(repo, [(lawyer, score_lawyer(lawyer), False)])
+    return public
 
 
 @lawyers_router.post("/me/avatar")
@@ -754,19 +780,17 @@ async def upload_my_avatar(
     if len(data) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image must be under 5 MB.")
     ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[file.content_type]
-    avatars_dir = Path(os.getenv("LAWYER_AVATARS_DIR", "/data/lawyer-avatars"))
-    avatars_dir.mkdir(parents=True, exist_ok=True)
     repo = MarketplaceRepository(session)
     lawyer = await repo.get_lawyer_by_user(uuid.UUID(user.user_id))
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer profile not found.")
-    filename = f"{lawyer.id}.{ext}"
-    (avatars_dir / filename).write_bytes(data)
-    base = os.getenv("MARKETPLACE_PUBLIC_URL", "").rstrip("/")
-    photo_url = f"{base}/lawyer-avatars/{filename}"
-    lawyer.photo_url = photo_url
+    # Store in the GCS avatars bucket; persist the stable gs:// ref and hand back a
+    # short-lived signed URL for immediate display.
+    key = f"lawyer-avatars/{lawyer.id}.{ext}"
+    gs_ref = await _avatar_storage.put_object(key, data, content_type=file.content_type)
+    lawyer.photo_url = gs_ref
     await session.commit()
-    return {"photo_url": photo_url}
+    return {"photo_url": await _resolve_photo_url(gs_ref)}
 
 
 @lawyers_router.post("/me/verify", response_model=VerifyResponse)
@@ -2477,7 +2501,8 @@ async def admin_get_lawyer_by_user(
     lawyer = await repo.get_lawyer_by_user(user_id)
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer profile not found")
-    return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
+    [public] = await _serialize_lawyers(repo, [(lawyer, score_lawyer(lawyer), False)])
+    return public
 
 
 @admin_router.post("/lawyers/{lawyer_id}/verify")
@@ -2543,7 +2568,7 @@ async def admin_list_lawyers(
 ) -> list[LawyerPublic]:
     repo = MarketplaceRepository(session)
     lawyers = await repo.list_all_lawyers()
-    return [_lawyer_public(l, match_score=score_lawyer(l)) for l in lawyers]
+    return await _serialize_lawyers(repo, [(l, score_lawyer(l), False) for l in lawyers])
 
 
 @admin_router.post("/lawyers/index/sync")
@@ -2592,4 +2617,5 @@ async def admin_patch_lawyer(
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer not found")
     lawyer.is_verified = body.is_verified
-    return _lawyer_public(lawyer, match_score=score_lawyer(lawyer))
+    [public] = await _serialize_lawyers(repo, [(lawyer, score_lawyer(lawyer), False)])
+    return public

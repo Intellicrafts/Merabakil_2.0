@@ -112,7 +112,7 @@ async def upload_document(
     doc_uuid = uuid.uuid4()
     safe_name = PurePath(file.filename or "upload.bin").name or "upload.bin"
     storage_key = f"documents/{doc_uuid}/{safe_name}"
-    source_uri = await container.s3.put_object(
+    source_uri = await container.storage.put_object(
         storage_key, raw, content_type=file.content_type or "application/octet-stream"
     )
 
@@ -121,7 +121,7 @@ async def upload_document(
     )
     extract_key = f"documents/{doc_uuid}/text.txt"
     if text:
-        await container.s3.put_object(extract_key, text.encode("utf-8"), content_type="text/plain")
+        await container.storage.put_object(extract_key, text.encode("utf-8"), content_type="text/plain")
         extract_status = "ready"
         extract_error = None
     else:
@@ -257,7 +257,7 @@ async def get_document_text(
         extract_key = (getattr(doc, "doc_metadata", None) or {}).get("extract_key")
         if extract_key:
             try:
-                raw = await get_container().s3.get_object(extract_key)
+                raw = await get_container().storage.get_object(extract_key)
                 text = raw.decode("utf-8", errors="ignore")
             except Exception:
                 text = ""
@@ -285,7 +285,7 @@ async def get_document_file(
     if not key:
         raise NotFoundError("File is not available")
     try:
-        data = await get_container().s3.get_object(key)
+        data = await get_container().storage.get_object(key)
     except Exception as exc:
         logger.warning("document_file_read_failed document_id=%s error=%s", document_id, exc)
         raise NotFoundError("File is not available") from exc

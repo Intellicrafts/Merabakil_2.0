@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 
@@ -91,9 +89,5 @@ app.include_router(lawyers_router)
 app.include_router(appointments_router)
 app.include_router(admin_router)
 
-from fastapi.staticfiles import StaticFiles
-
-_default_avatars = Path("/data/lawyer-avatars")
-_avatars_dir = Path(os.getenv("LAWYER_AVATARS_DIR", str(_default_avatars)))
-_avatars_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/lawyer-avatars", StaticFiles(directory=str(_avatars_dir)), name="lawyer-avatars")
+# Avatars are stored in GCS and served via signed URLs (see marketplace_api).
+# No local static mount is needed.

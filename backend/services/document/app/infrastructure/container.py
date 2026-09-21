@@ -11,7 +11,7 @@ from app.infrastructure.events import (
     KafkaEventPublisher,
     NullEventPublisher,
 )
-from legalos_common.clients import LocalFileStorage, S3Storage
+from legalos_common.clients import LocalFileStorage, build_storage
 from legalos_common.logging import get_logger
 from legalos_common.messaging import KafkaEventProducer
 
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 class Container:
     def __init__(self, settings: DocumentSettings) -> None:
         self.settings = settings
-        self.s3 = self._build_store(settings)
+        self.storage = self._build_store(settings)
         self._producer = KafkaEventProducer(settings.kafka_bootstrap_servers)
         self.events: KafkaEventPublisher | NullEventPublisher = NullEventPublisher()
         self.http_ingestion = HttpIngestionClient(settings.ingestion_service_url)
@@ -30,29 +30,26 @@ class Container:
     @staticmethod
     def _build_store(settings: DocumentSettings):
         mode = (settings.document_storage or "auto").lower()
-        local = LocalFileStorage(Path(settings.local_upload_root))
-        if mode == "local":
-            return local
-        if mode == "s3":
-            return S3Storage(settings.s3)
-        return S3Storage(settings.s3)
+        if mode == "local" or not settings.storage.use_gcs:
+            return LocalFileStorage(Path(settings.local_upload_root))
+        return build_storage(settings.storage)
 
     async def startup(self) -> None:
         mode = (self.settings.document_storage or "auto").lower()
-        if mode == "local":
-            await self.s3.ensure_bucket()
+        if mode == "local" or not self.settings.storage.use_gcs:
+            await self.storage.ensure_bucket()
             logger.info("document_storage_backend", backend="local")
             await self._start_events()
             return
         try:
-            await self.s3.ensure_bucket()
-            logger.info("document_storage_backend", backend="s3")
+            await self.storage.ensure_bucket()
+            logger.info("document_storage_backend", backend="gcs")
         except Exception as exc:
-            if mode == "s3":
+            if mode == "gcs":
                 raise
-            logger.warning("s3_unavailable_using_local_storage error=%s", exc)
-            self.s3 = LocalFileStorage(Path(self.settings.local_upload_root))
-            await self.s3.ensure_bucket()
+            logger.warning("gcs_unavailable_using_local_storage error=%s", exc)
+            self.storage = LocalFileStorage(Path(self.settings.local_upload_root))
+            await self.storage.ensure_bucket()
             logger.info("document_storage_backend", backend="local")
         await self._start_events()
 

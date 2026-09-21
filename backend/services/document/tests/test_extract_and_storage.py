@@ -110,14 +110,10 @@ def test_local_storage_rejects_path_escape(tmp_path: Path) -> None:
 
 
 def test_auto_storage_falls_back_to_local(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """With no GCS_PROJECT configured, auto mode uses local filesystem storage."""
     from app.config import DocumentSettings
     from app.infrastructure.container import Container
-    from legalos_common.clients.s3 import S3Storage
 
-    async def _fail_bucket(self) -> None:  # noqa: ARG001
-        raise ConnectionError("minio down")
-
-    monkeypatch.setattr(S3Storage, "ensure_bucket", _fail_bucket)
     settings = DocumentSettings(
         document_storage="auto",
         local_upload_root=str(tmp_path),
@@ -125,12 +121,13 @@ def test_auto_storage_falls_back_to_local(tmp_path: Path, monkeypatch: pytest.Mo
         ingestion_service_url="http://localhost:8002",
         use_kafka_ingestion=False,
     )
+    assert settings.storage.use_gcs is False  # GCS_PROJECT unset in tests
     container = Container(settings)
 
     async def _run() -> None:
         await container.startup()
-        assert isinstance(container.s3, LocalFileStorage)
-        uri = await container.s3.put_object("documents/x/note.txt", b"ok", content_type="text/plain")
+        assert isinstance(container.storage, LocalFileStorage)
+        uri = await container.storage.put_object("documents/x/note.txt", b"ok", content_type="text/plain")
         assert uri.startswith("file://")
 
     asyncio.run(_run())
