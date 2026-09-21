@@ -11,6 +11,11 @@ const PUBLIC_ROUTES = [
   { path: "/terms", priority: 0.5, changeFrequency: "monthly" as const },
   { path: "/faq", priority: 0.7, changeFrequency: "monthly" as const },
   { path: "/forgot-password", priority: 0.3, changeFrequency: "yearly" as const },
+  // Legal-guides content hub + published clusters (SEO landing pages)
+  { path: "/legal-guides", priority: 0.8, changeFrequency: "weekly" as const },
+  { path: "/legal-guides/property-law", priority: 0.7, changeFrequency: "monthly" as const },
+  { path: "/legal-guides/family-law", priority: 0.7, changeFrequency: "monthly" as const },
+  { path: "/legal-guides/labour-law", priority: 0.7, changeFrequency: "monthly" as const },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

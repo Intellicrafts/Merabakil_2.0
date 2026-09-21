@@ -45,7 +45,7 @@ export function FooterSection() {
 
         <div className="border-t border-black/[0.05] pt-6 dark:border-white/[0.06]">
           <p className="text-center text-[11px] text-muted-foreground">
-            © 2025 MeraBakil · For informational purposes only — not a substitute for licensed legal advice
+            © 2025 MeraBakil (Mera Bakil) · For informational purposes only — not a substitute for licensed legal advice
           </p>
         </div>
       </div>

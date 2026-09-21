@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BookOpen, Users, Briefcase, Scale, Gavel } from "lucide-react";
+import { ArrowRight, BookOpen, Users, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/site-metadata";
 
@@ -35,22 +35,8 @@ export default function LegalGuidesPage() {
       href: "/legal-guides/labour-law",
       keywords: ["labour lawyer", "employment rights", "termination"],
     },
-    {
-      id: "criminal-law",
-      title: "Criminal Law Guide",
-      description: "Criminal procedure, bail, charges, criminal defence, and constitutional rights",
-      icon: Gavel,
-      href: "/legal-guides/criminal-law",
-      keywords: ["criminal lawyer", "criminal procedure", "bail"],
-    },
-    {
-      id: "corporate-law",
-      title: "Corporate Law Guide",
-      description: "Company incorporation, contracts, GST, startup registration, and business law",
-      icon: Scale,
-      href: "/legal-guides/corporate-law",
-      keywords: ["corporate lawyer", "company law", "contracts"],
-    },
+    // criminal-law and corporate-law guides are not published yet — omitted to
+    // avoid broken internal links to 404 pages (bad for SEO/crawl budget).
   ];
 
   return (

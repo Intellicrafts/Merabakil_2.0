@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { brandThemeColors } from "@/lib/brand-assets";
-import { getOrganizationSchema } from "@/lib/schema-markup";
+import { getOrganizationSchema, getWebSiteSchema } from "@/lib/schema-markup";
 import { BRAND_ASSET_VERSION, rootMetadata } from "@/lib/site-metadata";
 
 const geistSans = Geist({
@@ -41,6 +41,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(getOrganizationSchema()),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(getWebSiteSchema()),
           }}
         />
       </head>

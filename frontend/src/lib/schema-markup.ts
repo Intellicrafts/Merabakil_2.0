@@ -1,12 +1,27 @@
 import { SITE } from "@/lib/site-metadata";
 
+/** Brand-name spelling variants so Google associates "Mera Bakil" (spaced),
+ *  "Mera Vakil", etc. with the same entity as the domain token "merabakil". */
+export const BRAND_ALTERNATE_NAMES = [
+  "Mera Bakil",
+  "Mera Vakil",
+  "MeraVakil",
+  "merabakil",
+];
+
 export function getOrganizationSchema() {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: SITE.name,
+    alternateName: BRAND_ALTERNATE_NAMES,
     url: SITE.url,
-    logo: `${SITE.url}/brand/og-default.png`,
+    logo: {
+      "@type": "ImageObject",
+      url: `${SITE.url}/brand/og-default.png`,
+      width: 1200,
+      height: 630,
+    },
     description: SITE.description,
     sameAs: [`https://twitter.com/merabakil`],
     address: {
@@ -17,6 +32,26 @@ export function getOrganizationSchema() {
       "@type": "ContactPoint",
       contactType: "customer service",
       url: SITE.url,
+    },
+  };
+}
+
+export function getWebSiteSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE.name,
+    alternateName: BRAND_ALTERNATE_NAMES,
+    url: SITE.url,
+    description: SITE.description,
+    publisher: { "@type": "Organization", name: SITE.name, url: SITE.url },
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${SITE.url}/mera-vakil?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
     },
   };
 }
