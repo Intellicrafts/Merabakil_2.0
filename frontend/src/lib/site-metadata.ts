@@ -61,7 +61,7 @@ export const rootMetadata: Metadata = {
     default: `${SITE.name} — AI Legal Assistant, India`,
     template: `%s | ${SITE.name}`,
   },
-  description: "MeraBakil (Mera Bakil) — India's AI legal platform. Ask Saarthi AI legal questions, find verified advocates, get legal guidance grounded in Indian law. Free consultation.",
+  description: "MeraBakil — India's AI legal platform. Ask Saarthi AI legal questions, find verified advocates, get legal guidance grounded in Indian law. Free consultation.",
   keywords: [
     "MeraBakil",
     "Mera Bakil",
@@ -79,7 +79,7 @@ export const rootMetadata: Metadata = {
   alternates: { canonical: "/" },
   openGraph: {
     title: `${SITE.name} — AI Legal Assistant & Advocate Marketplace`,
-    description: "MeraBakil (Mera Bakil): instant legal guidance from Saarthi AI, verified advocates, and expert help grounded in Indian law.",
+    description: "MeraBakil: instant legal guidance from Saarthi AI, verified advocates, and expert help grounded in Indian law.",
     url: "/",
     siteName: SITE.name,
     locale: SITE.locale,
@@ -89,7 +89,7 @@ export const rootMetadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: `${SITE.name} — AI Legal Assistant & Advocate Marketplace`,
-    description: "MeraBakil (Mera Bakil): instant legal guidance from Saarthi AI, verified advocates, and expert help grounded in Indian law.",
+    description: "MeraBakil: instant legal guidance from Saarthi AI, verified advocates, and expert help grounded in Indian law.",
     images: [SITE.ogImage],
   },
   appleWebApp: {

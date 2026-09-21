@@ -47,6 +47,11 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number):
 export async function prepareProfileImage(file: File): Promise<PreparedProfileImage> {
   const img = await loadImageFromFile(file);
   const side = Math.min(img.width, img.height);
+  if (!side || !Number.isFinite(side)) {
+    // Guard against 0-dimension images (corrupt/undecodable) that would make
+    // ctx.drawImage throw IndexSizeError.
+    throw new Error("Could not read image dimensions. Please try another photo.");
+  }
   const sx = (img.width - side) / 2;
   const sy = (img.height - side) / 2;
   const target = PROFILE_AVATAR_SIZE;
