@@ -201,7 +201,6 @@ function RegisterForm() {
           onChangeEmail={() => {
             setStep(1);
             setOtp("");
-            setDevOtp(null);
             setStepError(null);
           }}
           verifying={verifyOtpMutation.isPending}
