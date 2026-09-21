@@ -13,7 +13,7 @@ export function FooterSection() {
               <BrandLogo variant="mark" className="h-7 w-7" />
               <span className="font-semibold tracking-tight">MeraBakil</span>
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">Your Legal Saarthi</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">Your Legal Journey, Simplified</p>
           </div>
 
           <div className="flex flex-col items-center gap-3 md:items-end">

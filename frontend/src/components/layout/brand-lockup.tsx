@@ -25,7 +25,7 @@ export function BrandLockup({
           aria-label="MeraBakil home"
         >
           <BrandLogo variant="mark" className="brand-mark-nav h-9 w-9 sm:h-[2.375rem] sm:w-[2.375rem]" />
-          <Wordmark subtitle="Your Legal Saarthi" />
+          <Wordmark subtitle="Your Legal Journey, Simplified" />
         </Link>
       ) : (
         <>

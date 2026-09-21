@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Mera Bakil",
     short_name: "MeraBakil",
-    description: "Legal Help. Made Simple.",
+    description: "Your Legal Journey, Simplified",
     start_url: "/mera-vakil",
     scope: "/",
     display: "standalone",
