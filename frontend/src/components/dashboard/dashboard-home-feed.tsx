@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import {
   ArrowUpRight,
   Briefcase,
+  CalendarClock,
   FolderOpen,
   MessageSquare,
   Shield,
@@ -17,6 +18,7 @@ import {
   RecentActivityList,
 } from "@/components/dashboard/recent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getStoredUser } from "@/lib/api";
 import { appointmentClock } from "@/lib/appointment-format";
 import type { AppointmentRecord } from "@/lib/appointment-types";
 import {
@@ -24,6 +26,7 @@ import {
   relativeTime,
   type ChatConversation,
 } from "@/lib/conversations";
+import { getPrimaryRole } from "@/lib/dashboard-config";
 import type { DashboardSnapshot } from "@/hooks/use-dashboard-snapshot";
 import { useTranslation } from "@/lib/i18n";
 import type { LegalCase } from "@/lib/types";
@@ -49,6 +52,9 @@ function appointmentHref(item: AppointmentRecord): string {
 
 export function DashboardHomeFeed({ snapshot }: { snapshot: DashboardSnapshot }) {
   const nextApt = useMemo(() => pickNextAppointment(snapshot.appointments), [snapshot.appointments]);
+  // Advocates run their consultations from /appointments — never show them the
+  // client "book an advocate" CTA.
+  const isAdvocate = useMemo(() => getPrimaryRole(getStoredUser()) === "advocate", []);
   return (
     <section className="space-y-3.5 sm:hidden" aria-label="Your workspace">
       {!snapshot.ready ? (
@@ -59,7 +65,13 @@ export function DashboardHomeFeed({ snapshot }: { snapshot: DashboardSnapshot })
         </div>
       ) : (
         <>
-          {nextApt ? <UpcomingConsultCard apt={nextApt} /> : <FindAdvocateCard />}
+          {nextApt ? (
+            <UpcomingConsultCard apt={nextApt} />
+          ) : isAdvocate ? (
+            <AdvocateConsultCard />
+          ) : (
+            <FindAdvocateCard />
+          )}
 
           <ContinueCard lastCounsel={snapshot.lastCounsel} />
 
@@ -140,6 +152,34 @@ function FindAdvocateCard() {
           <p className="text-[15px] font-semibold tracking-tight">{t("dashboard.bookAdvocate")}</p>
           <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
             {t("dashboard.bookAdvocateDesc")}
+          </p>
+        </div>
+        <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </div>
+    </Link>
+  );
+}
+
+function AdvocateConsultCard() {
+  const { t } = useTranslation();
+  return (
+    <Link
+      href="/appointments"
+      className={cn(
+        "dash-card-in mp-surface-card relative block overflow-hidden rounded-[1.25rem] p-4",
+        "active:scale-[0.99]",
+      )}
+      style={{ animationDelay: "40ms" }}
+    >
+      <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-black/[0.03] blur-2xl" />
+      <div className="relative flex items-center gap-3">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black/[0.04] text-foreground/80 dark:bg-white/[0.08]">
+          <CalendarClock className="h-5 w-5" strokeWidth={1.7} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-semibold tracking-tight">{t("dashboard.viewConsultations")}</p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+            {t("dashboard.viewConsultationsDesc")}
           </p>
         </div>
         <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />

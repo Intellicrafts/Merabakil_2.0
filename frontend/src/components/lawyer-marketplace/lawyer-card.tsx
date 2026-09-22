@@ -40,6 +40,8 @@ interface LawyerCardProps {
   index?: number;
   variant?: "default" | "counsel";
   className?: string;
+  /** Booking is a client action — hide the Book CTA for non-citizens. */
+  canBook?: boolean;
   onView: (lawyer: RankedLawyer) => void;
   onBook: (lawyer: RankedLawyer) => void;
 }
@@ -49,6 +51,7 @@ export const LawyerCard = memo(function LawyerCard({
   index = 0,
   variant = "default",
   className,
+  canBook = true,
   onView,
   onBook,
 }: LawyerCardProps) {
@@ -112,14 +115,16 @@ export const LawyerCard = memo(function LawyerCard({
         <User className="h-3.5 w-3.5" />
         Profile
       </button>
-      <button
-        type="button"
-        onClick={handleBook}
-        className="mp-btn-accent inline-flex h-9 items-center gap-1.5 rounded-xl px-3.5 text-[12.5px] font-semibold"
-      >
-        <Calendar className="h-3.5 w-3.5" />
-        Book
-      </button>
+      {canBook && (
+        <button
+          type="button"
+          onClick={handleBook}
+          className="mp-btn-accent inline-flex h-9 items-center gap-1.5 rounded-xl px-3.5 text-[12.5px] font-semibold"
+        >
+          <Calendar className="h-3.5 w-3.5" />
+          Book
+        </button>
+      )}
     </div>
   );
 

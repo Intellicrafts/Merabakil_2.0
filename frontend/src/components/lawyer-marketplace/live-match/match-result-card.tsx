@@ -12,6 +12,7 @@ import {
 import { LawyerAvatar } from "@/components/lawyer-marketplace/lawyer-avatar";
 import { lawyerInitials } from "@/lib/lawyer-avatar";
 import type { MatchResult } from "@/lib/marketplace-store";
+import { canBookConsultations } from "@/lib/permissions";
 import type { AuthUser } from "@/lib/types";
 
 interface MatchResultCardProps {
@@ -34,6 +35,7 @@ export function MatchResultCard({
   const { lawyer, reasons, preferences, effectiveCity } = result;
   const userName = user?.full_name ?? "You";
   const userRole = user?.roles?.[0]?.replace("_", " ") ?? "Member";
+  const canBook = canBookConsultations(user);
 
   return (
     <div className="space-y-4">
@@ -142,14 +144,16 @@ export function MatchResultCard({
           </div>
 
           <div className="relative mt-4 flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              className="mp-btn-accent h-10 items-center rounded-xl px-4 text-[12px] font-semibold sm:h-9"
-              onClick={onBook}
-            >
-              Book
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
+            {canBook && (
+              <button
+                type="button"
+                className="mp-btn-accent h-10 items-center rounded-xl px-4 text-[12px] font-semibold sm:h-9"
+                onClick={onBook}
+              >
+                Book
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </button>
+            )}
             <button
               type="button"
               className="mp-btn-primary h-10 rounded-xl px-3 text-[12px] font-semibold sm:h-9"

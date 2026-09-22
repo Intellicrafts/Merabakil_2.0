@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 interface LawyerProfileDrawerProps {
   lawyer: RankedLawyer | null;
   open: boolean;
+  /** Booking is a client action — non-citizens see a note instead of the CTA. */
+  canBook?: boolean;
   onClose: () => void;
   onBook: (lawyer: RankedLawyer) => void;
 }
@@ -29,6 +31,7 @@ interface LawyerProfileDrawerProps {
 export function LawyerProfileDrawer({
   lawyer,
   open,
+  canBook = true,
   onClose,
   onBook,
 }: LawyerProfileDrawerProps) {
@@ -194,18 +197,24 @@ export function LawyerProfileDrawer({
                 : "Quote on request"}
             </span>
           </div>
-          <button
-            type="button"
-            className="mp-btn-accent inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-[13px] font-semibold"
-            onClick={() => {
-              track(AnalyticsEvents.APPOINTMENT_CTA_CLICKED, { booking_source: "manual" });
-              onBook(lawyer);
-              onClose();
-            }}
-          >
-            <Calendar className="h-4 w-4" />
-            Book consultation
-          </button>
+          {canBook ? (
+            <button
+              type="button"
+              className="mp-btn-accent inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-[13px] font-semibold"
+              onClick={() => {
+                track(AnalyticsEvents.APPOINTMENT_CTA_CLICKED, { booking_source: "manual" });
+                onBook(lawyer);
+                onClose();
+              }}
+            >
+              <Calendar className="h-4 w-4" />
+              Book consultation
+            </button>
+          ) : (
+            <p className="rounded-xl bg-black/[0.03] px-3.5 py-3 text-center text-[12px] text-muted-foreground dark:bg-white/[0.05]">
+              Consultations are booked by clients. This profile is view-only for your account.
+            </p>
+          )}
         </div>
       </aside>
     </div>,

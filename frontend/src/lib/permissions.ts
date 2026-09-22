@@ -35,6 +35,17 @@ export function hasPermission(
   return user.permissions.includes(perm);
 }
 
+/** Booking a consultation is a client action — only citizens (and admins, for
+ *  testing) may book. Mirrors the backend guard `require_roles(citizen)` on
+ *  POST /api/v1/appointments, so advocates/law_firm/enterprise never see a
+ *  Book affordance they can't complete. */
+export function canBookConsultations(
+  user: Pick<AuthUser, "roles"> | null | undefined,
+): boolean {
+  if (!user?.roles?.length) return false;
+  return user.roles.includes("citizen") || user.roles.includes("admin");
+}
+
 const FEATURE_GATE: Partial<Record<string, boolean>> = {
   "/mera-vakil":         FEATURES.SAARTHI,
   "/research":           FEATURES.RESEARCH_CONSOLE,

@@ -40,6 +40,7 @@ import {
   updateCaseApi,
   uploadCaseDocument,
 } from "@/lib/api";
+import { getPrimaryRole } from "@/lib/dashboard-config";
 import type { AiBrief, LegalCase } from "@/lib/types";
 
 // Document category options
@@ -324,6 +325,9 @@ function ShareSection({ caseItem }: { caseItem: LegalCase }) {
   const [message, setMessage] = useState("");
   const [sharing, setSharing] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Booking an advocate is a client action — advocates only get the
+  // share-by-user-ID path (to give another lawyer read access).
+  const isAdvocate = getPrimaryRole(getStoredUser()) === "advocate";
 
   async function handleShare() {
     if (!lawyerUserId.trim()) return;
@@ -343,30 +347,36 @@ function ShareSection({ caseItem }: { caseItem: LegalCase }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-3 rounded-xl border border-black/[0.06] bg-black/[0.02] p-4 dark:border-white/[0.08] dark:bg-white/[0.03]">
-        <Scale className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground/60" />
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold">Book a consultation</p>
-          <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
-            Find a verified advocate on the marketplace, view their profile, and book a
-            consultation directly — your case context will be linked automatically.
-          </p>
-          <a
-            href="/lawyer-marketplace"
-            className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-2 text-[12px] font-semibold text-background transition-opacity hover:opacity-80"
-          >
-            <Users className="h-3.5 w-3.5" />
-            Find an Advocate
-          </a>
+      {!isAdvocate && (
+        <div className="flex items-start gap-3 rounded-xl border border-black/[0.06] bg-black/[0.02] p-4 dark:border-white/[0.08] dark:bg-white/[0.03]">
+          <Scale className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground/60" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold">Book a consultation</p>
+            <p className="mt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+              Find a verified advocate on the marketplace, view their profile, and book a
+              consultation directly — your case context will be linked automatically.
+            </p>
+            <a
+              href="/lawyer-marketplace"
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-2 text-[12px] font-semibold text-background transition-opacity hover:opacity-80"
+            >
+              <Users className="h-3.5 w-3.5" />
+              Find an Advocate
+            </a>
+          </div>
         </div>
-      </div>
+      )}
 
       <button
         type="button"
         onClick={() => setShowAdvanced((v) => !v)}
         className="text-[12px] font-medium text-muted-foreground hover:text-foreground"
       >
-        {showAdvanced ? "Hide" : "Already have a lawyer? Share by user ID ↓"}
+        {showAdvanced
+          ? "Hide"
+          : isAdvocate
+          ? "Share by user ID ↓"
+          : "Already have a lawyer? Share by user ID ↓"}
       </button>
 
       {showAdvanced && (
