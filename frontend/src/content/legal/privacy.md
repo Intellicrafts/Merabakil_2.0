@@ -1,7 +1,7 @@
 # Privacy Policy
 
-**Last updated:** September 13, 2026  
-**Version:** 1.0
+**Last updated:** September 23, 2026  
+**Version:** 1.1
 
 MeraBakil ("we", "us", "our") operates the MeraBakil platform at [merabakil.in](https://merabakil.in). This Privacy Policy explains how we collect, use, store, and protect your personal data in accordance with the Digital Personal Data Protection Act, 2023 (DPDP Act) and applicable Indian laws.
 
@@ -13,7 +13,7 @@ We may collect the following categories of personal data:
 
 - **Account data:** name, email address, password (hashed), role (citizen or advocate), profile details.
 - **Authentication data:** Google OAuth identifiers when you sign in with Google.
-- **Usage data:** pages visited, feature interactions, and anonymised analytics via **Google Analytics 4** (only with your consent).
+- **Usage & measurement data:** pages visited, feature interactions, and analytics via **Google Analytics 4**, plus advertising-measurement signals via **Google Ads** (including a Google click identifier, `gclid`, when you arrive from an ad) used to measure and improve our campaigns. You can opt out of analytics and advertising cookies at any time via the consent banner ("Necessary only").
 - **Saarthi (AI chat) data:** your questions, conversation history, attachments, and AI-generated responses.
 - **Document data:** files you upload for document Q&A or case management.
 - **Voice data:** audio input when you use voice features (processed to generate text/responses).
@@ -43,7 +43,8 @@ We use third-party services to operate MeraBakil:
 | **Google (Gemini API)** | AI chat, embeddings, text-to-speech, voice |
 | **Google OAuth** | Sign-in authentication |
 | **LiveKit** | Video/audio consultation rooms |
-| **Google Analytics 4** | Usage statistics to improve the platform (with consent; IP anonymised, no ad personalisation) |
+| **Google Analytics 4** | Usage statistics to improve the platform (IP anonymised; opt out via the consent banner) |
+| **Google Ads** | Advertising measurement and conversion attribution for our campaigns (opt out via the consent banner) |
 | **Cloud infrastructure** | Hosting, databases, object storage |
 
 AI outputs are generated automatically and may be inaccurate. They are **not legal advice**. See our [Terms of Service](/terms).
@@ -52,13 +53,14 @@ Some providers may process data outside India. We take reasonable steps to ensur
 
 ## 4. Cookies & local storage
 
-We use **browser local storage** (not traditional cookies) for:
+We use **browser local storage** for:
 
 - **Essential:** authentication tokens, user session, theme preference.
 - **Consent preference:** your cookie/analytics choice.
-- **Analytics (optional):** loads only after you accept analytics in the consent banner.
 
-You can clear local storage via your browser settings, which will sign you out.
+We also use **cookies** set by Google for optional analytics and advertising measurement (for example Google Analytics `_ga` cookies and the Google Ads click cookie `_gcl_aw`). Because MeraBakil operates under India's DPDP Act, these are **enabled by default**; you can turn them off at any time by choosing **"Necessary only"** in the consent banner (re-openable from the footer), which switches Google Consent Mode to deny analytics and advertising storage.
+
+You can clear local storage and cookies via your browser settings, which will sign you out.
 
 ## 5. Data retention
 
