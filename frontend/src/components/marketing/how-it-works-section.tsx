@@ -34,7 +34,7 @@ const TABS = [
     heading: "Meet Saarthi, your AI legal guide",
     body: "Describe your matter by text or voice. Saarthi asks the right follow-ups, explains your rights, and answers with citations from Indian law — no legal jargon needed.",
     ctaLabel: "Ask Saarthi",
-    ctaHref: "/register",
+    ctaHref: "/mera-vakil",
     ctaEvent: "how_it_works_saarthi",
     handoff: "Your conversation is saved to a case — ready for Smart Matching next.",
   },
