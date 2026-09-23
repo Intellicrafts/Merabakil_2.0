@@ -236,11 +236,26 @@ export default function MeraVakilPage() {
       const panelStored = localStorage.getItem(CONTEXT_PANEL_KEY);
       if (panelStored !== null) setRightPanelOpen(panelStored === "true");
       const prefill = consumeMeraVakilPrefill();
-      if (prefill) setInput(prefill);
-      // /ask stashes the question + an auto-send flag so the visitor's answer
-      // generates immediately after sign-in — no retyping. Deferred until the
-      // one-shot effect below (after hydration) so sendMessage has live state.
-      if (prefill && consumeMeraVakilAutoSend()) autoSendQuestionRef.current = prefill;
+      if (prefill) {
+        setInput(prefill);
+        // The landing stashes the question + an auto-send flag so the visitor's
+        // answer generates immediately after sign-in — no retyping. Deferred to
+        // the one-shot effect below (after hydration) so sendMessage has state.
+        if (consumeMeraVakilAutoSend()) autoSendQuestionRef.current = prefill;
+      } else {
+        // Logged-in entry from a legal-guide CTA (/mera-vakil?topic=…) — prefill
+        // a relevant starter (not auto-sent; the user reviews/edits first).
+        const topic = new URLSearchParams(window.location.search).get("topic");
+        const topicText =
+          topic === "property"
+            ? "I have a property dispute — what are my rights?"
+            : topic === "family"
+              ? "I need help with a family law matter (divorce, custody or maintenance)."
+              : topic === "labour"
+                ? "I have a workplace or salary issue — what can I do?"
+                : "";
+        if (topicText) setInput(topicText);
+      }
       const wantVoice =
         consumeMeraVakilVoiceOpen() || new URLSearchParams(window.location.search).get("voice") === "1";
       if (wantVoice && FEATURES.VOICE && isVoiceBotSupported()) setVoiceModeOpen(true);

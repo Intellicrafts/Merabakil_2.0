@@ -86,6 +86,15 @@ function setTokens(accessToken: string, refreshToken: string): void {
   window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
 }
 
+/** Fired whenever the session is established or cleared, so client components
+ *  (e.g. the Saarthi dual-mode layout) can react without a full reload. */
+export const AUTH_CHANGED_EVENT = "legalos:auth-changed";
+
+function notifyAuthChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+}
+
 export function setSession(auth: AuthResponse): void {
   setTokens(auth.tokens.access_token, auth.tokens.refresh_token);
   window.localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
@@ -93,6 +102,7 @@ export function setSession(auth: AuthResponse): void {
     storeAvatarUrl(auth.user.avatar_url);
   }
   void setAnalyticsUser(auth.user.user_id);
+  notifyAuthChanged();
 }
 
 export function clearSession(): void {
@@ -101,6 +111,7 @@ export function clearSession(): void {
   window.localStorage.removeItem(USER_KEY);
   clearAvatarUrl();
   clearAnalyticsUser();
+  notifyAuthChanged();
 }
 
 /** User-initiated sign out — tracks logout then clears session. */

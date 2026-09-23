@@ -16,14 +16,21 @@ import { useTranslation } from "@/lib/i18n";
 
 const SAARTHI = "/mera-vakil";
 
-function AskInner() {
+/**
+ * Logged-out landing shown on /mera-vakil (the Saarthi page's public face). A
+ * visitor types a question first; on submit we stash it + open the inline auth
+ * sheet, and after sign-in the page flips to the full chat and auto-sends it.
+ */
+function SaarthiLandingInner() {
   const searchParams = useSearchParams();
   const { t, lang } = useTranslation();
   const [query, setQuery] = useState("");
   const { submitQuestion, authOpen, setAuthOpen } = useAskSubmit();
 
+  const topic = searchParams.get("topic");
+
   const topicPrefill = useMemo(() => {
-    switch (searchParams.get("topic")) {
+    switch (topic) {
       case "property":
         return t("ask.topicProperty");
       case "family":
@@ -34,21 +41,20 @@ function AskInner() {
         return "";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, lang]);
+  }, [topic, lang]);
 
   useEffect(() => {
     if (topicPrefill) setQuery(topicPrefill);
   }, [topicPrefill]);
 
   useEffect(() => {
-    // /ask is public — capture gclid/utm here too so it survives even if the
+    // Public landing — capture gclid/utm here too so it survives even if the
     // global tracker hasn't run yet.
     captureUtmFromSearch(window.location.search);
     track(AnalyticsEvents.ASK_PAGE_VIEWED, { lang });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const topic = searchParams.get("topic");
   const examples =
     topic === "property"
       ? [t("ask.propertyEx1"), t("ask.propertyEx2"), t("ask.propertyEx3")]
@@ -91,7 +97,12 @@ function AskInner() {
         </p>
 
         <div className="mt-5">
-          <AskComposer value={query} onChange={setQuery} onAsk={(q, opts) => submitQuestion(q, "typed", opts)} autoFocus />
+          <AskComposer
+            value={query}
+            onChange={setQuery}
+            onAsk={(q, opts) => submitQuestion(q, "typed", opts)}
+            autoFocus
+          />
         </div>
 
         <div className="mt-3">
@@ -131,10 +142,10 @@ function AskInner() {
   );
 }
 
-export function AskClient() {
+export function SaarthiLanding() {
   return (
     <Suspense fallback={null}>
-      <AskInner />
+      <SaarthiLandingInner />
     </Suspense>
   );
 }

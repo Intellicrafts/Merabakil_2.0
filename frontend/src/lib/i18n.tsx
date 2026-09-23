@@ -345,6 +345,14 @@ const en = {
     labourEx2: "I was terminated without notice — is it legal?",
     labourEx3: "Am I entitled to gratuity and PF?",
   },
+  consent: {
+    title: "We use cookies",
+    description:
+      "Optional analytics and advertising cookies help us measure and improve MeraBakil.",
+    privacyPolicy: "Privacy Policy",
+    necessaryOnly: "Necessary only",
+    acceptAll: "Accept all",
+  },
   appointments: {
     myConsultations: "My Consultations",
     upcomingAndPast: "Your upcoming and past consultations.",
@@ -999,6 +1007,15 @@ const hi: typeof en = {
     labourEx1: "मेरे नियोक्ता ने मेरी सैलरी नहीं दी",
     labourEx2: "मुझे बिना नोटिस के निकाल दिया गया — क्या यह वैध है?",
     labourEx3: "क्या मैं ग्रेच्युटी और PF का हकदार हूं?",
+  },
+  // TODO(hi-review): native-speaker review of the `consent` block.
+  consent: {
+    title: "हम कुकीज़ का उपयोग करते हैं",
+    description:
+      "वैकल्पिक एनालिटिक्स और विज्ञापन कुकीज़ हमें MeraBakil को मापने और बेहतर बनाने में मदद करती हैं।",
+    privacyPolicy: "गोपनीयता नीति",
+    necessaryOnly: "केवल आवश्यक",
+    acceptAll: "सभी स्वीकारें",
   },
   appointments: {
     myConsultations: "मेरी परामर्श",

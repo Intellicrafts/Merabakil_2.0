@@ -29,6 +29,11 @@ const nextConfig = {
       },
     ];
   },
+  /** /ask was merged into the Saarthi page; keep the old URL working (the query
+   *  string, incl. gclid, is forwarded automatically). */
+  async redirects() {
+    return [{ source: "/ask", destination: "/mera-vakil", permanent: true }];
+  },
   /** Route browser API calls through Next.js so one public URL works on any device. */
   async rewrites() {
     const auth = process.env.API_PROXY_AUTH ?? "http://127.0.0.1:8001";

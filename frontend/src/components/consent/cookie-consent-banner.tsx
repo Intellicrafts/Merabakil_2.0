@@ -6,8 +6,10 @@ import { Cookie } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { hasConsentChoice, writeConsent } from "@/lib/consent";
+import { useTranslation } from "@/lib/i18n";
 
 export function CookieConsentBanner() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -77,15 +79,15 @@ export function CookieConsentBanner() {
           </span>
           <div className="min-w-0 space-y-0.5">
             <p id="cookie-consent-title" className="text-[13px] font-semibold text-foreground">
-              We use cookies
+              {t("consent.title")}
             </p>
             <p id="cookie-consent-desc" className="text-[12px] leading-relaxed text-muted-foreground">
-              Optional analytics and advertising cookies help us measure and improve MeraBakil.{" "}
+              {t("consent.description")}{" "}
               <Link
                 href="/privacy"
                 className="font-medium text-foreground underline-offset-2 hover:underline"
               >
-                Privacy Policy
+                {t("consent.privacyPolicy")}
               </Link>
             </p>
           </div>
@@ -98,7 +100,7 @@ export function CookieConsentBanner() {
             className="h-9 flex-1 rounded-lg px-3 text-[13px] text-muted-foreground hover:text-foreground sm:flex-none sm:px-4"
             onClick={() => accept(false)}
           >
-            Necessary only
+            {t("consent.necessaryOnly")}
           </Button>
           <Button
             type="button"
@@ -106,7 +108,7 @@ export function CookieConsentBanner() {
             className="h-9 flex-1 rounded-lg px-4 text-[13px] font-medium sm:flex-none sm:px-5"
             onClick={() => accept(true)}
           >
-            Accept all
+            {t("consent.acceptAll")}
           </Button>
         </div>
       </div>
