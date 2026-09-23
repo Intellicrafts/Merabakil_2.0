@@ -12,13 +12,18 @@ function gtag(...args: unknown[]) {
   window.dataLayer.push(args);
 }
 
-export function updateConsentMode(analyticsGranted: boolean) {
+/**
+ * Opt-out model: a single choice governs measurement + advertising. "Accept
+ * all" grants every signal (so Google Ads can set _gcl_aw and attribute
+ * conversions); "Necessary only" denies them all.
+ */
+export function updateConsentMode(granted: boolean) {
   if (typeof window === "undefined") return;
-  const state: GtagConsent = analyticsGranted ? "granted" : "denied";
+  const state: GtagConsent = granted ? "granted" : "denied";
   gtag("consent", "update", {
     analytics_storage: state,
-    ad_storage: "denied",
-    ad_user_data: "denied",
-    ad_personalization: "denied",
+    ad_storage: state,
+    ad_user_data: state,
+    ad_personalization: state,
   });
 }

@@ -14,7 +14,9 @@ declare global {
 function canTrack(): boolean {
   if (!GA_ENABLED || !GA_MEASUREMENT_ID) return false;
   if (typeof window === "undefined") return false;
-  return readConsent()?.analytics === true;
+  // Opt-out model: measure unless the user explicitly chose "Necessary only".
+  // New visitors (no stored choice) default to granted, matching gtag defaults.
+  return readConsent()?.analytics !== false;
 }
 
 function gtag(...args: unknown[]) {
@@ -35,7 +37,7 @@ export function trackPageView(params: AnalyticsParams): void {
 
 export async function setAnalyticsUser(userId: string): Promise<void> {
   if (!GA_ENABLED || !GA_MEASUREMENT_ID || typeof window === "undefined") return;
-  if (readConsent()?.analytics !== true) return;
+  if (readConsent()?.analytics === false) return;
   const hashed = await hashUserId(userId);
   gtag("config", GA_MEASUREMENT_ID, { user_id: hashed });
 }

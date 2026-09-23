@@ -1,4 +1,6 @@
-export const CONSENT_VERSION = 2;
+// v3: optional cookies now cover advertising/measurement (Google Ads signals),
+// not just analytics — bump to re-collect consent under the broadened scope.
+export const CONSENT_VERSION = 3;
 export const CONSENT_STORAGE_KEY = "legalos.consent";
 
 export type ConsentChoice = {

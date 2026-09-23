@@ -20,7 +20,8 @@ export function PageViewTracker() {
   const lastPath = useRef<string | null>(null);
 
   useEffect(() => {
-    if (readConsent()?.analytics !== true) return;
+    // Opt-out model: track unless the user explicitly chose "Necessary only".
+    if (readConsent()?.analytics === false) return;
 
     const search = searchParams.toString();
     captureUtmFromSearch(search ? `?${search}` : "");
