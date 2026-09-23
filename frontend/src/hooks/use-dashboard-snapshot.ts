@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { listAppointments, listCasesApi, listUserDocuments } from "@/lib/api";
 import type { AppointmentRecord } from "@/lib/appointment-types";
 import {
+  initConversations,
   loadActiveConversationId,
   loadConversations,
   type ChatConversation,
@@ -46,11 +47,12 @@ function byUpdatedDesc<T extends { updatedAt?: string; updated_at?: string }>(a:
   return tb - ta;
 }
 
-function readLocal(): Pick<
+type ConversationFields = Pick<
   DashboardSnapshot,
   "conversations" | "recent" | "pinnedCount" | "lastCounsel"
-> {
-  const conversations = loadConversations();
+>;
+
+function conversationFields(conversations: ChatConversation[]): ConversationFields {
   const sorted = [...conversations].sort(byUpdatedDesc);
   const recent = sorted.slice(0, 5);
   const pinnedCount = conversations.filter((c) => Boolean(c.pinned)).length;
@@ -63,13 +65,25 @@ function readLocal(): Pick<
   return { conversations, recent, pinnedCount, lastCounsel };
 }
 
+/** Synchronous read of the in-memory conversation cache (may be empty pre-fetch). */
+function readLocal(): ConversationFields {
+  return conversationFields(loadConversations());
+}
+
 async function readRemote(): Promise<
-  Pick<DashboardSnapshot, "appointments" | "documents" | "cases" | "openCount" | "upcoming">
+  Pick<
+    DashboardSnapshot,
+    "appointments" | "documents" | "cases" | "openCount" | "upcoming"
+  > &
+    ConversationFields
 > {
-  const [appointments, docsPage, casesPage] = await Promise.all([
+  const [appointments, docsPage, casesPage, conversations] = await Promise.all([
     listAppointments().catch(() => [] as AppointmentRecord[]),
     listUserDocuments(1, 12).catch(() => null),
     listCasesApi(null, 1, 100).catch(() => null),
+    // Fetch conversations from the server so Recent Activity works on the
+    // dashboard without first opening Saarthi (which is what populates the cache).
+    initConversations().catch(() => [] as ChatConversation[]),
   ]);
 
   const cases = casesPage?.items ?? [];
@@ -82,6 +96,7 @@ async function readRemote(): Promise<
     cases,
     openCount: live.length,
     upcoming,
+    ...conversationFields(conversations),
   };
 }
 
