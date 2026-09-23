@@ -3186,6 +3186,13 @@
   isolation: isolate;
 }
 
+/* When the cookie banner is docked at the bottom, reserve space so the Saarthi
+   composer + chips stay fully visible above it (banner height is measured live
+   and published as --cookie-banner-h by the banner component). */
+.cookie-banner-visible .mv-input-dock {
+  padding-bottom: var(--cookie-banner-h, 6rem);
+}
+
 .mv-input-dock::before {
   content: "";
   position: absolute;

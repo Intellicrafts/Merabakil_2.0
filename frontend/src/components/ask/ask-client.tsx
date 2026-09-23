@@ -48,12 +48,15 @@ function AskInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const examples = [
-    t("ask.example1"),
-    t("ask.example2"),
-    t("ask.example3"),
-    t("ask.example4"),
-  ];
+  const topic = searchParams.get("topic");
+  const examples =
+    topic === "property"
+      ? [t("ask.propertyEx1"), t("ask.propertyEx2"), t("ask.propertyEx3")]
+      : topic === "family"
+        ? [t("ask.familyEx1"), t("ask.familyEx2"), t("ask.familyEx3")]
+        : topic === "labour"
+          ? [t("ask.labourEx1"), t("ask.labourEx2"), t("ask.labourEx3")]
+          : [t("ask.example1"), t("ask.example2"), t("ask.example3"), t("ask.example4")];
 
   const trust = [
     { icon: Scale, label: t("ask.trust1") },

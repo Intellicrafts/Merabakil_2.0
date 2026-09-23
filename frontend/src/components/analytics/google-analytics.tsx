@@ -3,7 +3,7 @@
 import Script from "next/script";
 import { useEffect } from "react";
 
-import { GA_ENABLED, GA_MEASUREMENT_ID } from "@/lib/analytics/constants";
+import { GA_ENABLED, GA_MEASUREMENT_ID, GOOGLE_ADS_ID } from "@/lib/analytics/constants";
 import { updateConsentMode } from "@/lib/analytics/consent-bridge";
 import { clearAnalyticsUser } from "@/lib/analytics/track";
 import { readConsent } from "@/lib/consent";
@@ -71,6 +71,11 @@ export function GoogleAnalytics() {
             allow_google_signals: true,
             allow_ad_personalization_signals: true
           });
+          ${
+            GOOGLE_ADS_ID
+              ? `gtag('config', '${GOOGLE_ADS_ID}');`
+              : "/* Google Ads tag disabled — set NEXT_PUBLIC_GOOGLE_ADS_ID */"
+          }
         `}
       </Script>
     </>
