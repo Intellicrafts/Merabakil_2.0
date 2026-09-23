@@ -34,7 +34,11 @@ import {
   type ComposerAttachment,
 } from "@/lib/composer-attachments";
 import { FEATURES } from "@/lib/features";
-import { consumeMeraVakilPrefill, consumeMeraVakilVoiceOpen } from "@/lib/prefill-store";
+import {
+  consumeMeraVakilAutoSend,
+  consumeMeraVakilPrefill,
+  consumeMeraVakilVoiceOpen,
+} from "@/lib/prefill-store";
 import { loadSpeechLocale } from "@/lib/indian-locales";
 import {
   createAssistantMessage,
@@ -99,6 +103,10 @@ export default function MeraVakilPage() {
   const mobilePanelTriggerRef = useRef<HTMLButtonElement>(null);
   const assistantMsgIdRef = useRef<string | null>(null);
   const withUserRef = useRef<ChatConversation | null>(null);
+  // From /ask: a question to auto-send once hydrated, and a flag to fire the
+  // first_answer_shown conversion when its first response arrives.
+  const autoSendQuestionRef = useRef<string | null>(null);
+  const firstAnswerPendingRef = useRef(false);
   const streamReveal = useStreamingReveal();
   const streamGenerationRef = useRef(0);
   const [groundingMessageId, setGroundingMessageId] = useState<string | null>(null);
@@ -228,7 +236,26 @@ export default function MeraVakilPage() {
       const panelStored = localStorage.getItem(CONTEXT_PANEL_KEY);
       if (panelStored !== null) setRightPanelOpen(panelStored === "true");
       const prefill = consumeMeraVakilPrefill();
-      if (prefill) setInput(prefill);
+      if (prefill) {
+        setInput(prefill);
+        // The landing stashes the question + an auto-send flag so the visitor's
+        // answer generates immediately after sign-in — no retyping. Deferred to
+        // the one-shot effect below (after hydration) so sendMessage has state.
+        if (consumeMeraVakilAutoSend()) autoSendQuestionRef.current = prefill;
+      } else {
+        // Logged-in entry from a legal-guide CTA (/mera-vakil?topic=…) — prefill
+        // a relevant starter (not auto-sent; the user reviews/edits first).
+        const topic = new URLSearchParams(window.location.search).get("topic");
+        const topicText =
+          topic === "property"
+            ? "I have a property dispute — what are my rights?"
+            : topic === "family"
+              ? "I need help with a family law matter (divorce, custody or maintenance)."
+              : topic === "labour"
+                ? "I have a workplace or salary issue — what can I do?"
+                : "";
+        if (topicText) setInput(topicText);
+      }
       const wantVoice =
         consumeMeraVakilVoiceOpen() || new URLSearchParams(window.location.search).get("voice") === "1";
       if (wantVoice && FEATURES.VOICE && isVoiceBotSupported()) setVoiceModeOpen(true);
@@ -256,6 +283,18 @@ export default function MeraVakilPage() {
       setHydrated(true);
     })();
   }, []);
+
+  // Auto-send the question carried over from /ask, once hydration has set up
+  // conversation state. One-shot: the ref is cleared before sending.
+  useEffect(() => {
+    if (!hydrated) return;
+    const q = autoSendQuestionRef.current;
+    if (!q) return;
+    autoSendQuestionRef.current = null;
+    firstAnswerPendingRef.current = true;
+    void sendMessage(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
   useEffect(() => {
     if (voiceModeOpen) {
@@ -939,6 +978,11 @@ export default function MeraVakilPage() {
           onCitations: (citationsResult) => {
             streamReveal.flush();
             setGroundingMessageId(assistantMsgId);
+            // Conversion: the /ask visitor's first question just got its answer.
+            if (firstAnswerPendingRef.current) {
+              firstAnswerPendingRef.current = false;
+              track(AnalyticsEvents.FIRST_ANSWER_SHOWN, {});
+            }
             const streamed = streamReveal.content.trim();
             const guardrailed = (citationsResult.answer ?? "").trim();
             if (guardrailed && guardrailed !== streamed) {

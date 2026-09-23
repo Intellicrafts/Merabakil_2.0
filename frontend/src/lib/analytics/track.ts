@@ -20,14 +20,23 @@ declare global {
 }
 
 /**
- * GA4 gate — explicit opt-in. Deliberately stricter than Clarity's `clarityAllowed()`,
- * which collects until the user opts out. Each sink gates itself so disabling one never
- * silently disables the other.
+ * Opt-out model: measure unless the user explicitly chose "Necessary only".
+ * New visitors (no stored choice) default to granted, matching gtag defaults.
+ * Shared by both sinks — Clarity applies the same predicate in `clarityAllowed()`.
+ */
+function hasAnalyticsConsent(): boolean {
+  return readConsent()?.analytics !== false;
+}
+
+/**
+ * GA4 gate. Kept separate from Clarity's so that disabling one sink never silently
+ * disables the other — a single gate short-circuiting on GA_ENABLED would kill Clarity
+ * everywhere GA is off, including local dev.
  */
 function canTrackGa(): boolean {
   if (!GA_ENABLED || !GA_MEASUREMENT_ID) return false;
   if (typeof window === "undefined") return false;
-  return readConsent()?.analytics === true;
+  return hasAnalyticsConsent();
 }
 
 function gtag(...args: unknown[]) {
@@ -56,9 +65,10 @@ export function trackPageView(params: AnalyticsParams): void {
 
 export async function setAnalyticsUser(userId: string, role?: string): Promise<void> {
   if (typeof window === "undefined") return;
+  if (!hasAnalyticsConsent()) return;
   const hashed = await hashUserId(userId);
 
-  if (GA_ENABLED && GA_MEASUREMENT_ID && readConsent()?.analytics === true) {
+  if (GA_ENABLED && GA_MEASUREMENT_ID) {
     gtag("config", GA_MEASUREMENT_ID, { user_id: hashed });
   }
 

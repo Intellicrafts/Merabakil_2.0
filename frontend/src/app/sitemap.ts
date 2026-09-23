@@ -4,6 +4,8 @@ import { SITE } from "@/lib/site-metadata";
 
 const PUBLIC_ROUTES = [
   { path: "/", priority: 1.0, changeFrequency: "weekly" as const },
+  // Saarthi is the public, question-first entry point (logged-out visitors see
+  // the landing; the old /ask URL 301s here).
   { path: "/mera-vakil", priority: 0.9, changeFrequency: "weekly" as const },
   { path: "/register", priority: 0.8, changeFrequency: "monthly" as const },
   { path: "/login", priority: 0.6, changeFrequency: "monthly" as const },

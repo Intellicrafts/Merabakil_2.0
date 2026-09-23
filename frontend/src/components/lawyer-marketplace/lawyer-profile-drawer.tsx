@@ -22,6 +22,10 @@ import { cn } from "@/lib/utils";
 interface LawyerProfileDrawerProps {
   lawyer: RankedLawyer | null;
   open: boolean;
+  /** Booking is a client action — non-citizens see a note instead of the CTA. */
+  canBook?: boolean;
+  /** Only show the AI match % when there's real case context (e.g. live match). */
+  showMatch?: boolean;
   onClose: () => void;
   onBook: (lawyer: RankedLawyer) => void;
 }
@@ -29,6 +33,8 @@ interface LawyerProfileDrawerProps {
 export function LawyerProfileDrawer({
   lawyer,
   open,
+  canBook = true,
+  showMatch = false,
   onClose,
   onBook,
 }: LawyerProfileDrawerProps) {
@@ -97,15 +103,23 @@ export function LawyerProfileDrawer({
               </div>
               <p className="mt-0.5 text-[12px] text-muted-foreground">Bar · {lawyer.bar_council_id}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 text-[12px]">
-                  <Star className="h-3 w-3 fill-current text-amber-500/80" />
-                  <span className="font-semibold">{lawyer.rating.toFixed(1)}</span>
-                  <span className="hidden text-muted-foreground sm:inline">({lawyer.review_count})</span>
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-white/10">
-                  <Sparkles className="h-2.5 w-2.5" />
-                  {lawyer.match_score}% match
-                </span>
+                {lawyer.review_count > 0 ? (
+                  <span className="inline-flex items-center gap-1 text-[12px]">
+                    <Star className="h-3 w-3 fill-current text-amber-500/80" />
+                    <span className="font-semibold">{lawyer.rating.toFixed(1)}</span>
+                    <span className="hidden text-muted-foreground sm:inline">({lawyer.review_count})</span>
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                    New
+                  </span>
+                )}
+                {showMatch && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-white/10">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    {lawyer.match_score}% match
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -194,18 +208,24 @@ export function LawyerProfileDrawer({
                 : "Quote on request"}
             </span>
           </div>
-          <button
-            type="button"
-            className="mp-btn-accent inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-[13px] font-semibold"
-            onClick={() => {
-              track(AnalyticsEvents.APPOINTMENT_CTA_CLICKED, { booking_source: "manual" });
-              onBook(lawyer);
-              onClose();
-            }}
-          >
-            <Calendar className="h-4 w-4" />
-            Book consultation
-          </button>
+          {canBook ? (
+            <button
+              type="button"
+              className="mp-btn-accent inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-[13px] font-semibold"
+              onClick={() => {
+                track(AnalyticsEvents.APPOINTMENT_CTA_CLICKED, { booking_source: "manual" });
+                onBook(lawyer);
+                onClose();
+              }}
+            >
+              <Calendar className="h-4 w-4" />
+              Book consultation
+            </button>
+          ) : (
+            <p className="rounded-xl bg-black/[0.03] px-3.5 py-3 text-center text-[12px] text-muted-foreground dark:bg-white/[0.05]">
+              Consultations are booked by clients. This profile is view-only for your account.
+            </p>
+          )}
         </div>
       </aside>
     </div>,

@@ -13,7 +13,8 @@ We may collect the following categories of personal data:
 
 - **Account data:** name, email address, password (hashed), role (citizen or advocate), profile details.
 - **Authentication data:** Google OAuth identifiers when you sign in with Google.
-- **Usage data:** pages visited, feature interactions, and anonymised analytics via **Google Analytics 4** and **Microsoft Clarity** (only with your consent). Microsoft Clarity also records anonymised session replays and heatmaps of how pages are used — mouse movement, clicks and scrolling. Sensitive areas are masked before anything leaves your browser: your Saarthi conversations, uploaded documents, case details, wallet figures, one-time codes and personal details are never captured.
+- **Usage & measurement data:** pages visited, feature interactions, and analytics via **Google Analytics 4**, plus advertising-measurement signals via **Google Ads** (including a Google click identifier, `gclid`, when you arrive from an ad) used to measure and improve our campaigns. You can opt out of analytics and advertising cookies at any time via the consent banner ("Necessary only").
+- **Session recordings & heatmaps:** with your consent, **Microsoft Clarity** records anonymised replays of how pages are used — mouse movement, clicks and scrolling. Sensitive areas are masked before anything leaves your browser: your Saarthi conversations, uploaded documents, case details, wallet figures, one-time codes and personal details are never captured.
 - **Saarthi (AI chat) data:** your questions, conversation history, attachments, and AI-generated responses.
 - **Document data:** files you upload for document Q&A or case management.
 - **Voice data:** audio input when you use voice features (processed to generate text/responses).
@@ -43,8 +44,9 @@ We use third-party services to operate MeraBakil:
 | **Google (Gemini API)** | AI chat, embeddings, text-to-speech, voice |
 | **Google OAuth** | Sign-in authentication |
 | **LiveKit** | Video/audio consultation rooms |
-| **Google Analytics 4** | Usage statistics to improve the platform (with consent; IP anonymised, no ad personalisation) |
-| **Microsoft Clarity** | Anonymised session replays and heatmaps to find usability problems (with consent; sensitive content masked in-browser, IP masked, no advertising use) |
+| **Google Analytics 4** | Usage statistics to improve the platform (IP anonymised; opt out via the consent banner) |
+| **Google Ads** | Advertising measurement and conversion attribution for our campaigns (opt out via the consent banner) |
+| **Microsoft Clarity** | Anonymised session replays and heatmaps to find usability problems (sensitive content masked in-browser, IP masked, no advertising use; opt out via the consent banner) |
 | **Cloud infrastructure** | Hosting, databases, object storage |
 
 AI outputs are generated automatically and may be inaccurate. They are **not legal advice**. See our [Terms of Service](/terms).
@@ -58,16 +60,12 @@ We use **browser local storage** for:
 - **Essential:** authentication tokens, user session, theme preference.
 - **Consent preference:** your cookie/analytics choice.
 
-We use **cookies** only for optional analytics:
+We also use **cookies** for optional analytics and advertising measurement:
 
-- **Microsoft Clarity** sets first-party cookies (`_clck`, `_clsk`) to recognise a returning
-  visit — but **only after you choose "Accept all"**. Until you choose, and if you choose
-  "Necessary only", Clarity runs without cookies and cannot link your visits together. If you
-  later decline, we instruct Clarity to erase these cookies.
-- **Google Analytics 4** events are sent only after you accept analytics.
+- **Google** sets analytics and advertising cookies (for example Google Analytics `_ga` and the Google Ads click cookie `_gcl_aw`). Because MeraBakil operates under India's DPDP Act, these are **enabled by default**; choosing **"Necessary only"** switches Google Consent Mode to deny analytics and advertising storage.
+- **Microsoft Clarity** sets first-party cookies (`_clck`, `_clsk`) to recognise a returning visit, but **only after you choose "Accept all"**. Until you choose, and if you choose "Necessary only", Clarity runs without cookies and cannot link your visits together. If you later decline, we instruct Clarity to erase these cookies.
 
-You can change your choice at any time via **Cookie settings** in the site footer, and clear
-local storage via your browser settings, which will sign you out.
+You can change your choice at any time via **Cookie settings** in the site footer, and clear local storage and cookies via your browser settings, which will sign you out.
 
 ## 5. Data retention
 

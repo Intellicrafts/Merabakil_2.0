@@ -52,11 +52,18 @@ const T_BOOK_IN = T_VALIDATE_END + 500;
 
 interface MatchAnimationProps {
   result: MatchResult;
+  /** Booking is a client action — hide the Book CTA for non-citizens. */
+  canBook?: boolean;
   onComplete: () => void;
   onBook: () => void;
 }
 
-export function MatchAnimation({ result, onComplete, onBook }: MatchAnimationProps) {
+export function MatchAnimation({
+  result,
+  canBook = true,
+  onComplete,
+  onBook,
+}: MatchAnimationProps) {
   const [elapsed, setElapsed] = useState(0);
   const [displayScore, setDisplayScore] = useState(0);
   const [showBook, setShowBook] = useState(false);
@@ -327,14 +334,16 @@ export function MatchAnimation({ result, onComplete, onBook }: MatchAnimationPro
               : "pointer-events-none translate-y-3 opacity-0",
           )}
         >
-          <button
-            type="button"
-            onClick={handleBook}
-            className="mp-btn-accent min-h-11 flex-1 rounded-full text-[13px] font-semibold"
-          >
-            Book consultation
-            <ArrowUpRight className="ml-1.5 inline h-4 w-4" />
-          </button>
+          {canBook && (
+            <button
+              type="button"
+              onClick={handleBook}
+              className="mp-btn-accent min-h-11 flex-1 rounded-full text-[13px] font-semibold"
+            >
+              Book consultation
+              <ArrowUpRight className="ml-1.5 inline h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={handleContinue}

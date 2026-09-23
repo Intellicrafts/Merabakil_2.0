@@ -236,13 +236,13 @@ export default function FamilyLawPage() {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
           <Button asChild size="lg" className="rounded-full">
-            <Link href="/lawyer-marketplace?area=family">
-              Find Family Lawyer
+            <Link href="/mera-vakil?topic=family">
+              Ask Saarthi about your family law issue
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="rounded-full">
-            <Link href="/mera-vakil">Ask Saarthi AI</Link>
+            <Link href="/lawyer-marketplace?area=family">Find a family lawyer</Link>
           </Button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Users } from "lucide-react";
 
 import { AppointmentList } from "@/components/lawyer-marketplace/appointment-list";
@@ -25,16 +26,29 @@ import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
   fetchMarketplaceLawyers,
   getAppointmentJoinState,
+  getStoredUser,
   listAppointments,
   syncAdvocateListing,
 } from "@/lib/api";
 import type { AppointmentRecord } from "@/lib/appointment-types";
+import { getPrimaryRole } from "@/lib/dashboard-config";
 import { useTranslation } from "@/lib/i18n";
 import { listLawyers, toRankedLawyer, type RankedLawyer } from "@/lib/marketplace-store";
+import { canBookConsultations } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 export default function LawyerMarketplacePage() {
   const { t } = useTranslation();
+  const router = useRouter();
+  // The client marketplace is a citizen-facing surface. Advocates run their
+  // consultations from /appointments, so send them there instead of showing a
+  // "find/book an advocate" experience they shouldn't use.
+  const storedUser = useMemo(() => getStoredUser(), []);
+  const isAdvocate = useMemo(
+    () => getPrimaryRole(storedUser) === "advocate",
+    [storedUser],
+  );
+  const canBook = canBookConsultations(storedUser);
   const [tab, setTab] = useState("lawyers");
   const [filters, setFilters] = useState<LawyerFilterState>({
     query: "",
@@ -56,6 +70,10 @@ export default function LawyerMarketplacePage() {
   const [aptDate, setAptDate] = useState<ConsultationDateFilter>("all");
   const [catalogTick, setCatalogTick] = useState(0);
   const debouncedQuery = useDebouncedValue(filters.query, 300);
+
+  useEffect(() => {
+    if (isAdvocate) router.replace("/appointments");
+  }, [isAdvocate, router]);
 
   useEffect(() => {
     void syncAdvocateListing();
@@ -193,6 +211,18 @@ export default function LawyerMarketplacePage() {
 
   const verifiedCount = catalog.filter((l) => l.verified).length;
 
+  // Advocates are redirected to /appointments by the effect above; render a
+  // lightweight placeholder while the navigation settles instead of flashing
+  // the client marketplace.
+  if (isAdvocate) {
+    return (
+      <div className="mx-auto w-full max-w-[1180px] space-y-3 pb-8 sm:space-y-6 sm:pb-10">
+        <Skeleton className="h-40 w-full rounded-2xl" />
+        <Skeleton className="h-32 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1180px] space-y-3 pb-8 sm:space-y-6 sm:pb-10">
       <MarketplaceHero
@@ -269,6 +299,7 @@ export default function LawyerMarketplacePage() {
                     key={lawyer.id}
                     lawyer={lawyer}
                     index={index}
+                    canBook={canBook}
                     onView={setProfileLawyer}
                     onBook={(l) => setBookingLawyer(l)}
                   />
@@ -322,6 +353,7 @@ export default function LawyerMarketplacePage() {
       <LawyerProfileDrawer
         lawyer={profileLawyer}
         open={Boolean(profileLawyer)}
+        canBook={canBook}
         onClose={() => setProfileLawyer(null)}
         onBook={(l) => setBookingLawyer(l)}
       />

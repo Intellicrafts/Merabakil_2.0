@@ -81,7 +81,10 @@ Opt-out, mirroring GA4's posture for India (DPDP Act, not GDPR):
 | "Accept all" | `consentv2` with `analytics_Storage: "granted"` → cookies set, sessions stitched across pages. |
 | "Necessary only" | `consentv2` denied **and** `clarity("consent", false)` → existing cookies erased, tracking halts until consent is granted again. |
 
-`ad_Storage` is **always** denied — we run no advertising products.
+Both `ad_Storage` and `analytics_Storage` follow the single banner choice, matching
+`updateConsentMode()` in `consent-bridge.ts` — MeraBakil runs Google Ads, so "Accept
+all" must grant advertising signals too. If those signals are ever split apart in the
+gtag mapping, split them in `clarityConsent()` as well.
 
 Wiring: [`microsoft-clarity.tsx`](../../frontend/src/components/analytics/microsoft-clarity.tsx)
 listens for the `legalos:consent-changed` window event from
@@ -112,10 +115,14 @@ unmasked — those are what the heatmaps are for.
 
 Currently masked: AI chat bubbles and composer, conversation titles, voice-mode
 transcript, document previews/passages/answers/library, drafted documents, case briefs
-and case tables, wallet balance and transactions, OTP inputs, the verified-email echo,
-profile fields, the app-shell user menu, consultation chat and counterparty names, admin
+and case tables, wallet balance and transactions, OTP inputs, the verified-email echoes
+(register **and** the `/ask` inline auth sheet), profile fields, the app-shell user menu,
+consultation chat and counterparty names, appointment-list counterparty names, admin
 user/wallet tables and live transcripts, notifications, research panels, and dashboard
 recent-activity.
+
+Deliberately unmasked: public lawyer marketplace listings (lawyer names are public
+business data), marketing pages, legal guides and the `/ask` landing copy.
 
 **Already handled by Clarity itself — no attribute needed:** every `<input>`,
 `<textarea>` and `<select>` is masked in all modes and cannot be unmasked. That covers

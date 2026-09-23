@@ -53,3 +53,22 @@ export function utmAsAnalyticsParams(): AnalyticsParams {
   }
   return out;
 }
+
+export type AcquisitionPayload = {
+  gclid?: string;
+  utm_source?: string;
+  utm_campaign?: string;
+};
+
+/**
+ * Ad attribution to persist on the user record at signup (source of truth for
+ * Google Ads conversions). Returns undefined when nothing was captured.
+ */
+export function acquisitionPayload(): AcquisitionPayload | undefined {
+  const utm = readStoredUtm() as Record<string, string | undefined>;
+  const payload: AcquisitionPayload = {};
+  if (utm.gclid) payload.gclid = utm.gclid;
+  if (utm.utm_source) payload.utm_source = utm.utm_source;
+  if (utm.utm_campaign) payload.utm_campaign = utm.utm_campaign;
+  return Object.keys(payload).length > 0 ? payload : undefined;
+}

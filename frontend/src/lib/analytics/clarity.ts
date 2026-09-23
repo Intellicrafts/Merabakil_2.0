@@ -134,12 +134,17 @@ export function clarityIdentify(
   call("identify", customId, customSessionId, customPageId, friendlyName);
 }
 
-/** Passes the consent decision. ad_Storage is always denied — we run no ad products. */
-export function clarityConsent(analyticsGranted: boolean): void {
-  call("consentv2", {
-    ad_Storage: "denied",
-    analytics_Storage: analyticsGranted ? "granted" : "denied",
-  });
+/**
+ * Passes the consent decision.
+ *
+ * One banner choice governs measurement *and* advertising, matching
+ * `updateConsentMode()` in consent-bridge.ts — "Accept all" grants both so Google Ads
+ * can attribute conversions, "Necessary only" denies both. Keep the two in step: if the
+ * gtag consent mapping ever splits these signals, split them here too.
+ */
+export function clarityConsent(granted: boolean): void {
+  const state = granted ? "granted" : "denied";
+  call("consentv2", { ad_Storage: state, analytics_Storage: state });
 }
 
 /**

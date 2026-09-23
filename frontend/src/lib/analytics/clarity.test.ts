@@ -130,17 +130,19 @@ describe("clarity custom tags", () => {
 });
 
 describe("clarity consent", () => {
-  it("always denies ad storage", async () => {
+  // One banner choice governs measurement and advertising, matching
+  // updateConsentMode() in consent-bridge.ts. If those ever split, split these too.
+  it("grants both signals on accept", async () => {
     setupWindow(true);
     const { clarityConsent } = await loadClarity();
 
     clarityConsent(true);
     expect(calls).toEqual([
-      ["consentv2", { ad_Storage: "denied", analytics_Storage: "granted" }],
+      ["consentv2", { ad_Storage: "granted", analytics_Storage: "granted" }],
     ]);
   });
 
-  it("denies analytics storage when consent is withheld", async () => {
+  it("denies both signals when consent is withheld", async () => {
     setupWindow(undefined);
     const { clarityConsent } = await loadClarity();
 

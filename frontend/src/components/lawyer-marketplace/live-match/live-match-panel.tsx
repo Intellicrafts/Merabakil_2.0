@@ -18,6 +18,7 @@ import {
   type MatchResult,
   type RankedLawyer,
 } from "@/lib/marketplace-store";
+import { canBookConsultations } from "@/lib/permissions";
 import type { AuthUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ interface LiveMatchPanelProps {
 
 export function LiveMatchPanel({ catalog, onView, onBook }: LiveMatchPanelProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const canBook = canBookConsultations(user);
   const [prefs, setPrefs] = useState<MatchPreferences>(DEFAULT_MATCH_PREFERENCES);
   const [phase, setPhase] = useState<PanelPhase>("idle");
   const [result, setResult] = useState<MatchResult | null>(null);
@@ -193,6 +195,7 @@ export function LiveMatchPanel({ catalog, onView, onBook }: LiveMatchPanelProps)
           {phase === "matching" && pendingResult && (
             <MatchAnimation
               result={pendingResult}
+              canBook={canBook}
               onComplete={handleAnimationComplete}
               onBook={handleAnimationBook}
             />

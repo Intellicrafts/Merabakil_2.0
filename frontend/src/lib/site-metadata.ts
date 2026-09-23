@@ -33,7 +33,9 @@ export function pageMetadata({
   const fullTitle = title === SITE.name ? title : `${title} | ${SITE.name}`;
 
   return {
-    title: fullTitle,
+    // `absolute` opts out of the root layout's `%s | MeraBakil` template so the
+    // suffix isn't appended twice ("… | MeraBakil | MeraBakil").
+    title: { absolute: fullTitle },
     description,
     alternates: { canonical: path },
     openGraph: {

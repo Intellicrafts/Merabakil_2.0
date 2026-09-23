@@ -98,6 +98,15 @@ export function primaryRole(roles: string[] | undefined): string {
   return "other";
 }
 
+/** Fired whenever the session is established or cleared, so client components
+ *  (e.g. the Saarthi dual-mode layout) can react without a full reload. */
+export const AUTH_CHANGED_EVENT = "legalos:auth-changed";
+
+function notifyAuthChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+}
+
 export function setSession(auth: AuthResponse): void {
   setTokens(auth.tokens.access_token, auth.tokens.refresh_token);
   window.localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
@@ -105,6 +114,7 @@ export function setSession(auth: AuthResponse): void {
     storeAvatarUrl(auth.user.avatar_url);
   }
   void setAnalyticsUser(auth.user.user_id, primaryRole(auth.user.roles));
+  notifyAuthChanged();
 }
 
 export function clearSession(): void {
@@ -113,6 +123,7 @@ export function clearSession(): void {
   window.localStorage.removeItem(USER_KEY);
   clearAvatarUrl();
   clearAnalyticsUser();
+  notifyAuthChanged();
 }
 
 /** User-initiated sign out — tracks logout then clears session. */
@@ -342,6 +353,12 @@ export async function login(email: string, password: string): Promise<AuthRespon
   return postAuthJson<AuthResponse>("/api/v1/auth/login", { email, password });
 }
 
+export type AcquisitionInput = {
+  gclid?: string;
+  utm_source?: string;
+  utm_campaign?: string;
+};
+
 export async function register(
   email: string,
   full_name: string,
@@ -349,6 +366,7 @@ export async function register(
   role: string,
   verificationToken: string,
   consent?: { terms_version: string; privacy_version: string },
+  acquisition?: AcquisitionInput,
 ): Promise<AuthResponse> {
   return postAuthJson<AuthResponse>("/api/v1/auth/register", {
     email,
@@ -358,6 +376,7 @@ export async function register(
     verification_token: verificationToken,
     terms_version: consent?.terms_version,
     privacy_version: consent?.privacy_version,
+    acquisition,
   });
 }
 
@@ -398,12 +417,14 @@ export async function completeGoogleRegistration(
   onboardingToken: string,
   role: string,
   consent?: { terms_version: string; privacy_version: string },
+  acquisition?: AcquisitionInput,
 ): Promise<AuthResponse> {
   return postAuthJson<AuthResponse>("/api/v1/auth/google/complete", {
     onboarding_token: onboardingToken,
     role,
     terms_version: consent?.terms_version,
     privacy_version: consent?.privacy_version,
+    acquisition,
   });
 }
 

@@ -413,6 +413,9 @@ class AuthService:
         terms_version: str | None = None,
         privacy_version: str | None = None,
         ip_hash: str | None = None,
+        acquisition_gclid: str | None = None,
+        acquisition_utm_source: str | None = None,
+        acquisition_utm_campaign: str | None = None,
     ) -> AuthResult:
         normalized_email = email.lower().strip()
         try:
@@ -429,6 +432,9 @@ class AuthService:
             full_name=full_name,
             hashed_password=hash_password(password),
             is_verified=True,
+            acquisition_gclid=acquisition_gclid,
+            acquisition_utm_source=acquisition_utm_source,
+            acquisition_utm_campaign=acquisition_utm_campaign,
         )
         await self._users.assign_roles(user, [role])
         await self._users.create_role_profile(user, role)
@@ -505,6 +511,9 @@ class AuthService:
         terms_version: str | None = None,
         privacy_version: str | None = None,
         ip_hash: str | None = None,
+        acquisition_gclid: str | None = None,
+        acquisition_utm_source: str | None = None,
+        acquisition_utm_campaign: str | None = None,
     ) -> AuthResult:
         if role not in _SELF_SERVICE_ROLES:
             raise ConflictError("Invalid role for self-service registration")
@@ -531,6 +540,9 @@ class AuthService:
             full_name=payload.full_name,
             hashed_password=None,
             is_verified=True,
+            acquisition_gclid=acquisition_gclid,
+            acquisition_utm_source=acquisition_utm_source,
+            acquisition_utm_campaign=acquisition_utm_campaign,
         )
         await self._oauth_identities.create(
             user_id=user.id,

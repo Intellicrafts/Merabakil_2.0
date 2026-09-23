@@ -40,7 +40,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["legalos_common"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"legalos_common/email/assets" = "legalos_common/email/assets"
-"legalos_common/email/html" = "legalos_common/email/html"
+# email/assets + email/html live inside the package and are bundled via
+# `packages` above. A force-include of the same paths double-adds them and
+# breaks the wheel build ("second file ... at the same path").

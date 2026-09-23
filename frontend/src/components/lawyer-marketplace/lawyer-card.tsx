@@ -40,6 +40,10 @@ interface LawyerCardProps {
   index?: number;
   variant?: "default" | "counsel";
   className?: string;
+  /** Booking is a client action — hide the Book CTA for non-citizens. */
+  canBook?: boolean;
+  /** Only show the AI match % when there's real case context (e.g. live match). */
+  showMatch?: boolean;
   onView: (lawyer: RankedLawyer) => void;
   onBook: (lawyer: RankedLawyer) => void;
 }
@@ -49,6 +53,8 @@ export const LawyerCard = memo(function LawyerCard({
   index = 0,
   variant = "default",
   className,
+  canBook = true,
+  showMatch = false,
   onView,
   onBook,
 }: LawyerCardProps) {
@@ -87,10 +93,16 @@ export const LawyerCard = memo(function LawyerCard({
 
   const metaRow = (
     <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
-      <span className="inline-flex items-center gap-1">
-        <Star className="h-3 w-3 fill-current text-amber-500/80" />
-        <span className="font-medium text-foreground/75">{lawyer.rating.toFixed(1)}</span>
-      </span>
+      {lawyer.review_count > 0 ? (
+        <span className="inline-flex items-center gap-1">
+          <Star className="h-3 w-3 fill-current text-amber-500/80" />
+          <span className="font-medium text-foreground/75">{lawyer.rating.toFixed(1)}</span>
+        </span>
+      ) : (
+        <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+          New
+        </span>
+      )}
       <span className="inline-flex items-center gap-1">
         <MapPin className="h-3 w-3" />
         {lawyer.city}
@@ -112,14 +124,16 @@ export const LawyerCard = memo(function LawyerCard({
         <User className="h-3.5 w-3.5" />
         Profile
       </button>
-      <button
-        type="button"
-        onClick={handleBook}
-        className="mp-btn-accent inline-flex h-9 items-center gap-1.5 rounded-xl px-3.5 text-[12.5px] font-semibold"
-      >
-        <Calendar className="h-3.5 w-3.5" />
-        Book
-      </button>
+      {canBook && (
+        <button
+          type="button"
+          onClick={handleBook}
+          className="mp-btn-accent inline-flex h-9 items-center gap-1.5 rounded-xl px-3.5 text-[12.5px] font-semibold"
+        >
+          <Calendar className="h-3.5 w-3.5" />
+          Book
+        </button>
+      )}
     </div>
   );
 
@@ -156,7 +170,7 @@ export const LawyerCard = memo(function LawyerCard({
           <button type="button" onClick={handleView} className="min-w-0 flex-1 text-left">
             <div className="flex items-start justify-between gap-2">
               <h3 className="truncate text-[14px] font-semibold leading-snug">{name}</h3>
-              <MatchBadge score={lawyer.match_score} />
+              {showMatch && <MatchBadge score={lawyer.match_score} />}
             </div>
             {metaRow}
           </button>
@@ -216,10 +230,12 @@ export const LawyerCard = memo(function LawyerCard({
         <div className="flex shrink-0 items-center gap-3">
           <div className="text-right">
             <p className="text-[13.5px] font-semibold">{formatRate(lawyer.hourly_rate_inr)}</p>
-            <div className="mt-1 flex flex-col items-end gap-0.5">
-              <MatchBadge score={lawyer.match_score} />
-              <p className="text-[9.5px] text-muted-foreground/50">AI match</p>
-            </div>
+            {showMatch && (
+              <div className="mt-1 flex flex-col items-end gap-0.5">
+                <MatchBadge score={lawyer.match_score} />
+                <p className="text-[9.5px] text-muted-foreground/50">AI match</p>
+              </div>
+            )}
           </div>
           {actionButtons}
         </div>

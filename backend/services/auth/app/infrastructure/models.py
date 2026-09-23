@@ -80,6 +80,13 @@ class User(Base, UUIDMixin, TimestampMixin):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     avatar_url: Mapped[str | None] = mapped_column(String(512))
 
+    # Acquisition attribution — captured at signup from the landing URL so we can
+    # tie an account back to a Google Ads click / campaign (source of truth for
+    # ads conversions). Set once on creation; never overwritten.
+    acquisition_gclid: Mapped[str | None] = mapped_column(String(512))
+    acquisition_utm_source: Mapped[str | None] = mapped_column(String(255))
+    acquisition_utm_campaign: Mapped[str | None] = mapped_column(String(255))
+
     roles: Mapped[list[Role]] = relationship(
         secondary="user_roles", back_populates="users", lazy="selectin"
     )

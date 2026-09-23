@@ -33,6 +33,7 @@ import {
 } from "@/lib/appointment-format";
 import type { AppointmentRecord } from "@/lib/appointment-types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 const INFINITE_SCROLL_THRESHOLD = 8;
 const PAGE_SIZE = 8;
@@ -65,18 +66,31 @@ export function AppointmentList({ appointments, onChanged }: AppointmentListProp
           return (
             <div className="mp-surface-card rounded-[1.4rem] px-5 py-14 text-center sm:rounded-3xl sm:py-20">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-black/[0.04] dark:bg-white/[0.06]">
-                <CalendarDays className="h-6 w-6 text-muted-foreground/60" />
+                {isAdvocate ? (
+                  <Inbox className="h-6 w-6 text-muted-foreground/60" />
+                ) : (
+                  <CalendarDays className="h-6 w-6 text-muted-foreground/60" />
+                )}
               </div>
               <p className="text-sm font-semibold">No consultations yet</p>
-              <p className="mx-auto mt-1.5 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-                Find a verified advocate and book a session — it will appear here once confirmed.
-              </p>
-              <Link
-                href="/lawyer-marketplace"
-                className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2.5 text-[13px] font-semibold text-background transition-opacity hover:opacity-80"
-              >
-                Find an Advocate
-              </Link>
+              {isAdvocate ? (
+                <p className="mx-auto mt-1.5 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
+                  When a client books a consultation with you, it will appear here for you to
+                  confirm and join.
+                </p>
+              ) : (
+                <>
+                  <p className="mx-auto mt-1.5 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
+                    Find a verified advocate and book a session — it will appear here once confirmed.
+                  </p>
+                  <Link
+                    href="/lawyer-marketplace"
+                    className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-foreground px-4 py-2.5 text-[13px] font-semibold text-background transition-opacity hover:opacity-80"
+                  >
+                    Find an Advocate
+                  </Link>
+                </>
+              )}
             </div>
           );
         }
@@ -262,7 +276,7 @@ function PendingRow({
             rounded="full"
           />
           <div className="min-w-0">
-            <p className="font-semibold tracking-tight">{apt.counterpart_name}</p>
+            <p {...CLARITY_MASK} className="font-semibold tracking-tight">{apt.counterpart_name}</p>
             <span className="mt-1 inline-flex rounded-full border border-black/[0.06] bg-black/[0.03] px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.05]">
               Client
             </span>
@@ -445,7 +459,7 @@ function AppointmentRow({
             rounded="full"
           />
           <div className="min-w-0">
-            <p className="font-semibold tracking-tight">{apt.counterpart_name || apt.lawyer_name}</p>
+            <p {...CLARITY_MASK} className="font-semibold tracking-tight">{apt.counterpart_name || apt.lawyer_name}</p>
             <span className="mt-1 inline-flex rounded-full border border-black/[0.06] bg-black/[0.03] px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:border-white/[0.08] dark:bg-white/[0.05]">
               {roleLabel}
             </span>

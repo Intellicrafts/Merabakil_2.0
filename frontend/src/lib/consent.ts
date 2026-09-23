@@ -1,7 +1,10 @@
 /**
  * Bump whenever the disclosure changes materially — readConsent() returns null on a
  * version mismatch, which re-opens the banner for everyone.
- * v3: added Microsoft Clarity (session recording + heatmaps).
+ *
+ * v3 covers two changes that landed together: optional cookies now include
+ * advertising/measurement (Google Ads signals), and Microsoft Clarity adds session
+ * recording + heatmaps. One bump re-collects consent for both.
  */
 export const CONSENT_VERSION = 3;
 export const CONSENT_STORAGE_KEY = "legalos.consent";

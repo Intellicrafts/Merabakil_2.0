@@ -229,13 +229,13 @@ export default function PropertyLawPage() {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
           <Button asChild size="lg" className="rounded-full">
-            <Link href="/lawyer-marketplace?area=property">
-              Find Property Lawyer
+            <Link href="/mera-vakil?topic=property">
+              Ask Saarthi about your property issue
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="rounded-full">
-            <Link href="/mera-vakil">Ask Saarthi AI</Link>
+            <Link href="/lawyer-marketplace?area=property">Find a property lawyer</Link>
           </Button>
         </div>
       </div>

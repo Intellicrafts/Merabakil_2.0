@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { listAppointments, listUserDocuments } from "@/lib/api";
+import { listAppointments, listCasesApi, listUserDocuments } from "@/lib/api";
 import type { AppointmentRecord } from "@/lib/appointment-types";
-import { listCases } from "@/lib/cases-store";
 import {
+  initConversations,
   loadActiveConversationId,
   loadConversations,
   type ChatConversation,
@@ -14,7 +14,6 @@ import type { LegalCase, UserDocument } from "@/lib/types";
 
 const CONV_KEY = "legalos.meravakil.conversations";
 const ACTIVE_KEY = "legalos.meravakil.active-id";
-const CASES_KEY = "legalos.cases";
 
 export interface DashboardSnapshot {
   ready: boolean;
@@ -48,8 +47,12 @@ function byUpdatedDesc<T extends { updatedAt?: string; updated_at?: string }>(a:
   return tb - ta;
 }
 
-function readLocal(): Omit<DashboardSnapshot, "ready" | "appointments" | "documents"> {
-  const conversations = loadConversations();
+type ConversationFields = Pick<
+  DashboardSnapshot,
+  "conversations" | "recent" | "pinnedCount" | "lastCounsel"
+>;
+
+function conversationFields(conversations: ChatConversation[]): ConversationFields {
   const sorted = [...conversations].sort(byUpdatedDesc);
   const recent = sorted.slice(0, 5);
   const pinnedCount = conversations.filter((c) => Boolean(c.pinned)).length;
@@ -59,29 +62,41 @@ function readLocal(): Omit<DashboardSnapshot, "ready" | "appointments" | "docume
   const lastWithMessages = sorted.find((c) => c.messages.length > 0) ?? null;
   const lastCounsel = active && active.messages.length > 0 ? active : lastWithMessages;
 
-  const cases = listCases();
+  return { conversations, recent, pinnedCount, lastCounsel };
+}
+
+/** Synchronous read of the in-memory conversation cache (may be empty pre-fetch). */
+function readLocal(): ConversationFields {
+  return conversationFields(loadConversations());
+}
+
+async function readRemote(): Promise<
+  Pick<
+    DashboardSnapshot,
+    "appointments" | "documents" | "cases" | "openCount" | "upcoming"
+  > &
+    ConversationFields
+> {
+  const [appointments, docsPage, casesPage, conversations] = await Promise.all([
+    listAppointments().catch(() => [] as AppointmentRecord[]),
+    listUserDocuments(1, 12).catch(() => null),
+    listCasesApi(null, 1, 100).catch(() => null),
+    // Fetch conversations from the server so Recent Activity works on the
+    // dashboard without first opening Saarthi (which is what populates the cache).
+    initConversations().catch(() => [] as ChatConversation[]),
+  ]);
+
+  const cases = casesPage?.items ?? [];
   const live = cases.filter((c) => c.status === "open" || c.status === "in_progress");
   const upcoming = [...live].sort(byUpdatedDesc).slice(0, 3);
 
   return {
-    conversations,
-    recent,
-    pinnedCount,
-    lastCounsel,
+    appointments,
+    documents: docsPage?.items ?? [],
     cases,
     openCount: live.length,
     upcoming,
-  };
-}
-
-async function readRemote(): Promise<Pick<DashboardSnapshot, "appointments" | "documents">> {
-  const [appointments, docsPage] = await Promise.all([
-    listAppointments().catch(() => [] as AppointmentRecord[]),
-    listUserDocuments(1, 12).catch(() => null),
-  ]);
-  return {
-    appointments,
-    documents: docsPage?.items ?? [],
+    ...conversationFields(conversations),
   };
 }
 
@@ -116,7 +131,7 @@ export function useDashboardSnapshot(): DashboardSnapshot {
     }
 
     function onStorage(event: StorageEvent) {
-      if (!event.key || event.key === CONV_KEY || event.key === ACTIVE_KEY || event.key === CASES_KEY) {
+      if (!event.key || event.key === CONV_KEY || event.key === ACTIVE_KEY) {
         refreshLocal();
       }
     }

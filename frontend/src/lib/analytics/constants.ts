@@ -4,6 +4,13 @@ export const GA_ENABLED = process.env.NEXT_PUBLIC_GA_ENABLED === "true";
 export const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? "";
 export const CLARITY_ENABLED = process.env.NEXT_PUBLIC_CLARITY_ENABLED === "true";
 
+/**
+ * Google Ads conversion/linker ID (AW-XXXXXXXXX). When set, it's added as a
+ * second destination on the same gtag so the Ads conversion linker writes the
+ * _gcl_aw click cookie. Empty = Ads tag disabled (GA4 still works).
+ */
+export const GOOGLE_ADS_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID ?? "";
+
 export const UTM_STORAGE_KEY = "legalos.utm";
 
 export const UTM_PARAMS = [
