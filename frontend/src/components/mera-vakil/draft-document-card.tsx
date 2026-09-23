@@ -5,6 +5,7 @@ import { Check, Copy, Download, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { downloadPdf, downloadTxt } from "@/lib/draft-utils";
 import type { DraftPayload } from "@/lib/types";
 
@@ -44,7 +45,7 @@ export function DraftDocumentCard({ draft, loading }: DraftDocumentCardProps) {
       </div>
 
       {/* Label + title */}
-      <div className="min-w-0 flex-1">
+      <div {...CLARITY_MASK} className="min-w-0 flex-1">
         {loading && !draft ? (
           <>
             <Skeleton className="h-2.5 w-20" />

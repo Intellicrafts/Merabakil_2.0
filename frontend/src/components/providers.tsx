@@ -6,6 +6,7 @@ import { Suspense, useState } from "react";
 import { FaviconLinks } from "@/components/brand/favicon-links";
 import { PwaRegister } from "@/components/brand/pwa-register";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
+import { MicrosoftClarity } from "@/components/analytics/microsoft-clarity";
 import { PageViewTracker } from "@/components/analytics/page-view-tracker";
 import { CookieConsentBanner } from "@/components/consent/cookie-consent-banner";
 import { NavTracker } from "@/components/layout/nav-tracker";
@@ -30,6 +31,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <NavigationProgress />
           <NavTracker />
           <GoogleAnalytics />
+          <MicrosoftClarity />
           <Suspense fallback={null}>
             <PageViewTracker />
           </Suspense>

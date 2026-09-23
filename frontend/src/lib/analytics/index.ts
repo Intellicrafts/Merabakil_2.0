@@ -5,5 +5,7 @@ export { sanitizeParams } from "@/lib/analytics/sanitize";
 export { resolvePageType } from "@/lib/analytics/page-types";
 export { trackFeatureDiscovery } from "@/lib/analytics/feature-discovery";
 export { trackAiSessionCompleted } from "@/lib/analytics/ai-session";
-export { GA_ENABLED, GA_MEASUREMENT_ID } from "@/lib/analytics/constants";
+export { GA_ENABLED, GA_MEASUREMENT_ID, CLARITY_ENABLED, CLARITY_PROJECT_ID } from "@/lib/analytics/constants";
 export { updateConsentMode } from "@/lib/analytics/consent-bridge";
+export { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
+export { clarityEvent, clarityIdentify, claritySetTag, clarityConsent, clarityRevoke, clarityUpgrade } from "@/lib/analytics/clarity";

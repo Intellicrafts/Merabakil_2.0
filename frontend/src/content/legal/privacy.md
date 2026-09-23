@@ -1,7 +1,7 @@
 # Privacy Policy
 
-**Last updated:** September 13, 2026  
-**Version:** 1.0
+**Last updated:** September 24, 2026  
+**Version:** 1.1
 
 MeraBakil ("we", "us", "our") operates the MeraBakil platform at [merabakil.in](https://merabakil.in). This Privacy Policy explains how we collect, use, store, and protect your personal data in accordance with the Digital Personal Data Protection Act, 2023 (DPDP Act) and applicable Indian laws.
 
@@ -13,7 +13,7 @@ We may collect the following categories of personal data:
 
 - **Account data:** name, email address, password (hashed), role (citizen or advocate), profile details.
 - **Authentication data:** Google OAuth identifiers when you sign in with Google.
-- **Usage data:** pages visited, feature interactions, and anonymised analytics via **Google Analytics 4** (only with your consent).
+- **Usage data:** pages visited, feature interactions, and anonymised analytics via **Google Analytics 4** and **Microsoft Clarity** (only with your consent). Microsoft Clarity also records anonymised session replays and heatmaps of how pages are used — mouse movement, clicks and scrolling. Sensitive areas are masked before anything leaves your browser: your Saarthi conversations, uploaded documents, case details, wallet figures, one-time codes and personal details are never captured.
 - **Saarthi (AI chat) data:** your questions, conversation history, attachments, and AI-generated responses.
 - **Document data:** files you upload for document Q&A or case management.
 - **Voice data:** audio input when you use voice features (processed to generate text/responses).
@@ -44,6 +44,7 @@ We use third-party services to operate MeraBakil:
 | **Google OAuth** | Sign-in authentication |
 | **LiveKit** | Video/audio consultation rooms |
 | **Google Analytics 4** | Usage statistics to improve the platform (with consent; IP anonymised, no ad personalisation) |
+| **Microsoft Clarity** | Anonymised session replays and heatmaps to find usability problems (with consent; sensitive content masked in-browser, IP masked, no advertising use) |
 | **Cloud infrastructure** | Hosting, databases, object storage |
 
 AI outputs are generated automatically and may be inaccurate. They are **not legal advice**. See our [Terms of Service](/terms).
@@ -52,13 +53,21 @@ Some providers may process data outside India. We take reasonable steps to ensur
 
 ## 4. Cookies & local storage
 
-We use **browser local storage** (not traditional cookies) for:
+We use **browser local storage** for:
 
 - **Essential:** authentication tokens, user session, theme preference.
 - **Consent preference:** your cookie/analytics choice.
-- **Analytics (optional):** loads only after you accept analytics in the consent banner.
 
-You can clear local storage via your browser settings, which will sign you out.
+We use **cookies** only for optional analytics:
+
+- **Microsoft Clarity** sets first-party cookies (`_clck`, `_clsk`) to recognise a returning
+  visit — but **only after you choose "Accept all"**. Until you choose, and if you choose
+  "Necessary only", Clarity runs without cookies and cannot link your visits together. If you
+  later decline, we instruct Clarity to erase these cookies.
+- **Google Analytics 4** events are sent only after you accept analytics.
+
+You can change your choice at any time via **Cookie settings** in the site footer, and clear
+local storage via your browser settings, which will sign you out.
 
 ## 5. Data retention
 

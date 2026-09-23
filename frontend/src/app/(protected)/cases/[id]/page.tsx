@@ -41,6 +41,7 @@ import {
   uploadCaseDocument,
 } from "@/lib/api";
 import type { AiBrief, LegalCase } from "@/lib/types";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 // Document category options
 const DOC_CATEGORIES = [
@@ -97,7 +98,7 @@ function BriefSection({ brief, isOwner }: { brief: AiBrief; isOwner: boolean }) 
   }
 
   return (
-    <div className="space-y-5">
+    <div {...CLARITY_MASK} className="space-y-5">
       {brief.problem_summary && (
         <div>
           <p className="mb-1.5 text-[12px] font-semibold text-muted-foreground">

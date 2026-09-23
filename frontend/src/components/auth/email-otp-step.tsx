@@ -5,6 +5,7 @@ import { CheckCircle2, Mail } from "lucide-react";
 
 import { OtpInput } from "@/components/auth/otp-input";
 import { Button } from "@/components/ui/button";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -62,7 +63,9 @@ export function EmailOtpStep({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-foreground">{t("auth.enterOtpSentTo")}</p>
-            <p className="truncate text-sm text-muted-foreground">{email}</p>
+            <p {...CLARITY_MASK} className="truncate text-sm text-muted-foreground">
+              {email}
+            </p>
             <p className="mt-1 text-xs text-muted-foreground">{t("auth.checkInboxHint")}</p>
             {onChangeEmail ? (
               <button

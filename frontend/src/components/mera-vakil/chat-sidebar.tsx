@@ -17,6 +17,7 @@ import {
 import { ConfirmDialog } from "@/components/mera-vakil/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { getStoredUser, signOut as apiSignOut } from "@/lib/api";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import type { ChatConversation } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
 import type { AuthUser } from "@/lib/types";
@@ -63,7 +64,11 @@ export function ChatSidebar({
         onCancel={() => setDeleteTarget(null)}
       />
 
-      <div className="glass-panel flex h-full min-h-0 flex-col overflow-hidden px-3 pb-3 pt-4">
+      {/* Conversation titles are derived from the user's own prompts. */}
+      <div
+        {...CLARITY_MASK}
+        className="glass-panel flex h-full min-h-0 flex-col overflow-hidden px-3 pb-3 pt-4"
+      >
         <div className="flex items-center gap-2.5 px-1 pb-4">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md shadow-slate-900/20 dark:from-slate-200 dark:to-slate-400 dark:text-slate-900">
             <Sparkles className="icon-breathe h-4 w-4" />

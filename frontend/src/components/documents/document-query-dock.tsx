@@ -4,6 +4,7 @@ import { Loader2, Sparkles, Square } from "lucide-react";
 
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 const PROMPT_STARTERS = [
   "Summarize the key obligations in this document.",
@@ -32,6 +33,7 @@ export function DocumentQueryDock({
 
   return (
     <div
+      {...CLARITY_MASK}
       className={cn(
         "space-y-3 rounded-2xl border border-black/[0.06] bg-white/60 p-4 shadow-[0_8px_28px_rgba(15,23,42,0.04)] backdrop-blur-xl",
         "dark:border-white/[0.08] dark:bg-white/[0.035]",

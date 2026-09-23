@@ -56,6 +56,7 @@ import { callHub } from "@/lib/call-hub";
 import { playAlertChime, requestNotificationPermission, showBrowserNotification, stopCallRingtone } from "@/lib/room-alerts";
 import { cleanupLiveKitMedia, disconnectLiveKitRoom, initLiveKitClient } from "@/lib/livekit-room";
 import { marketplaceServiceUrl } from "@/lib/service-urls";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 function mergeJoinIntoApt(apt: AppointmentRecord, js: JoinStateDto): AppointmentRecord {
   return {
@@ -1132,7 +1133,7 @@ export function AppointmentRoom({ appointmentId }: AppointmentRoomProps) {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-semibold tracking-tight">{counterpart}</p>
+            <p {...CLARITY_MASK} className="truncate text-[15px] font-semibold tracking-tight">{counterpart}</p>
             <p className="mt-0.5 hidden truncate text-[11px] text-muted-foreground sm:block">
               {present ? "In the room" : "Not present"} · <RoomCountdown endAt={endAt} /> remaining
               {sseOn ? " · Live" : " · Reconnecting"} · {callStatusLabel}

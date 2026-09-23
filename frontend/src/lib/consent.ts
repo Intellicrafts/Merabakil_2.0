@@ -1,4 +1,9 @@
-export const CONSENT_VERSION = 2;
+/**
+ * Bump whenever the disclosure changes materially — readConsent() returns null on a
+ * version mismatch, which re-opens the banner for everyone.
+ * v3: added Microsoft Clarity (session recording + heatmaps).
+ */
+export const CONSENT_VERSION = 3;
 export const CONSENT_STORAGE_KEY = "legalos.consent";
 
 export type ConsentChoice = {

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { register, sendOtp, setSession, syncAdvocateListing, verifyRegisterOtp } from "@/lib/api";
 import { useTranslation } from "@/lib/i18n";
 import { loginRedirectForUser } from "@/lib/permissions";
@@ -201,7 +202,6 @@ function RegisterForm() {
           onChangeEmail={() => {
             setStep(1);
             setOtp("");
-            setDevOtp(null);
             setStepError(null);
           }}
           verifying={verifyOtpMutation.isPending}
@@ -223,7 +223,10 @@ function RegisterForm() {
           }}
         >
           <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-            {t("auth.emailVerified")} <span className="font-medium">{email.trim()}</span>
+            {t("auth.emailVerified")}{" "}
+            <span {...CLARITY_MASK} className="font-medium">
+              {email.trim()}
+            </span>
           </p>
 
           <div className="space-y-1.5">

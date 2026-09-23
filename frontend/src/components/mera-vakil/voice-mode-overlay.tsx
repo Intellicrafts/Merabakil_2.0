@@ -5,6 +5,7 @@ import { CalendarPlus, X } from "lucide-react";
 
 import { VoiceBookingConfirmationModal } from "@/components/mera-vakil/voice-booking-confirmation-modal";
 import { useVoiceBot, type VoiceBotState, type VoiceMessage } from "@/hooks/use-voice-bot";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { useTranslation } from "@/lib/i18n";
 import type { LawyerMatchResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -117,6 +118,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
 
   return (
     <div
+      {...CLARITY_MASK}
       className="mv-voice-overlay fixed inset-0 z-[100] flex flex-col"
       role="dialog"
       aria-modal="true"

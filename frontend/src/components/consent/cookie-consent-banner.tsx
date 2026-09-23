@@ -48,8 +48,10 @@ export function CookieConsentBanner() {
               We use cookies
             </p>
             <p id="cookie-consent-desc" className="text-[13px] leading-relaxed text-muted-foreground">
-              Essential cookies keep you signed in and remember your preferences. Optional analytics
-              help us improve MeraBakil.{" "}
+              Essential cookies keep you signed in and remember your preferences. Optional
+              analytics — including anonymised session recordings and heatmaps of how pages are
+              used — help us improve MeraBakil. Your chats, documents and case details are always
+              hidden from these recordings.{" "}
               <Link
                 href="/privacy"
                 className="font-medium text-foreground underline-offset-2 hover:underline"

@@ -2,6 +2,7 @@
 
 import type { ResearchResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 interface DocumentPassagesPanelProps {
   result: ResearchResponse;
@@ -12,6 +13,7 @@ export function DocumentPassagesPanel({ result }: DocumentPassagesPanelProps) {
 
   return (
     <section
+      {...CLARITY_MASK}
       className={cn(
         "rounded-2xl border border-black/[0.06] bg-white/60 p-4 backdrop-blur-xl",
         "dark:border-white/[0.08] dark:bg-white/[0.035]",

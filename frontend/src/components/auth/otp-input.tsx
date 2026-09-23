@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { cn } from "@/lib/utils";
 
 type OtpInputProps = {
@@ -74,7 +75,13 @@ export function OtpInput({
   };
 
   return (
-    <div className={cn("flex justify-center gap-2", className)} role="group" aria-label="One-time code">
+    // Clarity masks type=password but not these type=text digits — mask explicitly.
+    <div
+      {...CLARITY_MASK}
+      className={cn("flex justify-center gap-2", className)}
+      role="group"
+      aria-label="One-time code"
+    >
       {digits.map((digit, index) => (
         <input
           key={index}

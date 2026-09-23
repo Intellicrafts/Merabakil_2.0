@@ -5,6 +5,7 @@ import { FileText, Layers } from "lucide-react";
 import { formatDocStatus, docTypeLabel } from "@/lib/demo-documents";
 import type { UserDocument } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 interface DocumentDetailHeroProps {
   document: UserDocument;
@@ -13,6 +14,7 @@ interface DocumentDetailHeroProps {
 export function DocumentDetailHero({ document }: DocumentDetailHeroProps) {
   return (
     <header
+      {...CLARITY_MASK}
       className={cn(
         "relative overflow-hidden rounded-2xl border border-black/[0.06] bg-white/55 backdrop-blur-xl",
         "px-4 py-4 sm:rounded-3xl sm:px-6 sm:py-5",

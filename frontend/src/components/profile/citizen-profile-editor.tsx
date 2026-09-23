@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import type { CitizenProfileFormState } from "@/hooks/use-citizen-profile";
 import { AnalyticsEvents, track } from "@/lib/analytics";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { cn } from "@/lib/utils";
 
 const STRENGTH_CHECKS = [
@@ -131,7 +132,7 @@ export function CitizenProfileEditor({
       </ProfileSectionCard>
 
       <ProfileSectionCard title="Basic information">
-        <div className="space-y-4">
+        <div {...CLARITY_MASK} className="space-y-4">
           <div className="mp-profile-field">
             <Label htmlFor="citizen-full-name" className="flex items-center gap-1.5 text-[12px]">
               <UserRound className="h-3.5 w-3.5" />

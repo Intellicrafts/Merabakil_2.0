@@ -13,6 +13,7 @@ import {
 import { formatDocStatus } from "@/lib/demo-documents";
 import type { AppointmentStatus, LegalCase, UserDocument } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 export type RecentKind = "chat" | "appointment" | "document" | "matter";
 
@@ -241,7 +242,7 @@ export function RecentActivityList({
   }
 
   return (
-    <ul className="space-y-0.5">
+    <ul {...CLARITY_MASK} className="space-y-0.5">
       {entries.map((entry) => (
         <li key={`${entry.kind}-${entry.id}`}>
           <button

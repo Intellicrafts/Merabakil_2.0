@@ -14,7 +14,7 @@ export const SITE = {
 
 export const LEGAL_VERSIONS = {
   terms: "1.0",
-  privacy: "1.0",
+  privacy: "1.1",
 } as const;
 
 export const NOINDEX: Metadata["robots"] = { index: false, follow: false };

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, Loader2, Sparkles, X } from "lucide-react";
 
 import { ChatFileCard, fileKind, formatFileSize } from "@/components/mera-vakil/chat-file-card";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { fetchDocumentFile, getDocumentText } from "@/lib/api";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,10 @@ function InsightPanel({
   expanded?: boolean;
 }) {
   return (
-    <div className={cn("mv-doc-preview-insight", expanded ? "flex min-h-0 flex-1 flex-col" : "shrink-0 sm:shrink")}>
+    <div
+      {...CLARITY_MASK}
+      className={cn("mv-doc-preview-insight", expanded ? "flex min-h-0 flex-1 flex-col" : "shrink-0 sm:shrink")}
+    >
       <div
         className={cn(
           "mx-auto flex w-full max-w-3xl flex-col px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] pt-1 sm:px-4 sm:pb-4 sm:pt-3",
@@ -162,6 +166,7 @@ export function DocumentPreviewDialog({
       />
 
       <div
+        {...CLARITY_MASK}
         role="dialog"
         aria-modal="true"
         aria-label={`Preview ${target.name}`}

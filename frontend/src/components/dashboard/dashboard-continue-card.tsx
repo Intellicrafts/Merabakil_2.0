@@ -11,6 +11,7 @@ import {
   type ChatConversation,
 } from "@/lib/conversations";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 export function DashboardContinueCard({
   lastCounsel,
@@ -60,6 +61,7 @@ export function DashboardContinueCard({
     <button
       type="button"
       onClick={resume}
+      {...CLARITY_MASK}
       className={cn(
         "dash-card-in group flex w-full min-h-[5.5rem] items-center justify-between gap-3 rounded-3xl mp-surface-card px-5 py-4 text-left",
         "max-sm:flex-col max-sm:items-stretch sm:gap-4",

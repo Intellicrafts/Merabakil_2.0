@@ -39,6 +39,7 @@ import {
 } from "@/lib/api";
 import type { AuthUser, LawyerMatchResult, VerifyResult, WalletBalance } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 type TabId = "all" | "citizen" | "advocate" | "admin";
 
@@ -361,7 +362,7 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
             <div className="px-5 py-5">
               <div className="flex items-start gap-4">
                 <UserInitials name={user.full_name} />
-                <div className="min-w-0 flex-1">
+                <div {...CLARITY_MASK} className="min-w-0 flex-1">
                   <h2 id="user-detail-title" className="text-lg font-semibold tracking-tight">
                     {user.full_name}
                   </h2>
@@ -750,7 +751,7 @@ export default function AdminUsersPage() {
           )}
 
           {data && data.items.length > 0 && (
-            <Table>
+            <Table {...CLARITY_MASK}>
               <TableHeader>
                 <TableRow className="border-black/[0.06] dark:border-white/[0.06]">
                   <TableHead className="pl-4">User</TableHead>

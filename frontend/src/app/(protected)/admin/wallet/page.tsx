@@ -34,6 +34,7 @@ import {
 } from "@/lib/api";
 import type { AuthUser, WalletTransactionList } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-IN", {
@@ -511,7 +512,7 @@ export default function AdminWalletPage() {
           )}
 
           {!isLoading && entries.length > 0 && (
-            <Table>
+            <Table {...CLARITY_MASK}>
               <TableHeader>
                 <TableRow className="border-black/[0.06] dark:border-white/[0.06]">
                   <TableHead className="pl-4">User</TableHead>

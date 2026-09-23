@@ -161,6 +161,12 @@ openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24   # → POSTGRES_PASSW
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | "Sign in with Google" button |
 | `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | Video/audio in appointment rooms |
 | `TAVILY_API_KEY` | Web search in AI research (falls back to DuckDuckGo) |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` / `NEXT_PUBLIC_GA_ENABLED` | Google Analytics 4 |
+| `NEXT_PUBLIC_CLARITY_PROJECT_ID` / `NEXT_PUBLIC_CLARITY_ENABLED` | Microsoft Clarity session replay + heatmaps — see [CLARITY_SETUP.md](docs/analytics/CLARITY_SETUP.md) |
+
+> **`NEXT_PUBLIC_*` variables are baked into the frontend bundle at build time.** Changing
+> any of them requires rebuilding the frontend image (`docker compose ... build frontend`),
+> not just restarting the container.
 
 ### 2.5 Deploy
 

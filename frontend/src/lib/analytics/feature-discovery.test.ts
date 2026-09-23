@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AnalyticsEvents } from "@/lib/analytics/events";
 import { trackFeatureDiscovery } from "@/lib/analytics/feature-discovery";
+import { CONSENT_VERSION } from "@/lib/consent";
 
 vi.mock("@/lib/analytics/track", () => ({
   track: vi.fn(),
@@ -25,9 +26,29 @@ function mockSessionStorage() {
   });
 }
 
+/**
+ * trackFeatureDiscovery() gates on readConsent(), which returns null when `window` is
+ * undefined — so without this the tracking call is skipped and every assertion fails.
+ */
+function mockGrantedConsent() {
+  const consent = JSON.stringify({
+    version: CONSENT_VERSION,
+    analytics: true,
+    acceptedAt: "2026-01-01T00:00:00.000Z",
+  });
+  vi.stubGlobal("window", {
+    localStorage: {
+      getItem: (key: string) => (key === "legalos.consent" ? consent : null),
+      setItem: () => {},
+      removeItem: () => {},
+    },
+  });
+}
+
 describe("trackFeatureDiscovery", () => {
   beforeEach(() => {
     mockSessionStorage();
+    mockGrantedConsent();
   });
 
   afterEach(() => {

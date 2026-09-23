@@ -24,6 +24,7 @@ import { useTranslation } from "@/lib/i18n";
 import type { AuthUser } from "@/lib/types";
 import type { TransactionType, WalletTransaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 // ─── Formatting ──────────────────────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ function TransactionRow({ tx, compact }: { tx: WalletTransaction; compact?: bool
   const { t } = useTranslation();
   const isDebit = DEBIT_TYPES.has(tx.transaction_type);
   return (
-    <div className={cn(
+    <div {...CLARITY_MASK} className={cn(
       "flex items-center gap-3 border-b border-black/[0.05] last:border-0 dark:border-white/[0.06]",
       compact ? "py-2" : "py-3",
     )}>
@@ -359,7 +360,7 @@ export default function WalletPage() {
               {walletLoading ? (
                 <Skeleton className="mt-3 h-11 w-36 bg-black/[0.06] dark:bg-white/[0.08]" />
               ) : (
-                <p className="mt-1.5 text-[3.25rem] font-bold leading-none tracking-tight text-foreground tabular-nums">
+                <p {...CLARITY_MASK} className="mt-1.5 text-[3.25rem] font-bold leading-none tracking-tight text-foreground tabular-nums">
                   {formatAmount(balance)}
                 </p>
               )}

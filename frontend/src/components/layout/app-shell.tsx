@@ -32,6 +32,7 @@ import { clearConsent } from "@/lib/consent";
 import { pickAvatarCandidate, readAvatarUrl } from "@/lib/avatar";
 import { useResolvedAvatarSrc } from "@/hooks/use-resolved-avatar-src";
 import { useTranslation } from "@/lib/i18n";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { markNavigationStart } from "@/lib/navigation-feedback";
 import { FEATURES } from "@/lib/features";
 import { initTheme, toggleTheme } from "@/lib/theme";
@@ -153,7 +154,7 @@ function AppTopBar({
               name={user?.full_name ?? "User"}
               className="h-7 w-7"
             />
-            <div className="hidden text-left md:block">
+            <div {...CLARITY_MASK} className="hidden text-left md:block">
               <p className="text-[13px] font-medium leading-none">{user?.full_name ?? "User"}</p>
               <p className="mt-0.5 text-[10px] capitalize text-muted-foreground">
                 {user?.roles?.[0]?.replace("_", " ") ?? "Member"}

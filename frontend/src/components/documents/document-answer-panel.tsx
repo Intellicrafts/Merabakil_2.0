@@ -3,6 +3,7 @@
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import type { ResearchResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 interface DocumentAnswerPanelProps {
   result: ResearchResponse | null;
@@ -20,6 +21,7 @@ export function DocumentAnswerPanel({
 
   return (
     <div
+      {...CLARITY_MASK}
       className={cn(
         "space-y-4 rounded-2xl border border-black/[0.06] bg-white/65 p-4 shadow-[0_8px_28px_rgba(15,23,42,0.04)] backdrop-blur-xl sm:p-5",
         "dark:border-white/[0.08] dark:bg-white/[0.035]",

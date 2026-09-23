@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { docTypeLabel, formatDocStatus } from "@/lib/demo-documents";
 import type { UserDocument } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 interface DocumentsLibraryGridProps {
   documents: UserDocument[];
@@ -36,7 +37,7 @@ export function DocumentsLibraryGrid({
   errorMessage,
 }: DocumentsLibraryGridProps) {
   return (
-    <section className="space-y-3">
+    <section {...CLARITY_MASK} className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Files className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />

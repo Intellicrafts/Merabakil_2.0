@@ -143,7 +143,6 @@ function LoginForm() {
           setStepError(null);
           setOtpSent(false);
           setOtp("");
-          setDevOtp(null);
         }}
         passwordLabel={t("auth.loginWithPassword")}
         otpLabel={t("auth.loginWithOtp")}

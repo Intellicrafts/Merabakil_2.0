@@ -5,6 +5,7 @@ import { Check, Copy, Download, FileText, X } from "lucide-react";
 
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { Button } from "@/components/ui/button";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { downloadPdf, downloadTxt } from "@/lib/draft-utils";
 import type { DraftPayload } from "@/lib/types";
 
@@ -36,6 +37,7 @@ export function DraftDocumentViewer({ draft, onClose }: DraftDocumentViewerProps
 
   return (
     <div
+      {...CLARITY_MASK}
       className="fixed inset-0 z-80 flex flex-col bg-black/50 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();

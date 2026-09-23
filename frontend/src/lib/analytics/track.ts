@@ -1,3 +1,11 @@
+import {
+  CLARITY_UPGRADE_EVENTS,
+  clarityEvent,
+  clarityIdentify,
+  claritySetTag,
+  claritySetTagsFromParams,
+  clarityUpgrade,
+} from "@/lib/analytics/clarity";
 import { GA_ENABLED, GA_MEASUREMENT_ID } from "@/lib/analytics/constants";
 import { readConsent } from "@/lib/consent";
 import type { AnalyticsEventName } from "@/lib/analytics/events";
@@ -11,7 +19,12 @@ declare global {
   }
 }
 
-function canTrack(): boolean {
+/**
+ * GA4 gate — explicit opt-in. Deliberately stricter than Clarity's `clarityAllowed()`,
+ * which collects until the user opts out. Each sink gates itself so disabling one never
+ * silently disables the other.
+ */
+function canTrackGa(): boolean {
   if (!GA_ENABLED || !GA_MEASUREMENT_ID) return false;
   if (typeof window === "undefined") return false;
   return readConsent()?.analytics === true;
@@ -22,22 +35,35 @@ function gtag(...args: unknown[]) {
 }
 
 export function track(event: AnalyticsEventName, params?: AnalyticsParams): void {
-  if (!canTrack()) return;
+  if (typeof window === "undefined") return;
   const safe = sanitizeParams(params);
-  gtag("event", event, safe);
+
+  if (canTrackGa()) gtag("event", event, safe);
+
+  clarityEvent(event);
+  claritySetTagsFromParams(safe);
+  if (CLARITY_UPGRADE_EVENTS.has(event)) clarityUpgrade(event);
 }
 
 export function trackPageView(params: AnalyticsParams): void {
-  if (!canTrack()) return;
+  if (typeof window === "undefined") return;
   const safe = sanitizeParams(params);
-  gtag("event", "page_view", safe);
+
+  if (canTrackGa()) gtag("event", "page_view", safe);
+
+  claritySetTagsFromParams(safe);
 }
 
-export async function setAnalyticsUser(userId: string): Promise<void> {
-  if (!GA_ENABLED || !GA_MEASUREMENT_ID || typeof window === "undefined") return;
-  if (readConsent()?.analytics !== true) return;
+export async function setAnalyticsUser(userId: string, role?: string): Promise<void> {
+  if (typeof window === "undefined") return;
   const hashed = await hashUserId(userId);
-  gtag("config", GA_MEASUREMENT_ID, { user_id: hashed });
+
+  if (GA_ENABLED && GA_MEASUREMENT_ID && readConsent()?.analytics === true) {
+    gtag("config", GA_MEASUREMENT_ID, { user_id: hashed });
+  }
+
+  clarityIdentify(hashed, undefined, window.location.pathname, role);
+  if (role) claritySetTag("user_role", role);
 }
 
 export function clearAnalyticsUser(): void {

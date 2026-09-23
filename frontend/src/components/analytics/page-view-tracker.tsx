@@ -12,6 +12,9 @@ import {
   trackPageView,
   utmAsAnalyticsParams,
 } from "@/lib/analytics";
+import { clarityIdentify, claritySetTag } from "@/lib/analytics/clarity";
+import { hashUserId } from "@/lib/analytics/user-id";
+import { getStoredUser, primaryRole } from "@/lib/api";
 import { readConsent } from "@/lib/consent";
 
 export function PageViewTracker() {
@@ -20,7 +23,10 @@ export function PageViewTracker() {
   const lastPath = useRef<string | null>(null);
 
   useEffect(() => {
-    if (readConsent()?.analytics !== true) return;
+    // Bail only on an explicit opt-out. GA stays hard-gated on `=== true` inside
+    // track()/trackPageView(); Clarity runs under the opt-out model and still needs
+    // pageviews from visitors who have not answered the banner yet.
+    if (readConsent()?.analytics === false) return;
 
     const search = searchParams.toString();
     captureUtmFromSearch(search ? `?${search}` : "");
@@ -31,6 +37,18 @@ export function PageViewTracker() {
 
     const pageType = resolvePageType(pathname);
     const utm = utmAsAnalyticsParams();
+
+    // Clarity stitches a user's journey across devices only when identify() is called
+    // per page; custom-page-id is the route so recordings are filterable by section.
+    claritySetTag("page_type", pageType);
+    const user = getStoredUser();
+    if (user) {
+      const role = primaryRole(user.roles);
+      claritySetTag("user_role", role);
+      void hashUserId(user.user_id).then((hashed) =>
+        clarityIdentify(hashed, undefined, pathname, role),
+      );
+    }
 
     trackPageView({
       page_path: pathname,

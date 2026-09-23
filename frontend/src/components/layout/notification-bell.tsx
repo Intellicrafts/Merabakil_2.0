@@ -14,6 +14,7 @@ import { dismissSummonAlert } from "@/hooks/use-appointment-summon-watcher";
 import { dismissAppointmentSummon, markAllNotificationsRead } from "@/lib/api";
 import { notificationHub } from "@/lib/notification-hub";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 function formatRelative(ts: number): string {
   const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
@@ -130,7 +131,7 @@ export function NotificationBell() {
                             {initials(item.fromName)}
                           </div>
                         ) : null}
-                        <div className="min-w-0 flex-1">
+                        <div {...CLARITY_MASK} className="min-w-0 flex-1">
                           <p className="text-[12px] font-semibold">{item.title}</p>
                           <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                             {item.body}

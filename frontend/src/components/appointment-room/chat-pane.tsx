@@ -9,6 +9,7 @@ import { AttachmentPreview } from "@/components/appointment-room/attachment-prev
 import type { AppointmentMessage } from "@/lib/appointment-types";
 import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 const REACTIONS = [
   { key: "agree", label: "Agree", Icon: ThumbsUp },
@@ -135,7 +136,7 @@ export function ChatPane({
               {t("room.messagesStay")}
             </p>
           )}
-          <ul className="flex flex-col gap-1">
+          <ul {...CLARITY_MASK} className="flex flex-col gap-1">
             {messages.map((msg, index) => {
               const mine = msg.sender_user_id === userId;
               const isAdmin = msg.sender_role === "admin";

@@ -1,6 +1,18 @@
 # GA4 Event Catalog — MeraBakil
 
-Consent-gated events using `object_action` naming. All payloads pass through `sanitizeParams()` — forbidden keys (PII, legal content) are stripped.
+Events using `object_action` naming. All payloads pass through `sanitizeParams()` — forbidden keys (PII, legal content) are stripped.
+
+**Two sinks.** `track()` dispatches each event to GA4 *and* to Microsoft Clarity under the
+same name, so the two tools cross-reference one-to-one. The gates differ by design:
+
+- **GA4** fires only after an explicit "Accept all" (`readConsent()?.analytics === true`).
+- **Clarity** follows the opt-out model — it fires unless the user has explicitly declined.
+
+The allowlisted subset of each payload is also promoted to Clarity **custom tags**
+(`CLARITY_TAG_KEYS`): `page_type`, `user_role`, `account_type`, `cta_location`, `cta_type`,
+`booking_step`, `booking_status`, `consultation_mode`, `matter_category`,
+`practice_area_category`, `signup_method`, `authentication_method`, `error_type`,
+`feature_name`, and the three `utm_*` keys. See [CLARITY_SETUP.md](./CLARITY_SETUP.md).
 
 ## Marketing
 

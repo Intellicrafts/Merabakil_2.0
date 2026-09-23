@@ -6,6 +6,7 @@ import { Pencil, X } from "lucide-react";
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
 import { AssistantSkeleton } from "@/components/mera-vakil/assistant-skeleton";
 import { ChatFileCard, fileKind } from "@/components/mera-vakil/chat-file-card";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { fetchDocumentFile } from "@/lib/api";
 import { SaarthiMark } from "@/components/mera-vakil/saarthi-mark";
 import { DocumentPreviewDialog, type PreviewTarget } from "@/components/mera-vakil/document-preview-dialog";
@@ -109,7 +110,7 @@ export const MessageBubble = memo(function MessageBubble({
   if (message.role === "user") {
     if (isEditing) {
       return (
-        <div className="flex justify-end">
+        <div {...CLARITY_MASK} className="flex justify-end">
           <div className="w-full max-w-[85%] space-y-2 rounded-xl border border-black/[0.08] bg-white/70 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
             <textarea
               ref={editRef}
@@ -164,7 +165,7 @@ export const MessageBubble = memo(function MessageBubble({
             </ul>
           )}
           {message.content ? (
-            <div className="mv-user-bubble">
+            <div {...CLARITY_MASK} className="mv-user-bubble">
               <p>{message.content}</p>
             </div>
           ) : null}
@@ -217,7 +218,7 @@ export const MessageBubble = memo(function MessageBubble({
             Grounding authorities…
           </p>
         )}
-        <div className="mv-assistant-surface">
+        <div {...CLARITY_MASK} className="mv-assistant-surface">
           {stillTyping ? (
             <p className="mv-stream-plain whitespace-pre-wrap">
               {visibleContent}

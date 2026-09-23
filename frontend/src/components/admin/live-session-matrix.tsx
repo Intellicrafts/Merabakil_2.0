@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AppointmentRecord, SessionHealth } from "@/lib/appointment-types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 interface LiveSessionMatrixProps {
   sessions: AppointmentRecord[];
@@ -68,8 +69,8 @@ export function LiveSessionMatrix({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold">{row.citizen_name}</p>
-                      <p className="truncate text-[12px] text-muted-foreground">{row.lawyer_name}</p>
+                      <p {...CLARITY_MASK} className="truncate font-semibold">{row.citizen_name}</p>
+                      <p {...CLARITY_MASK} className="truncate text-[12px] text-muted-foreground">{row.lawyer_name}</p>
                     </div>
                     <Badge className="shrink-0 capitalize" variant={row.status === "live" ? "default" : "secondary"}>
                       {row.status.replace("_", " ")}

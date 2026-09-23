@@ -2,6 +2,7 @@
 
 import { FileImage, FileSpreadsheet, FileText, FileType } from "lucide-react";
 
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 import { isImageFile } from "@/lib/composer-attachments";
 import { cn } from "@/lib/utils";
 
@@ -85,7 +86,7 @@ export function ChatFileCard({
           <KindIcon kind={kind} />
         )}
       </span>
-      <span className="min-w-0">
+      <span {...CLARITY_MASK} className="min-w-0">
         <span className="block truncate text-[12.5px] font-medium">{name}</span>
         <span
           className={cn(

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { MicOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 interface CallStageProps {
   localStream: MediaStream | null;
@@ -80,7 +81,7 @@ export function CallStage({
           </div>
 
           <div className="text-center">
-            <p className="text-[17px] font-semibold tracking-tight text-white">{counterpartName}</p>
+            <p {...CLARITY_MASK} className="text-[17px] font-semibold tracking-tight text-white">{counterpartName}</p>
             <p className="mt-0.5 text-[12px] text-white/45">
               {isLive ? "Audio consultation" : "Connecting…"}
             </p>
@@ -103,7 +104,7 @@ export function CallStage({
                 {initials}
               </div>
               <div className="text-center">
-                <p className="text-[14px] font-semibold text-white">{counterpartName}</p>
+                <p {...CLARITY_MASK} className="text-[14px] font-semibold text-white">{counterpartName}</p>
                 <p className="mt-0.5 text-[11px] text-white/45">Joining…</p>
               </div>
             </div>

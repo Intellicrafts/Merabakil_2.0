@@ -86,13 +86,25 @@ function setTokens(accessToken: string, refreshToken: string): void {
   window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
 }
 
+/**
+ * Most-privileged role, for analytics segmentation. Never a name or email — this value
+ * is displayed in plaintext on the Clarity dashboard as the session's friendly name.
+ */
+export function primaryRole(roles: string[] | undefined): string {
+  if (!roles?.length) return "unknown";
+  for (const role of ["admin", "law_firm", "enterprise", "advocate", "citizen"]) {
+    if (roles.includes(role)) return role;
+  }
+  return "other";
+}
+
 export function setSession(auth: AuthResponse): void {
   setTokens(auth.tokens.access_token, auth.tokens.refresh_token);
   window.localStorage.setItem(USER_KEY, JSON.stringify(auth.user));
   if (auth.user.avatar_url) {
     storeAvatarUrl(auth.user.avatar_url);
   }
-  void setAnalyticsUser(auth.user.user_id);
+  void setAnalyticsUser(auth.user.user_id, primaryRole(auth.user.roles));
 }
 
 export function clearSession(): void {

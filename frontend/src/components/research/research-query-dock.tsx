@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { JURISDICTION_OPTIONS } from "@/lib/conversations";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 interface ResearchQueryDockProps {
   query: string;
@@ -36,6 +37,7 @@ export function ResearchQueryDock({
 
   return (
     <div
+      {...CLARITY_MASK}
       className={cn(
         "space-y-3 rounded-2xl border border-black/[0.06] bg-white/60 p-4 shadow-[0_8px_28px_rgba(15,23,42,0.04)] backdrop-blur-xl",
         "dark:border-white/[0.08] dark:bg-white/[0.035]",

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import type { LegalCase } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 function formatUpdated(iso: string): string {
   try {
@@ -49,8 +50,8 @@ export function CaseTable({ cases, isShared }: CaseTableProps) {
 
   return (
     <>
-      {/* Mobile cards */}
-      <ul className="space-y-3 md:hidden">
+      {/* Mobile cards — case titles and numbers identify real matters and parties. */}
+      <ul {...CLARITY_MASK} className="space-y-3 md:hidden">
         {cases.map((item) => (
           <li key={item.id}>
             <Link
@@ -82,7 +83,7 @@ export function CaseTable({ cases, isShared }: CaseTableProps) {
       </ul>
 
       {/* Desktop table */}
-      <div className="hidden overflow-hidden rounded-2xl border border-black/[0.06] bg-white/55 backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.035] md:block">
+      <div {...CLARITY_MASK} className="hidden overflow-hidden rounded-2xl border border-black/[0.06] bg-white/55 backdrop-blur-xl dark:border-white/[0.08] dark:bg-white/[0.035] md:block">
         <Table>
           <TableHeader>
             <TableRow>

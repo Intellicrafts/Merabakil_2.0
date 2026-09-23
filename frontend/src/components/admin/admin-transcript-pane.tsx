@@ -6,6 +6,7 @@ import { Shield } from "lucide-react";
 import { AttachmentPreview } from "@/components/appointment-room/attachment-preview";
 import type { AppointmentMessage, AppointmentRecord } from "@/lib/appointment-types";
 import { cn } from "@/lib/utils";
+import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
 
 interface AdminTranscriptPaneProps {
   appointment: AppointmentRecord;
@@ -67,7 +68,7 @@ export function AdminTranscriptPane({ appointment, messages, className }: AdminT
                 {msg.attachment ? (
                   <AttachmentPreview appointmentId={appointment.id} attachment={msg.attachment} mine={false} />
                 ) : null}
-                {msg.body ? <p className="leading-relaxed">{msg.body}</p> : null}
+                {msg.body ? <p {...CLARITY_MASK} className="leading-relaxed">{msg.body}</p> : null}
               </li>
             );
           })
