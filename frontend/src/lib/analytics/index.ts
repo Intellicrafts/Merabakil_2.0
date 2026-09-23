@@ -1,6 +1,6 @@
 export { AnalyticsEvents, type AnalyticsEventName } from "@/lib/analytics/events";
 export { track, trackPageView, setAnalyticsUser, clearAnalyticsUser, bucketCount, bucketLatency, bucketFileSize, bucketAmount } from "@/lib/analytics/track";
-export { captureUtmFromSearch, readStoredUtm, utmAsAnalyticsParams } from "@/lib/analytics/utm";
+export { captureUtmFromSearch, readStoredUtm, utmAsAnalyticsParams, acquisitionPayload, type AcquisitionPayload } from "@/lib/analytics/utm";
 export { sanitizeParams } from "@/lib/analytics/sanitize";
 export { resolvePageType } from "@/lib/analytics/page-types";
 export { trackFeatureDiscovery } from "@/lib/analytics/feature-discovery";

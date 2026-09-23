@@ -38,3 +38,23 @@ export function consumeMeraVakilVoiceOpen(): boolean {
   if (v) sessionStorage.removeItem(MERA_VAKIL_VOICE_KEY);
   return v === "1";
 }
+
+const MERA_VAKIL_AUTOSEND_KEY = "legalos.meravakil.autosend";
+
+/**
+ * Marks the prefilled question to be auto-sent on Saarthi load — set by /ask so
+ * the visitor's question is answered immediately after signing in, no retyping.
+ * The question itself rides along in the prefill; if the send fails it stays in
+ * the composer/thread so it isn't lost.
+ */
+export function setMeraVakilAutoSend(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(MERA_VAKIL_AUTOSEND_KEY, "1");
+}
+
+export function consumeMeraVakilAutoSend(): boolean {
+  if (typeof window === "undefined") return false;
+  const v = sessionStorage.getItem(MERA_VAKIL_AUTOSEND_KEY);
+  if (v) sessionStorage.removeItem(MERA_VAKIL_AUTOSEND_KEY);
+  return v === "1";
+}

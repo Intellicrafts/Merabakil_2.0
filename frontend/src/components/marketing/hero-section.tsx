@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, Scale } from "lucide-react";
 
+import { HomeAskEntry } from "@/components/ask/home-ask-entry";
 import { ModuleFeatureShowcase } from "@/components/marketing/module-feature-showcase";
 import { Button } from "@/components/ui/button";
 import { trackMarketingCta } from "@/lib/analytics/track-cta";
@@ -36,21 +37,24 @@ export function HeroSection() {
             </p>
           </div>
 
-          <div className="hero-stagger-3 mt-5 flex flex-wrap items-center justify-center gap-3 lg:mt-6 lg:justify-start">
+          <HomeAskEntry className="hero-stagger-3 mt-5 max-w-md lg:mt-6" />
+
+          <div className="hero-stagger-4 mt-3 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
             <Button
               asChild
+              variant="outline"
               size="lg"
-              className="rounded-full bg-gradient-to-r from-slate-800 to-slate-900 px-7 text-white dark:from-slate-100 dark:to-slate-300 dark:text-slate-900"
+              className="rounded-full"
             >
               <Link
                 href="/register"
                 onClick={() => trackMarketingCta("hero", "register", "/register")}
               >
-                Get legal guidance
+                Create free account
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="rounded-full">
+            <Button asChild variant="ghost" size="lg" className="rounded-full">
               <Link href="/login" onClick={() => trackMarketingCta("hero", "login", "/login")}>
                 Sign In
               </Link>

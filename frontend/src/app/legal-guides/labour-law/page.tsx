@@ -303,13 +303,13 @@ export default function LabourLawPage() {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
           <Button asChild size="lg" className="rounded-full">
-            <Link href="/lawyer-marketplace?area=labour">
-              Find Labour Lawyer
+            <Link href="/ask?topic=labour">
+              Ask Saarthi about your labour issue
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="rounded-full">
-            <Link href="/mera-vakil">Ask Saarthi AI</Link>
+            <Link href="/lawyer-marketplace?area=labour">Find a labour lawyer</Link>
           </Button>
         </div>
       </div>

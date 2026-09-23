@@ -43,12 +43,18 @@ class SqlAlchemyUserRepository:
         full_name: str,
         hashed_password: str | None = None,
         is_verified: bool = False,
+        acquisition_gclid: str | None = None,
+        acquisition_utm_source: str | None = None,
+        acquisition_utm_campaign: str | None = None,
     ) -> User:
         user = User(
             email=email,
             full_name=full_name,
             hashed_password=hashed_password,
             is_verified=is_verified,
+            acquisition_gclid=acquisition_gclid,
+            acquisition_utm_source=acquisition_utm_source,
+            acquisition_utm_campaign=acquisition_utm_campaign,
         )
         self._session.add(user)
         await self._session.flush()

@@ -11,6 +11,14 @@ from pydantic import BaseModel, EmailStr, Field
 from legalos_common.security.rbac import Role
 
 
+class AcquisitionInput(BaseModel):
+    """Ad attribution captured from the landing URL at signup."""
+
+    gclid: str | None = Field(default=None, max_length=512)
+    utm_source: str | None = Field(default=None, max_length=255)
+    utm_campaign: str | None = Field(default=None, max_length=255)
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=255)
@@ -19,6 +27,7 @@ class RegisterRequest(BaseModel):
     role: Role = Role.CITIZEN
     terms_version: str | None = Field(default=None, max_length=20)
     privacy_version: str | None = Field(default=None, max_length=20)
+    acquisition: AcquisitionInput | None = None
 
 
 class OtpSendRequest(BaseModel):
@@ -61,6 +70,7 @@ class GoogleCompleteRequest(BaseModel):
     role: Role = Role.CITIZEN
     terms_version: str | None = Field(default=None, max_length=20)
     privacy_version: str | None = Field(default=None, max_length=20)
+    acquisition: AcquisitionInput | None = None
 
 
 class RefreshRequest(BaseModel):

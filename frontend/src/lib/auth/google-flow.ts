@@ -2,7 +2,7 @@
 
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
-import { AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
+import { acquisitionPayload, AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
 import {
   completeGoogleRegistration,
   loginWithGoogle,
@@ -101,10 +101,12 @@ export async function completeGoogleOnboarding(
   router: AppRouterInstance,
   nextPath?: string | null,
 ): Promise<AuthResponse> {
-  const auth = await completeGoogleRegistration(onboardingToken, role, {
-    terms_version: LEGAL_VERSIONS.terms,
-    privacy_version: LEGAL_VERSIONS.privacy,
-  });
+  const auth = await completeGoogleRegistration(
+    onboardingToken,
+    role,
+    { terms_version: LEGAL_VERSIONS.terms, privacy_version: LEGAL_VERSIONS.privacy },
+    acquisitionPayload(),
+  );
   track(AnalyticsEvents.SIGNUP_COMPLETED, {
     signup_method: "google",
     account_type: role,

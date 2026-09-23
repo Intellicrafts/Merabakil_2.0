@@ -15,7 +15,7 @@ import { TermsConsentCheckbox } from "@/components/legal/terms-consent-checkbox"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
+import { acquisitionPayload, AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
 import { register, sendOtp, setSession, syncAdvocateListing, verifyRegisterOtp } from "@/lib/api";
 import { useTranslation } from "@/lib/i18n";
 import { loginRedirectForUser } from "@/lib/permissions";
@@ -78,10 +78,15 @@ function RegisterForm() {
 
   const registerMutation = useMutation({
     mutationFn: () =>
-      register(email.trim(), fullName || email.split("@")[0], password, role, verificationToken!, {
-        terms_version: LEGAL_VERSIONS.terms,
-        privacy_version: LEGAL_VERSIONS.privacy,
-      }),
+      register(
+        email.trim(),
+        fullName || email.split("@")[0],
+        password,
+        role,
+        verificationToken!,
+        { terms_version: LEGAL_VERSIONS.terms, privacy_version: LEGAL_VERSIONS.privacy },
+        acquisitionPayload(),
+      ),
     onSuccess: async (auth) => {
       track(AnalyticsEvents.SIGNUP_COMPLETED, {
         signup_method: "email",

@@ -24,6 +24,8 @@ interface LawyerProfileDrawerProps {
   open: boolean;
   /** Booking is a client action — non-citizens see a note instead of the CTA. */
   canBook?: boolean;
+  /** Only show the AI match % when there's real case context (e.g. live match). */
+  showMatch?: boolean;
   onClose: () => void;
   onBook: (lawyer: RankedLawyer) => void;
 }
@@ -32,6 +34,7 @@ export function LawyerProfileDrawer({
   lawyer,
   open,
   canBook = true,
+  showMatch = false,
   onClose,
   onBook,
 }: LawyerProfileDrawerProps) {
@@ -100,15 +103,23 @@ export function LawyerProfileDrawer({
               </div>
               <p className="mt-0.5 text-[12px] text-muted-foreground">Bar · {lawyer.bar_council_id}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 text-[12px]">
-                  <Star className="h-3 w-3 fill-current text-amber-500/80" />
-                  <span className="font-semibold">{lawyer.rating.toFixed(1)}</span>
-                  <span className="hidden text-muted-foreground sm:inline">({lawyer.review_count})</span>
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-white/10">
-                  <Sparkles className="h-2.5 w-2.5" />
-                  {lawyer.match_score}% match
-                </span>
+                {lawyer.review_count > 0 ? (
+                  <span className="inline-flex items-center gap-1 text-[12px]">
+                    <Star className="h-3 w-3 fill-current text-amber-500/80" />
+                    <span className="font-semibold">{lawyer.rating.toFixed(1)}</span>
+                    <span className="hidden text-muted-foreground sm:inline">({lawyer.review_count})</span>
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                    New
+                  </span>
+                )}
+                {showMatch && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-white/10">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    {lawyer.match_score}% match
+                  </span>
+                )}
               </div>
             </div>
           </div>

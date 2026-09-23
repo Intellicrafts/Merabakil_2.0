@@ -129,6 +129,9 @@ async def register(
         terms_version=body.terms_version,
         privacy_version=body.privacy_version,
         ip_hash=_hash_client_ip(request),
+        acquisition_gclid=body.acquisition.gclid if body.acquisition else None,
+        acquisition_utm_source=body.acquisition.utm_source if body.acquisition else None,
+        acquisition_utm_campaign=body.acquisition.utm_campaign if body.acquisition else None,
     )
     return await _to_auth_response_with_avatar(result, service)
 
@@ -227,6 +230,9 @@ async def google_complete(
         terms_version=body.terms_version,
         privacy_version=body.privacy_version,
         ip_hash=_hash_client_ip(request),
+        acquisition_gclid=body.acquisition.gclid if body.acquisition else None,
+        acquisition_utm_source=body.acquisition.utm_source if body.acquisition else None,
+        acquisition_utm_campaign=body.acquisition.utm_campaign if body.acquisition else None,
     )
     return await _to_auth_response_with_avatar(result, service)
 

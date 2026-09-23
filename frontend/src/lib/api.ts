@@ -330,6 +330,12 @@ export async function login(email: string, password: string): Promise<AuthRespon
   return postAuthJson<AuthResponse>("/api/v1/auth/login", { email, password });
 }
 
+export type AcquisitionInput = {
+  gclid?: string;
+  utm_source?: string;
+  utm_campaign?: string;
+};
+
 export async function register(
   email: string,
   full_name: string,
@@ -337,6 +343,7 @@ export async function register(
   role: string,
   verificationToken: string,
   consent?: { terms_version: string; privacy_version: string },
+  acquisition?: AcquisitionInput,
 ): Promise<AuthResponse> {
   return postAuthJson<AuthResponse>("/api/v1/auth/register", {
     email,
@@ -346,6 +353,7 @@ export async function register(
     verification_token: verificationToken,
     terms_version: consent?.terms_version,
     privacy_version: consent?.privacy_version,
+    acquisition,
   });
 }
 
@@ -386,12 +394,14 @@ export async function completeGoogleRegistration(
   onboardingToken: string,
   role: string,
   consent?: { terms_version: string; privacy_version: string },
+  acquisition?: AcquisitionInput,
 ): Promise<AuthResponse> {
   return postAuthJson<AuthResponse>("/api/v1/auth/google/complete", {
     onboarding_token: onboardingToken,
     role,
     terms_version: consent?.terms_version,
     privacy_version: consent?.privacy_version,
+    acquisition,
   });
 }
 

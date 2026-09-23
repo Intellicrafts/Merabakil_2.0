@@ -33,9 +33,9 @@ export function CookieConsentBanner() {
       role="dialog"
       aria-labelledby="cookie-consent-title"
       aria-describedby="cookie-consent-desc"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[90] p-4 sm:p-5"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[90] p-3 sm:bottom-0 sm:top-auto sm:p-5"
     >
-      <div className="pointer-events-auto mx-auto flex max-w-3xl flex-col gap-4 rounded-2xl border border-black/[0.08] bg-background/95 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-white/10 dark:shadow-[0_8px_30px_rgba(0,0,0,0.45)] sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">
+      <div className="pointer-events-auto mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border border-black/[0.08] bg-background/95 p-3.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-white/10 dark:shadow-[0_8px_30px_rgba(0,0,0,0.45)] sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">
         <div className="flex min-w-0 items-start gap-3">
           <span
             className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/[0.04] text-muted-foreground dark:bg-white/[0.06]"
