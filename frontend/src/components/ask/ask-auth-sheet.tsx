@@ -43,12 +43,15 @@ export function AskAuthSheet({
   onClose,
   title,
   subtitle,
+  source,
 }: {
   open: boolean;
   onClose: () => void;
   /** Optional overrides — e.g. the "you've used today's free chats" wall. */
   title?: string;
   subtitle?: string;
+  /** Attribution for signup events, e.g. "guest_wall". */
+  source?: string;
 }) {
   const router = useRouter();
   const { t } = useTranslation();
@@ -99,7 +102,10 @@ export function AskAuthSheet({
     setBusy(true);
     setError(null);
     try {
-      track(AnalyticsEvents.SIGNUP_STARTED, { method: tab === "register" ? "email" : "email_login" });
+      track(AnalyticsEvents.SIGNUP_STARTED, {
+        method: tab === "register" ? "email" : "email_login",
+        ...(source ? { source } : {}),
+      });
       await sendOtp(trimmed, tab === "register" ? "register" : "login");
       setOtp("");
       setStep("otp");
@@ -157,6 +163,7 @@ export function AskAuthSheet({
       track(AnalyticsEvents.SIGNUP_COMPLETED, {
         signup_method: "email",
         account_type: "citizen",
+        ...(source ? { source } : {}),
         ...utmAsAnalyticsParams(),
       });
       await goToSaarthi();

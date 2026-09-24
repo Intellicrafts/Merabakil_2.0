@@ -6,10 +6,11 @@ export const AnalyticsEvents = {
   FAQ_OPENED: "faq_opened",
   LEGAL_PAGE_VIEWED: "legal_page_viewed",
 
-  // /ask question-first landing funnel (NEVER include question text)
+  // Saarthi question-first funnel (NEVER include question text)
   ASK_PAGE_VIEWED: "ask_page_viewed",
   QUESTION_SUBMITTED: "question_submitted",
   FIRST_ANSWER_SHOWN: "first_answer_shown",
+  GUEST_LIMIT_REACHED: "guest_limit_reached",
 
   // Auth
   SIGNUP_STARTED: "signup_started",

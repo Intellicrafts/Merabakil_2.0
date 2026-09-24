@@ -13,7 +13,7 @@ import { StarterSuggestions } from "@/components/mera-vakil/starter-suggestions"
 import { ThinkingLoader } from "@/components/mera-vakil/thinking-loader";
 import { VoiceModeOverlay } from "@/components/mera-vakil/voice-mode-overlay";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
-import { AnalyticsEvents, captureUtmFromSearch, track } from "@/lib/analytics";
+import { AnalyticsEvents, bucketLatency, captureUtmFromSearch, track } from "@/lib/analytics";
 import { GuestLimitError, streamResearchGuest } from "@/lib/api";
 import { createUserMessage, type ChatMessage } from "@/lib/conversations";
 import { FEATURES } from "@/lib/features";
@@ -67,6 +67,7 @@ function SaarthiLandingInner() {
   const [wall, setWall] = useState<{ title?: string; subtitle?: string }>({});
   const [voiceOpen, setVoiceOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const firstAnswerFiredRef = useRef(false); // fire first_answer_shown once per guest session
 
   const topic = searchParams.get("topic");
   const topicPrefill = useMemo(() => {
@@ -99,6 +100,7 @@ function SaarthiLandingInner() {
     const wantVoice = consumeMeraVakilVoiceOpen();
     if (carried) setQuery(carried);
     if (wantVoice && FEATURES.GUEST_VOICE && canGuestVoice()) {
+      track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { guest: true });
       setVoiceOpen(true);
     } else if (carried && autoSend) {
       void submitQuestion(carried, "typed");
@@ -126,11 +128,12 @@ function SaarthiLandingInner() {
     { icon: ShieldCheck, label: t("ask.trust4") },
   ];
 
-  function openWall(pendingQuestion: string) {
+  function openWall(pendingQuestion: string, reason: "chat" | "voice") {
     if (pendingQuestion.trim()) {
       setMeraVakilPrefill(pendingQuestion.trim());
       setMeraVakilAutoSend();
     }
+    track(AnalyticsEvents.GUEST_LIMIT_REACHED, { reason });
     setWall({ title: t("ask.limitTitle"), subtitle: t("ask.limitSubtitle") });
     setAuthOpen(true);
   }
@@ -140,9 +143,10 @@ function SaarthiLandingInner() {
     // daily session is available, open the voice overlay; otherwise nudge signup.
     if (opts?.voice) {
       if (FEATURES.GUEST_VOICE && canGuestVoice()) {
+        track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { guest: true });
         setVoiceOpen(true);
       } else {
-        openWall(text.trim());
+        openWall(text.trim(), "voice");
       }
       return;
     }
@@ -151,9 +155,10 @@ function SaarthiLandingInner() {
     if (!trimmed) return;
     if (streaming) return;
     if (!canGuestChat()) {
-      openWall(trimmed);
+      openWall(trimmed, "chat");
       return;
     }
+    const startedAt = Date.now();
 
     track(AnalyticsEvents.QUESTION_SUBMITTED, {
       source,
@@ -187,7 +192,16 @@ function SaarthiLandingInner() {
                   : m,
               ),
             ),
-          onCitations: (result) =>
+          onCitations: (result) => {
+            // Guest activation — the first answer of the session (no question text).
+            if (!firstAnswerFiredRef.current) {
+              firstAnswerFiredRef.current = true;
+              track(AnalyticsEvents.FIRST_ANSWER_SHOWN, {
+                guest: true,
+                has_citations: Boolean(result.citations?.length || result.web_sources?.length),
+                latency_bucket: bucketLatency(Date.now() - startedAt),
+              });
+            }
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId
@@ -199,7 +213,8 @@ function SaarthiLandingInner() {
                     }
                   : m,
               ),
-            ),
+            );
+          },
         },
         { sessionId: getGuestSessionId() },
       );
@@ -209,7 +224,7 @@ function SaarthiLandingInner() {
       if (err instanceof GuestLimitError) {
         // Roll back the empty exchange and show the signup wall.
         setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
-        openWall(trimmed);
+        openWall(trimmed, "chat");
       } else {
         setMessages((prev) =>
           prev.map((m) =>
@@ -330,6 +345,7 @@ function SaarthiLandingInner() {
         onClose={() => setAuthOpen(false)}
         title={wall.title}
         subtitle={wall.subtitle}
+        source="guest_wall"
       />
 
       {FEATURES.GUEST_VOICE ? (
@@ -340,14 +356,12 @@ function SaarthiLandingInner() {
           guest
           onGuestLimit={() => {
             setVoiceOpen(false);
-            setWall({ title: t("ask.limitTitle"), subtitle: t("ask.limitSubtitle") });
-            setAuthOpen(true);
+            openWall("", "voice");
           }}
           onGuestEnded={() => {
             recordGuestVoiceUsed();
             setVoiceOpen(false);
-            setWall({ title: t("ask.limitTitle"), subtitle: t("ask.limitSubtitle") });
-            setAuthOpen(true);
+            openWall("", "voice");
           }}
         />
       ) : null}
