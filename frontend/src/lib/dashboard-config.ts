@@ -5,6 +5,7 @@ import {
   Database,
   FileText,
   FolderOpen,
+  MessageSquare,
   Search,
   Sparkles,
   Users,
@@ -131,6 +132,13 @@ const ALL_MODULES: DashboardModule[] = [
     permission: Permission.USER_MANAGE,
   },
   {
+    href: "/admin/chat-ops",
+    title: "Saarthi Chat Ops",
+    description: "Monitor Saarthi conversations, history, and moderation.",
+    icon: MessageSquare,
+    permission: Permission.USER_MANAGE,
+  },
+  {
     href: "/wallet",
     title: "My Wallet",
     description: "View your balance, top up funds, and track transactions.",
@@ -153,10 +161,11 @@ const ROLE_CONFIG: Record<
 > = {
   admin: {
     headline: "Admin console",
-    subtitle: "Users, appointments, and wallet operations.",
+    subtitle: "Users, Saarthi chats, appointments, and wallet operations.",
     moduleHrefs: [
       "/mera-vakil",
       "/admin/users",
+      "/admin/chat-ops",
       "/admin/appointments",
       "/admin/wallet",
     ],

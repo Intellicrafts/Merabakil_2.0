@@ -1,4 +1,9 @@
 import type {
+  AdminChatStats,
+  AdminChatUserSummary,
+  AdminConversationDetail,
+  AdminConversationPatch,
+  AdminConversationSummary,
   AuthResponse,
   CaseBriefExtraction,
   CaseShare,
@@ -1677,6 +1682,71 @@ export async function markNotificationRead(id: string): Promise<void> {
 export async function markAllNotificationsRead(): Promise<void> {
   await apiFetch<void>(`${authServiceUrl()}/api/v1/notifications/mark-all-read`, {
     method: "POST",
+    headers: authHeaders(),
+  });
+}
+
+// ── Admin Saarthi Chat Ops ────────────────────────────────────────────────────
+
+export async function adminGetChatStats(): Promise<AdminChatStats> {
+  return apiFetch(`${authServiceUrl()}/api/v1/admin/conversations/stats`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function adminListChatUsers(
+  page = 1,
+  size = 20,
+  search?: string,
+): Promise<Page<AdminChatUserSummary>> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (search) params.set("search", search);
+  return apiFetch(`${authServiceUrl()}/api/v1/admin/conversations/users?${params}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function adminListAllConversations(
+  page = 1,
+  size = 20,
+  opts?: { search?: string; userId?: string },
+): Promise<Page<AdminConversationSummary>> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (opts?.search) params.set("search", opts.search);
+  if (opts?.userId) params.set("user_id", opts.userId);
+  return apiFetch(`${authServiceUrl()}/api/v1/admin/conversations?${params}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function adminListUserConversations(
+  userId: string,
+): Promise<AdminConversationSummary[]> {
+  return apiFetch(`${authServiceUrl()}/api/v1/admin/conversations/users/${userId}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function adminGetConversation(id: string): Promise<AdminConversationDetail> {
+  return apiFetch(`${authServiceUrl()}/api/v1/admin/conversations/${id}`, {
+    headers: authHeaders(),
+  });
+}
+
+export async function adminUpdateConversation(
+  id: string,
+  body: AdminConversationPatch,
+): Promise<AdminConversationDetail> {
+  return apiFetch(`${authServiceUrl()}/api/v1/admin/conversations/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminDeleteConversation(id: string): Promise<void> {
+  await apiFetch<void>(`${authServiceUrl()}/api/v1/admin/conversations/${id}`, {
+    method: "DELETE",
     headers: authHeaders(),
   });
 }

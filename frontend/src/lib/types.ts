@@ -450,3 +450,66 @@ export interface CaseBriefExtraction {
   urgency: "low" | "medium" | "high";
   confidence: number;
 }
+
+export interface AdminChatStats {
+  usersWithChats: number;
+  totalConversations: number;
+  totalMessages: number;
+  messagesToday: number;
+}
+
+export interface AdminChatUserSummary {
+  userId: string;
+  email: string;
+  fullName: string;
+  roles: string[];
+  conversationCount: number;
+  totalMessages: number;
+  lastActivity: string | null;
+}
+
+export interface AdminConversationSummary {
+  id: string;
+  userId: string;
+  title: string;
+  messageCount: number;
+  pinned: boolean;
+  jurisdiction: string | null;
+  matterType: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  userEmail?: string;
+  userName?: string;
+  userRoles?: string[];
+}
+
+export interface AdminConversationDetail extends AdminConversationSummary {
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    createdAt: string;
+    research?: ResearchResponse;
+    attachments?: Array<{ id: string; name: string; size: number; contentType: string }>;
+    revealedChars?: number;
+  }>;
+  documentId: string | null;
+  attachedDocuments: Array<{ id: string; name: string; size?: number; contentType?: string }>;
+  draftCaseId: string | null;
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    roles: string[];
+  };
+}
+
+export interface AdminConversationPatch {
+  title?: string;
+  pinned?: boolean;
+  jurisdiction?: string | null;
+  matter_type?: string | null;
+  draft_case_id?: string | null;
+  messages?: AdminConversationDetail["messages"];
+  attached_documents?: AdminConversationDetail["attachedDocuments"];
+}

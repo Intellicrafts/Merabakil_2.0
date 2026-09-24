@@ -338,16 +338,20 @@ def _svc() -> AuthService:
 app.dependency_overrides[get_auth_service] = _svc
 app.dependency_overrides[enforce_rate_limit] = lambda: None
 
-# Native dev has no Postgres — swap Postgres-backed conversations for JSON file store.
+# Native dev has no Postgres — swap Postgres-backed routes for JSON file store.
+from app.api.admin_conversations import router as admin_conversations_router  # noqa: E402
 from app.api.conversations import router as conversations_router  # noqa: E402
+from dev_admin_conversations import router as dev_admin_conversations_router  # noqa: E402
 from dev_conversations import router as dev_conversations_router  # noqa: E402
 
+_POSTGRES_ROUTERS = (conversations_router, admin_conversations_router)
 app.router.routes = [
     route
     for route in app.router.routes
-    if getattr(route, "original_router", None) is not conversations_router
+    if getattr(route, "original_router", None) not in _POSTGRES_ROUTERS
 ]
 app.include_router(dev_conversations_router)
+app.include_router(dev_admin_conversations_router)
 
 if __name__ == "__main__":
     import uvicorn

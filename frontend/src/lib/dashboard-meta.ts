@@ -69,6 +69,12 @@ export const MODULE_META: Record<string, DashboardModuleMeta> = {
     tint: "users",
     shortLabel: "Bookings",
   },
+  "/admin/chat-ops": {
+    tag: "Chat Ops",
+    features: ["User grouping", "Full history", "Moderation controls"],
+    tint: "mera-vakil",
+    shortLabel: "Chat Ops",
+  },
   "/appointments": {
     tag: "Consultations",
     features: ["Upcoming", "Past sessions"],

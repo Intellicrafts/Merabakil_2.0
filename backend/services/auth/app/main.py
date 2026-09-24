@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin_conversations import router as admin_conversations_router
 from app.api.conversations import router as conversations_router
 from app.api.notification_routes import notifications_router
 from app.api.routes import router, users_router
@@ -51,4 +52,5 @@ app.include_router(build_health_router(settings.service_name))
 app.include_router(router)
 app.include_router(users_router)
 app.include_router(conversations_router)
+app.include_router(admin_conversations_router)
 app.include_router(notifications_router)

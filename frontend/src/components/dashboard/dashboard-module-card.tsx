@@ -19,6 +19,7 @@ const MODULE_TITLE_KEY: Record<string, string> = {
   "/admin/knowledge": "modules.knowledgeTitle",
   "/admin/users": "modules.usersTitle",
   "/admin/appointments": "modules.adminApptsTitle",
+  "/admin/chat-ops": "modules.chatOpsTitle",
 };
 
 const MODULE_DESC_KEY: Record<string, string> = {
@@ -32,6 +33,7 @@ const MODULE_DESC_KEY: Record<string, string> = {
   "/admin/knowledge": "modules.knowledgeDesc",
   "/admin/users": "modules.usersDesc",
   "/admin/appointments": "modules.adminApptsDesc",
+  "/admin/chat-ops": "modules.chatOpsDesc",
 };
 
 const MODULE_TAG_KEY: Record<string, string> = {
@@ -45,6 +47,7 @@ const MODULE_TAG_KEY: Record<string, string> = {
   "/admin/knowledge": "modules.knowledgeTag",
   "/admin/users": "modules.usersTag",
   "/admin/appointments": "modules.adminApptsTag",
+  "/admin/chat-ops": "modules.chatOpsTag",
 };
 
 const MODULE_CTA_KEY: Record<string, string> = {
@@ -58,6 +61,7 @@ const MODULE_CTA_KEY: Record<string, string> = {
   "/admin/knowledge": "modules.knowledgeCta",
   "/admin/users": "modules.usersCta",
   "/admin/appointments": "modules.adminApptsCta",
+  "/admin/chat-ops": "modules.chatOpsCta",
 };
 
 const FEATURE_KEY: Record<string, string> = {
@@ -89,6 +93,9 @@ const FEATURE_KEY: Record<string, string> = {
   "Bookings": "modules.bookings",
   "Transcripts": "modules.transcripts",
   "Sessions": "modules.sessions",
+  "User grouping": "modules.userGrouping",
+  "Full history": "modules.fullHistory",
+  "Moderation controls": "modules.moderationControls",
 };
 
 export function DashboardModuleCard({ mod }: { mod: DashboardModule }) {
