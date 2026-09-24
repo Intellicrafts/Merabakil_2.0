@@ -344,6 +344,10 @@ const en = {
     labourEx1: "My employer hasn't paid my salary",
     labourEx2: "I was terminated without notice — is it legal?",
     labourEx3: "Am I entitled to gratuity and PF?",
+    freeChatsLeft: "free chats left today",
+    limitTitle: "You've used today's free chats",
+    limitSubtitle: "Sign up free to keep chatting — your question is saved and continues right after.",
+    guestNudge: "Free preview — sign up to save this chat and talk to a verified advocate.",
   },
   consent: {
     title: "We use cookies",
@@ -1014,6 +1018,10 @@ const hi: typeof en = {
     labourEx1: "मेरे नियोक्ता ने मेरी सैलरी नहीं दी",
     labourEx2: "मुझे बिना नोटिस के निकाल दिया गया — क्या यह वैध है?",
     labourEx3: "क्या मैं ग्रेच्युटी और PF का हकदार हूं?",
+    freeChatsLeft: "मुफ़्त चैट आज बाकी",
+    limitTitle: "आपने आज की मुफ़्त चैट इस्तेमाल कर ली हैं",
+    limitSubtitle: "चैट जारी रखने के लिए मुफ़्त साइन अप करें — आपका सवाल सहेजा गया है और तुरंत आगे बढ़ेगा।",
+    guestNudge: "मुफ़्त प्रीव्यू — यह चैट सहेजने और सत्यापित अधिवक्ता से बात करने के लिए साइन अप करें।",
   },
   // TODO(hi-review): native-speaker review of the `consent` block.
   consent: {

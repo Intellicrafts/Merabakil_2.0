@@ -13,4 +13,7 @@ export const FEATURES = Object.freeze({
   BOOKING:          flag(process.env.NEXT_PUBLIC_FEATURE_BOOKING),
   ROOM:             flag(process.env.NEXT_PUBLIC_FEATURE_ROOM),
   WALLET:           flag(process.env.NEXT_PUBLIC_FEATURE_WALLET),
+  // Anonymous guest voice — OFF by default (opt-in). Realtime + costly; enable
+  // only once verified. Kill switch: unset/false disables the guest mic path.
+  GUEST_VOICE:      process.env.NEXT_PUBLIC_GUEST_VOICE === "true",
 });

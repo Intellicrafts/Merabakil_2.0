@@ -17,6 +17,10 @@ interface VoiceModeOverlayProps {
   conversationMessages?: Array<{ role: string; content: string }>;
   onConversationEnd?: (messages: VoiceMessage[], lawyers: LawyerMatchResult[]) => void;
   onBookLawyer?: (lawyer: LawyerMatchResult) => void;
+  /** Guest (logged-out) one-shot session: ~90s cap, no reconnect. */
+  guest?: boolean;
+  onGuestLimit?: () => void;
+  onGuestEnded?: () => void;
 }
 
 // Blob gradient per state — Saarthi amber brand palette
@@ -62,7 +66,7 @@ const BLOB_DURATION: Record<VoiceBotState, string> = {
   speaking: "2s",
 };
 
-export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMessages, onConversationEnd, onBookLawyer }: VoiceModeOverlayProps) {
+export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMessages, onConversationEnd, onBookLawyer, guest, onGuestLimit, onGuestEnded }: VoiceModeOverlayProps) {
   const { t } = useTranslation();
   const {
     botState,
@@ -75,7 +79,7 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
     dismissLastBooking,
     interrupt,
     stop,
-  } = useVoiceBot({ open, speechLocale, priorMessages: conversationMessages });
+  } = useVoiceBot({ open, speechLocale, priorMessages: conversationMessages, guest, onGuestLimit, onGuestEnded });
 
   const voiceMessagesRef = useRef(voiceMessages);
   const lawyerResultsRef = useRef(lawyerResults);

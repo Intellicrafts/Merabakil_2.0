@@ -304,11 +304,21 @@ def _format_conversation_history(messages: list[dict]) -> str:
     return header + "\n".join(lines)
 
 
-def _setup_msg(voice: str, model: str, today_date: str, prior_context: str = "") -> dict:
+def _setup_msg(
+    voice: str, model: str, today_date: str, prior_context: str = "", is_guest: bool = False
+) -> dict:
     system_text = (
         _SYSTEM_PROMPT
         + f"\n\n## Session context\nToday's date: {today_date} (use this when booking appointments)."
     )
+    if is_guest:
+        system_text += (
+            "\n\n## GUEST MODE (IMPORTANT)\nThe caller is NOT signed in — this is a short "
+            "free voice preview. Do NOT offer to book a lawyer, schedule a consultation, or "
+            "connect them with an advocate (those need an account). Keep answers concise. "
+            "Near the end, warmly invite them to create a free MeraBakil account or sign in to "
+            "keep talking, save the conversation, and reach a verified advocate."
+        )
     if prior_context:
         system_text += "\n\n" + prior_context
     return {
@@ -586,22 +596,26 @@ async def voice_live(
         await websocket.close(code=4001, reason="Unauthorized")
         return
 
-    logger.info("voice_live: session started user=%s", user_id)
+    # Guest sessions use a short-lived token minted at /voice/guest-token (already
+    # IP-capped at 1/day). Skip the per-user limit + billing and hard-cap duration.
+    is_guest = user_id == "guest"
+    logger.info("voice_live: session started user=%s guest=%s", user_id, is_guest)
 
     container = get_container()
-    try:
-        await check_rate_limit(
-            container.redis,
-            key=f"rate:voice:{user_id}",
-            limit=5,
-            window_seconds=60,
-        )
-    except Exception as exc:
-        # check_rate_limit raises HTTPException on limit exceeded — translate to WS close
-        if hasattr(exc, "status_code") and exc.status_code == 429:
-            await websocket.send_json({"type": "error", "message": "Too many voice sessions. Please wait a moment."})
-            await websocket.close(code=4029, reason="Rate limit exceeded")
-            return
+    if not is_guest:
+        try:
+            await check_rate_limit(
+                container.redis,
+                key=f"rate:voice:{user_id}",
+                limit=5,
+                window_seconds=60,
+            )
+        except Exception as exc:
+            # check_rate_limit raises HTTPException on limit exceeded — translate to WS close
+            if hasattr(exc, "status_code") and exc.status_code == 429:
+                await websocket.send_json({"type": "error", "message": "Too many voice sessions. Please wait a moment."})
+                await websocket.close(code=4029, reason="Rate limit exceeded")
+                return
     llm_cfg = container.settings.llm
     api_key: str = llm_cfg.llm_api_key
     live_model: str = llm_cfg.voice_live_model
@@ -636,7 +650,7 @@ async def voice_live(
         ) as gemini_ws:
             # ── Setup ───────────────────────────────────────────────────────
             today_date = _date.today().strftime("%Y-%m-%d")
-            await gemini_ws.send(json.dumps(_setup_msg(voice, live_model, today_date, prior_context)))
+            await gemini_ws.send(json.dumps(_setup_msg(voice, live_model, today_date, prior_context, is_guest)))
             try:
                 first = json.loads(await gemini_ws.recv())
             except Exception as exc:
@@ -797,7 +811,7 @@ async def voice_live(
                             speaking_signalled = False
                             had_output = bool(out_buf)
                             await _flush_transcripts()
-                            if had_output:
+                            if had_output and not is_guest:
                                 asyncio.create_task(
                                     _billing.deduct_chatbot_query(user_id=user_id, fee=_VOICE_FEE)
                                 )
@@ -830,7 +844,19 @@ async def voice_live(
                     with suppress(Exception):
                         await websocket.close()
 
-            await asyncio.gather(_browser_to_gemini(), _gemini_to_browser())
+            session = asyncio.gather(_browser_to_gemini(), _gemini_to_browser())
+            if is_guest:
+                # Hard server-side cap (~95s) as a backstop to the 90s client timer.
+                try:
+                    await asyncio.wait_for(session, timeout=95)
+                except asyncio.TimeoutError:
+                    session.cancel()
+                    with suppress(Exception):
+                        await websocket.send_json({"type": "guest_ended"})
+                    with suppress(Exception):
+                        await websocket.close(code=4090, reason="Guest session ended")
+            else:
+                await session
 
     except Exception as exc:
         logger.error("voice_live: session error user=%s: %s", user_id, exc)

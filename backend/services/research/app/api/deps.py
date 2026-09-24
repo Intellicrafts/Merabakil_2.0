@@ -10,11 +10,47 @@ Limits (per user, per window):
 
 from __future__ import annotations
 
-from fastapi import Depends
+import hashlib
+
+from fastapi import Depends, Request
 
 from app.infrastructure.container import get_container
 from legalos_common.security.rate_limit import check_rate_limit
 from legalos_common.security.rbac import CurrentUser, Permission, require_permissions
+
+
+def _client_ip(request: Request) -> str:
+    """Real client IP behind nginx (first X-Forwarded-For hop), else peer."""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+async def guest_chat_rate_limit(request: Request) -> None:
+    """Anonymous guest chat: 5 messages/day per IP — server-side backstop to the
+    client counter. No auth; used by POST /research/stream/guest."""
+    container = get_container()
+    ip_hash = hashlib.sha256(_client_ip(request).encode()).hexdigest()[:32]
+    await check_rate_limit(
+        container.redis,
+        key=f"rate:guest:chat:{ip_hash}",
+        limit=5,
+        window_seconds=86_400,
+    )
+
+
+async def guest_voice_rate_limit(request: Request) -> None:
+    """Anonymous guest voice: one session/day per IP. Gates the guest voice-token
+    issuance (voice itself is realtime + costly, so the cap is strict)."""
+    container = get_container()
+    ip_hash = hashlib.sha256(_client_ip(request).encode()).hexdigest()[:32]
+    await check_rate_limit(
+        container.redis,
+        key=f"rate:guest:voice:{ip_hash}",
+        limit=1,
+        window_seconds=86_400,
+    )
 
 
 async def chat_rate_limit(

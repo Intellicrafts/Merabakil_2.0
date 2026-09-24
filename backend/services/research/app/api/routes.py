@@ -7,7 +7,7 @@ import struct
 import uuid
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -19,6 +19,8 @@ from app.api.schemas import (
 )
 from app.api.deps import (
     chat_rate_limit,
+    guest_chat_rate_limit,
+    guest_voice_rate_limit,
     tts_rate_limit,
 )
 from app.infrastructure.container import get_container
@@ -67,12 +69,13 @@ def _build_state(
     body: ResearchRequest,
     *,
     credentials: HTTPAuthorizationCredentials,
-    current_user: CurrentUser,
+    current_user: CurrentUser | None,
     document_id: str | None = None,
     server_history: list[ConversationMessage] | None = None,
     user_facts: list[str] | None = None,
     session_document_ids: list[str] | None = None,
     session_document_text: str = "",
+    is_guest: bool = False,
 ) -> OrchestratorState:
     scope = ResearchScope.DOCUMENT if document_id or body.scope is ResearchScope.DOCUMENT else body.scope
     # Session attachments must not become exclusive Qdrant filters — those docs
@@ -92,7 +95,8 @@ def _build_state(
         jurisdiction_hint=body.jurisdiction,
         user_token=credentials.credentials,
         session_id=body.session_id,
-        user_id=current_user.user_id,
+        user_id=None if (is_guest or current_user is None) else current_user.user_id,
+        is_guest=is_guest,
         scope=scope,
         search_filters=filters,
         history=history,
@@ -379,6 +383,120 @@ async def research_stream(
                 yield "event: draft\ndata: " + _json.dumps(draft) + "\n\n"
             except Exception:
                 pass
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/voice/guest-token", summary="Mint a short-lived guest voice token (1/day per IP)")
+async def guest_voice_token(
+    request: Request,
+    _rl: None = Depends(guest_voice_rate_limit),
+) -> dict:
+    """Short-lived (2.5 min) scoped token the existing voice WS accepts, so the
+    authed WS path is unchanged. Issuance is IP-capped at 1/day; the client stops
+    at ~90s and the WS enforces a hard server-side timeout for sub='guest'.
+    Kill switch: GUEST_VOICE_ENABLED=false disables it instantly."""
+    import os
+    from legalos_common.security.jwt import create_scoped_token
+
+    if os.environ.get("GUEST_VOICE_ENABLED", "true").lower() != "true":
+        raise HTTPException(status_code=404, detail="Guest voice is disabled")
+    token = create_scoped_token(
+        "guest",
+        permissions=[Permission.SEARCH_READ.value, Permission.RESEARCH_READ.value],
+        expires_seconds=150,
+    )
+    return {"token": token, "max_duration_seconds": 90}
+
+
+@router.post(
+    "/stream/guest",
+    summary="Guest (logged-out) grounded research — 5/day per IP, no billing, no booking",
+)
+async def research_stream_guest(
+    body: ResearchRequest,
+    request: Request,
+    _rl: None = Depends(guest_chat_rate_limit),
+) -> StreamingResponse:
+    """Anonymous free-trial chat. Mints a short-lived internal token scoped to
+    search only, so KB retrieval works while user_id stays null. The is_guest
+    flag makes the agent avoid booking and nudge signup; the scoped token means
+    any lawyer/booking tool call fails naturally (no booking cards)."""
+    import asyncio
+    import json as _json
+    from legalos_orchestrator.agent.router import QueryRoute
+    from legalos_common.security.jwt import create_access_token
+
+    container = get_container()
+    guest_token = create_access_token(
+        "guest",
+        permissions=[Permission.SEARCH_READ.value, Permission.RESEARCH_READ.value],
+    )
+    guest_creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=guest_token)
+
+    async def generator() -> AsyncIterator[str]:
+        yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
+
+        quick_route = container.router.quick_classify(body.query)
+        if quick_route == QueryRoute.CONVERSATIONAL:
+            memory_result = await container.memory_manager.retrieve_session_only(body.session_id)
+            route = QueryRoute.CONVERSATIONAL
+            history = (
+                [ConversationMessage(role=t.role, content=t.content) for t in memory_result.session_history] or None
+            ) if not isinstance(memory_result, Exception) else None
+        else:
+            route_result, memory_result = await asyncio.gather(
+                container.router.classify(body.query),
+                container.memory_manager.retrieve(body.session_id, None, body.query),
+                return_exceptions=True,
+            )
+            route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
+            history = (
+                [ConversationMessage(role=t.role, content=t.content) for t in memory_result.session_history] or None
+            ) if not isinstance(memory_result, Exception) else None
+
+        state = _build_state(
+            body,
+            credentials=guest_creds,
+            current_user=None,
+            server_history=history,
+            user_facts=[],
+            is_guest=True,
+        )
+        state = state.model_copy(update={"route": route})
+
+        guard = _input_guardrail.validate(state.query)
+        if not guard.passed:
+            yield "event: error\ndata: " + _json.dumps({"message": "Query rejected — please rephrase."}) + "\n\n"
+            return
+
+        answer = ""
+        async for chunk in container.orchestrator.run_state_streaming(state):
+            if chunk.startswith("event: done"):
+                try:
+                    answer = _json.loads(chunk.split("data: ", 1)[1].strip()).get("answer", "")
+                except Exception:
+                    pass
+            yield chunk
+
+        # Session-only memory (Redis) preserves guest multi-turn context; no LTM, no billing.
+        if answer and state.session_id:
+            asyncio.create_task(
+                container.memory_manager.persist(
+                    session_id=state.session_id,
+                    user_id=None,
+                    user_content=state.query,
+                    assistant_content=answer,
+                )
+            )
 
     return StreamingResponse(
         generator(),

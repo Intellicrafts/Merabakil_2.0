@@ -69,6 +69,24 @@ def create_access_token(
     )
 
 
+def create_scoped_token(
+    subject: str,
+    *,
+    permissions: list[str],
+    expires_seconds: int,
+    roles: list[str] | None = None,
+) -> str:
+    """Short-lived access token with an explicit expiry — used for anonymous
+    guest sessions (e.g. a ~2-minute voice token) so exposure is tightly bounded."""
+    return _create_token(
+        subject=subject,
+        token_type=TokenType.ACCESS,
+        expires_delta=timedelta(seconds=expires_seconds),
+        roles=roles,
+        permissions=permissions,
+    )
+
+
 def create_refresh_token(subject: str) -> str:
     settings = _settings()
     return _create_token(

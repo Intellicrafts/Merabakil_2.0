@@ -83,10 +83,21 @@ SCOPE AND SAFETY:
 def build_system_message(
     user_facts: Optional[list[str]] = None,
     document_text: Optional[str] = None,
+    is_guest: bool = False,
 ) -> str:
     import datetime
     today = datetime.date.today().strftime("%Y-%m-%d")
     content = AGENT_SYSTEM_PROMPT + f"\n\nSESSION CONTEXT:\nToday's date: {today}"
+    if is_guest:
+        content += (
+            "\n\nGUEST MODE: The user is NOT signed in — this is a free anonymous "
+            "trial. Do NOT offer to book a lawyer, schedule a consultation, or "
+            "connect them with an advocate (those require an account). Answer the "
+            "legal question fully and helpfully, then close with ONE short, warm "
+            "line inviting them to create a free MeraBakil account to save this "
+            "conversation, talk to a verified advocate, or keep chatting. Do not "
+            "repeat the invitation more than once."
+        )
     if user_facts:
         facts = "\n".join(f"- {f}" for f in user_facts)
         content += f"\nUSER CONTEXT (from prior conversations):\n{facts}\n"

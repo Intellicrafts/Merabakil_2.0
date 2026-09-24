@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ensureFreshToken } from "@/lib/api";
+import { ensureFreshToken, fetchGuestVoiceToken, GuestLimitError } from "@/lib/api";
 import { rafUpdateIntervalMs } from "@/lib/perf";
 import { researchServiceUrl } from "@/lib/service-urls";
 import type { LawyerMatchResult } from "@/lib/types";
@@ -38,6 +38,10 @@ interface UseVoiceBotOptions {
   open: boolean;
   speechLocale: string;
   priorMessages?: Array<{ role: string; content: string }>;
+  /** Anonymous guest session: mint a short-lived token, cap at ~90s, no reconnect. */
+  guest?: boolean;
+  onGuestLimit?: () => void;
+  onGuestEnded?: () => void;
 }
 
 export interface UseVoiceBotResult {
@@ -76,7 +80,13 @@ function pcmToAudioBuffer(pcm: Uint8Array, sampleRate: number, ctx: AudioContext
   return buf;
 }
 
-export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoiceBotResult {
+export function useVoiceBot({
+  open,
+  priorMessages,
+  guest = false,
+  onGuestLimit,
+  onGuestEnded,
+}: UseVoiceBotOptions): UseVoiceBotResult {
   const [botState, setBotState]         = useState<VoiceBotState>("idle");
   const [transcript, setTranscript]     = useState("");
   const [amplitude, setAmplitude]       = useState(0);
@@ -108,9 +118,18 @@ export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoi
   const openRef          = useRef(open);
   const connectRef       = useRef<() => void>(() => {});
   const priorMessagesRef = useRef(priorMessages ?? []);
+  // Guest voice: bounded, one-shot session (no auto-reconnect).
+  const guestRef         = useRef(guest);
+  const guestTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onGuestLimitRef  = useRef(onGuestLimit);
+  const onGuestEndedRef  = useRef(onGuestEnded);
+  const stopRef          = useRef<() => void>(() => {});
 
   useEffect(() => { openRef.current = open; }, [open]);
   useEffect(() => { priorMessagesRef.current = priorMessages ?? []; }, [priorMessages]);
+  useEffect(() => { guestRef.current = guest; }, [guest]);
+  useEffect(() => { onGuestLimitRef.current = onGuestLimit; }, [onGuestLimit]);
+  useEffect(() => { onGuestEndedRef.current = onGuestEnded; }, [onGuestEnded]);
 
   // ── Amplitude loop ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -165,6 +184,10 @@ export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoi
   }, []);
 
   const stop = useCallback(() => {
+    if (guestTimerRef.current) {
+      clearTimeout(guestTimerRef.current);
+      guestTimerRef.current = null;
+    }
     wsRef.current?.close();
     wsRef.current = null;
     stopPlayback();
@@ -172,6 +195,7 @@ export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoi
     setBotState("idle");
     setTranscript("");
   }, [stopPlayback, stopMic]);
+  stopRef.current = stop;
 
   const interrupt = useCallback(() => {
     stopPlayback();
@@ -221,7 +245,19 @@ export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoi
     void micCtxRef.current.resume();
 
     void (async () => {
-      const token = await ensureFreshToken();
+      let token: string | null;
+      if (guestRef.current) {
+        try {
+          token = await fetchGuestVoiceToken();
+        } catch (err) {
+          setBotState("idle");
+          onGuestLimitRef.current?.();
+          if (!(err instanceof GuestLimitError)) console.warn("[voice-bot] guest token failed", err);
+          return;
+        }
+      } else {
+        token = await ensureFreshToken();
+      }
       if (!token) { setBotState("idle"); return; }
 
       // Clean up previous session (WS, worklet, stream) — but NOT AudioContexts.
@@ -238,6 +274,15 @@ export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoi
       const ws = new WebSocket(url);
       wsRef.current = ws;
       ws.binaryType = "arraybuffer";
+
+      // Guest: hard-stop the one-shot session at ~90s (server also caps at 95s).
+      if (guestRef.current) {
+        if (guestTimerRef.current) clearTimeout(guestTimerRef.current);
+        guestTimerRef.current = setTimeout(() => {
+          stopRef.current();
+          onGuestEndedRef.current?.();
+        }, 90_000);
+      }
 
       ws.onopen = async () => {
         const micCtx = micCtxRef.current;
@@ -307,6 +352,10 @@ export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoi
                   content: m.content.slice(0, 1000),
                 })),
               }));
+              break;
+            case "guest_ended":
+              stopRef.current();
+              onGuestEndedRef.current?.();
               break;
             case "state":
               if (msg.value) {
@@ -394,6 +443,7 @@ export function useVoiceBot({ open, priorMessages }: UseVoiceBotOptions): UseVoi
   // a persistent failure (bad network, mic denied) doesn't loop forever.
   useEffect(() => {
     if (!open || botState !== "idle" || permissionDenied) return;
+    if (guestRef.current) return; // guest voice is a one-shot session — never auto-reconnect
     if (reconnectAttemptsRef.current >= 3) {
       console.warn("[voice-bot] giving up reconnect after 3 attempts");
       return;

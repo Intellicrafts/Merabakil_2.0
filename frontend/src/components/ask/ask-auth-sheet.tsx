@@ -38,7 +38,18 @@ type Step = "email" | "otp" | "details";
  * question the visitor already typed. The question + gclid/utm are already in
  * sessionStorage before this opens, so they survive the round trip.
  */
-export function AskAuthSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AskAuthSheet({
+  open,
+  onClose,
+  title,
+  subtitle,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Optional overrides — e.g. the "you've used today's free chats" wall. */
+  title?: string;
+  subtitle?: string;
+}) {
   const router = useRouter();
   const { t } = useTranslation();
   const [mounted, setMounted] = useState(false);
@@ -186,9 +197,9 @@ export function AskAuthSheet({ open, onClose }: { open: boolean; onClose: () => 
           </span>
           <div className="min-w-0">
             <h2 id="ask-auth-title" className="text-[15px] font-semibold">
-              {t("ask.authTitle")}
+              {title ?? t("ask.authTitle")}
             </h2>
-            <p className="mt-0.5 text-[13px] text-muted-foreground">{t("ask.authSubtitle")}</p>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">{subtitle ?? t("ask.authSubtitle")}</p>
           </div>
         </div>
 

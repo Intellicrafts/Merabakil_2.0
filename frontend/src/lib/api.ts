@@ -830,6 +830,67 @@ export async function streamResearch(
   });
 
   if (!res.ok) return parseError(res);
+  return consumeResearchStream(res, handlers);
+}
+
+/** Thrown when the guest daily limit (server-side per-IP cap) is hit → show the signup wall. */
+export class GuestLimitError extends Error {
+  constructor() {
+    super("guest_limit");
+    this.name = "GuestLimitError";
+  }
+}
+
+/**
+ * Anonymous (logged-out) research stream — no auth header, hits /stream/guest.
+ * Server enforces the per-IP daily cap (429 → GuestLimitError). Guests never get
+ * booking cards (backend runs in guest mode) and are nudged to sign up.
+ */
+export async function streamResearchGuest(
+  query: string,
+  jurisdiction: string | undefined,
+  history: ConversationTurn[],
+  handlers: ResearchStreamHandlers,
+  options?: { signal?: AbortSignal; sessionId?: string },
+): Promise<ResearchResponse> {
+  const res = await fetch(`${researchServiceUrl()}/api/v1/research/stream/guest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query,
+      jurisdiction: jurisdiction || null,
+      history,
+      session_id: options?.sessionId ?? null,
+      user_id: null,
+    }),
+    signal: options?.signal,
+  });
+  if (res.status === 429) throw new GuestLimitError();
+  if (!res.ok) return parseError(res);
+  return consumeResearchStream(res, handlers);
+}
+
+/**
+ * Mint a short-lived guest voice token (server IP-caps to 1/day → 429 →
+ * GuestLimitError). The existing voice WS accepts it; the client also enforces
+ * a ~90s timer. Returns the token to pass as the WS ?token= param.
+ */
+export async function fetchGuestVoiceToken(): Promise<string> {
+  const res = await fetch(`${researchServiceUrl()}/api/v1/research/voice/guest-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (res.status === 429) throw new GuestLimitError();
+  if (!res.ok) throw new Error("Guest voice is unavailable right now.");
+  const data = (await res.json()) as { token: string };
+  return data.token;
+}
+
+/** Shared SSE parser for the authed + guest research streams. */
+async function consumeResearchStream(
+  res: Response,
+  handlers: ResearchStreamHandlers,
+): Promise<ResearchResponse> {
   if (!res.body) throw new Error("No stream returned from research service");
 
   const reader = res.body.getReader();

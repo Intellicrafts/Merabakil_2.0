@@ -59,6 +59,9 @@ class OrchestratorState(BaseModel):
     user_token: str | None = None
     session_id: str | None = None
     user_id: str | None = None
+    # True for logged-out guest runs — the agent must not offer lawyer booking
+    # and should nudge account creation.
+    is_guest: bool = False
     scope: ResearchScope = ResearchScope.CORPUS
     search_filters: SearchFilters = Field(default_factory=SearchFilters)
     history: list[ConversationMessage] = Field(default_factory=list)

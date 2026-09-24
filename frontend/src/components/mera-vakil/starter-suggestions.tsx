@@ -42,12 +42,17 @@ export const STARTER_ACTIONS_BY_ROLE: Record<PrimaryRole, { titleKey: string; pr
 export function StarterSuggestions({
   onSelect,
   disabled,
+  hideBooking,
 }: {
   onSelect: (prompt: string) => void;
   disabled?: boolean;
+  /** Guests can't book — drop the "Find a lawyer" chip. */
+  hideBooking?: boolean;
 }) {
   const role = getPrimaryRole(getStoredUser());
-  const actions = STARTER_ACTIONS_BY_ROLE[role];
+  const actions = STARTER_ACTIONS_BY_ROLE[role].filter(
+    (a) => !hideBooking || a.titleKey !== "suggestions.findLawyer",
+  );
   const { t } = useTranslation();
 
   return (

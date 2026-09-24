@@ -72,6 +72,7 @@ def _build_agent_state(state: OrchestratorState) -> LegalAgentState:
     system_content = build_system_message(
         state.user_facts or None,
         state.session_document_text or None,
+        is_guest=state.is_guest,
     )
     system_msg = SystemMessage(content=system_content)
 
