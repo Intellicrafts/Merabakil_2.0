@@ -24,10 +24,10 @@ export function ClosingCtaSection() {
               className="group rounded-full bg-white text-slate-900 hover:bg-white/90"
             >
               <Link
-                href="/register"
-                onClick={() => trackMarketingCta("closing", "register", "/register")}
+                href="/mera-vakil"
+                onClick={() => trackMarketingCta("closing", "ask_saarthi", "/mera-vakil")}
               >
-                Get legal guidance
+                Ask Saarthi
                 <ArrowRight className="ml-1.5 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </Button>

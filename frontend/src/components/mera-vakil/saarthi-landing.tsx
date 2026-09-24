@@ -26,7 +26,13 @@ import {
   recordGuestVoiceUsed,
 } from "@/lib/guest-store";
 import { useTranslation } from "@/lib/i18n";
-import { setMeraVakilAutoSend, setMeraVakilPrefill } from "@/lib/prefill-store";
+import {
+  consumeMeraVakilAutoSend,
+  consumeMeraVakilPrefill,
+  consumeMeraVakilVoiceOpen,
+  setMeraVakilAutoSend,
+  setMeraVakilPrefill,
+} from "@/lib/prefill-store";
 import type { ConversationTurn } from "@/lib/types";
 
 const SAARTHI = "/mera-vakil";
@@ -85,6 +91,18 @@ function SaarthiLandingInner() {
     captureUtmFromSearch(window.location.search);
     track(AnalyticsEvents.ASK_PAGE_VIEWED, { lang });
     setRemaining(guestChatsRemaining());
+
+    // Question carried over from a Saarthi CTA (homepage hero etc.): auto-send it
+    // as a guest chat so the visitor gets an answer without a signup wall.
+    const carried = consumeMeraVakilPrefill();
+    const autoSend = consumeMeraVakilAutoSend();
+    const wantVoice = consumeMeraVakilVoiceOpen();
+    if (carried) setQuery(carried);
+    if (wantVoice && FEATURES.GUEST_VOICE && canGuestVoice()) {
+      setVoiceOpen(true);
+    } else if (carried && autoSend) {
+      void submitQuestion(carried, "typed");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
