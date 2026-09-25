@@ -17,8 +17,8 @@ export function HeroSection() {
         <div className="hero-aurora absolute left-1/2 top-8 h-[400px] w-[400px] -translate-x-1/2" />
       </div>
 
-      <div className="relative mx-auto grid w-full max-w-6xl items-center gap-6 lg:grid-cols-[1fr_1.05fr] lg:gap-10">
-        <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+      <div className="relative mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-10">
+        <div className="flex min-w-0 flex-col items-center text-center lg:items-start lg:text-left">
           <div className="hero-stagger-1 inline-flex items-center gap-2 rounded-full border border-black/[0.07] bg-background/80 px-3 py-1 text-[11px] font-medium sm:backdrop-blur-sm dark:border-white/10">
             <Scale className="h-3 w-3 text-muted-foreground" strokeWidth={1.75} />
             MeraBakil (Mera Bakil) — India&apos;s Legal AI Platform
@@ -63,7 +63,7 @@ export function HeroSection() {
 
         </div>
 
-        <div className="hero-stagger-5 w-full lg:max-w-none">
+        <div className="hero-stagger-5 w-full min-w-0 lg:max-w-none">
           <ModuleFeatureShowcase className="mx-auto w-full max-w-md sm:max-w-lg lg:max-w-none" />
         </div>
       </div>
