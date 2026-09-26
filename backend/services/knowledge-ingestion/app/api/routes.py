@@ -156,7 +156,9 @@ async def ingest_structured(
         citations=body.citations,
         content_hash=body.content_hash,
         force=body.force,
-        owner_id=uuid.UUID(user.user_id),
+        # Public corpus has no owner (access is by visibility). documents.owner_id
+        # references users, so a loader/service identity can't be stored there.
+        owner_id=None,
     )
     return _to_response(result)
 
