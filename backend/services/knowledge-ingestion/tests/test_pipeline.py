@@ -36,3 +36,17 @@ def test_metadata_extracts_citations_and_sections() -> None:
     assert "368" in meta.articles
     assert "420" in meta.sections
     assert meta.detected_jurisdiction == "supreme_court"
+
+
+def test_access_metadata_marks_uploads_private_to_their_owner() -> None:
+    import uuid
+
+    import pytest
+
+    from app.application.use_cases import _access_metadata
+
+    owner = uuid.uuid4()
+    assert _access_metadata("public", None) == {"visibility": "public"}
+    assert _access_metadata("private", owner) == {"visibility": "private", "owner_id": str(owner)}
+    with pytest.raises(ValueError):
+        _access_metadata("private", None)

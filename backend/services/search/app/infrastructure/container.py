@@ -18,6 +18,7 @@ class Container:
             settings.qdrant.qdrant_url,
             settings.qdrant.qdrant_collection,
             settings.llm.embedding_dim,
+            api_key=settings.qdrant.qdrant_api_key,
         )
         self.sparse = SparseEncoder()
         self.use_case = HybridSearchUseCase(

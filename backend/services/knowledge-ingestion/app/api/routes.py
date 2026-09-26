@@ -245,7 +245,12 @@ async def ingest_from_storage(
         raise ValidationFailedError(f"Could not read file from storage: {exc}") from exc
 
     source_uri = f"gs://{container.storage.bucket}/{body.storage_key}"
-    owner_id = uuid.UUID(body.owner_id) if body.owner_id else uuid.UUID(user.user_id)
+    # User uploads are private to their owner. Only an admin may index on
+    # someone else's behalf; everyone else always owns what they upload.
+    if body.owner_id and user.has_role("admin"):
+        owner_id = uuid.UUID(body.owner_id)
+    else:
+        owner_id = uuid.UUID(user.user_id)
     result = await use_case.execute(
         raw=raw,
         title=body.title,
@@ -255,6 +260,7 @@ async def ingest_from_storage(
         source_uri=source_uri,
         storage_key=body.storage_key,
         owner_id=owner_id,
+        visibility="private",
     )
     return _to_response(result)
 

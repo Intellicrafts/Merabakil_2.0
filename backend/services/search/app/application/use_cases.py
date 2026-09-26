@@ -43,6 +43,7 @@ class HybridSearchUseCase:
         top_k: int | None = None,
         mode: SearchMode = SearchMode.HYBRID,
         filters: SearchFilters | None = None,
+        owner_id: str | None = None,
     ) -> list[RetrievedSource]:
         top_k = top_k or self._settings.default_top_k
         multiplier = (
@@ -53,7 +54,15 @@ class HybridSearchUseCase:
         candidates = top_k * multiplier
 
         vector = await self._embedder.embed_one(query)
-        raw = await self._hybrid.search(query, vector, limit=candidates, filters=filters)
+        raw = await self._hybrid.search(
+            query,
+            vector,
+            limit=candidates,
+            filters=filters,
+            owner_id=owner_id,
+            enforce_access=self._settings.search_enforce_visibility,
+            min_dense_score=self._settings.search_min_dense_score,
+        )
 
         fused = [
             ScoredHit(
@@ -83,6 +92,7 @@ class HybridSearchUseCase:
             citation=p.get("citation") or None,
             section=p.get("section") or None,
             content=p.get("content", ""),
-            score=hit.score,
+            # Absolute cosine similarity when available — comparable across queries.
+            score=float(p.get("_dense_score", hit.score)),
             retrieval="hybrid" if len(hit.sources) > 1 else next(iter(hit.sources), "hybrid"),
         )

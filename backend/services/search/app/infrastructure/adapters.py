@@ -33,16 +33,29 @@ class QdrantHybridAdapter:
         *,
         limit: int,
         filters: SearchFilters | None,
+        owner_id: str | None = None,
+        enforce_access: bool = True,
+        min_dense_score: float = 0.0,
     ) -> list[dict[str, Any]]:
         sparse_vec = await self._sparse.encode(query)
         children = await self._client.hybrid_search(
             vector,
             sparse_vec,
             limit=limit,
-            query_filter=build_qdrant_filter(filters),
+            query_filter=build_qdrant_filter(filters, enforce_access=enforce_access, owner_id=owner_id),
         )
         if not children:
             return []
+
+        # Attach real similarity and drop weak matches, so an unrelated question
+        # gets "nothing relevant" instead of the least-bad chunks.
+        dense = await self._client.dense_scores(vector, [c["id"] for c in children])
+        for child in children:
+            child["payload"]["_dense_score"] = dense.get(child["id"], 0.0)
+        if min_dense_score > 0:
+            children = [c for c in children if c["payload"]["_dense_score"] >= min_dense_score]
+            if not children:
+                return []
 
         # Batch-fetch parents for full context
         parent_ids = list({

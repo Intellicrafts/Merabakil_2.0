@@ -28,6 +28,7 @@ class Container:
             settings.qdrant.qdrant_url,
             settings.qdrant.qdrant_collection,
             settings.llm.embedding_dim,
+            api_key=settings.qdrant.qdrant_api_key,
         )
         self.neo4j = Neo4jClient(
             settings.neo4j.neo4j_uri, settings.neo4j.neo4j_user, settings.neo4j.neo4j_password

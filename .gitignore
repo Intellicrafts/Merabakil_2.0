@@ -57,3 +57,7 @@ frontend/blob-report/
 # Local SES / tooling cache (invalid paths from misconfigured saves)
 :memory:.ses
 **/:memory:.ses
+
+# Bare-act PDFs are downloaded locally (see raw-data/bare-acts/README.md), never committed
+raw-data/bare-acts/*.pdf
+corpus*.jsonl

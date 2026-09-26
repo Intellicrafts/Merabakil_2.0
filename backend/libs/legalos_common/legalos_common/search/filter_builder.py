@@ -9,10 +9,35 @@ from qdrant_client.http import models as qm
 from legalos_common.rag.filters import SearchFilters
 
 
-def build_qdrant_filter(filters: SearchFilters | None) -> qm.Filter | None:
+PUBLIC = "public"
+PRIVATE = "private"
+
+
+def access_filter(owner_id: str | None) -> qm.Filter:
+    """Public corpus, plus the caller's own private uploads. Points without a
+    visibility field match nothing — access is never granted by omission."""
+    should: list[Any] = [qm.FieldCondition(key="visibility", match=qm.MatchValue(value=PUBLIC))]
+    if owner_id:
+        should.append(
+            qm.Filter(
+                must=[
+                    qm.FieldCondition(key="visibility", match=qm.MatchValue(value=PRIVATE)),
+                    qm.FieldCondition(key="owner_id", match=qm.MatchValue(value=owner_id)),
+                ]
+            )
+        )
+    return qm.Filter(should=should)
+
+
+def build_qdrant_filter(
+    filters: SearchFilters | None,
+    *,
+    enforce_access: bool = False,
+    owner_id: str | None = None,
+) -> qm.Filter | None:
+    must: list[Any] = [access_filter(owner_id)] if enforce_access else []
     if filters is None or filters.is_empty():
-        return None
-    must: list[Any] = []
+        return qm.Filter(must=must) if must else None
     if filters.doc_type:
         must.append(qm.FieldCondition(key="doc_type", match=qm.MatchValue(value=filters.doc_type)))
     if filters.jurisdiction:

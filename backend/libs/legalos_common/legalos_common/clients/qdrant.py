@@ -58,6 +58,19 @@ class QdrantVectorClient:
                 },
             )
             logger.info("qdrant_collection_created", collection=self._collection)
+        await self.ensure_payload_indexes()
+
+    async def ensure_payload_indexes(self) -> None:
+        """Keyword indexes for every field search filters on (access control included)."""
+        for field in ("visibility", "owner_id", "document_id", "doc_type", "act"):
+            try:
+                await self._client.create_payload_index(
+                    collection_name=self._collection,
+                    field_name=field,
+                    field_schema=qm.PayloadSchemaType.KEYWORD,
+                )
+            except Exception as exc:  # already exists / not permitted — search still works
+                logger.debug("qdrant_payload_index_skipped", field=field, error=str(exc))
 
     async def ensure_parents_collection(self) -> None:
         """Create the parents collection with a dummy 1-dim DOT vector.
@@ -165,6 +178,22 @@ class QdrantVectorClient:
             {"id": str(r.id), "score": r.score, "payload": r.payload or {}}
             for r in response.points
         ]
+
+    async def dense_scores(self, dense_vector: list[float], ids: list[str]) -> dict[str, float]:
+        """Raw cosine similarity of the query to specific points — a calibrated
+        relevance signal (RRF fusion scores are rank-based and not comparable)."""
+        if not ids:
+            return {}
+        response = await self._client.query_points(
+            collection_name=self._collection,
+            query=dense_vector,
+            using="dense",
+            query_filter=qm.Filter(must=[qm.HasIdCondition(has_id=ids)]),
+            limit=len(ids),
+            with_payload=False,
+            with_vectors=False,
+        )
+        return {str(r.id): float(r.score) for r in response.points}
 
     async def fetch_parents_by_ids(self, parent_ids: list[str]) -> dict[str, dict[str, Any]]:
         """Batch-fetch parent payloads by their parent_id strings."""

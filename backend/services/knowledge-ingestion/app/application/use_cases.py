@@ -23,6 +23,15 @@ from legalos_common.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _access_metadata(visibility: str, owner_id: uuid.UUID | None) -> dict[str, str]:
+    """Payload fields search uses to decide who may see a chunk."""
+    if visibility == "private":
+        if owner_id is None:
+            raise ValueError("Private documents need an owner")
+        return {"visibility": "private", "owner_id": str(owner_id)}
+    return {"visibility": "public"}
+
+
 @dataclass(slots=True)
 class IngestionResult:
     document_id: str
@@ -117,7 +126,9 @@ class IngestDocumentUseCase:
         storage_key: str | None = None,
         owner_id: uuid.UUID | None = None,
         force: bool = False,
+        visibility: str = "public",
     ) -> IngestionResult:
+        access = _access_metadata(visibility, owner_id)
         text, page_count = extract_text(
             raw,
             content_type=content_type,
@@ -183,6 +194,7 @@ class IngestDocumentUseCase:
                     jurisdiction=resolved_jurisdiction,
                     citation=meta.citations[0] if meta.citations else None,
                     section=first_section or None,
+                    metadata=dict(access),
                 )
             )
             all_raw_children.extend(child_chunks)
@@ -204,7 +216,7 @@ class IngestDocumentUseCase:
                 jurisdiction=resolved_jurisdiction,
                 citation=meta.citations[0] if meta.citations else None,
                 section=first_section or None,
-                metadata={"chunk_index": idx},
+                metadata={"chunk_index": idx, **access},
             )
             for idx, (rc, emb) in enumerate(zip(all_raw_children, embeddings, strict=True))
         ]
@@ -272,8 +284,10 @@ class IngestDocumentUseCase:
         content_type: str | None = None,
         content_hash: str | None = None,
         force: bool = False,
+        visibility: str = "public",
     ) -> IngestionResult:
         """Flat ingestion for pre-chunked structured inputs (no parent-child splitting)."""
+        access = _access_metadata(visibility, owner_id)
         if not structured_chunks:
             raise ValueError("No structured chunks provided")
 
@@ -319,7 +333,7 @@ class IngestDocumentUseCase:
                 jurisdiction=jurisdiction,
                 citation=chunk.citation,
                 section=chunk.section,
-                metadata={"chunk_index": idx, **chunk.metadata},
+                metadata={"chunk_index": idx, **chunk.metadata, **access},
             )
             for idx, (chunk, emb) in enumerate(zip(structured_chunks, embeddings, strict=True))
         ]

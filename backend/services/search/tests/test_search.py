@@ -46,7 +46,8 @@ class FakeHybridStore:
     def __init__(self, hits: list[dict]) -> None:
         self._hits = hits
 
-    async def search(self, query: str, vector: list[float], *, limit: int, filters: Any) -> list[dict]:
+    async def search(self, query: str, vector: list[float], *, limit: int, filters: Any, **access: Any) -> list[dict]:
+        self.access = access
         return self._hits[:limit]
 
 
@@ -99,3 +100,56 @@ async def test_hybrid_search_respects_top_k() -> None:
     )
     results = await use_case.search("document content", top_k=3)
     assert len(results) <= 3
+
+
+# ── Access control + relevance ───────────────────────────────────────────────
+
+
+def test_access_filter_allows_public_and_own_private_only() -> None:
+    from legalos_common.search.filter_builder import build_qdrant_filter
+
+    member = build_qdrant_filter(None, enforce_access=True, owner_id="user-1").model_dump()
+    text = str(member)
+    assert "'public'" in text and "'private'" in text and "'user-1'" in text
+
+    guest = str(build_qdrant_filter(None, enforce_access=True, owner_id=None).model_dump())
+    assert "'public'" in guest and "'private'" not in guest
+
+
+@pytest.mark.asyncio
+async def test_use_case_forwards_caller_identity() -> None:
+    settings = get_settings()
+    store = FakeHybridStore([_hit("a", "text")])
+    use_case = HybridSearchUseCase(
+        embedder=StubEmbeddingClient(settings.llm.embedding_dim),
+        hybrid_store=store,
+        reranker=LexicalReranker(),
+        settings=settings,
+    )
+    await use_case.search("text", top_k=1, owner_id="user-9")
+    assert store.access["owner_id"] == "user-9"
+    assert store.access["enforce_access"] is True
+
+
+@pytest.mark.asyncio
+async def test_adapter_drops_weak_matches_and_reports_cosine() -> None:
+    from app.infrastructure.adapters import QdrantHybridAdapter
+
+    class FakeClient:
+        async def hybrid_search(self, *a, **k):
+            return [_hit("strong", "bail under BNSS"), _hit("weak", "unrelated")]
+
+        async def dense_scores(self, vector, ids):
+            return {"strong": 0.82, "weak": 0.31}
+
+        async def fetch_parents_by_ids(self, ids):
+            return {}
+
+    class FakeSparse:
+        async def encode(self, q):
+            return None
+
+    adapter = QdrantHybridAdapter(FakeClient(), FakeSparse())
+    hits = await adapter.search("bail", [0.0], limit=5, filters=None, min_dense_score=0.5)
+    assert [h["id"] for h in hits] == ["strong"]
+    assert hits[0]["payload"]["_dense_score"] == 0.82
