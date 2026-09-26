@@ -15,6 +15,7 @@ from app.api.schemas import (
     WalletTransactionOut,
 )
 from app.application.wallet_service import WalletService
+from app.config import get_settings
 from legalos_common.security.rbac import CurrentUser, get_current_user, require_roles
 
 router = APIRouter(prefix="/api/v1/wallet", tags=["wallet"])
@@ -49,6 +50,10 @@ async def top_up(
     user: CurrentUser = Depends(get_current_user),
     service: WalletService = Depends(get_wallet_service),
 ) -> WalletTransactionOut:
+    # Self top-up credits the wallet with no payment behind it. Keep it off until
+    # a verified payment flow (gateway webhook) is wired in.
+    if not get_settings().wallet_self_topup_enabled:
+        raise HTTPException(status_code=403, detail="Wallet recharge is not available yet.")
     tx = await service.top_up(
         uuid.UUID(user.user_id),
         amount=body.amount,

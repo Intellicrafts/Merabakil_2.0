@@ -14,6 +14,8 @@ class BillingSettings(CommonSettings):
     billing_internal_secret: str = _DEFAULT_SECRET
     welcome_credit_inr: str = "100.00"
     chatbot_query_fee_inr: str = "0.10"
+    # Unpaid self top-up (POST /wallet/me/top-up). Off until payments are verified.
+    wallet_self_topup_enabled: bool = False
 
     @model_validator(mode="after")
     def _require_real_secret_in_production(self) -> "BillingSettings":
