@@ -135,16 +135,27 @@ class MultiStoreIndexer:
     # Knowledge graph
     # ------------------------------------------------------------------
 
+    # The citation graph is optional enrichment — nothing on the search path reads
+    # it, and production runs without Neo4j. A graph failure must never fail an
+    # ingest whose vectors are already indexed.
+
     async def register_document(
         self, *, document_id: str, title: str, doc_type: str, jurisdiction: str | None
     ) -> None:
-        await self._neo4j.upsert_document(
-            document_id=document_id, title=title, doc_type=doc_type, jurisdiction=jurisdiction
-        )
+        try:
+            await self._neo4j.upsert_document(
+                document_id=document_id, title=title, doc_type=doc_type, jurisdiction=jurisdiction
+            )
+        except Exception as exc:
+            logger.warning("graph_register_skipped", document_id=document_id, error=type(exc).__name__)
 
     async def link_citations(self, *, document_id: str, citations: list[str]) -> None:
         for citation in citations:
-            await self._neo4j.link_citation(from_doc=document_id, to_reference=citation)
+            try:
+                await self._neo4j.link_citation(from_doc=document_id, to_reference=citation)
+            except Exception as exc:
+                logger.warning("graph_link_skipped", document_id=document_id, error=type(exc).__name__)
+                return
 
     # ------------------------------------------------------------------
     # Purge
