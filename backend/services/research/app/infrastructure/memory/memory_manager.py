@@ -86,3 +86,17 @@ class MemoryManager:
                     )
             except Exception as exc:
                 logger.warning("ltm_persist_failed user=%s error=%s", user_id, exc)
+
+    async def truncate_session(self, session_id: str | None, keep_turns: int) -> None:
+        if session_id:
+            await self._session.truncate(session_id, keep_turns)
+
+    async def forget_session(self, session_id: str | None, user_id: str | None) -> None:
+        """Drop a conversation's server memory: its history and the facts it produced."""
+        if session_id:
+            await self._session.clear(session_id)
+        if user_id and session_id:
+            await self._ltm.delete_facts(user_id, session_id)
+
+    async def forget_user(self, user_id: str) -> None:
+        await self._ltm.delete_facts(user_id)

@@ -62,6 +62,9 @@ class OrchestratorState(BaseModel):
     # True for logged-out guest runs — the agent must not offer lawyer booking
     # and should nudge account creation.
     is_guest: bool = False
+    # Primary platform role of a signed-in user: citizen | advocate | law_firm |
+    # enterprise | admin. Decides the tool profile (only citizens can book).
+    user_role: str = "citizen"
     scope: ResearchScope = ResearchScope.CORPUS
     search_filters: SearchFilters = Field(default_factory=SearchFilters)
     history: list[ConversationMessage] = Field(default_factory=list)

@@ -886,12 +886,13 @@ async def match_lawyers(
                     lawyer = await repo.get_lawyer(uuid.UUID(lawyer_id_str))
                 except (ValueError, Exception):
                     continue
-                if lawyer and (lawyer.hourly_rate or 0) > 0:
+                # Only verified, bookable advocates are ever recommended.
+                if lawyer and lawyer.is_verified and (lawyer.hourly_rate or 0) > 0:
                     ordered.append(lawyer)
             if ordered:
-                logger.info("match_lawyers source=qdrant count=%d query=%r", len(ordered), query)
-                return await _serialize_lawyers(
-                    repo, [(l, 100, True) for l in ordered]
+                logger.info("match_lawyers source=qdrant count=%d", len(ordered))
+                return _without_verification_data(
+                    await _serialize_lawyers(repo, [(l, 100, True) for l in ordered])
                 )
 
     # Fallback: score and rank from SQL
@@ -902,9 +903,14 @@ async def match_lawyers(
         for lawyer in lawyers
     ]
     ranked.sort(key=lambda item: item[1], reverse=True)
-    return await _serialize_lawyers(
-        repo, [(lawyer, score, True) for lawyer, score in ranked[: body.limit]]
+    return _without_verification_data(
+        await _serialize_lawyers(repo, [(lawyer, score, True) for lawyer, score in ranked[: body.limit]])
     )
+
+
+def _without_verification_data(lawyers: list[LawyerPublic]) -> list[LawyerPublic]:
+    # /match is unauthenticated and feeds the chatbot; raw verification records stay private.
+    return [l.model_copy(update={"verification_data": None}) for l in lawyers]
 
 
 @appointments_router.post("", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)

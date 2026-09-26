@@ -43,12 +43,16 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestContextMiddleware)
+_origins = {settings.frontend_url.rstrip("/"), "https://merabakil.in", "https://www.merabakil.in"}
+if settings.environment.lower() != "production":
+    _origins |= {"http://localhost:3000", "http://127.0.0.1:3000"}
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=sorted(_origins),
+    allow_credentials=False,  # bearer tokens, no cookies
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Guest-Remaining", "Retry-After"],
 )
 
 register_exception_handlers(app)

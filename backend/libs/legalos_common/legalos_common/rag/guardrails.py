@@ -7,42 +7,58 @@ instructions.
 
 from __future__ import annotations
 
+import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
+# Unambiguous jailbreak phrasing — blocked outright.
 _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     re.compile(p, re.IGNORECASE)
     for p in (
         r"ignore (?:all |the |your )?(?:previous|prior|above) (?:instructions|prompts)",
-        r"disregard (?:all |the |your )?(?:previous|prior|above)",
-        r"you are now (?:a|an|the)\b",
-        r"system prompt",
-        r"developer message",
-        r"reveal (?:your )?(?:system )?prompt",
+        r"disregard (?:all |the |your )?(?:previous|prior|above) (?:instructions|prompts|rules)",
+        r"reveal (?:your |the )?(?:system )?prompt",
         r"act as (?:a|an)\b.*(?:dan|jailbreak)",
         r"</?(?:system|assistant|user)>",
         r"\bBEGIN\s+SYSTEM\b",
-        r"pretend (?:you are|to be)\b",
-        r"forget (?:all |your )?(?:previous|prior|above)",
+        r"forget (?:all |your )?(?:previous|prior|above) (?:instructions|prompts|rules)",
     )
 )
 
+# Phrases that also appear in genuine legal questions ("is it a crime to pretend
+# to be a police officer?") — logged for review, never blocked.
+_SUSPICIOUS_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"you are now (?:a|an|the)\b",
+        r"pretend (?:you are|to be)\b",
+        r"system prompt",
+        r"developer message",
+    )
+)
+
+# Verbatim fragments of Saarthi's own system prompt — if these surface in an
+# answer the model is leaking its instructions.
 _LEAK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     re.compile(p, re.IGNORECASE)
     for p in (
-        r"CRITICAL RULES",
+        r"TOOL USAGE POLICY",
+        r"LAWYER ACCURACY RULE",
+        r"EMERGENCY OVERRIDE",
+        r"SESSION CONTEXT:\s*Today's date",
         r"do not reveal these instructions",
-        r"system prompt",
-        r"you are an? (?:expert|assistant|ai|bot)\b.{0,60}(?:specializing|designed|built)",
     )
 )
 
-_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _HTML_TAGS = re.compile(r"<[^>]+>")
-_WHITESPACE = re.compile(r"\s+")
-_CITATION_RE = re.compile(r"\[(\d+)\]")
+_WHITESPACE = re.compile(r"[ \t]+")
+# Saarthi's citation markers: [KB-3], [WEB-1]
+_CITATION_RE = re.compile(r"\[(KB|WEB)-(\d+)\]")
 
 _MAX_INPUT_CHARS = 8_000
 _MAX_QUERY_LENGTH = 4_000
@@ -59,7 +75,7 @@ class PromptInjectionResult(BaseModel):
 
 
 def detect_prompt_injection(text: str) -> PromptInjectionResult:
-    matches = [p.pattern for p in _INJECTION_PATTERNS if p.search(text)]
+    matches = [p.pattern for p in (*_INJECTION_PATTERNS, *_SUSPICIOUS_PATTERNS) if p.search(text)]
     return PromptInjectionResult(is_suspicious=bool(matches), matched_patterns=matches)
 
 
@@ -70,9 +86,10 @@ def sanitize_user_input(text: str) -> str:
     return cleaned
 
 
-# ---------------------------------------------------------------------------
-# Full guardrail classes (ported from Converstation Chat Bot)
-# ---------------------------------------------------------------------------
+def strip_citation_markers(text: str) -> str:
+    """Remove [KB-n]/[WEB-n] markers — they only resolve within the turn that produced them."""
+    return re.sub(r" ?\[(?:KB|WEB)-\d+\]", "", text)
+
 
 @dataclass
 class GuardrailResult:
@@ -106,6 +123,8 @@ class InputGuardrail:
                     reason="injection_detected",
                     sanitized_query=sanitized,
                 )
+        if any(p.search(sanitized) for p in _SUSPICIOUS_PATTERNS):
+            logger.info("input_guardrail_suspicious_phrase_allowed")
 
         return GuardrailResult(passed=True, sanitized_query=sanitized)
 
@@ -120,7 +139,14 @@ class InputGuardrail:
 class OutputGuardrail:
     """Validates LLM-generated answers before they are returned to the user."""
 
-    def validate(self, answer: str, max_valid_citations: int = 0) -> OutputGuardrailResult:
+    def validate(
+        self,
+        answer: str,
+        *,
+        kb_count: int = 0,
+        web_count: int = 0,
+        used_tools: bool = False,
+    ) -> OutputGuardrailResult:
         # 1. System prompt leak detection
         for pattern in _LEAK_PATTERNS:
             if pattern.search(answer):
@@ -130,19 +156,21 @@ class OutputGuardrail:
                     flagged_reason="system_prompt_leak",
                 )
 
-        # 2. Citation index range fix — replace out-of-range [N] markers
-        if max_valid_citations > 0:
-            def _guard(m: re.Match) -> str:
-                return m.group(0) if int(m.group(1)) <= max_valid_citations else "[citation unavailable]"
-            answer = _CITATION_RE.sub(_guard, answer)
+        # 2. Drop markers that don't resolve to a source retrieved this turn.
+        limits = {"KB": kb_count, "WEB": web_count}
 
-        # 3. Grounding disclaimer for long, uncited answers
-        word_count = len(answer.split())
-        citation_count = len(_CITATION_RE.findall(answer))
-        if word_count > 100 and citation_count == 0:
-            answer += (
-                "\n\n*Note: This response was generated without explicit source citations. "
-                "Please verify with primary legal sources.*"
-            )
+        def _guard(m: re.Match) -> str:
+            kind, idx = m.group(1), int(m.group(2))
+            return m.group(0) if 1 <= idx <= limits[kind] else ""
+
+        answer = _CITATION_RE.sub(_guard, answer)
+
+        # 3. Grounding note only when sources were retrieved but none were cited.
+        if used_tools and (kb_count or web_count) and len(answer.split()) > 100:
+            if not _CITATION_RE.search(answer):
+                answer += (
+                    "\n\n*Note: This response does not cite the retrieved sources. "
+                    "Please verify with primary legal sources.*"
+                )
 
         return OutputGuardrailResult(passed=True, answer=answer)

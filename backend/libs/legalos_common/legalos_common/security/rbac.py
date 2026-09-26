@@ -46,10 +46,19 @@ class Permission(StrEnum):
     AUDIT_READ = "audit:read"
 
 
+# Marker role on short-lived anonymous tokens (Saarthi guest chat/voice). Kept
+# out of ``Role`` so it can never be granted through account registration.
+GUEST_ROLE = "guest"
+
+
 class CurrentUser(BaseModel):
     user_id: str
     roles: list[str]
     permissions: list[str]
+
+    @property
+    def is_guest(self) -> bool:
+        return GUEST_ROLE in self.roles or self.user_id == GUEST_ROLE
 
     def has_role(self, role: str) -> bool:
         return role in self.roles or Role.ADMIN.value in self.roles

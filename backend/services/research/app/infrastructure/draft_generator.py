@@ -38,8 +38,8 @@ async def generate_draft(
     document_type: str,
     conversation_context: list[dict[str, str]],
     llm: LLMClient,
-) -> dict[str, Any]:
-    """Call the LLM to produce a legal draft. Returns {"title", "document_type", "content"}."""
+) -> dict[str, Any] | None:
+    """Produce a legal draft {"title", "document_type", "content"}, or None on failure."""
     doc_label = _DOC_TYPE_LABELS.get(document_type, "Legal Document")
 
     context_block = ""
@@ -61,9 +61,11 @@ async def generate_draft(
             ],
             temperature=0.3,
         )
-    except Exception:
-        logger.exception("Draft generation failed")
-        raw = f"# {doc_label}\n\n*Could not generate document. Please try again.*"
+    except Exception as exc:
+        logger.warning("draft_generation_failed error=%s", type(exc).__name__)
+        return None
+    if not raw or not raw.strip():
+        return None
 
     title = doc_label
     first_line = raw.strip().splitlines()[0] if raw.strip() else ""

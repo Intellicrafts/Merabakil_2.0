@@ -18,7 +18,7 @@ class QueryRoute(StrEnum):
 
 
 _SYSTEM = (
-    "You are a query classifier for Mera Vakil, an Indian legal AI assistant.\n\n"
+    "You are a query classifier for Saarthi, an Indian legal AI assistant.\n\n"
     "Classify the user query into exactly one category and reply with that single word only.\n\n"
     "conversational — greetings, small talk, 'how are you', 'who are you', "
     "'what can you do', 'thanks', 'bye', 'namaste', 'kya hal hai', chitchat, "
@@ -32,7 +32,7 @@ _SYSTEM = (
 _CONVERSATIONAL_RE = re.compile(
     r"^\s*(hi+|hello|hey|how are you|how r u|what can you (do|help)|who are you|"
     r"namaskar|namaste|thanks?|thank you|bye|good\s*(morning|evening|night)|"
-    r"what is mera vakil|tell me about yourself|"
+    r"what is (mera ?vakil|mera ?bakil|saarthi)|tell me about yourself|"
     r"ok(ay)?|got it|sure|understood|yes|no|great|perfect|"
     r"can you (help|explain|tell)|what do you (think|suggest)|"
     r"(hi+|hey+|hello+|namaste|namaskar)[,\s]+(how are you|how r u|what'?s up))\W*$",
@@ -47,8 +47,10 @@ class QueryRouter:
         self._llm = ChatGoogleGenerativeAI(
             model=model,
             google_api_key=api_key,
-            temperature=0.0,
-            max_output_tokens=10,
+            # Room for any thinking tokens on Gemini 3 models; we read one word.
+            max_output_tokens=256,
+            timeout=8,
+            max_retries=1,
         )
 
     def quick_classify(self, query: str) -> QueryRoute | None:

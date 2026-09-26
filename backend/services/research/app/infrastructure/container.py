@@ -13,7 +13,6 @@ from app.infrastructure.memory import (
 from app.infrastructure.document_client import DocumentTextClient
 from app.infrastructure.memory.session_documents import SessionDocuments
 from app.infrastructure.search_retriever import HttpSearchRetriever
-from app.infrastructure.specialist_clients import HttpSpecialistClient
 from legalos_common.clients import build_embedding_client, build_llm_client, build_tts_client
 from legalos_orchestrator import build_orchestrator
 from legalos_orchestrator.agent.router import QueryRouter
@@ -24,16 +23,13 @@ class Container:
     def __init__(self, settings: ResearchSettings) -> None:
         self.settings = settings
         self.llm = build_llm_client(settings.llm)
+        # Cheap model for background chores: summaries, fact extraction, speech rewrites.
+        fast_model = settings.llm.llm_fast_model or settings.llm.llm_model
+        self.llm_fast = build_llm_client(settings.llm.model_copy(update={"llm_model": fast_model}))
         self.tts = build_tts_client(settings.llm)
         self.embedder = build_embedding_client(settings.llm)
         self.retriever = HttpSearchRetriever(
             settings.search_service_url, timeout=settings.search_timeout_seconds
-        )
-        self.contract_review = HttpSpecialistClient(
-            settings.contract_review_service_url, "/api/v1/contract-review/analyze"
-        )
-        self.litigation = HttpSpecialistClient(
-            settings.litigation_service_url, "/api/v1/litigation/strategy"
         )
         self.router = QueryRouter(
             model=settings.llm.llm_router_model,
@@ -43,8 +39,6 @@ class Container:
             retriever=self.retriever,
             llm_settings=settings.llm,
             llm=self.llm,
-            contract_review=self.contract_review,
-            litigation=self.litigation,
         )
 
         # Memory layer — uses platform Redis + Qdrant
@@ -56,7 +50,7 @@ class Container:
             url=settings.qdrant.qdrant_url,
             api_key=settings.qdrant.qdrant_api_key or None,
         )
-        summarizer = ConversationSummarizer(self.llm)
+        summarizer = ConversationSummarizer(self.llm_fast)
         ltm = LongTermMemory(
             qdrant_client,
             self.embedder,
@@ -90,8 +84,6 @@ class Container:
 
     async def shutdown(self) -> None:
         await self.retriever.close()
-        await self.contract_review.close()
-        await self.litigation.close()
         await self._qdrant_ltm.close()
 
 

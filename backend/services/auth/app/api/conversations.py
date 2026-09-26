@@ -5,8 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,14 @@ from legalos_common.security.rbac import CurrentUser, get_current_user
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
 MAX_CONVERSATIONS = 50
+MAX_TITLE_CHARS = 255
+
+
+def _clip_title(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip() or "New Chat"
+    return value if len(value) <= MAX_TITLE_CHARS else value[: MAX_TITLE_CHARS - 1] + "…"
 
 
 class ConversationUpsert(BaseModel):
@@ -32,6 +40,8 @@ class ConversationUpsert(BaseModel):
     created_at: str | None = None
     updated_at: str | None = None
 
+    _title = field_validator("title")(lambda cls, v: _clip_title(v))
+
 
 class ConversationPatch(BaseModel):
     title: str | None = None
@@ -41,6 +51,8 @@ class ConversationPatch(BaseModel):
     draft_case_id: str | None = None
     messages: list | None = None
     attached_documents: list | None = None
+
+    _title = field_validator("title")(lambda cls, v: _clip_title(v))
 
 
 def _to_dict(row: SaarthiConversation) -> dict:
@@ -63,12 +75,15 @@ def _to_dict(row: SaarthiConversation) -> dict:
 async def list_conversations(
     current_user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    limit: int = Query(MAX_CONVERSATIONS, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ) -> list[dict]:
     stmt = (
         select(SaarthiConversation)
         .where(SaarthiConversation.user_id == uuid.UUID(current_user.user_id))
         .order_by(SaarthiConversation.pinned.desc(), SaarthiConversation.updated_at.desc())
-        .limit(MAX_CONVERSATIONS)
+        .offset(offset)
+        .limit(limit)
     )
     rows = list((await session.execute(stmt)).scalars().all())
     return [_to_dict(r) for r in rows]
@@ -94,6 +109,10 @@ async def upsert_conversation(
 
     now = datetime.now(timezone.utc)
     if row is None:
+        taken = await session.execute(select(SaarthiConversation.id).where(SaarthiConversation.id == conv_id))
+        if taken.first() is not None:
+            # The id belongs to someone else's conversation.
+            raise HTTPException(status_code=409, detail="Conversation id already in use")
         row = SaarthiConversation(
             id=conv_id,
             user_id=user_id,

@@ -8,14 +8,17 @@ from typing import Annotated
 import httpx
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import InjectedToolCallId, tool
+from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 
-try:
-    from langgraph.prebuilt import InjectedState
-except ImportError:
-    from typing import Any as InjectedState  # type: ignore[assignment]
+from legalos_orchestrator.agent.registry import get_registry
 
 logger = logging.getLogger(__name__)
+
+_NEED_CONFIRMATION = (
+    "Not booked. Before booking you must tell the user the lawyer's name, the date and time "
+    "slot, and the consultation fee, and get their explicit yes to that booking. Ask them now."
+)
 
 
 def build_book_appointment_tool(marketplace_base_url: str):
@@ -27,38 +30,37 @@ def build_book_appointment_tool(marketplace_base_url: str):
         date: str,
         time_slot: str,
         matter_summary: str,
+        user_confirmed_fee: bool,
         citizen_name: str = "",
         state: Annotated[dict, InjectedState] = None,
         tool_call_id: Annotated[str, InjectedToolCallId] = None,
     ) -> Command:
-        """Book a consultation appointment with a verified lawyer on the platform.
+        """Book a paid consultation with a lawyer returned by get_lawyer.
 
-        Call this tool ONLY after get_lawyer has returned results and the user has expressed
-        intent to book (e.g., "book it", "yes please", "schedule a consultation").
-        Use the lawyer's id from the get_lawyer result. Derive matter_summary from the
-        conversation — never ask the user to repeat what they already told you.
-        Default time_slot to "Immediate" unless the user specifies a time.
+        Call ONLY after you have told the user the lawyer's name, the date and time slot
+        and the consultation fee, and the user has explicitly agreed to that booking.
+        Derive matter_summary from the conversation — never make the user repeat it.
 
         Args:
-            lawyer_id: The booking_id UUID shown in the get_lawyer result (e.g. "3783a27e-..."). Always copy it exactly — never guess or construct it.
-            date: Consultation date in YYYY-MM-DD format. Use today's date unless the user
-                  specifies otherwise (today is provided in the system prompt context).
-            time_slot: "Immediate" for right now, or a specific time like "10:00 AM".
+            lawyer_id: The booking_id UUID from the get_lawyer result, copied exactly.
+            date: Consultation date in YYYY-MM-DD format (today's date is in the session context).
+            time_slot: "Immediate" if the user asked for right now, otherwise a time like "10:00 AM". Never assume it.
             matter_summary: One-to-two sentence summary of the user's legal matter (min 10 chars).
+            user_confirmed_fee: True only if the user explicitly agreed to this lawyer, slot and the fee you stated.
             citizen_name: User's full name if mentioned; leave empty otherwise.
         """
+        registry = get_registry(state)
         user_token: str = (state or {}).get("user_token") or ""
 
+        def _reply(content: str) -> Command:
+            return Command(update={"messages": [ToolMessage(content=content, tool_call_id=tool_call_id)]})
+
         if not user_token:
-            content = "Unable to book: no authentication token available."
-            return Command(
-                update={
-                    "messages": [ToolMessage(content=content, tool_call_id=tool_call_id)],
-                }
-            )
+            return _reply("Unable to book: the user is not signed in.")
+        if not user_confirmed_fee:
+            return _reply(_NEED_CONFIRMATION)
 
         appt: dict | None = None
-        content = ""
         try:
             async with httpx.AsyncClient(timeout=12.0) as client:
                 resp = await client.post(
@@ -81,33 +83,31 @@ def build_book_appointment_tool(marketplace_base_url: str):
                 detail = exc.response.json().get("detail", "")
             except Exception:
                 pass
-            logger.warning("book_appointment http_error=%s detail=%s", exc, detail)
-            content = f"Booking failed: {detail or 'the slot may already be taken or the lawyer unavailable. Please try another time or lawyer.'}"
+            logger.warning("book_appointment_http_error status=%s", exc.response.status_code)
+            if exc.response.status_code == 402:
+                return _reply(
+                    "Booking failed: the user's wallet balance is too low for this consultation. "
+                    "Tell them to add balance from their wallet and try again."
+                )
+            return _reply(
+                f"Booking failed: {detail or 'the slot may be taken or the lawyer unavailable.'} "
+                "Offer another time or lawyer."
+            )
         except Exception as exc:
-            logger.warning("book_appointment error=%s", exc)
-            content = "The booking service is temporarily unavailable. Please ask the user to try again shortly."
+            logger.warning("book_appointment_error error=%s", exc)
+            return _reply("The booking service is temporarily unavailable. Ask the user to try again shortly.")
 
-        if appt:
-            lawyer_name = appt.get("lawyer_name", "the advocate")
-            slot = appt.get("time_slot", time_slot)
-            appt_date = appt.get("date", date)
-            status = appt.get("status", "requested")
-            if status == "confirmed":
-                content = (
-                    f"✅ Consultation confirmed with **{lawyer_name}** on {appt_date} at {slot}. "
-                    "The user will receive a confirmation notification."
-                )
-            else:
-                content = (
-                    f"✅ Consultation request sent to **{lawyer_name}** for {appt_date} at {slot}. "
-                    "They will confirm the appointment shortly."
-                )
-
-        return Command(
-            update={
-                "appointment_result": appt,
-                "messages": [ToolMessage(content=content, tool_call_id=tool_call_id)],
-            }
-        )
+        registry.appointment = appt
+        lawyer_name = appt.get("lawyer_name", "the advocate")
+        slot = appt.get("time_slot", time_slot)
+        appt_date = appt.get("date", date)
+        if appt.get("status") == "confirmed":
+            content = f"Consultation confirmed with {lawyer_name} on {appt_date} at {slot}."
+        else:
+            content = (
+                f"Consultation request sent to {lawyer_name} for {appt_date} at {slot}. "
+                "They will confirm shortly."
+            )
+        return _reply(content)
 
     return book_appointment

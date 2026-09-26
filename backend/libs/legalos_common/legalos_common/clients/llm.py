@@ -426,12 +426,21 @@ def _primary_llm_client(settings: LLMSettings) -> LLMClient:
     return OpenAICompatibleLLMClient(settings)
 
 
+def _stub_fallback_allowed() -> bool:
+    # In production a provider error must surface — silently substituting stub
+    # text or random vectors corrupts answers, lawyer summaries and indexes.
+    return get_common_settings().environment.lower() != "production"
+
+
 def build_embedding_client(settings: LLMSettings | None = None) -> EmbeddingClient:
     settings = settings or get_common_settings().llm
     stub = StubEmbeddingClient(settings.embedding_dim)
     if settings.embedding_use_stub:
         return stub
-    return FallbackEmbeddingClient(_primary_embedding_client(settings), stub)
+    primary = _primary_embedding_client(settings)
+    if not _stub_fallback_allowed():
+        return primary
+    return FallbackEmbeddingClient(primary, stub)
 
 
 def build_llm_client(settings: LLMSettings | None = None) -> LLMClient:
@@ -439,4 +448,7 @@ def build_llm_client(settings: LLMSettings | None = None) -> LLMClient:
     stub = StubLLMClient()
     if settings.llm_use_stub:
         return stub
-    return FallbackLLMClient(_primary_llm_client(settings), stub)
+    primary = _primary_llm_client(settings)
+    if not _stub_fallback_allowed():
+        return primary
+    return FallbackLLMClient(primary, stub)

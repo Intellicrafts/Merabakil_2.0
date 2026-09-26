@@ -21,14 +21,15 @@ async def check_rate_limit(
     key: str,
     limit: int,
     window_seconds: int,
-) -> None:
+) -> int:
     """Fixed-window rate check using Redis INCR + EXPIRE NX.
 
     Raises HTTP 429 when the user exceeds *limit* calls within *window_seconds*.
-    Silently passes if Redis is unavailable (fail-open to avoid blocking users).
+    Returns the count used in the current window (0 when Redis is unavailable —
+    fail-open to avoid blocking users).
     """
     if redis is None:
-        return
+        return 0
 
     try:
         pipe = redis.pipeline(transaction=False)
@@ -37,7 +38,7 @@ async def check_rate_limit(
         results = await pipe.execute()
         count: int = results[0]
     except Exception:
-        return  # Redis hiccup — fail open
+        return 0  # Redis hiccup — fail open
 
     if count > limit:
         if window_seconds >= 86_400:
@@ -53,3 +54,4 @@ async def check_rate_limit(
             detail=f"Rate limit exceeded — max {limit} requests per {window_label}. Please wait and try again.",
             headers={"Retry-After": str(window_seconds)},
         )
+    return count

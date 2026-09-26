@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qm
 
 logger = logging.getLogger(__name__)
+
+# Facts older than this are no longer injected into answers.
+FACT_TTL_DAYS = 180
 
 
 class LongTermMemory:
@@ -91,8 +94,10 @@ class LongTermMemory:
             return []
         try:
             embedding = await self._embedder.embed_one(query)
-            hits = await self._find_similar(user_id, embedding, top_k=top_k)
-            return [h["content"] for h in hits]
+            hits = await self._find_similar(user_id, embedding, top_k=top_k * 2)
+            cutoff = (datetime.utcnow() - timedelta(days=FACT_TTL_DAYS)).isoformat()
+            fresh = [h for h in hits if (h.get("created_at") or "") >= cutoff]
+            return [h["content"] for h in fresh[:top_k]]
         except Exception as exc:
             logger.warning("ltm_retrieve_failed user=%s error=%s", user_id, exc)
             return []
@@ -116,9 +121,28 @@ class LongTermMemory:
                     "content": r.payload.get("content", ""),
                     "score": r.score,
                     "access_count": r.payload.get("access_count", 1),
+                    "created_at": r.payload.get("created_at", ""),
                 }
                 for r in response.points
             ]
         except Exception as exc:
             logger.warning("ltm_search_failed error=%s", exc)
             return []
+
+    async def delete_facts(self, user_id: str, session_id: str | None = None) -> None:
+        """Erase a user's remembered facts — all of them, or those from one session."""
+        if not user_id:
+            return
+        must = [qm.FieldCondition(key="user_id", match=qm.MatchValue(value=user_id))]
+        if session_id:
+            must.append(
+                qm.FieldCondition(key="source_session_id", match=qm.MatchValue(value=session_id))
+            )
+        try:
+            await self._client.delete(
+                collection_name=self._col,
+                points_selector=qm.FilterSelector(filter=qm.Filter(must=must)),
+                wait=True,
+            )
+        except Exception as exc:
+            logger.warning("ltm_delete_failed user=%s error=%s", user_id, exc)

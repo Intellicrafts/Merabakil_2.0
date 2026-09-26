@@ -9,6 +9,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.chat_pipeline import scoped_session_id
 from app.api.deps import extraction_rate_limit
 from app.config import get_settings
 from app.infrastructure.container import get_container
@@ -73,7 +74,8 @@ async def extract_case_brief(
 ) -> CaseBriefExtraction:
     container = get_container()
 
-    turns = await container.memory_manager._session.get_history(session_id)
+    sid = scoped_session_id(session_id, user_id=user.user_id, is_guest=False)
+    turns = await container.memory_manager._session.get_history(sid or "")
     # Filter to real user/assistant turns (skip summary placeholders)
     real_turns = [t for t in turns if t.role in ("user", "assistant")]
 

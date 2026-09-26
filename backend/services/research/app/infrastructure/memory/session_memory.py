@@ -11,6 +11,9 @@ from legalos_common.rag.memory_schemas import SessionTurn
 logger = logging.getLogger(__name__)
 
 _KEY = "research:session:{}:history"
+# Matches ConversationMessage.max_length — longer turns would fail validation
+# when the history is replayed into the next request.
+MAX_TURN_CHARS = 4000
 
 
 class SessionMemory:
@@ -55,6 +58,8 @@ class SessionMemory:
         if not session_id:
             return
         key = _KEY.format(session_id)
+        if len(turn.content) > MAX_TURN_CHARS:
+            turn = turn.model_copy(update={"content": turn.content[: MAX_TURN_CHARS - 1] + "…"})
         serialized = turn.model_dump_json()
 
         if self._redis:
@@ -69,6 +74,23 @@ class SessionMemory:
                 self._fallback.setdefault(key, []).append(serialized)
         else:
             self._fallback.setdefault(key, []).append(serialized)
+
+    async def truncate(self, session_id: str, keep_turns: int) -> None:
+        """Keep only the first ``keep_turns`` turns (edit-and-resend rewinds history)."""
+        if not session_id:
+            return
+        key = _KEY.format(session_id)
+        if self._redis:
+            try:
+                if keep_turns <= 0:
+                    await self._redis.delete(key)
+                else:
+                    await self._redis.ltrim(key, 0, keep_turns - 1)
+            except Exception as exc:
+                logger.warning("redis_truncate_failed session=%s error=%s", session_id, exc)
+        items = self._fallback.get(key)
+        if items is not None:
+            self._fallback[key] = items[: max(keep_turns, 0)]
 
     async def clear(self, session_id: str) -> None:
         key = _KEY.format(session_id)

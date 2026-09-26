@@ -1,742 +1,366 @@
-"""Research HTTP routes - runs the multi-agent orchestrator."""
+"""Research HTTP routes — Saarthi chat (member, guest, document), speech and sessions."""
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
+import os
 import struct
 import uuid
 from collections.abc import AsyncIterator
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.api.schemas import (
-    ResearchRequest,
-    ResearchResponse,
-    TtsRequest,
+from app.api.chat_pipeline import (
+    ERROR_MESSAGES,
+    SSE_HEADERS,
+    ChatRequest,
+    chat_stream,
+    scoped_session_id,
 )
 from app.api.deps import (
-    chat_rate_limit,
-    guest_chat_rate_limit,
+    enforce_chat_limits,
+    enforce_guest_chat_quota,
+    enforce_transcribe_limits,
     guest_voice_rate_limit,
+    member_user,
     tts_rate_limit,
 )
+from app.api.schemas import ResearchRequest, ResearchResponse, TtsRequest
 from app.infrastructure.container import get_container
 from legalos_common.api.errors import ValidationFailedError
 from legalos_common.clients.llm import ChatMessage
 from legalos_common.clients.tts import StubTTSClient
-from legalos_common.rag.guardrails import InputGuardrail, detect_prompt_injection, sanitize_user_input
-from legalos_common.security.rbac import (
-    CurrentUser,
-    Permission,
-    bearer_scheme,
-    get_current_user,
-    require_permissions,
-)
+from legalos_common.security.jwt import create_scoped_token, decode_token
+from legalos_common.security.rbac import GUEST_ROLE, CurrentUser, Permission, bearer_scheme
 from legalos_common.speech.locales import get_speech_locale
 from legalos_common.speech.prepare import prepare_speech_chunks, prepare_speech_text
-from legalos_orchestrator.schemas import ConversationMessage, OrchestratorState, ResearchScope
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/research", tags=["research"])
 
-from decimal import Decimal as _Decimal  # noqa: E402
-from app.config import get_settings as _get_settings  # noqa: E402
-from app.infrastructure.billing_client import BillingClient as _BillingClient  # noqa: E402
-
-_research_settings = _get_settings()
-_billing = _BillingClient(
-    _research_settings.billing_service_url,
-    _research_settings.billing_internal_secret,
-)
-_CHATBOT_FEE = _Decimal(_research_settings.chatbot_query_fee_inr)
+GUEST_VOICE_TOKEN_TTL = 150
+GUEST_VOICE_MAX_SECONDS = 90
+_AUDIO_MAX_BYTES = 10 * 1024 * 1024
+_AUDIO_TYPES = ("audio/", "video/webm")  # MediaRecorder on some browsers labels webm audio as video
 
 
-def _merge_doc_ids(*groups: list[str] | None) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for group in groups:
-        for item in group or []:
-            if item and item not in seen:
-                seen.add(item)
-                out.append(item)
-    return out
+# ── Chat ──────────────────────────────────────────────────────────────────────
 
 
-def _build_state(
-    body: ResearchRequest,
-    *,
-    credentials: HTTPAuthorizationCredentials,
-    current_user: CurrentUser | None,
-    document_id: str | None = None,
-    server_history: list[ConversationMessage] | None = None,
-    user_facts: list[str] | None = None,
-    session_document_ids: list[str] | None = None,
-    session_document_text: str = "",
-    is_guest: bool = False,
-) -> OrchestratorState:
-    scope = ResearchScope.DOCUMENT if document_id or body.scope is ResearchScope.DOCUMENT else body.scope
-    # Session attachments must not become exclusive Qdrant filters — those docs
-    # may only exist as extracted text until ingestion finishes.
-    filters = body.search_filters().model_copy(update={"document_ids": None})
-    if document_id:
-        filters = filters.model_copy(update={"document_id": document_id})
-
-    # Server history takes priority; fall back to client-sent history
-    history = server_history if server_history is not None else [
-        ConversationMessage(role=turn.role, content=sanitize_user_input(turn.content))
-        for turn in body.history
-    ]
-
-    return OrchestratorState(
-        query=sanitize_user_input(body.query),
-        jurisdiction_hint=body.jurisdiction,
-        user_token=credentials.credentials,
-        session_id=body.session_id,
-        user_id=None if (is_guest or current_user is None) else current_user.user_id,
-        is_guest=is_guest,
-        scope=scope,
-        search_filters=filters,
-        history=history,
-        user_facts=user_facts or [],
-        session_document_ids=session_document_ids or [],
-        session_document_text=session_document_text,
+def _stream_response(req: ChatRequest, headers: dict | None = None) -> StreamingResponse:
+    return StreamingResponse(
+        chat_stream(req),
+        media_type="text/event-stream",
+        headers={**SSE_HEADERS, **(headers or {})},
     )
 
 
-async def _resolve_session_documents(
-    body: ResearchRequest,
-    credentials: HTTPAuthorizationCredentials,
-) -> tuple[list[str], str]:
-    container = get_container()
-    redis_ids: list[str] = []
-    if body.session_id:
-        try:
-            redis_ids = await container.session_documents.get(body.session_id)
-        except Exception:
-            redis_ids = []
-    doc_ids = _merge_doc_ids(redis_ids, body.document_ids)
-    if not doc_ids:
-        return [], ""
-
-    cache_key = "research:doctext:" + ",".join(sorted(doc_ids))
-    if container.redis:
-        try:
-            cached = await container.redis.get(cache_key)
-            if cached:
-                text = cached.decode() if isinstance(cached, bytes) else cached
-                return doc_ids, text
-        except Exception:
-            pass
-
-    excerpt = ""
-    try:
-        excerpt = await container.document_texts.fetch_excerpts(
-            doc_ids, user_token=credentials.credentials
-        )
-    except Exception as exc:
-        logger.warning("session_document_text_failed error=%s", exc)
-
-    if excerpt and container.redis:
-        try:
-            await container.redis.set(cache_key, excerpt, ex=7200)
-        except Exception:
-            pass
-
-    return doc_ids, excerpt
+async def _collect(req: ChatRequest) -> ResearchResponse:
+    """Run the streaming pipeline to completion for the JSON endpoints."""
+    done: dict | None = None
+    error: dict | None = None
+    async for chunk in chat_stream(req):
+        event, _, data = chunk.partition("\ndata: ")
+        if event == "event: done":
+            done = json.loads(data)
+        elif event == "event: error":
+            error = json.loads(data)
+    if done is None:
+        code = (error or {}).get("code", "server_error")
+        status_code = {"rejected": 422, "insufficient_balance": 402}.get(code, 503)
+        raise HTTPException(status_code=status_code, detail=ERROR_MESSAGES.get(code, "Request failed."))
+    done.pop("mode", None)
+    return ResearchResponse.model_validate(done)
 
 
-_input_guardrail = InputGuardrail()
-
-
-async def _run_research(state: OrchestratorState) -> ResearchResponse:
-    guard = _input_guardrail.validate(state.query)
-    if not guard.passed:
-        raise ValidationFailedError(
-            "The query was rejected by guardrails.",
-            details=[{"reason": guard.reason}],
-        )
-    container = get_container()
-    result = await container.orchestrator.run_state(state)
-
-    # Persist memory after non-streaming response
-    if state.session_id or state.user_id:
-        import asyncio
-        asyncio.create_task(
-            container.memory_manager.persist(
-                session_id=state.session_id,
-                user_id=state.user_id,
-                user_content=state.query,
-                assistant_content=result.answer,
-                cited_chunk_ids=[c.document_id for c in result.citations],
-            )
-        )
-
-    if state.user_id and _CHATBOT_FEE > _Decimal("0"):
-        import asyncio
-        asyncio.create_task(
-            _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE, session_id=state.session_id)
-        )
-
-    return ResearchResponse(
-        query=result.query,
-        intent=result.intent,
-        jurisdiction=result.jurisdiction,
-        answer=result.answer,
-        sources=result.sources,
-        web_sources=result.web_sources,
-        web_images=result.web_images,
-        suggestions=result.suggestions,
-        citations=result.citations,
-        confidence=result.confidence,
-        trace=result.trace,
-        specialist_payload=result.specialist_payload,
-    )
-
-
-@router.post(
-    "",
-    response_model=ResearchResponse,
-    summary="Run grounded legal research via the multi-agent orchestrator",
-)
+@router.post("", response_model=ResearchResponse, summary="Grounded legal research (JSON)")
 async def research(
     body: ResearchRequest,
-    current_user: CurrentUser = Depends(chat_rate_limit),
+    current_user: CurrentUser = Depends(member_user),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> ResearchResponse:
-    container = get_container()
-    memory = await container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query)
-    history = [
-        ConversationMessage(role=t.role, content=t.content)
-        for t in memory.session_history
-    ] or None
-    session_doc_ids, session_doc_text = await _resolve_session_documents(body, credentials)
-    return await _run_research(
-        _build_state(
-            body,
-            credentials=credentials,
-            current_user=current_user,
-            server_history=history,
-            user_facts=memory.long_term_facts,
-            session_document_ids=session_doc_ids,
-            session_document_text=session_doc_text,
-        )
+    await enforce_chat_limits(current_user)
+    return await _collect(
+        ChatRequest(body=body, token=credentials.credentials, user=current_user, is_guest=False)
     )
 
 
 @router.post(
     "/document/{document_id}",
     response_model=ResearchResponse,
-    summary="Run research scoped to a single uploaded document",
+    summary="Research scoped to a single uploaded document (JSON)",
 )
 async def research_document(
     document_id: uuid.UUID,
     body: ResearchRequest,
-    current_user: CurrentUser = Depends(chat_rate_limit),
+    current_user: CurrentUser = Depends(member_user),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> ResearchResponse:
-    container = get_container()
-    memory = await container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query)
-    history = [
-        ConversationMessage(role=t.role, content=t.content)
-        for t in memory.session_history
-    ] or None
-    return await _run_research(
-        _build_state(
-            body,
-            credentials=credentials,
-            current_user=current_user,
+    await enforce_chat_limits(current_user)
+    return await _collect(
+        ChatRequest(
+            body=body,
+            token=credentials.credentials,
+            user=current_user,
+            is_guest=False,
             document_id=str(document_id),
-            server_history=history,
-            user_facts=memory.long_term_facts,
         )
     )
 
 
-@router.post(
-    "/stream",
-    summary="Stream grounded legal research (SSE tokens + final metadata)",
-)
+@router.post("/stream", summary="Stream grounded legal research (SSE)")
 async def research_stream(
     body: ResearchRequest,
-    current_user: CurrentUser = Depends(chat_rate_limit),
+    current_user: CurrentUser = Depends(member_user),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> StreamingResponse:
-    import asyncio
-    import json as _json
-    from legalos_orchestrator.agent.router import QueryRoute
+    await enforce_chat_limits(current_user)
+    return _stream_response(
+        ChatRequest(body=body, token=credentials.credentials, user=current_user, is_guest=False)
+    )
 
+
+@router.post("/document/{document_id}/stream", summary="Stream research scoped to one document")
+async def research_document_stream(
+    document_id: uuid.UUID,
+    body: ResearchRequest,
+    current_user: CurrentUser = Depends(member_user),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> StreamingResponse:
     container = get_container()
-
-    async def generator() -> AsyncIterator[str]:
-        # HTTP 200 + first event reach browser in ~10ms — before any LLM or memory work
-        yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
-
-        # Phase 1: instant regex/heuristic classify — no LLM, no I/O
-        quick_route = container.router.quick_classify(body.query)
-
-        if quick_route == QueryRoute.CONVERSATIONAL:
-            # Skip LTM for conversational queries (saves 300–600ms Qdrant round-trip)
-            memory_result, doc_result = await asyncio.gather(
-                container.memory_manager.retrieve_session_only(body.session_id),
-                _resolve_session_documents(body, credentials),
-                return_exceptions=True,
-            )
-            route = QueryRoute.CONVERSATIONAL
-            if isinstance(memory_result, Exception):
-                history = None
-            else:
-                history = [
-                    ConversationMessage(role=t.role, content=t.content)
-                    for t in memory_result.session_history
-                ] or None
-            user_facts: list[str] = []
-        else:
-            # Full gather for legal queries (existing behavior)
-            route_result, memory_result, doc_result = await asyncio.gather(
-                container.router.classify(body.query),
-                container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
-                _resolve_session_documents(body, credentials),
-                return_exceptions=True,
-            )
-            route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
-            if isinstance(memory_result, Exception):
-                history = None
-                user_facts = []
-            else:
-                history = [
-                    ConversationMessage(role=t.role, content=t.content)
-                    for t in memory_result.session_history
-                ] or None
-                user_facts = memory_result.long_term_facts
-
-        if isinstance(doc_result, Exception) or doc_result is None:
-            session_doc_ids, session_doc_text = [], ""
-        else:
-            session_doc_ids, session_doc_text = doc_result
-
-        if session_doc_text and route == QueryRoute.CONVERSATIONAL:
-            route = QueryRoute.LEGAL
-
-        state = _build_state(
-            body,
-            credentials=credentials,
-            current_user=current_user,
-            server_history=history,
-            user_facts=user_facts,
-            session_document_ids=session_doc_ids,
-            session_document_text=session_doc_text,
+    await enforce_chat_limits(current_user)
+    if not await container.document_texts.can_access(str(document_id), user_token=credentials.credentials):
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return _stream_response(
+        ChatRequest(
+            body=body,
+            token=credentials.credentials,
+            user=current_user,
+            is_guest=False,
+            document_id=str(document_id),
         )
-        state = state.model_copy(update={"route": route})
-
-        guard = _input_guardrail.validate(state.query)
-        if not guard.passed:
-            yield "event: error\ndata: " + _json.dumps({"message": "Query rejected — please rephrase."}) + "\n\n"
-            return
-
-        # Start draft generation in parallel with the main answer stream so it is
-        # ready (or nearly so) by the time streaming completes.
-        from app.infrastructure.draft_detector import detect_draft_intent
-        from app.infrastructure.draft_generator import generate_draft
-
-        is_draft, doc_type = detect_draft_intent(state.query)
-        draft_task = None
-        if is_draft:
-            history_dicts = [
-                {"role": m.role, "content": m.content} for m in (history or [])
-            ]
-            draft_task = asyncio.create_task(
-                generate_draft(state.query, doc_type, history_dicts, container.llm)
-            )
-            yield "event: draft_status\ndata: " + _json.dumps({"status": "generating"}) + "\n\n"
-
-        answer = ""
-        async for chunk in container.orchestrator.run_state_streaming(state):
-            if chunk.startswith("event: done"):
-                try:
-                    data_line = chunk.split("data: ", 1)[1].strip()
-                    answer = _json.loads(data_line).get("answer", "")
-                except Exception:
-                    pass
-            yield chunk
-
-        if answer and (state.session_id or state.user_id):
-            asyncio.create_task(
-                container.memory_manager.persist(
-                    session_id=state.session_id,
-                    user_id=state.user_id,
-                    user_content=state.query,
-                    assistant_content=answer,
-                )
-            )
-
-        if answer and state.user_id and _CHATBOT_FEE > _Decimal("0"):
-            asyncio.create_task(
-                _billing.deduct_chatbot_query(user_id=state.user_id, fee=_CHATBOT_FEE, session_id=state.session_id)
-            )
-
-        if draft_task is not None:
-            try:
-                draft = await draft_task
-                yield "event: draft\ndata: " + _json.dumps(draft) + "\n\n"
-            except Exception:
-                pass
-
-    return StreamingResponse(
-        generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
     )
-
-
-@router.post("/voice/guest-token", summary="Mint a short-lived guest voice token (1/day per IP)")
-async def guest_voice_token(
-    request: Request,
-    _rl: None = Depends(guest_voice_rate_limit),
-) -> dict:
-    """Short-lived (2.5 min) scoped token the existing voice WS accepts, so the
-    authed WS path is unchanged. Issuance is IP-capped at 1/day; the client stops
-    at ~90s and the WS enforces a hard server-side timeout for sub='guest'.
-    Kill switch: GUEST_VOICE_ENABLED=false disables it instantly."""
-    import os
-    from legalos_common.security.jwt import create_scoped_token
-
-    if os.environ.get("GUEST_VOICE_ENABLED", "true").lower() != "true":
-        raise HTTPException(status_code=404, detail="Guest voice is disabled")
-    token = create_scoped_token(
-        "guest",
-        permissions=[Permission.SEARCH_READ.value, Permission.RESEARCH_READ.value],
-        expires_seconds=150,
-    )
-    return {"token": token, "max_duration_seconds": 90}
 
 
 @router.post(
     "/stream/guest",
-    summary="Guest (logged-out) grounded research — 5/day per IP, no billing, no booking",
+    summary="Guest (logged-out) research — 5/day per IP, no billing, no lawyers or booking",
 )
-async def research_stream_guest(
-    body: ResearchRequest,
-    request: Request,
-    _rl: None = Depends(guest_chat_rate_limit),
-) -> StreamingResponse:
-    """Anonymous free-trial chat. Mints a short-lived internal token scoped to
-    search only, so KB retrieval works while user_id stays null. The is_guest
-    flag makes the agent avoid booking and nudge signup; the scoped token means
-    any lawyer/booking tool call fails naturally (no booking cards)."""
-    import asyncio
-    import json as _json
-    from legalos_orchestrator.agent.router import QueryRoute
-    from legalos_common.security.jwt import create_access_token
-
-    container = get_container()
-    guest_token = create_access_token(
-        "guest",
-        permissions=[Permission.SEARCH_READ.value, Permission.RESEARCH_READ.value],
+async def research_stream_guest(body: ResearchRequest, request: Request) -> StreamingResponse:
+    """Anonymous free-trial chat. A short-lived token scoped to search only lets KB
+    retrieval work; guests get research tools only and their memory is namespaced."""
+    remaining = await enforce_guest_chat_quota(request)
+    guest_token = create_scoped_token(
+        GUEST_ROLE,
+        roles=[GUEST_ROLE],
+        permissions=[Permission.SEARCH_READ.value],
+        expires_seconds=300,
     )
-    guest_creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=guest_token)
-
-    async def generator() -> AsyncIterator[str]:
-        yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
-
-        quick_route = container.router.quick_classify(body.query)
-        if quick_route == QueryRoute.CONVERSATIONAL:
-            memory_result = await container.memory_manager.retrieve_session_only(body.session_id)
-            route = QueryRoute.CONVERSATIONAL
-            history = (
-                [ConversationMessage(role=t.role, content=t.content) for t in memory_result.session_history] or None
-            ) if not isinstance(memory_result, Exception) else None
-        else:
-            route_result, memory_result = await asyncio.gather(
-                container.router.classify(body.query),
-                container.memory_manager.retrieve(body.session_id, None, body.query),
-                return_exceptions=True,
-            )
-            route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
-            history = (
-                [ConversationMessage(role=t.role, content=t.content) for t in memory_result.session_history] or None
-            ) if not isinstance(memory_result, Exception) else None
-
-        state = _build_state(
-            body,
-            credentials=guest_creds,
-            current_user=None,
-            server_history=history,
-            user_facts=[],
-            is_guest=True,
-        )
-        state = state.model_copy(update={"route": route})
-
-        guard = _input_guardrail.validate(state.query)
-        if not guard.passed:
-            yield "event: error\ndata: " + _json.dumps({"message": "Query rejected — please rephrase."}) + "\n\n"
-            return
-
-        answer = ""
-        async for chunk in container.orchestrator.run_state_streaming(state):
-            if chunk.startswith("event: done"):
-                try:
-                    answer = _json.loads(chunk.split("data: ", 1)[1].strip()).get("answer", "")
-                except Exception:
-                    pass
-            yield chunk
-
-        # Session-only memory (Redis) preserves guest multi-turn context; no LTM, no billing.
-        if answer and state.session_id:
-            asyncio.create_task(
-                container.memory_manager.persist(
-                    session_id=state.session_id,
-                    user_id=None,
-                    user_content=state.query,
-                    assistant_content=answer,
-                )
-            )
-
-    return StreamingResponse(
-        generator(),
-        media_type="text/event-stream",
+    return _stream_response(
+        ChatRequest(body=body, token=guest_token, user=None, is_guest=True),
         headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
+            "X-Guest-Remaining": str(remaining),
+            "Access-Control-Expose-Headers": "X-Guest-Remaining",
         },
     )
 
 
-@router.post(
-    "/document/{document_id}/stream",
-    summary="Stream research scoped to a single uploaded document",
-)
-async def research_document_stream(
-    document_id: uuid.UUID,
-    body: ResearchRequest,
-    current_user: CurrentUser = Depends(chat_rate_limit),
+@router.post("/voice/guest-token", summary="Mint a single-use guest voice token (1/day per IP)")
+async def guest_voice_token(request: Request, _rl: None = Depends(guest_voice_rate_limit)) -> dict:
+    """Single-use, short-lived token for the voice WebSocket. The WS consumes its
+    jti once and hard-caps the session. Kill switch: GUEST_VOICE_ENABLED=false."""
+    if os.environ.get("GUEST_VOICE_ENABLED", "true").lower() != "true":
+        raise HTTPException(status_code=404, detail="Guest voice is disabled")
+    token = create_scoped_token(
+        GUEST_ROLE,
+        roles=[GUEST_ROLE],
+        permissions=[Permission.SEARCH_READ.value],
+        expires_seconds=GUEST_VOICE_TOKEN_TTL,
+    )
+    container = get_container()
+    if container.redis:
+        jti = decode_token(token).jti
+        await container.redis.set(f"voice:guest:jti:{jti}", "1", ex=GUEST_VOICE_TOKEN_TTL)
+    return {"token": token, "max_duration_seconds": GUEST_VOICE_MAX_SECONDS}
+
+
+# ── Sessions (conversation memory) ────────────────────────────────────────────
+
+
+class _AttachDocumentRequest(BaseModel):
+    document_id: str
+
+
+class _TruncateRequest(BaseModel):
+    keep_turns: int = Field(ge=0, le=200)
+
+
+def _member_sid(session_id: str, user: CurrentUser) -> str:
+    return scoped_session_id(session_id, user_id=user.user_id, is_guest=False) or ""
+
+
+@router.post("/sessions/{session_id}/documents", summary="Attach an uploaded document to a session")
+async def attach_session_document(
+    session_id: str,
+    body: _AttachDocumentRequest,
+    current_user: CurrentUser = Depends(member_user),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-) -> StreamingResponse:
-    import asyncio
-    import json as _json
-    from legalos_orchestrator.agent.router import QueryRoute
-
-    container = get_container()
-
-    async def generator() -> AsyncIterator[str]:
-        yield "event: status\ndata: " + _json.dumps({"stage": "thinking", "message": "Understanding your question…"}) + "\n\n"
-
-        # Document-scoped stream always ends up LEGAL (docs force legal route).
-        # Still use two-phase to skip LTM for conversational queries.
-        quick_route = container.router.quick_classify(body.query)
-
-        if quick_route == QueryRoute.CONVERSATIONAL:
-            memory_result, doc_result = await asyncio.gather(
-                container.memory_manager.retrieve_session_only(body.session_id),
-                _resolve_session_documents(body, credentials),
-                return_exceptions=True,
-            )
-            route = QueryRoute.CONVERSATIONAL
-            if isinstance(memory_result, Exception):
-                history = None
-            else:
-                history = [
-                    ConversationMessage(role=t.role, content=t.content)
-                    for t in memory_result.session_history
-                ] or None
-            user_facts: list[str] = []
-        else:
-            route_result, memory_result, doc_result = await asyncio.gather(
-                container.router.classify(body.query),
-                container.memory_manager.retrieve(body.session_id, current_user.user_id, body.query),
-                _resolve_session_documents(body, credentials),
-                return_exceptions=True,
-            )
-            route = route_result if isinstance(route_result, QueryRoute) else QueryRoute.LEGAL
-            if isinstance(memory_result, Exception):
-                history = None
-                user_facts = []
-            else:
-                history = [
-                    ConversationMessage(role=t.role, content=t.content)
-                    for t in memory_result.session_history
-                ] or None
-                user_facts = memory_result.long_term_facts
-
-        if isinstance(doc_result, Exception) or doc_result is None:
-            session_doc_ids, session_doc_text = [], ""
-        else:
-            session_doc_ids, session_doc_text = doc_result
-
-        if session_doc_text and route == QueryRoute.CONVERSATIONAL:
-            route = QueryRoute.LEGAL
-        scoped_ids = _merge_doc_ids(session_doc_ids, [str(document_id)])
-        if str(document_id) not in (body.document_ids or []):
-            extra = await container.document_texts.fetch_excerpts(
-                [str(document_id)], user_token=credentials.credentials
-            )
-            if extra:
-                session_doc_text = f"{session_doc_text}\n\n{extra}".strip()
-        state = _build_state(
-            body,
-            credentials=credentials,
-            current_user=current_user,
-            document_id=str(document_id),
-            server_history=history,
-            user_facts=user_facts,
-            session_document_ids=scoped_ids,
-            session_document_text=session_doc_text,
-        )
-        state = state.model_copy(update={"route": route})
-
-        guard = _input_guardrail.validate(state.query)
-        if not guard.passed:
-            yield "event: error\ndata: " + _json.dumps({"message": "Query rejected — please rephrase."}) + "\n\n"
-            return
-
-        answer = ""
-        async for chunk in container.orchestrator.run_state_streaming(state):
-            if chunk.startswith("event: done"):
-                try:
-                    data_line = chunk.split("data: ", 1)[1].strip()
-                    answer = _json.loads(data_line).get("answer", "")
-                except Exception:
-                    pass
-            yield chunk
-
-        if answer and (state.session_id or state.user_id):
-            asyncio.create_task(
-                container.memory_manager.persist(
-                    session_id=state.session_id,
-                    user_id=state.user_id,
-                    user_content=state.query,
-                    assistant_content=answer,
-                )
-            )
-
-    return StreamingResponse(
-        generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@router.post(
-    "/transcribe",
-    summary="Transcribe an audio recording to text using Gemini",
-)
-async def transcribe_audio(
-    audio: UploadFile,
-    _: CurrentUser = Depends(chat_rate_limit),
 ) -> dict:
-    import base64 as _b64
-    import httpx as _httpx
+    container = get_container()
+    if not await container.document_texts.can_access(body.document_id, user_token=credentials.credentials):
+        raise HTTPException(status_code=404, detail="Document not found.")
+    sid = _member_sid(session_id, current_user)
+    await container.session_documents.attach(sid, body.document_id)
+    return {"session_id": session_id, "document_ids": await container.session_documents.get(sid)}
 
-    data = await audio.read()
+
+@router.get("/sessions/{session_id}/documents", summary="List documents attached to a session")
+async def get_session_documents(session_id: str, current_user: CurrentUser = Depends(member_user)) -> dict:
+    container = get_container()
+    doc_ids = await container.session_documents.get(_member_sid(session_id, current_user))
+    return {"session_id": session_id, "document_ids": doc_ids}
+
+
+@router.delete(
+    "/sessions/{session_id}/documents/{document_id}",
+    status_code=204,
+    summary="Remove a document from a session's context",
+)
+async def detach_session_document(
+    session_id: str, document_id: str, current_user: CurrentUser = Depends(member_user)
+) -> None:
+    container = get_container()
+    await container.session_documents.remove(_member_sid(session_id, current_user), document_id)
+
+
+@router.post("/sessions/{session_id}/truncate", status_code=204, summary="Rewind session memory")
+async def truncate_session(
+    session_id: str, body: _TruncateRequest, current_user: CurrentUser = Depends(member_user)
+) -> None:
+    """Keep the first ``keep_turns`` turns — used by edit-and-resend so the model
+    no longer sees the discarded exchange."""
+    container = get_container()
+    await container.memory_manager.truncate_session(_member_sid(session_id, current_user), body.keep_turns)
+
+
+@router.delete("/sessions/{session_id}", status_code=204, summary="Forget a conversation")
+async def forget_session(session_id: str, current_user: CurrentUser = Depends(member_user)) -> None:
+    """Called when a user deletes a chat: drops its history, attachments and the
+    long-term facts learned from it."""
+    container = get_container()
+    sid = _member_sid(session_id, current_user)
+    await container.memory_manager.forget_session(sid, current_user.user_id)
+    for doc_id in await container.session_documents.get(sid):
+        await container.session_documents.remove(sid, doc_id)
+
+
+@router.delete("/memory", status_code=204, summary="Erase everything Saarthi remembers about me")
+async def forget_me(current_user: CurrentUser = Depends(member_user)) -> None:
+    await get_container().memory_manager.forget_user(current_user.user_id)
+
+
+# ── Speech-to-text ────────────────────────────────────────────────────────────
+
+_TRANSCRIBE_PROMPT = (
+    "Transcribe this audio exactly as spoken, in the language spoken. Return only the "
+    "transcription text, with no labels, commentary, or formatting."
+)
+
+
+async def _read_audio(audio: UploadFile) -> tuple[bytes, str]:
+    mime = (audio.content_type or "audio/webm").split(";")[0].strip()
+    if not mime.startswith(_AUDIO_TYPES):
+        raise HTTPException(status_code=415, detail="Unsupported audio format.")
+    data = await audio.read(_AUDIO_MAX_BYTES + 1)
     if not data:
         raise HTTPException(status_code=422, detail="Empty audio file.")
+    if len(data) > _AUDIO_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Recording is too long. Please keep it under a few minutes.")
+    return data, mime
 
-    mime = audio.content_type or "audio/webm"
+
+def _transcribe_request(data: bytes, mime: str) -> tuple[str, dict, dict]:
     container = get_container()
-    api_key = container.settings.llm.llm_api_key
-    model = container.settings.llm.llm_model.removeprefix("models/")
-
-    if not api_key:
+    llm_cfg = container.settings.llm
+    if not llm_cfg.llm_api_key:
         raise HTTPException(status_code=503, detail="Transcription unavailable.")
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+    model = (llm_cfg.llm_fast_model or llm_cfg.llm_model).removeprefix("models/")
+    headers = {"x-goog-api-key": llm_cfg.llm_api_key, "Content-Type": "application/json"}
     body = {
         "contents": [{
             "parts": [
-                {"inlineData": {"mimeType": mime, "data": _b64.b64encode(data).decode()}},
-                {"text": "Transcribe this audio exactly as spoken. Return only the transcription text, with no labels, commentary, or formatting."},
+                {"inlineData": {"mimeType": mime, "data": base64.b64encode(data).decode()}},
+                {"text": _TRANSCRIBE_PROMPT},
             ]
         }]
     }
+    return f"https://generativelanguage.googleapis.com/v1beta/models/{model}", headers, body
 
-    async with _httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(url, headers=headers, json=body)
 
+@router.post("/transcribe", summary="Transcribe an audio recording to text")
+async def transcribe_audio(audio: UploadFile, current_user: CurrentUser = Depends(member_user)) -> dict:
+    await enforce_transcribe_limits(current_user)
+    data, mime = await _read_audio(audio)
+    base, headers, body = _transcribe_request(data, mime)
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(f"{base}:generateContent", headers=headers, json=body)
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="Transcription timed out. Please try again.") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="Transcription service error.") from exc
     if resp.is_error:
-        logger.warning("transcribe_audio gemini_error status=%s body=%s", resp.status_code, resp.text[:300])
+        logger.warning("transcribe_audio_provider_error status=%s", resp.status_code)
         raise HTTPException(status_code=502, detail="Transcription service error.")
 
     candidates = resp.json().get("candidates", [])
-    transcript = ""
-    if candidates:
-        parts = candidates[0].get("content", {}).get("parts", [])
-        transcript = "".join(p.get("text", "") for p in parts).strip()
-
+    parts = candidates[0].get("content", {}).get("parts", []) if candidates else []
+    transcript = "".join(p.get("text", "") for p in parts).strip()
     if not transcript:
         raise HTTPException(status_code=422, detail="Could not transcribe audio.")
     return {"transcript": transcript}
 
 
-@router.post(
-    "/transcribe/stream",
-    summary="Stream transcription of an audio recording token-by-token",
-)
+@router.post("/transcribe/stream", summary="Stream transcription of an audio recording")
 async def transcribe_audio_stream(
-    audio: UploadFile,
-    _: CurrentUser = Depends(chat_rate_limit),
+    audio: UploadFile, current_user: CurrentUser = Depends(member_user)
 ) -> StreamingResponse:
-    import base64 as _b64
-    import json as _json
-    import httpx as _httpx
+    await enforce_transcribe_limits(current_user)
+    data, mime = await _read_audio(audio)
+    base, headers, body = _transcribe_request(data, mime)
 
-    data = await audio.read()
-    if not data:
-        raise HTTPException(status_code=422, detail="Empty audio file.")
-
-    mime = audio.content_type or "audio/webm"
-    container = get_container()
-    api_key = container.settings.llm.llm_api_key
-    model = container.settings.llm.llm_model.removeprefix("models/")
-
-    if not api_key:
-        raise HTTPException(status_code=503, detail="Transcription unavailable.")
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent"
-    headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
-    body = {
-        "contents": [{
-            "parts": [
-                {"inlineData": {"mimeType": mime, "data": _b64.b64encode(data).decode()}},
-                {"text": "Transcribe this audio exactly as spoken. Return only the transcription text, with no labels, commentary, or formatting."},
-            ]
-        }]
-    }
-
-    async def generator():
-        async with _httpx.AsyncClient(timeout=60.0) as client:
-            async with client.stream(
-                "POST", url, headers=headers, params={"alt": "sse"}, json=body
-            ) as resp:
-                if resp.is_error:
-                    yield "event: error\ndata: " + _json.dumps({"message": "Transcription failed."}) + "\n\n"
-                    return
-                async for line in resp.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
-                    payload = line[5:].strip()
-                    if not payload or payload == "[DONE]":
-                        continue
-                    try:
-                        chunk = _json.loads(payload)
-                    except _json.JSONDecodeError:
-                        continue
-                    parts = (chunk.get("candidates") or [{}])[0] \
-                        .get("content", {}).get("parts", [])
-                    token = "".join(p.get("text", "") for p in parts)
-                    if token:
-                        yield "event: token\ndata: " + _json.dumps({"text": token}) + "\n\n"
+    async def generator() -> AsyncIterator[str]:
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                async with client.stream(
+                    "POST", f"{base}:streamGenerateContent", headers=headers, params={"alt": "sse"}, json=body
+                ) as resp:
+                    if resp.is_error:
+                        yield "event: error\ndata: " + json.dumps({"message": "Transcription failed."}) + "\n\n"
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        payload = line[5:].strip()
+                        if not payload or payload == "[DONE]":
+                            continue
+                        try:
+                            chunk = json.loads(payload)
+                        except json.JSONDecodeError:
+                            continue
+                        parts = (chunk.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+                        token = "".join(p.get("text", "") for p in parts)
+                        if token:
+                            yield "event: token\ndata: " + json.dumps({"text": token}) + "\n\n"
+        except httpx.HTTPError:
+            yield "event: error\ndata: " + json.dumps({"message": "Transcription failed."}) + "\n\n"
+            return
         yield "event: done\ndata: {}\n\n"
 
     return StreamingResponse(
@@ -746,68 +370,27 @@ async def transcribe_audio_stream(
     )
 
 
-class _AttachDocumentRequest(BaseModel):
-    document_id: str
-
-
-@router.post(
-    "/sessions/{session_id}/documents",
-    summary="Attach an uploaded document to a Saarthi session (adds to LLM context)",
-)
-async def attach_session_document(
-    session_id: str,
-    body: _AttachDocumentRequest,
-    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
-) -> dict:
-    container = get_container()
-    await container.session_documents.attach(session_id, body.document_id)
-    doc_ids = await container.session_documents.get(session_id)
-    return {"session_id": session_id, "document_ids": doc_ids}
-
-
-@router.get(
-    "/sessions/{session_id}/documents",
-    summary="List documents attached to a Saarthi session",
-)
-async def get_session_documents(
-    session_id: str,
-    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
-) -> dict:
-    container = get_container()
-    doc_ids = await container.session_documents.get(session_id)
-    return {"session_id": session_id, "document_ids": doc_ids}
-
-
-@router.delete(
-    "/sessions/{session_id}/documents/{document_id}",
-    status_code=204,
-    summary="Remove a document from a Saarthi session's context",
-)
-async def detach_session_document(
-    session_id: str,
-    document_id: str,
-    current_user: CurrentUser = Depends(require_permissions(Permission.RESEARCH_READ.value)),
-) -> None:
-    container = get_container()
-    await container.session_documents.remove(session_id, document_id)
+# ── Text-to-speech ────────────────────────────────────────────────────────────
 
 
 async def _maybe_rewrite_for_speech(text: str, *, rewrite: bool, language: str) -> str:
     locale = get_speech_locale(language)
-    if not rewrite:
-        return text
-    if len(text) <= 800 and locale.code == "en-IN":
+    if not rewrite or (len(text) <= 800 and locale.code == "en-IN"):
         return text
     container = get_container()
     if isinstance(container.tts, StubTTSClient):
         return text
-    script = await container.llm.complete(
-        [
-            ChatMessage(role="system", content=locale.rewrite_prompt),
-            ChatMessage(role="user", content=text),
-        ],
-        temperature=0.3,
-    )
+    try:
+        script = await container.llm_fast.complete(
+            [
+                ChatMessage(role="system", content=locale.rewrite_prompt),
+                ChatMessage(role="user", content=text),
+            ],
+            temperature=0.3,
+        )
+    except Exception as exc:
+        logger.warning("tts_rewrite_failed error=%s", type(exc).__name__)
+        return text
     return script.strip() or text
 
 
@@ -816,13 +399,12 @@ def _frame_pcm(chunk: bytes) -> bytes:
 
 
 async def _collect_sentence(tts, sentence: str, voice: str) -> list[bytes]:
-    """Collect all framed PCM for one sentence — used for background prefetch."""
     frames: list[bytes] = []
     try:
         async for pcm in tts.stream_speech(sentence, voice=voice):
             frames.append(_frame_pcm(pcm))
     except Exception as exc:
-        logger.warning("tts_chunk_error sentence=%r error=%s", sentence[:40], exc)
+        logger.warning("tts_chunk_error error=%s", exc)
     return frames
 
 
@@ -830,43 +412,28 @@ async def _tts_byte_stream(text: str, *, voice: str) -> AsyncIterator[bytes]:
     import asyncio
 
     container = get_container()
-    if isinstance(container.tts, StubTTSClient):
-        raise RuntimeError("TTS unavailable in stub mode")
-
     chunks = prepare_speech_chunks(text)
     if not chunks:
         return
-
-    # Kick off background synthesis for sentences 2+ immediately so they are
-    # ready (or nearly ready) by the time sentence 1 finishes playing.
-    prefetch = [
-        asyncio.create_task(_collect_sentence(container.tts, s, voice=voice))
-        for s in chunks[1:]
-    ]
-
-    # Stream sentence 1 directly — first audio reaches the browser fastest.
+    # Synthesise sentences 2+ in the background while sentence 1 streams.
+    prefetch = [asyncio.create_task(_collect_sentence(container.tts, s, voice=voice)) for s in chunks[1:]]
     try:
-        async for pcm in container.tts.stream_speech(chunks[0], voice=voice):
-            yield _frame_pcm(pcm)
-    except Exception as exc:
-        logger.warning("tts_chunk_error sentence=%r error=%s", chunks[0][:40], exc)
+        try:
+            async for pcm in container.tts.stream_speech(chunks[0], voice=voice):
+                yield _frame_pcm(pcm)
+        except Exception as exc:
+            logger.warning("tts_chunk_error error=%s", exc)
+        for task in prefetch:
+            for framed in await task:
+                yield framed
+    finally:
+        for task in prefetch:  # listener left early — stop paying for synthesis
+            if not task.done():
+                task.cancel()
 
-    # Yield remaining sentences in order as each background task completes.
-    for task in prefetch:
-        for framed in await task:
-            yield framed
-            # continue with remaining chunks rather than aborting the whole stream
 
-
-
-@router.post(
-    "/tts/stream",
-    summary="Stream natural speech audio for a legal answer",
-)
-async def tts_stream(
-    body: TtsRequest,
-    _: CurrentUser = Depends(tts_rate_limit),
-) -> StreamingResponse:
+@router.post("/tts/stream", summary="Stream natural speech audio for a legal answer")
+async def tts_stream(body: TtsRequest, _: CurrentUser = Depends(tts_rate_limit)) -> StreamingResponse:
     prepared = prepare_speech_text(body.text)
     if not prepared:
         raise ValidationFailedError("No speakable text after preprocessing.")
@@ -876,16 +443,10 @@ async def tts_stream(
         raise HTTPException(status_code=503, detail="TTS unavailable in stub mode")
 
     locale = get_speech_locale(body.language)
-    speak_text = await _maybe_rewrite_for_speech(
-        prepared, rewrite=body.rewrite_for_speech, language=body.language
-    )
-
-    async def generator() -> AsyncIterator[bytes]:
-        async for framed in _tts_byte_stream(speak_text, voice=locale.voice):
-            yield framed
+    speak_text = await _maybe_rewrite_for_speech(prepared, rewrite=body.rewrite_for_speech, language=body.language)
 
     return StreamingResponse(
-        generator(),
+        _tts_byte_stream(speak_text, voice=locale.voice),
         media_type="application/octet-stream",
         headers={
             "X-Audio-Sample-Rate": str(container.tts.sample_rate),

@@ -8,15 +8,14 @@ from legalos_orchestrator.schemas import ConversationMessage, Intent, Jurisdicti
 
 
 class ResearchRequest(BaseModel):
-    query: str = Field(min_length=3, max_length=4000)
+    query: str = Field(min_length=1, max_length=4000)
     jurisdiction: str | None = None
     scope: ResearchScope = ResearchScope.CORPUS
     document_id: str | None = None
     document_ids: list[str] | None = None
     doc_type: str | None = None
     history: list[ConversationMessage] = Field(default_factory=list, max_length=40)
-    session_id: str | None = None
-    user_id: str | None = None
+    session_id: str | None = Field(default=None, max_length=100)
 
     def search_filters(self) -> SearchFilters:
         return SearchFilters(

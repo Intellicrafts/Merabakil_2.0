@@ -25,22 +25,15 @@ def _make_source(doc_id: str, title: str = "Test Contract") -> RetrievedSource:
 # ---------------------------------------------------------------------------
 
 def test_format_sources_single() -> None:
-    sources = [_make_source("doc-123", "Test Contract")]
-    text = _format_sources(sources, offset=0)
+    text = _format_sources([(1, _make_source("doc-123", "Test Contract"))])
     assert "[KB-1]" in text
     assert "Test Contract" in text
     assert "Indemnity clause" in text
 
 
-def test_format_sources_offset() -> None:
-    sources = [_make_source("doc-456", "Second Contract")]
-    text = _format_sources(sources, offset=2)
-    assert "[KB-3]" in text  # 2 + 1 = 3
-
-
-def test_format_sources_empty() -> None:
-    text = _format_sources([], offset=0)
-    assert "No relevant documents found" in text
+def test_format_sources_uses_registry_numbers() -> None:
+    text = _format_sources([(3, _make_source("doc-456", "Second Contract"))])
+    assert "[KB-3]" in text
 
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ class DocumentTextClient:
                 headers=headers,
             )
             if resp.status_code != 200:
+                logger.warning("document_text_unavailable status=%s", resp.status_code)
                 return None
             body = resp.json()
             title = body.get("title") or body.get("filename") or doc_id
@@ -44,6 +45,19 @@ class DocumentTextClient:
         except Exception as exc:
             logger.warning("document_text_fetch_failed document_id=%s error=%s", doc_id, exc)
             return None
+
+    async def can_access(self, document_id: str, *, user_token: str) -> bool:
+        """True when the document service lets this user read the document."""
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    f"{self._base}/api/v1/documents/{document_id}/text",
+                    headers={"Authorization": f"Bearer {user_token}"},
+                )
+            return resp.status_code == 200
+        except Exception as exc:
+            logger.warning("document_access_check_failed error=%s", exc)
+            return False
 
     async def fetch_excerpts(
         self,
