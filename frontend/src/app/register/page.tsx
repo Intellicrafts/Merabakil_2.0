@@ -116,7 +116,7 @@ function RegisterForm() {
       setStepError(t("auth.invalidEmail"));
       return;
     }
-    track(AnalyticsEvents.SIGNUP_STARTED, { signup_method: "email", account_type: role });
+    track(AnalyticsEvents.SIGNUP_STARTED, { method: "email", account_type: role });
     sendOtpMutation.mutate();
   };
 

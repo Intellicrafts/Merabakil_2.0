@@ -46,6 +46,7 @@ import {
   bucketCount,
   clearAnalyticsUser,
   setAnalyticsUser,
+  setUserType,
   track,
 } from "@/lib/analytics";
 import { clearAvatarUrl, storeAvatarUrl } from "@/lib/avatar";
@@ -119,6 +120,7 @@ export function setSession(auth: AuthResponse): void {
     storeAvatarUrl(auth.user.avatar_url);
   }
   void setAnalyticsUser(auth.user.user_id, primaryRole(auth.user.roles));
+  setUserType("registered");
   notifyAuthChanged();
 }
 
@@ -128,6 +130,7 @@ export function clearSession(): void {
   window.localStorage.removeItem(USER_KEY);
   clearAvatarUrl();
   clearAnalyticsUser();
+  setUserType("guest");
   notifyAuthChanged();
 }
 

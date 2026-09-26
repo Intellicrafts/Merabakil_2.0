@@ -67,6 +67,19 @@ export const ALLOWED_PARAM_KEYS = new Set([
   "gclid",
   // AI matching
   "match_result_count",
+  // Saarthi guest funnel (enums / counts only — never message text)
+  "is_guest",
+  "lang",
+  "source",
+  "length_bucket",
+  "reason",
+  "limit_type",
+  "chats_used",
+  "voice_seconds_used",
+  "ended_by",
+  "trigger",
+  "method",
+  "error_code",
 ]);
 
 export type AnalyticsParamValue = string | number | boolean;

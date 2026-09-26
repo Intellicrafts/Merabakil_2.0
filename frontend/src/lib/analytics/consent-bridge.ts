@@ -7,9 +7,14 @@ declare global {
   }
 }
 
-function gtag(...args: unknown[]) {
+/**
+ * gtag.js only executes commands pushed as an `arguments` object — a plain
+ * array is silently ignored (that previously made "Necessary only" a no-op).
+ */
+function gtag(..._args: unknown[]) {
   window.dataLayer = window.dataLayer ?? [];
-  window.dataLayer.push(args);
+  // eslint-disable-next-line prefer-rest-params
+  window.dataLayer.push(arguments);
 }
 
 /**

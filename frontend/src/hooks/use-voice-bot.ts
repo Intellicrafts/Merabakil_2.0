@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AnalyticsEvents, track } from "@/lib/analytics";
 import { ensureFreshToken, fetchGuestVoiceToken, GuestLimitError } from "@/lib/api";
 import { rafUpdateIntervalMs } from "@/lib/perf";
 import { researchServiceUrl } from "@/lib/service-urls";
@@ -50,6 +51,16 @@ interface UseVoiceBotOptions {
 export type VoiceErrorKind = "unavailable" | "reconnect_failed" | null;
 
 const GUEST_SECONDS = 90;
+
+type VoiceEndedBy = "user" | "limit" | "error";
+
+export function durationBucket(seconds: number, endedBy: VoiceEndedBy, guest: boolean): string {
+  if (guest && (endedBy === "limit" || seconds >= GUEST_SECONDS)) return "90s_cap";
+  if (seconds < 30) return "<30s";
+  if (seconds < 60) return "30-60s";
+  if (seconds < 90) return "60-90s";
+  return "over_90s"; // members only — their sessions aren't capped at 90s
+}
 
 export interface UseVoiceBotResult {
   botState: VoiceBotState;
@@ -117,6 +128,9 @@ export function useVoiceBot({
   const localeRef = useRef(speechLocale);
   const sessionIdRef = useRef(sessionId ?? null);
   const guestTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // voice_session_ended: set when the mic goes live; reported once per session.
+  const sessionStartRef = useRef<number | null>(null);
+  const endReasonRef = useRef<VoiceEndedBy | null>(null);
 
   const wsRef        = useRef<WebSocket | null>(null);
 
@@ -208,7 +222,21 @@ export function useVoiceBot({
     // micCtxRef intentionally NOT closed here
   }, []);
 
+  const reportSessionEnd = useCallback((endedBy: VoiceEndedBy) => {
+    const started = sessionStartRef.current;
+    sessionStartRef.current = null;
+    if (!started) return;
+    const seconds = (Date.now() - started) / 1000;
+    track(AnalyticsEvents.VOICE_SESSION_ENDED, {
+      is_guest: guestRef.current,
+      duration_bucket: durationBucket(seconds, endedBy, guestRef.current),
+      ended_by: endedBy,
+    });
+  }, []);
+
   const stop = useCallback(() => {
+    reportSessionEnd(endReasonRef.current ?? "user");
+    endReasonRef.current = null;
     connectGenRef.current += 1; // cancel any connect still awaiting
     if (guestTimerRef.current) {
       clearTimeout(guestTimerRef.current);
@@ -225,7 +253,7 @@ export function useVoiceBot({
     stopMic();
     setBotState("idle");
     setTranscript("");
-  }, [stopPlayback, stopMic]);
+  }, [stopPlayback, stopMic, reportSessionEnd]);
   stopRef.current = stop;
 
   const interrupt = useCallback(() => {
@@ -387,6 +415,7 @@ export function useVoiceBot({
           source.connect(worklet);
           worklet.connect(silentGain);
           silentGain.connect(micCtx.destination);
+          sessionStartRef.current = Date.now();
 
           // Guest preview clock starts only now that the mic is actually live.
           if (guestRef.current) {
@@ -398,6 +427,7 @@ export function useVoiceBot({
               setSecondsLeft(Math.max(0, Math.round((endsAt - Date.now()) / 1000)));
             }, 1000);
             guestTimerRef.current = setTimeout(() => {
+              endReasonRef.current = "limit";
               stopRef.current();
               onGuestEndedRef.current?.();
             }, GUEST_SECONDS * 1000);
@@ -433,6 +463,7 @@ export function useVoiceBot({
               }));
               break;
             case "guest_ended":
+              endReasonRef.current = "limit";
               stopRef.current();
               onGuestEndedRef.current?.();
               break;
@@ -488,6 +519,7 @@ export function useVoiceBot({
         stopMic();
         if (openRef.current) setBotState("idle");
         // Closes the server made on purpose are final — don't auto-reconnect into them.
+        reportSessionEnd(e.code === 4090 || e.code === 4408 ? "limit" : "error");
         if (e.code === 4001 || e.code === 4029 || e.code === 4402 || e.code === 4408) {
           setErrorKind("unavailable");
         }
@@ -495,13 +527,14 @@ export function useVoiceBot({
 
       ws.onerror = (e) => {
         if (wsRef.current !== ws) return;
+        reportSessionEnd("error");
         console.error("[voice-bot] WebSocket error:", e);
         stopPlayback();
         stopMic();
         setBotState("idle");
       };
     })();
-  }, [stopPlayback, stopMic, scheduleChunk]);
+  }, [stopPlayback, stopMic, scheduleChunk, reportSessionEnd]);
 
   useEffect(() => { connectRef.current = connect; }, [connect]);
 

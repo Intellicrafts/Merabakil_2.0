@@ -109,7 +109,7 @@ const CONTEXT_PANEL_KEY = "mera-vakil.context-panel-open";
 
 export default function MeraVakilPage() {
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const [historyError, setHistoryError] = useState(false);
   const researchingRef = useRef(false);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
@@ -1045,13 +1045,22 @@ export default function MeraVakilPage() {
 
     const startedAt = Date.now();
     const isNewChat = baseMessages.length === 0;
+    const lengthBucket =
+      query.length < 50 ? "short" : query.length < 200 ? "medium" : query.length < 600 ? "long" : "very_long";
+    track(AnalyticsEvents.QUESTION_SUBMITTED, {
+      source: options?.editMessageId ? "edit_resend" : "typed",
+      lang,
+      length_bucket: lengthBucket,
+      is_guest: false,
+    });
     if (isNewChat) {
-      track(AnalyticsEvents.AI_CHAT_STARTED, { session_type: "saarthi", entry_point: "composer" });
+      track(AnalyticsEvents.AI_CHAT_STARTED, { session_type: "saarthi", entry_point: "composer", is_guest: false });
     }
     track(AnalyticsEvents.AI_MESSAGE_SENT, {
       has_attachment: Boolean(options?.attachments?.length),
       message_count_bucket: bucketCount(withUser.messages.length),
       interaction_type: options?.editMessageId ? "edit_resend" : "send",
+      is_guest: false,
     });
 
     const assistantMsgId = crypto.randomUUID?.() ?? `asst-${Date.now()}`;
@@ -1104,7 +1113,7 @@ export default function MeraVakilPage() {
             // Conversion: the /ask visitor's first question just got its answer.
             if (firstAnswerPendingRef.current) {
               firstAnswerPendingRef.current = false;
-              track(AnalyticsEvents.FIRST_ANSWER_SHOWN, {});
+              track(AnalyticsEvents.FIRST_ANSWER_SHOWN, { is_guest: false });
             }
             const streamed = streamReveal.content.trim();
             const guardrailed = (citationsResult.answer ?? "").trim();

@@ -24,6 +24,7 @@ import {
 import { useTranslation } from "@/lib/i18n";
 import { LEGAL_VERSIONS } from "@/lib/site-metadata";
 import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
+import { clearSignupSource, setSignupSource, type SignupTrigger } from "@/lib/analytics/signup-source";
 
 /** Where the visitor lands after auth — Saarthi auto-sends the stashed question. */
 const NEXT = "/mera-vakil";
@@ -50,8 +51,8 @@ export function AskAuthSheet({
   /** Optional overrides — e.g. the "you've used today's free chats" wall. */
   title?: string;
   subtitle?: string;
-  /** Attribution for signup events, e.g. "guest_wall". */
-  source?: string;
+  /** Which guest prompt opened the sheet — attached as `source` to signup events. */
+  source?: SignupTrigger;
 }) {
   const router = useRouter();
   const { t } = useTranslation();
@@ -68,6 +69,11 @@ export function AskAuthSheet({
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMounted(true), []);
+
+  // Remember the trigger so the Google path (redirect + onboarding) is attributed too.
+  useEffect(() => {
+    if (open && source) setSignupSource(source);
+  }, [open, source]);
 
   // Keyboard: Escape closes, Tab stays inside the sheet, focus returns afterwards.
   useEffect(() => {
@@ -143,8 +149,8 @@ export function AskAuthSheet({
     setBusy(true);
     setError(null);
     try {
-      track(AnalyticsEvents.SIGNUP_STARTED, {
-        method: tab === "register" ? "email" : "email_login",
+      track(tab === "register" ? AnalyticsEvents.SIGNUP_STARTED : AnalyticsEvents.LOGIN_STARTED, {
+        method: "email",
         ...(source ? { source } : {}),
       });
       await sendOtp(trimmed, tab === "register" ? "register" : "login");
@@ -167,8 +173,10 @@ export function AskAuthSheet({
         track(AnalyticsEvents.LOGIN_COMPLETED, {
           authentication_method: "otp",
           account_type: auth.user.roles?.[0] ?? "citizen",
+          ...(source ? { source } : {}),
           ...utmAsAnalyticsParams(),
         });
+        clearSignupSource();
         await goToSaarthi();
         return;
       }
@@ -207,6 +215,7 @@ export function AskAuthSheet({
         ...(source ? { source } : {}),
         ...utmAsAnalyticsParams(),
       });
+      clearSignupSource();
       await goToSaarthi();
     } catch (err) {
       setError((err as Error).message);

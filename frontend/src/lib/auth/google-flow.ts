@@ -1,5 +1,6 @@
 "use client";
 
+import { clearSignupSource, signupSourceParam } from "@/lib/analytics/signup-source";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 import { acquisitionPayload, AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
@@ -66,7 +67,7 @@ export async function handleGoogleAuthResult(
   nextPath?: string | null,
 ): Promise<void> {
   if (isGoogleNeedsRole(result)) {
-    track(AnalyticsEvents.SIGNUP_STARTED, { signup_method: "google" });
+    track(AnalyticsEvents.SIGNUP_STARTED, { method: "google", ...signupSourceParam() });
     storeAvatarUrl(result.picture);
     storeGoogleOnboarding({
       onboarding_token: result.onboarding_token,
@@ -110,8 +111,10 @@ export async function completeGoogleOnboarding(
   track(AnalyticsEvents.SIGNUP_COMPLETED, {
     signup_method: "google",
     account_type: role,
+    ...signupSourceParam(),
     ...utmAsAnalyticsParams(),
   });
+  clearSignupSource();
   track(AnalyticsEvents.ONBOARDING_COMPLETED, { account_type: role });
   clearGoogleOnboarding();
   await finishAuthSession(auth, router, nextPath);

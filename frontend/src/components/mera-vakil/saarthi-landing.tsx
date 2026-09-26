@@ -12,7 +12,8 @@ import { MessageList } from "@/components/mera-vakil/message-list";
 import { StarterSuggestions } from "@/components/mera-vakil/starter-suggestions";
 import { VoiceModeOverlay } from "@/components/mera-vakil/voice-mode-overlay";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
-import { AnalyticsEvents, bucketLatency, captureUtmFromSearch, track } from "@/lib/analytics";
+import { AnalyticsEvents, bucketCount, bucketLatency, captureUtmFromSearch, track } from "@/lib/analytics";
+import type { SignupTrigger } from "@/lib/analytics/signup-source";
 import { GuestLimitError, streamResearchGuest } from "@/lib/api";
 import { chatErrorCode } from "@/lib/chat-errors";
 import { createUserMessage, toResearchHistory, type ChatMessage } from "@/lib/conversations";
@@ -21,7 +22,9 @@ import {
   canGuestChat,
   canGuestVoice,
   getGuestSessionId,
+  GUEST_DAILY_CHAT_LIMIT,
   guestChatsRemaining,
+  guestChatsUsedToday,
   markGuestChatLimitReached,
   recordGuestChat,
   recordGuestVoiceUsed,
@@ -65,7 +68,8 @@ function SaarthiLandingInner() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [wall, setWall] = useState<{ title?: string; subtitle?: string }>({});
+  const [wall, setWall] = useState<{ title?: string; subtitle?: string; trigger?: SignupTrigger }>({});
+  const nudgeShownRef = useRef(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | undefined>();
@@ -109,7 +113,7 @@ function SaarthiLandingInner() {
     const wantVoice = consumeMeraVakilVoiceOpen();
     if (carried) setQuery(carried);
     if (wantVoice && FEATURES.GUEST_VOICE && canGuestVoice()) {
-      track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { guest: true });
+      track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { is_guest: true });
       setVoiceOpen(true);
     } else if (carried && autoSend) {
       void submitQuestion(carried, "typed");
@@ -126,6 +130,14 @@ function SaarthiLandingInner() {
         .map((m) => ({ role: m.role, content: m.content })),
     );
   }, [messages, streamingId]);
+
+  // The in-chat sign-up nudge counts as a prompt the first time it appears.
+  useEffect(() => {
+    if (messages.length > 0 && !nudgeShownRef.current) {
+      nudgeShownRef.current = true;
+      track(AnalyticsEvents.GUEST_SIGNUP_PROMPT_SHOWN, { trigger: "nudge" });
+    }
+  }, [messages.length]);
 
   // Stop an in-flight answer if the visitor leaves the page.
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -146,23 +158,47 @@ function SaarthiLandingInner() {
     { icon: ShieldCheck, label: t("ask.trust4") },
   ];
 
-  function openWall(pendingQuestion: string, reason: "chat" | "voice") {
+  type LimitHit =
+    | { reason: "text"; limitType: "daily_messages" }
+    | { reason: "voice"; limitType: "daily_voice_session" | "voice_time_cap"; voiceSeconds?: number };
+
+  /** Show the sign-up sheet for a guest prompt. Limit hits also emit guest_limit_reached. */
+  function openSignupPrompt(trigger: SignupTrigger, pendingQuestion = "", limit?: LimitHit) {
     if (pendingQuestion.trim()) {
       setMeraVakilPrefill(pendingQuestion.trim());
       setMeraVakilAutoSend();
     }
-    track(AnalyticsEvents.GUEST_LIMIT_REACHED, { reason });
-    setWall({ title: t("ask.limitTitle"), subtitle: t("ask.limitSubtitle") });
+    if (limit?.reason === "text") {
+      track(AnalyticsEvents.GUEST_LIMIT_REACHED, {
+        reason: "text",
+        limit_type: limit.limitType,
+        chats_used: Math.max(guestChatsUsedToday(), GUEST_DAILY_CHAT_LIMIT),
+      });
+    } else if (limit?.reason === "voice") {
+      track(AnalyticsEvents.GUEST_LIMIT_REACHED, {
+        reason: "voice",
+        limit_type: limit.limitType,
+        ...(limit.voiceSeconds !== undefined ? { voice_seconds_used: limit.voiceSeconds } : {}),
+      });
+    }
+    track(AnalyticsEvents.GUEST_SIGNUP_PROMPT_SHOWN, { trigger });
+    setWall(
+      trigger === "nudge"
+        ? { trigger }
+        : { title: t("ask.limitTitle"), subtitle: t("ask.limitSubtitle"), trigger },
+    );
     setAuthOpen(true);
   }
 
   function openGuestVoice(pendingText: string) {
     // Voice: opt-in (FEATURES.GUEST_VOICE). When unavailable, invite sign-up instead.
     if (FEATURES.GUEST_VOICE && canGuestVoice()) {
-      track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { guest: true });
+      track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { is_guest: true });
       setVoiceOpen(true);
+    } else if (FEATURES.GUEST_VOICE) {
+      openSignupPrompt("voice_limit", pendingText, { reason: "voice", limitType: "daily_voice_session" });
     } else {
-      openWall(pendingText, "voice");
+      openSignupPrompt("voice_limit", pendingText); // guest voice switched off — not a limit
     }
   }
 
@@ -179,16 +215,26 @@ function SaarthiLandingInner() {
     const trimmed = text.trim();
     if (!trimmed || abortRef.current) return;
     if (!canGuestChat()) {
-      openWall(trimmed, "chat");
+      openSignupPrompt("text_limit", trimmed, { reason: "text", limitType: "daily_messages" });
       return;
     }
     const startedAt = Date.now();
 
+    const isFirstMessage = !messagesRef.current.some((m) => m.role === "user");
     track(AnalyticsEvents.QUESTION_SUBMITTED, {
-      source,
+      source: opts?.retryOf ? "retry" : source,
       lang,
       length_bucket: lengthBucket(trimmed.length),
-      guest: true,
+      is_guest: true,
+    });
+    if (isFirstMessage) {
+      track(AnalyticsEvents.AI_CHAT_STARTED, { session_type: "saarthi", entry_point: "guest", is_guest: true });
+    }
+    track(AnalyticsEvents.AI_MESSAGE_SENT, {
+      has_attachment: false,
+      message_count_bucket: bucketCount(messagesRef.current.filter((m) => m.role === "user").length + 1),
+      interaction_type: opts?.retryOf ? "retry" : "send",
+      is_guest: true,
     });
 
     // A retry replaces the failed exchange instead of stacking a new one.
@@ -233,7 +279,7 @@ function SaarthiLandingInner() {
             if (!firstAnswerFiredRef.current) {
               firstAnswerFiredRef.current = true;
               track(AnalyticsEvents.FIRST_ANSWER_SHOWN, {
-                guest: true,
+                is_guest: true,
                 has_citations: Boolean(result.citations?.length || result.web_sources?.length),
                 latency_bucket: bucketLatency(Date.now() - startedAt),
               });
@@ -256,7 +302,7 @@ function SaarthiLandingInner() {
         markGuestChatLimitReached();
         setRemaining(0);
         setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
-        openWall(trimmed, "chat");
+        openSignupPrompt("text_limit", trimmed, { reason: "text", limitType: "daily_messages" });
       } else {
         patch((m) => ({ ...m, error: chatErrorCode(err) }));
       }
@@ -367,9 +413,16 @@ function SaarthiLandingInner() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           <p className="mx-auto mt-1 w-full max-w-2xl shrink-0 px-4">
-            <span className="block rounded-lg bg-primary/[0.06] px-3 py-2 text-center text-[12px] text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => {
+                setWall({ trigger: "nudge" });
+                setAuthOpen(true);
+              }}
+              className="block w-full rounded-lg bg-primary/[0.06] px-3 py-2 text-center text-[12px] text-muted-foreground transition-colors hover:bg-primary/[0.1] hover:text-foreground"
+            >
               {t("ask.guestNudge")}
-            </span>
+            </button>
           </p>
           <MessageList
             messages={messages}
@@ -411,7 +464,7 @@ function SaarthiLandingInner() {
         onClose={() => setAuthOpen(false)}
         title={wall.title}
         subtitle={wall.subtitle}
-        source="guest_wall"
+        source={wall.trigger}
       />
 
       {FEATURES.GUEST_VOICE ? (
@@ -423,12 +476,12 @@ function SaarthiLandingInner() {
           guest
           onGuestLimit={() => {
             setVoiceOpen(false);
-            openWall("", "voice");
+            openSignupPrompt("voice_limit", "", { reason: "voice", limitType: "daily_voice_session" });
           }}
           onGuestEnded={() => {
             recordGuestVoiceUsed();
             setVoiceOpen(false);
-            openWall("", "voice");
+            openSignupPrompt("voice_limit", "", { reason: "voice", limitType: "voice_time_cap", voiceSeconds: 90 });
           }}
         />
       ) : null}

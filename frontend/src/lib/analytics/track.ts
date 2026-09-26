@@ -47,7 +47,8 @@ export function track(event: AnalyticsEventName, params?: AnalyticsParams): void
   if (typeof window === "undefined") return;
   const safe = sanitizeParams(params);
 
-  if (canTrackGa()) gtag("event", event, safe);
+  // Product events go to GA4 only; Google Ads must not count them as page views.
+  if (canTrackGa()) gtag("event", event, { ...(safe ?? {}), send_to: GA_MEASUREMENT_ID });
 
   clarityEvent(event);
   claritySetTagsFromParams(safe);
@@ -58,6 +59,7 @@ export function trackPageView(params: AnalyticsParams): void {
   if (typeof window === "undefined") return;
   const safe = sanitizeParams(params);
 
+  // No send_to: page views reach every configured tag (GA4 + Google Ads remarketing).
   if (canTrackGa()) gtag("event", "page_view", safe);
 
   claritySetTagsFromParams(safe);
@@ -74,6 +76,14 @@ export async function setAnalyticsUser(userId: string, role?: string): Promise<v
 
   clarityIdentify(hashed, undefined, window.location.pathname, role);
   if (role) claritySetTag("user_role", role);
+}
+
+export type UserType = "guest" | "registered";
+
+/** GA4 user property: set on load, on login/signup ("registered") and logout ("guest"). */
+export function setUserType(type: UserType): void {
+  if (!canTrackGa()) return;
+  gtag("set", "user_properties", { user_type: type });
 }
 
 export function clearAnalyticsUser(): void {

@@ -11,6 +11,7 @@ export const AnalyticsEvents = {
   QUESTION_SUBMITTED: "question_submitted",
   FIRST_ANSWER_SHOWN: "first_answer_shown",
   GUEST_LIMIT_REACHED: "guest_limit_reached",
+  GUEST_SIGNUP_PROMPT_SHOWN: "guest_signup_prompt_shown",
 
   // Auth
   SIGNUP_STARTED: "signup_started",
@@ -28,6 +29,7 @@ export const AnalyticsEvents = {
   // AI / Saarthi
   SAARTHI_MATTER_TYPE_SELECTED: "saarthi_matter_type_selected",
   SAARTHI_VOICE_MODE_ACTIVATED: "saarthi_voice_mode_activated",
+  VOICE_SESSION_ENDED: "voice_session_ended",
   SAARTHI_DOCUMENT_ATTACHED: "saarthi_document_attached",
 
   // AI
