@@ -23,9 +23,15 @@ def _point_id(key: str) -> str:
     return str(uuid.uuid5(_NS, key))
 
 
+# 3072-dim vectors are ~30 KB of JSON each: send upserts in batches so a large
+# document never becomes one multi-megabyte request that times out.
+_UPSERT_BATCH = 64
+_TIMEOUT_S = 60
+
+
 class QdrantVectorClient:
     def __init__(self, url: str, collection: str, dim: int, *, api_key: str = "") -> None:
-        self._client = AsyncQdrantClient(url=url, api_key=api_key or None)
+        self._client = AsyncQdrantClient(url=url, api_key=api_key or None, timeout=_TIMEOUT_S)
         self._collection = collection
         self._dim = dim
 
@@ -93,13 +99,17 @@ class QdrantVectorClient:
     # Upsert
     # ------------------------------------------------------------------
 
+    async def _upsert_batched(self, collection: str, points: list[qm.PointStruct]) -> None:
+        for start in range(0, len(points), _UPSERT_BATCH):
+            await self._client.upsert(collection_name=collection, points=points[start : start + _UPSERT_BATCH])
+
     async def upsert(self, points: list[qm.PointStruct]) -> None:
         """Upsert into the children (main) collection."""
-        await self._client.upsert(collection_name=self._collection, points=points)
+        await self._upsert_batched(self._collection, points)
 
     async def upsert_parents(self, points: list[qm.PointStruct]) -> None:
         """Upsert into the parents collection."""
-        await self._client.upsert(collection_name=self.parents_collection, points=points)
+        await self._upsert_batched(self.parents_collection, points)
 
     # ------------------------------------------------------------------
     # Delete
