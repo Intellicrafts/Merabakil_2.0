@@ -29,6 +29,9 @@ export function MeraVakilShell({
           rightCollapsed ? "w-0 overflow-hidden opacity-0" : "w-[300px] opacity-100 xl:w-80",
         )}
         aria-label="Session tools and history"
+        aria-hidden={rightCollapsed || undefined}
+        // Collapsed panel is visually hidden — keep it out of the Tab order too.
+        inert={rightCollapsed || undefined}
       >
         {right}
       </aside>

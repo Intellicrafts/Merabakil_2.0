@@ -42,7 +42,14 @@ interface UseVoiceBotOptions {
   guest?: boolean;
   onGuestLimit?: () => void;
   onGuestEnded?: () => void;
+  /** Conversation id, so voice turns land in the same server-side memory as text. */
+  sessionId?: string | null;
 }
+
+/** Why voice can't continue: unavailable (server/feature), or reconnects exhausted. */
+export type VoiceErrorKind = "unavailable" | "reconnect_failed" | null;
+
+const GUEST_SECONDS = 90;
 
 export interface UseVoiceBotResult {
   botState: VoiceBotState;
@@ -56,6 +63,12 @@ export interface UseVoiceBotResult {
   startListening: () => void;
   interrupt: () => void;
   stop: () => void;
+  errorKind: VoiceErrorKind;
+  /** Audio is blocked until the user taps (iOS Safari autoplay rules). */
+  needsGesture: boolean;
+  /** Guest sessions only: seconds left in the free preview once live. */
+  secondsLeft: number | null;
+  retry: () => void;
 }
 
 function researchHttpBase(): string {
@@ -82,10 +95,12 @@ function pcmToAudioBuffer(pcm: Uint8Array, sampleRate: number, ctx: AudioContext
 
 export function useVoiceBot({
   open,
+  speechLocale,
   priorMessages,
   guest = false,
   onGuestLimit,
   onGuestEnded,
+  sessionId,
 }: UseVoiceBotOptions): UseVoiceBotResult {
   const [botState, setBotState]         = useState<VoiceBotState>("idle");
   const [transcript, setTranscript]     = useState("");
@@ -94,6 +109,14 @@ export function useVoiceBot({
   const [voiceMessages, setVoiceMessages] = useState<VoiceMessage[]>([]);
   const [lawyerResults, setLawyerResults] = useState<LawyerMatchResult[]>([]);
   const [lastBooking, setLastBooking]   = useState<VoiceBookedAppointment | null>(null);
+  const [errorKind, setErrorKind]       = useState<VoiceErrorKind>(null);
+  const [needsGesture, setNeedsGesture] = useState(false);
+  const [secondsLeft, setSecondsLeft]   = useState<number | null>(null);
+  // Bumped on every connect/stop: an await that resumes under an older generation bails out.
+  const connectGenRef = useRef(0);
+  const localeRef = useRef(speechLocale);
+  const sessionIdRef = useRef(sessionId ?? null);
+  const guestTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const wsRef        = useRef<WebSocket | null>(null);
 
@@ -130,6 +153,8 @@ export function useVoiceBot({
   useEffect(() => { guestRef.current = guest; }, [guest]);
   useEffect(() => { onGuestLimitRef.current = onGuestLimit; }, [onGuestLimit]);
   useEffect(() => { onGuestEndedRef.current = onGuestEnded; }, [onGuestEnded]);
+  useEffect(() => { localeRef.current = speechLocale; }, [speechLocale]);
+  useEffect(() => { sessionIdRef.current = sessionId ?? null; }, [sessionId]);
 
   // ── Amplitude loop ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -184,10 +209,16 @@ export function useVoiceBot({
   }, []);
 
   const stop = useCallback(() => {
+    connectGenRef.current += 1; // cancel any connect still awaiting
     if (guestTimerRef.current) {
       clearTimeout(guestTimerRef.current);
       guestTimerRef.current = null;
     }
+    if (guestTickRef.current) {
+      clearInterval(guestTickRef.current);
+      guestTickRef.current = null;
+    }
+    setSecondsLeft(null);
     wsRef.current?.close();
     wsRef.current = null;
     stopPlayback();
@@ -244,29 +275,77 @@ export function useVoiceBot({
     }
     void micCtxRef.current.resume();
 
-    void (async () => {
-      let token: string | null;
-      if (guestRef.current) {
-        try {
-          token = await fetchGuestVoiceToken();
-        } catch (err) {
-          setBotState("idle");
-          onGuestLimitRef.current?.();
-          if (!(err instanceof GuestLimitError)) console.warn("[voice-bot] guest token failed", err);
-          return;
-        }
-      } else {
-        token = await ensureFreshToken();
-      }
-      if (!token) { setBotState("idle"); return; }
+    const gen = ++connectGenRef.current;
+    const stale = () => gen !== connectGenRef.current || !openRef.current;
+    setErrorKind(null);
 
-      // Clean up previous session (WS, worklet, stream) — but NOT AudioContexts.
+    void (async () => {
+      // Autoplay rules (iOS Safari): without a user tap the audio stays suspended.
+      const playCtx = playCtxRef.current!;
+      await Promise.race([playCtx.resume(), new Promise((r) => setTimeout(r, 1200))]);
+      if (stale()) return;
+      if (playCtx.state !== "running") {
+        setNeedsGesture(true);
+        setBotState("idle");
+        return;
+      }
+      setNeedsGesture(false);
+
+      // Clean up any previous session (WS, worklet, stream) — but NOT AudioContexts.
       // Null wsRef BEFORE closing so the old WS's onclose guard fires and returns early.
       const prevWs = wsRef.current;
       wsRef.current = null;
       prevWs?.close();
       stopPlayback();
       stopMic();
+
+      // Microphone first: a denied mic must not consume the guest's daily preview
+      // or open a paid session.
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+      } catch (err) {
+        if (err instanceof Error && (err.name === "NotAllowedError" || err.name === "PermissionDeniedError")) {
+          setPermission(true);
+        } else {
+          setErrorKind("unavailable");
+        }
+        setBotState("idle");
+        return;
+      }
+      if (stale()) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      micStreamRef.current = stream;
+
+      let token: string | null;
+      if (guestRef.current) {
+        try {
+          token = await fetchGuestVoiceToken();
+        } catch (err) {
+          stopMic();
+          setBotState("idle");
+          if (err instanceof GuestLimitError) onGuestLimitRef.current?.();
+          else setErrorKind("unavailable");
+          return;
+        }
+      } else {
+        token = await ensureFreshToken();
+      }
+      if (stale()) {
+        stopMic();
+        return;
+      }
+      if (!token) {
+        stopMic();
+        setBotState("idle");
+        setErrorKind("unavailable");
+        return;
+      }
+
       setBotState("listening");
       setTranscript("");
 
@@ -275,38 +354,24 @@ export function useVoiceBot({
       wsRef.current = ws;
       ws.binaryType = "arraybuffer";
 
-      // Guest: hard-stop the one-shot session at ~90s (server also caps at 95s).
-      if (guestRef.current) {
-        if (guestTimerRef.current) clearTimeout(guestTimerRef.current);
-        guestTimerRef.current = setTimeout(() => {
-          stopRef.current();
-          onGuestEndedRef.current?.();
-        }, 90_000);
-      }
-
       ws.onopen = async () => {
         const micCtx = micCtxRef.current;
-        if (!micCtx) {
-          console.error("[voice-bot] micCtx is null in onopen — unexpected");
+        const micStream = micStreamRef.current;
+        if (!micCtx || !micStream || wsRef.current !== ws) {
           ws.close();
           return;
         }
         try {
-          // Ensure context is running — Safari may still be suspended here
           if (micCtx.state === "suspended") await micCtx.resume();
-
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true },
-          });
-          micStreamRef.current = stream;
 
           // addModule throws if called twice on the same context with the same name
           if (!workletLoadedRef.current) {
             await micCtx.audioWorklet.addModule("/mv-pcm-capture.js");
             workletLoadedRef.current = true;
           }
+          if (wsRef.current !== ws) return;
 
-          const source = micCtx.createMediaStreamSource(stream);
+          const source = micCtx.createMediaStreamSource(micStream);
           const worklet = new AudioWorkletNode(micCtx, "mv-pcm-capture");
           workletRef.current = worklet;
 
@@ -322,11 +387,23 @@ export function useVoiceBot({
           source.connect(worklet);
           worklet.connect(silentGain);
           silentGain.connect(micCtx.destination);
-        } catch (err: unknown) {
-          console.error("[voice-bot] mic/worklet setup failed:", err);
-          if (err instanceof Error && (err.name === "NotAllowedError" || err.name === "PermissionDeniedError")) {
-            setPermission(true);
+
+          // Guest preview clock starts only now that the mic is actually live.
+          if (guestRef.current) {
+            if (guestTimerRef.current) clearTimeout(guestTimerRef.current);
+            if (guestTickRef.current) clearInterval(guestTickRef.current);
+            const endsAt = Date.now() + GUEST_SECONDS * 1000;
+            setSecondsLeft(GUEST_SECONDS);
+            guestTickRef.current = setInterval(() => {
+              setSecondsLeft(Math.max(0, Math.round((endsAt - Date.now()) / 1000)));
+            }, 1000);
+            guestTimerRef.current = setTimeout(() => {
+              stopRef.current();
+              onGuestEndedRef.current?.();
+            }, GUEST_SECONDS * 1000);
           }
+        } catch {
+          setErrorKind("unavailable");
           setBotState("idle");
           ws.close();
         }
@@ -351,6 +428,8 @@ export function useVoiceBot({
                   role: m.role,
                   content: m.content.slice(0, 1000),
                 })),
+                session_id: sessionIdRef.current,
+                locale: localeRef.current,
               }));
               break;
             case "guest_ended":
@@ -394,7 +473,7 @@ export function useVoiceBot({
               }
               break;
             case "error":
-              console.warn("[voice-bot] server error:", msg.message);
+              setErrorKind("unavailable");
               break;
           }
         } catch { /* ignore malformed */ }
@@ -408,7 +487,10 @@ export function useVoiceBot({
         stopPlayback();
         stopMic();
         if (openRef.current) setBotState("idle");
-        if (e.code === 4001) console.warn("[voice-bot] auth rejected by server");
+        // Closes the server made on purpose are final — don't auto-reconnect into them.
+        if (e.code === 4001 || e.code === 4029 || e.code === 4402 || e.code === 4408) {
+          setErrorKind("unavailable");
+        }
       };
 
       ws.onerror = (e) => {
@@ -428,6 +510,8 @@ export function useVoiceBot({
     if (open) {
       reconnectAttemptsRef.current = 0;
       setPermission(false);
+      setErrorKind(null);
+      setNeedsGesture(false);
       setTranscript("");
       setVoiceMessages([]);
       setLawyerResults([]);
@@ -442,10 +526,10 @@ export function useVoiceBot({
   // If session drops while overlay is still open, reconnect — but cap attempts so
   // a persistent failure (bad network, mic denied) doesn't loop forever.
   useEffect(() => {
-    if (!open || botState !== "idle" || permissionDenied) return;
+    if (!open || botState !== "idle" || permissionDenied || needsGesture || errorKind) return;
     if (guestRef.current) return; // guest voice is a one-shot session — never auto-reconnect
     if (reconnectAttemptsRef.current >= 3) {
-      console.warn("[voice-bot] giving up reconnect after 3 attempts");
+      setErrorKind("reconnect_failed");
       return;
     }
     const delay = 800 + reconnectAttemptsRef.current * 500; // 800 / 1300 / 1800 ms
@@ -456,7 +540,7 @@ export function useVoiceBot({
       }
     }, delay);
     return () => clearTimeout(t);
-  }, [open, botState, permissionDenied]);
+  }, [open, botState, permissionDenied, needsGesture, errorKind]);
 
   // Cleanup on unmount — close AudioContexts here (and ONLY here)
   useEffect(() => () => {
@@ -468,6 +552,12 @@ export function useVoiceBot({
   }, [stop]);
 
   const dismissLastBooking = useCallback(() => setLastBooking(null), []);
+  const retry = useCallback(() => {
+    reconnectAttemptsRef.current = 0;
+    setErrorKind(null);
+    setNeedsGesture(false);
+    connectRef.current(); // called from a tap, so audio can unlock
+  }, []);
 
   return {
     botState,
@@ -481,5 +571,9 @@ export function useVoiceBot({
     startListening: connect,
     interrupt,
     stop,
+    errorKind,
+    needsGesture,
+    secondsLeft,
+    retry,
   };
 }

@@ -165,13 +165,13 @@ export function ImageGallery({ images }: ImageGalleryProps) {
   if (visible.length === 0) return null;
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {visible.map((image, idx) => (
         <button
           key={image.image_url}
           type="button"
           onClick={() => openImageLightbox(visible, idx)}
-          className="group overflow-hidden rounded-xl border border-black/[0.06] bg-black/[0.02] text-left transition-all hover:border-slate-400/40 dark:border-white/10 dark:bg-white/5"
+          className="group min-w-0 overflow-hidden rounded-xl border border-black/[0.06] bg-black/[0.02] text-left transition-all hover:border-slate-400/40 dark:border-white/10 dark:bg-white/5"
         >
           <div className="relative h-36 overflow-hidden bg-slate-100 dark:bg-white/5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -186,7 +186,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
             />
           </div>
           <div className="space-y-1 p-3">
-            <p className="text-xs font-medium">{image.title}</p>
+            <p className="break-words text-xs font-medium">{image.title}</p>
             {image.caption && (
               <p className="line-clamp-2 text-[11px] text-muted-foreground">{image.caption}</p>
             )}

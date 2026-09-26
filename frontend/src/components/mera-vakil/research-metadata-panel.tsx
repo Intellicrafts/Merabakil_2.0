@@ -10,6 +10,13 @@ interface ResearchMetadataPanelProps {
   research: ResearchResponse;
   onCitationClick?: (marker: string) => void;
   initialOpen?: boolean;
+  /** Unique per message so [KB-n] taps scroll to the right source (see sourceAnchorId). */
+  anchorPrefix?: string;
+}
+
+export function sourceAnchorId(prefix: string, marker: string): string {
+  const m = marker.match(/(KB|WEB)-(\d+)/);
+  return m ? `src-${prefix}-${m[1].toLowerCase()}-${m[2]}` : `src-${prefix}`;
 }
 
 function confidenceTone(value: number): string {
@@ -18,7 +25,12 @@ function confidenceTone(value: number): string {
   return "text-rose-600 dark:text-rose-400";
 }
 
-export function ResearchMetadataPanel({ research, onCitationClick, initialOpen = false }: ResearchMetadataPanelProps) {
+export function ResearchMetadataPanel({
+  research,
+  onCitationClick,
+  initialOpen = false,
+  anchorPrefix = "msg",
+}: ResearchMetadataPanelProps) {
   const [open, setOpen] = useState(initialOpen);
 
   const sourceCount = research.sources.length;
@@ -129,6 +141,7 @@ export function ResearchMetadataPanel({ research, onCitationClick, initialOpen =
                 {research.web_sources.map((src, idx) => (
                   <a
                     key={src.url}
+                    id={sourceAnchorId(anchorPrefix, `WEB-${idx + 1}`)}
                     href={src.url}
                     target="_blank"
                     rel="noreferrer"
@@ -147,11 +160,11 @@ export function ResearchMetadataPanel({ research, onCitationClick, initialOpen =
                 {research.sources.map((source, idx) => (
                   <div
                     key={`${source.chunk_id}-${idx}`}
-                    id={`source-${idx + 1}`}
+                    id={sourceAnchorId(anchorPrefix, `KB-${idx + 1}`)}
                     className="rounded-lg bg-black/[0.02] px-3 py-2 text-xs dark:bg-white/[0.03]"
                   >
                     <p className="font-medium text-foreground/80">
-                      [{idx + 1}] {source.title ?? source.document_id}
+                      [KB-{idx + 1}] {source.title ?? source.document_id}
                       <span className="ml-2 font-normal text-muted-foreground">
                         {source.score.toFixed(2)} · {source.retrieval}
                       </span>

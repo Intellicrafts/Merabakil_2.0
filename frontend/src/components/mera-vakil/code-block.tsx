@@ -16,9 +16,13 @@ export function CodeBlock({ children, className, language }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(children);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(children);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard blocked — the code stays selectable */
+    }
   }
 
   return (
@@ -35,7 +39,7 @@ export function CodeBlock({ children, className, language }: CodeBlockProps) {
         type="button"
         variant="ghost"
         size="sm"
-        className="absolute right-2 top-2 h-8 w-8 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute right-2 top-2 h-8 w-8 p-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-70"
         onClick={handleCopy}
         aria-label={copied ? "Copied" : "Copy code"}
       >

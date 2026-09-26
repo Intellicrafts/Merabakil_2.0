@@ -173,7 +173,7 @@ async function refreshAccessToken(): Promise<string> {
   return refreshPromise;
 }
 
-async function authorizedFetch(url: string, init: RequestInit = {}, retry = true): Promise<Response> {
+export async function authorizedFetch(url: string, init: RequestInit = {}, retry = true): Promise<Response> {
   const token = getToken();
   if (!token) throw new Error("Not authenticated");
 
@@ -762,18 +762,92 @@ export interface ResearchStreamHandlers {
   onCitations?: (result: ResearchResponse) => void;
   /** Fired immediately after `done` when a draft is being generated — show loading card. */
   onDraftStatus?: () => void;
-  /** Fired when the draft document is ready — render the card. */
+  /** Fired when the draft document is ready — render the card. Arrives before `done`. */
   onDraft?: (draft: DraftPayload) => void;
+  /** Guest stream only: messages left today, from the server's per-IP counter. */
+  onGuestRemaining?: (remaining: number) => void;
 }
 
 function parseSseBlock(block: string): { event: string; data: string } | null {
   let event = "message";
-  let data = "";
+  const data: string[] = [];
   for (const line of block.split("\n")) {
     if (line.startsWith("event:")) event = line.slice(6).trim();
-    if (line.startsWith("data:")) data += line.slice(5).trim();
+    else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+    // ":" comment lines are server keepalives — ignored here, they only reset the stall timer.
   }
-  return data ? { event, data } : null;
+  return data.length ? { event, data: data.join("\n") } : null;
+}
+
+/** Why a Saarthi answer failed. The UI maps `code` to friendly, translated copy. */
+export type ChatErrorCode =
+  | "network"
+  | "offline"
+  | "timeout"
+  | "rate_limited"
+  | "insufficient_balance"
+  | "ai_unavailable"
+  | "interrupted"
+  | "rejected"
+  | "auth"
+  | "server_error";
+
+export class ChatStreamError extends Error {
+  constructor(
+    public readonly code: ChatErrorCode,
+    /** Server-provided user-facing copy, when there is one. */
+    public readonly serverMessage?: string,
+  ) {
+    super(code);
+    this.name = "ChatStreamError";
+  }
+}
+
+const STREAM_STALL_MS = 45_000;
+
+/** Abort signal that fires on the caller's abort OR when the stream goes silent. */
+function stallGuard(userSignal?: AbortSignal) {
+  const ctrl = new AbortController();
+  let stalled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const touch = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      stalled = true;
+      ctrl.abort();
+    }, STREAM_STALL_MS);
+  };
+  const onUserAbort = () => ctrl.abort();
+  if (userSignal) {
+    if (userSignal.aborted) ctrl.abort();
+    else userSignal.addEventListener("abort", onUserAbort, { once: true });
+  }
+  touch();
+  return {
+    signal: ctrl.signal,
+    touch,
+    isStalled: () => stalled,
+    dispose: () => {
+      if (timer) clearTimeout(timer);
+      userSignal?.removeEventListener("abort", onUserAbort);
+    },
+  };
+}
+
+function statusToChatError(status: number): ChatStreamError {
+  if (status === 429) return new ChatStreamError("rate_limited");
+  if (status === 402) return new ChatStreamError("insufficient_balance");
+  if (status === 401 || status === 403) return new ChatStreamError("auth");
+  if (status === 422 || status === 400) return new ChatStreamError("rejected");
+  return new ChatStreamError("server_error");
+}
+
+function toChatError(err: unknown, guard: ReturnType<typeof stallGuard>): unknown {
+  if (err instanceof ChatStreamError) return err;
+  if (guard.isStalled()) return new ChatStreamError("timeout");
+  if (err instanceof DOMException && err.name === "AbortError") return err; // user pressed Stop
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return new ChatStreamError("offline");
+  return new ChatStreamError("network");
 }
 
 export async function attachDocumentToSession(
@@ -801,6 +875,23 @@ export async function detachDocumentFromSession(
   );
 }
 
+/** Rewind Saarthi's server memory to the first `keepTurns` turns (edit & resend). */
+export async function truncateSession(sessionId: string, keepTurns: number): Promise<void> {
+  await authorizedFetch(`${researchServiceUrl()}/api/v1/research/sessions/${sessionId}/truncate`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ keep_turns: Math.max(0, keepTurns) }),
+  });
+}
+
+/** Forget a deleted conversation server-side: history, attachments, learned facts. */
+export async function forgetSession(sessionId: string): Promise<void> {
+  await authorizedFetch(`${researchServiceUrl()}/api/v1/research/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+}
+
 export async function streamResearch(
   query: string,
   jurisdiction: string | undefined,
@@ -814,23 +905,30 @@ export async function streamResearch(
     ? `/api/v1/research/document/${options.documentId}/stream`
     : "/api/v1/research/stream";
 
-  const user = getStoredUser();
-  const res = await authorizedFetch(`${researchServiceUrl()}${path}`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({
-      query,
-      jurisdiction: jurisdiction || null,
-      history,
-      session_id: options?.sessionId ?? null,
-      user_id: user?.user_id ?? null,
-      document_ids: options?.documentIds?.length ? options.documentIds : undefined,
-    }),
-    signal: options?.signal,
-  });
-
-  if (!res.ok) return parseError(res);
-  return consumeResearchStream(res, handlers);
+  const guard = stallGuard(options?.signal);
+  try {
+    let res: Response;
+    try {
+      res = await authorizedFetch(`${researchServiceUrl()}${path}`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          query,
+          jurisdiction: jurisdiction || null,
+          history,
+          session_id: options?.sessionId ?? null,
+          document_ids: options?.documentIds?.length ? options.documentIds : undefined,
+        }),
+        signal: guard.signal,
+      });
+    } catch (err) {
+      throw toChatError(err, guard);
+    }
+    if (!res.ok) throw statusToChatError(res.status);
+    return await consumeResearchStream(res, handlers, guard);
+  } finally {
+    guard.dispose();
+  }
 }
 
 /** Thrown when the guest daily limit (server-side per-IP cap) is hit → show the signup wall. */
@@ -843,8 +941,8 @@ export class GuestLimitError extends Error {
 
 /**
  * Anonymous (logged-out) research stream — no auth header, hits /stream/guest.
- * Server enforces the per-IP daily cap (429 → GuestLimitError). Guests never get
- * booking cards (backend runs in guest mode) and are nudged to sign up.
+ * Server enforces the per-IP daily cap (429 → GuestLimitError) and reports what's
+ * left in `X-Guest-Remaining` (→ handlers.onGuestRemaining).
  */
 export async function streamResearchGuest(
   query: string,
@@ -853,27 +951,40 @@ export async function streamResearchGuest(
   handlers: ResearchStreamHandlers,
   options?: { signal?: AbortSignal; sessionId?: string },
 ): Promise<ResearchResponse> {
-  const res = await fetch(`${researchServiceUrl()}/api/v1/research/stream/guest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query,
-      jurisdiction: jurisdiction || null,
-      history,
-      session_id: options?.sessionId ?? null,
-      user_id: null,
-    }),
-    signal: options?.signal,
-  });
-  if (res.status === 429) throw new GuestLimitError();
-  if (!res.ok) return parseError(res);
-  return consumeResearchStream(res, handlers);
+  const guard = stallGuard(options?.signal);
+  try {
+    let res: Response;
+    try {
+      res = await fetch(`${researchServiceUrl()}/api/v1/research/stream/guest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query,
+          jurisdiction: jurisdiction || null,
+          history,
+          session_id: options?.sessionId ?? null,
+        }),
+        signal: guard.signal,
+      });
+    } catch (err) {
+      throw toChatError(err, guard);
+    }
+    if (res.status === 429) throw new GuestLimitError();
+    if (!res.ok) throw statusToChatError(res.status);
+    const remaining = Number(res.headers.get("X-Guest-Remaining"));
+    if (Number.isFinite(remaining) && res.headers.has("X-Guest-Remaining")) {
+      handlers.onGuestRemaining?.(remaining);
+    }
+    return await consumeResearchStream(res, handlers, guard);
+  } finally {
+    guard.dispose();
+  }
 }
 
 /**
- * Mint a short-lived guest voice token (server IP-caps to 1/day → 429 →
- * GuestLimitError). The existing voice WS accepts it; the client also enforces
- * a ~90s timer. Returns the token to pass as the WS ?token= param.
+ * Mint a single-use guest voice token (server IP-caps to 1/day → 429 →
+ * GuestLimitError). Other failures throw a plain Error so the UI can show
+ * "voice unavailable" rather than the limit wall.
  */
 export async function fetchGuestVoiceToken(): Promise<string> {
   const res = await fetch(`${researchServiceUrl()}/api/v1/research/voice/guest-token`, {
@@ -881,85 +992,107 @@ export async function fetchGuestVoiceToken(): Promise<string> {
     headers: { "Content-Type": "application/json" },
   });
   if (res.status === 429) throw new GuestLimitError();
-  if (!res.ok) throw new Error("Guest voice is unavailable right now.");
+  if (!res.ok) throw new Error("guest_voice_unavailable");
   const data = (await res.json()) as { token: string };
   return data.token;
 }
 
-/** Shared SSE parser for the authed + guest research streams. */
+const DEFAULT_DISCLAIMER =
+  "This response is generated by an AI system for informational purposes only and does not constitute legal advice.";
+
+function normaliseResult(payload: ResearchResponse, suggestions?: string[]): ResearchResponse {
+  return {
+    ...payload,
+    web_sources: payload.web_sources ?? [],
+    web_images: payload.web_images ?? [],
+    suggestions: suggestions ?? payload.suggestions ?? [],
+    disclaimer: payload.disclaimer ?? DEFAULT_DISCLAIMER,
+  };
+}
+
+/**
+ * Shared SSE consumer for the member + guest research streams. Resolves with the
+ * `done` result; rejects with ChatStreamError on an `error` event, a dropped
+ * connection or a stalled stream (AbortError if the caller stopped it).
+ */
 async function consumeResearchStream(
   res: Response,
   handlers: ResearchStreamHandlers,
+  guard: ReturnType<typeof stallGuard>,
 ): Promise<ResearchResponse> {
-  if (!res.body) throw new Error("No stream returned from research service");
+  if (!res.body) throw new ChatStreamError("server_error");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let result: ResearchResponse | null = null;
+  let finished = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split("\n\n");
-    buffer = blocks.pop() ?? "";
-
-    for (const block of blocks) {
-      const parsed = parseSseBlock(block);
-      if (!parsed) continue;
-      if (parsed.event === "status") {
-        const payload = JSON.parse(parsed.data) as { stage: string; message: string };
-        handlers.onStatus?.(payload.stage, payload.message);
-      } else if (parsed.event === "token") {
-        const payload = JSON.parse(parsed.data) as { text: string };
-        handlers.onToken?.(payload.text);
-      } else if (parsed.event === "error") {
-        const payload = JSON.parse(parsed.data) as { message?: string };
-        if (!result) {
-          throw new Error(
-            payload.message ??
-              "Research service encountered an error while generating the answer.",
-          );
-        }
-      } else if (parsed.event === "citations") {
-        const payload = JSON.parse(parsed.data) as ResearchResponse;
-        const citationsResult: ResearchResponse = {
-          ...payload,
-          web_sources: payload.web_sources ?? [],
-          web_images: payload.web_images ?? [],
-          suggestions: [],
-          disclaimer:
-            payload.disclaimer ??
-            "This response is generated by an AI system for informational purposes only and does not constitute legal advice.",
-        };
-        handlers.onCitations?.(citationsResult);
-        result = citationsResult;
-      } else if (parsed.event === "done") {
-        const payload = JSON.parse(parsed.data) as ResearchResponse;
-        result = {
-          ...payload,
-          web_sources: payload.web_sources ?? [],
-          web_images: payload.web_images ?? [],
-          suggestions: payload.suggestions ?? [],
-          disclaimer:
-            payload.disclaimer ??
-            "This response is generated by an AI system for informational purposes only and does not constitute legal advice.",
-        };
-      } else if (parsed.event === "draft_status") {
+  const handle = (block: string) => {
+    const parsed = parseSseBlock(block);
+    if (!parsed) return;
+    let payload: unknown;
+    try {
+      payload = JSON.parse(parsed.data);
+    } catch {
+      return; // one malformed event must not kill the whole answer
+    }
+    switch (parsed.event) {
+      case "status": {
+        const p = payload as { stage: string; message: string };
+        handlers.onStatus?.(p.stage, p.message);
+        break;
+      }
+      case "token":
+        handlers.onToken?.((payload as { text: string }).text);
+        break;
+      case "error": {
+        const p = payload as { code?: ChatErrorCode; message?: string };
+        throw new ChatStreamError(p.code ?? "server_error", p.message || undefined);
+      }
+      case "citations":
+        handlers.onCitations?.(normaliseResult(payload as ResearchResponse, []));
+        break;
+      case "draft_status":
         handlers.onDraftStatus?.();
-      } else if (parsed.event === "draft") {
-        const payload = JSON.parse(parsed.data) as DraftPayload;
-        handlers.onDraft?.(payload);
+        break;
+      case "draft":
+        handlers.onDraft?.(payload as DraftPayload);
+        break;
+      case "done":
+        result = normaliseResult(payload as ResearchResponse);
+        finished = true;
+        break;
+    }
+  };
+
+  try {
+    while (!finished) {
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch (err) {
+        throw toChatError(err, guard);
+      }
+      if (chunk.done) {
+        buffer += decoder.decode();
+        break;
+      }
+      guard.touch();
+      buffer += decoder.decode(chunk.value, { stream: true });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() ?? "";
+      for (const block of blocks) {
+        handle(block);
+        if (finished) break;
       }
     }
+    if (!finished && buffer.trim()) handle(buffer);
+  } finally {
+    if (!finished) reader.cancel().catch(() => {});
   }
 
-  if (!result) {
-    throw new Error(
-      "Research stream ended before a complete answer was returned. Check that the research service is running and your LLM API key is valid.",
-    );
-  }
+  if (!result) throw new ChatStreamError("interrupted");
   return result;
 }
 

@@ -4745,3 +4745,8 @@
     font-size: max(1rem, 1em) !important;
   }
 }
+
+/* Guest Saarthi chat: keep the composer above the docked cookie banner. */
+.cookie-banner-visible .mv-guest-dock {
+  padding-bottom: var(--cookie-banner-h, 6rem);
+}

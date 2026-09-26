@@ -2,28 +2,31 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { BadgeCheck, Lock, Scale, ShieldCheck } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BadgeCheck, Lock, Scale, ShieldCheck, Square } from "lucide-react";
 
 import { AskAuthSheet } from "@/components/ask/ask-auth-sheet";
 import { AskComposer } from "@/components/ask/ask-composer";
 import { BrandLogo } from "@/components/brand/brand-logo";
-import { MessageBubble } from "@/components/mera-vakil/message-bubble";
+import { MessageList } from "@/components/mera-vakil/message-list";
 import { StarterSuggestions } from "@/components/mera-vakil/starter-suggestions";
-import { ThinkingLoader } from "@/components/mera-vakil/thinking-loader";
 import { VoiceModeOverlay } from "@/components/mera-vakil/voice-mode-overlay";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { AnalyticsEvents, bucketLatency, captureUtmFromSearch, track } from "@/lib/analytics";
 import { GuestLimitError, streamResearchGuest } from "@/lib/api";
-import { createUserMessage, type ChatMessage } from "@/lib/conversations";
+import { chatErrorCode } from "@/lib/chat-errors";
+import { createUserMessage, toResearchHistory, type ChatMessage } from "@/lib/conversations";
 import { FEATURES } from "@/lib/features";
 import {
   canGuestChat,
   canGuestVoice,
   getGuestSessionId,
   guestChatsRemaining,
+  markGuestChatLimitReached,
   recordGuestChat,
   recordGuestVoiceUsed,
+  stashGuestTranscript,
+  syncGuestChatsRemaining,
 } from "@/lib/guest-store";
 import { useTranslation } from "@/lib/i18n";
 import {
@@ -33,7 +36,6 @@ import {
   setMeraVakilAutoSend,
   setMeraVakilPrefill,
 } from "@/lib/prefill-store";
-import type { ConversationTurn } from "@/lib/types";
 
 const SAARTHI = "/mera-vakil";
 
@@ -61,12 +63,15 @@ function SaarthiLandingInner() {
   const { t, lang } = useTranslation();
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [streaming, setStreaming] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [wall, setWall] = useState<{ title?: string; subtitle?: string }>({});
   const [voiceOpen, setVoiceOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | undefined>();
+  const abortRef = useRef<AbortController | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  messagesRef.current = messages;
   const firstAnswerFiredRef = useRef(false); // fire first_answer_shown once per guest session
 
   const topic = searchParams.get("topic");
@@ -84,8 +89,12 @@ function SaarthiLandingInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic, lang]);
 
+  // Topic prefill follows the language switch — but never overwrites what the user typed.
+  const lastPrefillRef = useRef("");
   useEffect(() => {
-    if (topicPrefill) setQuery(topicPrefill);
+    if (!topicPrefill) return;
+    setQuery((current) => (!current.trim() || current === lastPrefillRef.current ? topicPrefill : current));
+    lastPrefillRef.current = topicPrefill;
   }, [topicPrefill]);
 
   useEffect(() => {
@@ -108,9 +117,18 @@ function SaarthiLandingInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep an up-to-date copy of the answered exchanges so signing up carries them
+  // into the new account's first conversation.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+    stashGuestTranscript(
+      messages
+        .filter((m) => m.content.trim() && !m.error && m.id !== streamingId)
+        .map((m) => ({ role: m.role, content: m.content })),
+    );
+  }, [messages, streamingId]);
+
+  // Stop an in-flight answer if the visitor leaves the page.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const examples =
     topic === "property"
@@ -138,22 +156,28 @@ function SaarthiLandingInner() {
     setAuthOpen(true);
   }
 
-  async function submitQuestion(text: string, source: Source, opts?: { voice?: boolean }) {
-    // Voice: guest voice is opt-in (FEATURES.GUEST_VOICE). When enabled and the
-    // daily session is available, open the voice overlay; otherwise nudge signup.
+  function openGuestVoice(pendingText: string) {
+    // Voice: opt-in (FEATURES.GUEST_VOICE). When unavailable, invite sign-up instead.
+    if (FEATURES.GUEST_VOICE && canGuestVoice()) {
+      track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { guest: true });
+      setVoiceOpen(true);
+    } else {
+      openWall(pendingText, "voice");
+    }
+  }
+
+  async function submitQuestion(
+    text: string,
+    source: Source,
+    opts?: { voice?: boolean; retryOf?: string },
+  ) {
     if (opts?.voice) {
-      if (FEATURES.GUEST_VOICE && canGuestVoice()) {
-        track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { guest: true });
-        setVoiceOpen(true);
-      } else {
-        openWall(text.trim(), "voice");
-      }
+      openGuestVoice(text.trim());
       return;
     }
 
     const trimmed = text.trim();
-    if (!trimmed) return;
-    if (streaming) return;
+    if (!trimmed || abortRef.current) return;
     if (!canGuestChat()) {
       openWall(trimmed, "chat");
       return;
@@ -167,31 +191,43 @@ function SaarthiLandingInner() {
       guest: true,
     });
 
-    const history: ConversationTurn[] = messages
-      .filter((m) => m.content.trim())
-      .map((m) => ({ role: m.role, content: m.content }));
-
+    // A retry replaces the failed exchange instead of stacking a new one.
+    let base = messagesRef.current;
+    if (opts?.retryOf) {
+      const idx = base.findIndex((m) => m.id === opts.retryOf);
+      if (idx > 0) base = base.slice(0, idx - 1);
+    }
+    const history = toResearchHistory(base.filter((m) => m.content.trim() && !m.error));
     const userMsg = createUserMessage(trimmed);
     const assistant = emptyAssistant();
     const assistantId = assistant.id;
-    setMessages((prev) => [...prev, userMsg, assistant]);
+    setMessages([...base, userMsg, assistant]);
     setQuery("");
-    setStreaming(true);
+    setStreamingId(assistantId);
+    setStatus(t("chat.preparingAnswer"));
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let serverCounted = false; // the server's count is authoritative when it sends one
+    const patch = (fn: (m: ChatMessage) => ChatMessage) =>
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? fn(m) : m)));
 
     try {
-      await streamResearchGuest(
+      const result = await streamResearchGuest(
         trimmed,
         undefined,
         history,
         {
-          onToken: (tok) =>
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? { ...m, content: m.content + tok, revealedChars: m.content.length + tok.length }
-                  : m,
-              ),
-            ),
+          onStatus: (_stage, message) => setStatus(message),
+          onToken: (tok) => {
+            setStatus(undefined);
+            patch((m) => ({ ...m, content: m.content + tok, revealedChars: m.content.length + tok.length }));
+          },
+          onGuestRemaining: (left) => {
+            serverCounted = true;
+            syncGuestChatsRemaining(left);
+            setRemaining(left);
+          },
           onCitations: (result) => {
             // Guest activation — the first answer of the session (no question text).
             if (!firstAnswerFiredRef.current) {
@@ -202,50 +238,64 @@ function SaarthiLandingInner() {
                 latency_bucket: bucketLatency(Date.now() - startedAt),
               });
             }
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId
-                  ? {
-                      ...m,
-                      research: result,
-                      content: result.answer || m.content,
-                      revealedChars: (result.answer || m.content).length,
-                    }
-                  : m,
-              ),
-            );
           },
         },
-        { sessionId: getGuestSessionId() },
+        { sessionId: getGuestSessionId(), signal: controller.signal },
       );
-      recordGuestChat();
-      setRemaining(guestChatsRemaining());
+      patch((m) => ({ ...m, research: result, content: result.answer, revealedChars: result.answer.length }));
+      if (!serverCounted) {
+        recordGuestChat();
+        setRemaining(guestChatsRemaining());
+      }
     } catch (err) {
-      if (err instanceof GuestLimitError) {
+      if (controller.signal.aborted) {
+        // Stopped by the visitor: keep whatever arrived, drop an empty shell.
+        setMessages((prev) => prev.filter((m) => !(m.id === assistantId && !m.content.trim())));
+      } else if (err instanceof GuestLimitError) {
         // Roll back the empty exchange and show the signup wall.
+        markGuestChatLimitReached();
+        setRemaining(0);
         setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
         openWall(trimmed, "chat");
       } else {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: "Sorry — something went wrong. Please try again.", revealedChars: 40 }
-              : m,
-          ),
-        );
+        patch((m) => ({ ...m, error: chatErrorCode(err) }));
       }
     } finally {
-      setStreaming(false);
+      abortRef.current = null;
+      setStreamingId(null);
+      setStatus(undefined);
     }
   }
 
+  const submitRef = useRef(submitQuestion);
+  submitRef.current = submitQuestion;
+
+  const handleRetry = useCallback((assistantId: string) => {
+    const list = messagesRef.current;
+    const idx = list.findIndex((m) => m.id === assistantId);
+    const question = idx > 0 ? list[idx - 1] : undefined;
+    if (question?.role === "user") void submitRef.current(question.content, "typed", { retryOf: assistantId });
+  }, []);
+
+  const handleSuggestion = useCallback((prompt: string) => {
+    void submitRef.current(prompt, "chip");
+  }, []);
+
   const chatStarted = messages.length > 0;
+  const streaming = streamingId !== null;
   const remainingLabel =
     remaining !== null ? `${remaining} ${t("ask.freeChatsLeft")}` : "";
+  const streamingMessage = messages.find((m) => m.id === streamingId);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-background">
-      <header className="flex items-center justify-between px-4 py-3.5 sm:px-6">
+    <div
+      className={
+        chatStarted
+          ? "flex h-[100dvh] flex-col overflow-hidden bg-background"
+          : "flex min-h-[100dvh] flex-col bg-background"
+      }
+    >
+      <header className="flex shrink-0 items-center justify-between px-4 py-3.5 sm:px-6">
         <Link href="/" aria-label="MeraBakil home">
           <BrandLogo variant="wordmark" size="md" />
         </Link>
@@ -316,18 +366,34 @@ function SaarthiLandingInner() {
         </main>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div ref={scrollRef} className="mx-auto w-full max-w-2xl flex-1 space-y-4 overflow-y-auto px-4 py-4">
-            <p className="rounded-lg bg-primary/[0.06] px-3 py-2 text-center text-[12px] text-muted-foreground">
+          <p className="mx-auto mt-1 w-full max-w-2xl shrink-0 px-4">
+            <span className="block rounded-lg bg-primary/[0.06] px-3 py-2 text-center text-[12px] text-muted-foreground">
               {t("ask.guestNudge")}
-            </p>
-            {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} isTyping={streaming && !m.content && m.role === "assistant"} />
-            ))}
-            {streaming && messages[messages.length - 1]?.content === "" ? (
-              <ThinkingLoader message="Searching Indian law…" />
-            ) : null}
-          </div>
-          <div className="mx-auto w-full max-w-2xl px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+            </span>
+          </p>
+          <MessageList
+            messages={messages}
+            isPending={streaming && !streamingMessage?.content}
+            pendingMessage={status}
+            streamingMessageId={streamingMessage?.content ? streamingId : null}
+            isGenerating={streaming}
+            editingMessageId={null}
+            onSuggestionSelect={handleSuggestion}
+            onRetry={handleRetry}
+          />
+          <div className="mv-guest-dock mx-auto w-full max-w-2xl shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+            {streaming && (
+              <div className="mb-2 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => abortRef.current?.abort()}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-black/[0.08] bg-background px-3 py-1 text-xs font-medium text-foreground shadow-sm hover:bg-muted dark:border-white/10"
+                >
+                  <Square className="h-3 w-3 fill-current" aria-hidden />
+                  {t("chat.stopGenerating")}
+                </button>
+              </div>
+            )}
             <AskComposer
               value={query}
               onChange={setQuery}
@@ -352,7 +418,8 @@ function SaarthiLandingInner() {
         <VoiceModeOverlay
           open={voiceOpen}
           onClose={() => setVoiceOpen(false)}
-          speechLocale="en-IN"
+          speechLocale={lang === "hi" ? "hi-IN" : "en-IN"}
+          sessionId={getGuestSessionId()}
           guest
           onGuestLimit={() => {
             setVoiceOpen(false);

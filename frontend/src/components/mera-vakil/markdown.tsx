@@ -29,19 +29,13 @@ function headingText(children: React.ReactNode): string {
   return "";
 }
 
-function preprocessCitations(
-  content: string,
-  webSources: WebSearchResult[],
-  hasClickHandler: boolean,
-): string {
-  let result = content.replace(/\[WEB-(\d+)\]/g, (_, num) => {
-    const src = webSources[parseInt(num, 10) - 1];
-    return src?.url ? `[WEB-${num}](${src.url})` : `[WEB-${num}]`;
-  });
-  if (hasClickHandler) {
-    result = result.replace(/\[KB-(\d+)\]/g, (_, num) => `[KB-${num}](#citation:KB-${num})`);
-  }
-  return result;
+function preprocessCitations(content: string, webSources: WebSearchResult[]): string {
+  return content
+    .replace(/\[WEB-(\d+)\]/g, (_, num) => {
+      const src = webSources[parseInt(num, 10) - 1];
+      return src?.url ? `[WEB-${num}](${src.url})` : `[WEB-${num}]`;
+    })
+    .replace(/\[KB-(\d+)\]/g, (_, num) => `[KB-${num}](#citation:KB-${num})`);
 }
 
 export const Markdown = memo(function Markdown({
@@ -52,10 +46,7 @@ export const Markdown = memo(function Markdown({
   sources = [],
   citations = [],
 }: MarkdownProps) {
-  const processed = useMemo(
-    () => preprocessCitations(content, webSources, !!onCitationClick),
-    [content, webSources, onCitationClick],
-  );
+  const processed = useMemo(() => preprocessCitations(content, webSources), [content, webSources]);
 
   return (
     <div className={cn("prose-mera-vakil", className)}>
@@ -108,10 +99,7 @@ export const Markdown = memo(function Markdown({
           del: ({ children }) => <del className="mv-md-del">{children}</del>,
 
           blockquote: ({ children }) => (
-            <blockquote className="mv-blockquote">
-              <span className="mv-bench-label">Bench note</span>
-              {children}
-            </blockquote>
+            <blockquote className="mv-blockquote">{children}</blockquote>
           ),
 
           a: ({ href, children }) => {
@@ -163,7 +151,10 @@ export const Markdown = memo(function Markdown({
           },
 
           img: ({ src, alt }) => {
-            if (!src || typeof src !== "string") return null;
+            // Only images we serve ourselves — a model-written remote URL could track readers.
+            if (!src || typeof src !== "string" || !(src.startsWith("/") || src.startsWith("blob:"))) {
+              return alt ? <span className="mv-md-em">{alt}</span> : null;
+            }
             return (
               <button
                 type="button"

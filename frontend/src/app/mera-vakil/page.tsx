@@ -27,7 +27,17 @@ import {
   track,
   trackAiSessionCompleted,
 } from "@/lib/analytics";
-import { streamResearch, uploadUserDocument, extractCaseBrief, createCase, updateCaseApi, attachDocumentToSession, detachDocumentFromSession } from "@/lib/api";
+import {
+  attachDocumentToSession,
+  createCase,
+  detachDocumentFromSession,
+  extractCaseBrief,
+  streamResearch,
+  truncateSession,
+  updateCaseApi,
+  uploadUserDocument,
+} from "@/lib/api";
+import { chatErrorCode } from "@/lib/chat-errors";
 import {
   buildDefaultAttachmentQuery,
   isImageFile,
@@ -39,7 +49,9 @@ import {
   consumeMeraVakilPrefill,
   consumeMeraVakilVoiceOpen,
 } from "@/lib/prefill-store";
+import { consumeGuestTranscript } from "@/lib/guest-store";
 import { loadSpeechLocale } from "@/lib/indian-locales";
+import { useTranslation } from "@/lib/i18n";
 import {
   createAssistantMessage,
   createConversation,
@@ -55,11 +67,12 @@ import {
   togglePinConversation,
   upsertConversation,
   toResearchHistory,
+  truncateGraphemes,
   type AttachedDocument,
   type ChatConversation,
   type ChatMessage,
 } from "@/lib/conversations";
-import type { LawyerMatchResult, LawyerProfile, ResearchResponse } from "@/lib/types";
+import type { DraftPayload, LawyerMatchResult, LawyerProfile, ResearchResponse } from "@/lib/types";
 
 const ContextPanel = dynamic(
   () =>
@@ -78,10 +91,27 @@ const VoiceModeOverlay = dynamic(
 );
 
 const THEME_KEY = "legalos.theme";
+
+/** How many turns Saarthi's server memory holds for these messages — only
+ *  answered exchanges are stored there (failed answers are not). */
+function serverTurnCount(messages: ChatMessage[]): number {
+  let count = 0;
+  for (let i = 0; i < messages.length; i++) {
+    const next = messages[i + 1];
+    if (messages[i].role === "user" && next?.role === "assistant" && !next.error && next.content) {
+      count += 2;
+      i++;
+    }
+  }
+  return count;
+}
 const CONTEXT_PANEL_KEY = "mera-vakil.context-panel-open";
 
 export default function MeraVakilPage() {
   const { toast } = useToast();
+  const { t } = useTranslation();
+  const [historyError, setHistoryError] = useState(false);
+  const researchingRef = useRef(false);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<ChatConversation | null>(null);
   const [input, setInput] = useState("");
@@ -248,21 +278,62 @@ export default function MeraVakilPage() {
         const topic = new URLSearchParams(window.location.search).get("topic");
         const topicText =
           topic === "property"
-            ? "I have a property dispute — what are my rights?"
+            ? t("ask.topicProperty")
             : topic === "family"
-              ? "I need help with a family law matter (divorce, custody or maintenance)."
+              ? t("ask.topicFamily")
               : topic === "labour"
-                ? "I have a workplace or salary issue — what can I do?"
+                ? t("ask.topicLabour")
                 : "";
         if (topicText) setInput(topicText);
       }
       const wantVoice =
         consumeMeraVakilVoiceOpen() || new URLSearchParams(window.location.search).get("voice") === "1";
       if (wantVoice && FEATURES.VOICE && isVoiceBotSupported()) setVoiceModeOpen(true);
+      // One-shot URL flags must not re-trigger on reload.
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("voice") || url.searchParams.has("topic")) {
+        url.searchParams.delete("voice");
+        url.searchParams.delete("topic");
+        window.history.replaceState(null, "", url.pathname + url.search);
+      }
 
-      // Fetch conversations from server (falls back to [] on error)
-      const all = await initConversations();
+      let all: ChatConversation[] = [];
+      try {
+        all = await initConversations();
+        setHistoryError(false);
+      } catch {
+        // Keep the saved active id — the list is unavailable, not empty.
+        setHistoryError(true);
+        setHydrated(true);
+        return;
+      }
       setConversations(all);
+      // Signed up from the guest chat: bring that conversation into the account.
+      const carried = consumeGuestTranscript();
+      if (carried.length) {
+        const firstQuestion = carried.find((turn) => turn.role === "user")?.content ?? "";
+        const imported: ChatConversation = {
+          ...createConversation({ title: deriveTitleFromQuery(firstQuestion) }),
+          messages: carried.map((turn) => ({
+            id: crypto.randomUUID?.() ?? `g-${Date.now()}-${Math.random()}`,
+            role: turn.role,
+            content: turn.content,
+            createdAt: new Date().toISOString(),
+          })),
+        };
+        upsertConversation(imported);
+        setConversations(loadConversations());
+        setActiveConversation(imported);
+        saveActiveConversationId(imported.id);
+        setHydrated(true);
+        return; // a carried question (if any) auto-sends into this conversation
+      }
+      // A question carried in from elsewhere is a new matter: never append it to
+      // whatever conversation happened to be open last.
+      if (autoSendQuestionRef.current) {
+        setHydrated(true);
+        return;
+      }
       // A shared/deep link is explicit, otherwise continue the user's last active matter.
       // The active ID is recorded whenever a conversation is selected or created, so a
       // browser refresh must not drop the user back onto the empty Saarthi screen.
@@ -271,7 +342,25 @@ export default function MeraVakilPage() {
       if (convId) {
         const found = all.find((c) => c.id === convId);
         if (found) {
-          setActiveConversation(found);
+          // Reloaded mid-answer: the last question has no reply — offer Retry.
+          const last = found.messages.at(-1);
+          const restored: ChatConversation =
+            last?.role === "user"
+              ? {
+                  ...found,
+                  messages: [
+                    ...found.messages,
+                    {
+                      id: `${last.id}-retry`,
+                      role: "assistant",
+                      content: "",
+                      createdAt: new Date().toISOString(),
+                      error: "interrupted",
+                    },
+                  ],
+                }
+              : found;
+          setActiveConversation(restored);
           setDraftCaseId(found.draftCaseId ?? null);
           saveActiveConversationId(found.id);
         } else if (loadActiveConversationId() === convId) {
@@ -282,7 +371,36 @@ export default function MeraVakilPage() {
       }
       setHydrated(true);
     })();
+    // Mount-only: hydration must run once; `t` is only used for the initial topic prefill.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function retryLoadHistory() {
+    try {
+      const all = await initConversations();
+      setConversations(all);
+      setHistoryError(false);
+      const convId = loadActiveConversationId();
+      const found = convId ? all.find((c) => c.id === convId) : undefined;
+      if (found && !activeConversationRef.current) {
+        setActiveConversation(found);
+        setDraftCaseId(found.draftCaseId ?? null);
+      }
+    } catch {
+      setHistoryError(true);
+    }
+  }
+
+  // Keep ?c= in the address bar in sync with the open conversation (shareable, reload-safe).
+  useEffect(() => {
+    if (!hydrated) return;
+    const url = new URL(window.location.href);
+    const id = activeConversation?.id;
+    if ((url.searchParams.get("c") ?? undefined) === id) return;
+    if (id) url.searchParams.set("c", id);
+    else url.searchParams.delete("c");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, [activeConversation?.id, hydrated]);
 
   // Auto-send the question carried over from /ask, once hydration has set up
   // conversation state. One-shot: the ref is cleared before sending.
@@ -446,7 +564,14 @@ export default function MeraVakilPage() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Stop an in-flight answer before the user moves to another conversation. */
+  function stopStreamForNavigation({ save }: { save: boolean }) {
+    if (!researchingRef.current) return;
+    handleStopGeneration({ silent: true, save });
+  }
+
   function handleNewChat() {
+    stopStreamForNavigation({ save: true });
     trackAiSessionCompleted(activeConversation);
     // Fire final extraction for the session that's ending
     if (sessionId && totalMessageCount >= 10) {
@@ -516,7 +641,7 @@ export default function MeraVakilPage() {
     const updated: ChatConversation = {
       ...base,
       title: base.messages.length === 0 && firstUserMsg
-        ? firstUserMsg.content.slice(0, 48)
+        ? truncateGraphemes(firstUserMsg.content, 48)
         : base.title,
       messages: [...base.messages, ...chatMessages],
       updatedAt: new Date().toISOString(),
@@ -535,6 +660,7 @@ export default function MeraVakilPage() {
     const conv = conversations.find((c) => c.id === id);
     if (conv) {
       if (activeConversation?.id !== id) {
+        stopStreamForNavigation({ save: true });
         trackAiSessionCompleted(activeConversation);
       }
       setActiveConversation(conv);
@@ -551,6 +677,7 @@ export default function MeraVakilPage() {
 
   function handleDeleteConversation(id: string) {
     if (activeConversation?.id === id) {
+      stopStreamForNavigation({ save: false });
       trackAiSessionCompleted(activeConversation);
     }
     deleteConversation(id);
@@ -782,8 +909,8 @@ export default function MeraVakilPage() {
   async function handleComposerSend(text: string) {
     if (isResearching) return;
     const ready = composerAttachments.filter((item) => item.status === "ready" && item.documentId);
-    const query = text.trim().length >= 3 ? text.trim() : buildDefaultAttachmentQuery(ready);
-    if (query.length < 3) return;
+    const query = text.trim() || (ready.length ? buildDefaultAttachmentQuery(ready) : "");
+    if (!query) return;
 
     const uploadedAttachments: ChatAttachment[] = ready.map((item) => ({
       id: item.documentId!,
@@ -795,7 +922,8 @@ export default function MeraVakilPage() {
     await sendMessage(query, { attachments: uploadedAttachments, clearComposerAttachments: true });
   }
 
-  function handleStopGeneration() {
+  function handleStopGeneration(opts: { silent?: boolean; save?: boolean } = {}) {
+    const { silent = false, save = true } = opts;
     const generation = streamGenerationRef.current;
     abortRef.current?.abort();
     streamReveal.stopRaf();
@@ -804,57 +932,44 @@ export default function MeraVakilPage() {
     const assistantId = assistantMsgIdRef.current;
     const baseConv = withUserRef.current;
     const partialContent = streamReveal.content;
-    const partialRevealed = streamReveal.revealedChars;
 
-    let stoppedConv: ChatConversation | null = null;
-
-    setActiveConversation((prev) => {
-      if (!prev || !assistantId) {
-        stoppedConv = baseConv ?? prev;
-        return stoppedConv;
-      }
-      const assistant = prev.messages.find((m) => m.id === assistantId);
-      const content = partialContent || assistant?.content || "";
-      if (!content.trim()) {
-        stoppedConv = baseConv ?? prev;
-        return stoppedConv;
-      }
+    // Build the stopped conversation from refs (not inside a state updater) so it
+    // can be saved reliably right here.
+    let stoppedConv: ChatConversation | null = baseConv;
+    if (baseConv && assistantId && partialContent.trim()) {
       const stoppedAssistant: ChatMessage = {
-        ...(assistant ?? {
-          id: assistantId,
-          role: "assistant" as const,
-          createdAt: new Date().toISOString(),
-        }),
-        content,
-        revealedChars: Math.min(partialRevealed || content.length, content.length),
+        id: assistantId,
+        role: "assistant",
+        createdAt: new Date().toISOString(),
+        content: partialContent,
+        revealedChars: partialContent.length,
       };
-      const baseMessages = baseConv?.messages ?? prev.messages.filter((m) => m.id !== assistantId);
-      stoppedConv = {
-        ...(baseConv ?? prev),
-        messages: [...baseMessages.filter((m) => m.id !== assistantId), stoppedAssistant],
-      };
-      return stoppedConv;
-    });
-
+      stoppedConv = { ...baseConv, messages: [...baseConv.messages, stoppedAssistant] };
+    }
     if (stoppedConv) {
-      upsertConversation(stoppedConv);
-      setConversations(loadConversations());
+      const target = stoppedConv;
+      setActiveConversation((prev) => (prev && prev.id === target.id ? target : prev));
+      if (save) {
+        upsertConversation(target);
+        setConversations(loadConversations());
+      }
     }
 
+    researchingRef.current = false;
     setIsResearching(false);
     setPendingStatus(undefined);
     setGroundingMessageId(null);
     abortRef.current = null;
+    setStreamingMessageId(null);
 
     void streamReveal.waitForAnimation(300).then(() => {
       if (streamGenerationRef.current !== generation) return;
-      setStreamingMessageId(null);
       assistantMsgIdRef.current = null;
       withUserRef.current = null;
       streamReveal.reset();
     });
 
-    toast({ title: "Response stopped", description: "Generation was cancelled." });
+    if (!silent) toast({ title: t("chat.responseStopped"), description: t("chat.generationCancelled") });
   }
 
   async function sendMessage(
@@ -866,7 +981,7 @@ export default function MeraVakilPage() {
     },
   ) {
     const query = (queryText ?? input).trim();
-    if (query.length < 3 || isResearching) return;
+    if (!query || researchingRef.current) return;
 
     // Use ref to always read the latest conversation state, regardless of when
     // this function was created (avoids stale closure when called from memoized callbacks).
@@ -886,8 +1001,13 @@ export default function MeraVakilPage() {
       baseMessages = baseMessages.slice(0, editIndex);
     }
 
+    if (options?.editMessageId) {
+      // Rewind Saarthi's server memory too, so the model no longer sees the discarded turns.
+      await truncateSession(conv.id, serverTurnCount(baseMessages)).catch(() => undefined);
+    }
+
     const userMsg = createUserMessage(query, options?.attachments);
-    const priorHistory = toResearchHistory(baseMessages);
+    const priorHistory = toResearchHistory(baseMessages.filter((m) => !m.error));
     const extraDocs = (options?.attachments ?? []).filter(
       (item) => !(conv.attachedDocuments ?? []).some((doc) => doc.id === item.id),
     );
@@ -919,7 +1039,8 @@ export default function MeraVakilPage() {
     streamReveal.reset();
     const generation = ++streamGenerationRef.current;
     setStreamingMessageId(null);
-    setPendingStatus("Understanding your question…");
+    setPendingStatus(t("chat.preparingAnswer"));
+    researchingRef.current = true;
     setIsResearching(true);
 
     const startedAt = Date.now();
@@ -940,6 +1061,9 @@ export default function MeraVakilPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     let assistantAdded = false;
+    let draft: DraftPayload | null = null;
+    // Late callbacks from this stream must never touch a different conversation.
+    const isThisConversation = (c: ChatConversation | null) => Boolean(c && c.id === withUser.id);
     streamReveal.startWaiting();
     setGroundingMessageId(null);
 
@@ -954,10 +1078,9 @@ export default function MeraVakilPage() {
         revealedChars: 0,
       };
       setStreamingMessageId(assistantMsgId);
-      setActiveConversation({
-        ...withUser,
-        messages: [...withUser.messages, assistantMsg],
-      });
+      setActiveConversation((prev) =>
+        prev && !isThisConversation(prev) ? prev : { ...withUser, messages: [...withUser.messages, assistantMsg] },
+      );
     };
 
     try {
@@ -989,7 +1112,7 @@ export default function MeraVakilPage() {
               streamReveal.setContent(citationsResult.answer);
             }
             setActiveConversation((prev) => {
-              if (!prev) return prev;
+              if (!prev || !isThisConversation(prev)) return prev;
               return {
                 ...prev,
                 messages: prev.messages.map((m) =>
@@ -1008,53 +1131,8 @@ export default function MeraVakilPage() {
               };
             });
           },
-          onDraftStatus: () => {
-            // Show loading card immediately while draft generates
-            setActiveConversation((prev) => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                messages: prev.messages.map((m) =>
-                  m.id === assistantMsgId
-                    ? {
-                        ...m,
-                        research: m.research
-                          ? { ...m.research, specialist_payload: { ...m.research.specialist_payload, draft_loading: true } }
-                          : m.research,
-                      }
-                    : m,
-                ),
-              };
-            });
-          },
-          onDraft: (draft) => {
-            // Replace loading flag with actual draft, then persist
-            setActiveConversation((prev) => {
-              if (!prev) return prev;
-              const updated = {
-                ...prev,
-                messages: prev.messages.map((m) =>
-                  m.id === assistantMsgId
-                    ? {
-                        ...m,
-                        research: m.research
-                          ? {
-                              ...m.research,
-                              specialist_payload: {
-                                ...m.research.specialist_payload,
-                                draft_loading: false,
-                                draft,
-                              },
-                            }
-                          : m.research,
-                      }
-                    : m,
-                ),
-              };
-              // Persist after draft arrives
-              upsertConversation(updated);
-              return updated;
-            });
+          onDraft: (payload) => {
+            draft = payload;
           },
         },
         {
@@ -1068,11 +1146,17 @@ export default function MeraVakilPage() {
       streamReveal.flush();
 
       const finalized = createAssistantMessage(result);
-      const finalMsg = {
+      const finalMsg: ChatMessage = {
         ...finalized,
         id: assistantMsgId,
         content: result.answer,
         revealedChars: result.answer.length,
+        research: draft
+          ? {
+              ...finalized.research!,
+              specialist_payload: { ...finalized.research!.specialist_payload, draft },
+            }
+          : finalized.research,
       };
 
       // Persist immediately — before the animation wait — so navigating away
@@ -1086,7 +1170,7 @@ export default function MeraVakilPage() {
       setConversations(loadConversations());
 
       setActiveConversation((prev) => {
-        if (!prev) return prev;
+        if (!prev || !isThisConversation(prev)) return prev;
         const hasAssistant = prev.messages.some((m) => m.id === assistantMsgId);
         const messages = hasAssistant
           ? prev.messages.map((m) => (m.id === assistantMsgId ? finalMsg : m))
@@ -1100,20 +1184,35 @@ export default function MeraVakilPage() {
         response_status: "success",
       });
     } catch (err) {
-      if (controller.signal.aborted) return;
-      toast({
-        title: "Research failed",
-        description: err instanceof Error ? err.message : "Could not complete research",
-        variant: "destructive",
-      });
-      setActiveConversation(withUser);
+      if (controller.signal.aborted) return; // Stop / navigation — handled there
+      // Keep the question and any partial text, marked failed with a Retry.
+      const code = chatErrorCode(err);
+      const failed: ChatMessage = {
+        id: assistantMsgId,
+        role: "assistant",
+        content: streamReveal.content,
+        createdAt: new Date().toISOString(),
+        error: code,
+      };
+      const failedConv: ChatConversation = { ...withUser, messages: [...withUser.messages, failed] };
+      streamReveal.stopRaf();
       streamReveal.reset();
+      upsertConversation(failedConv);
+      setConversations(loadConversations());
+      setActiveConversation((prev) => (prev && !isThisConversation(prev) ? prev : failedConv));
+      track(AnalyticsEvents.AI_RESPONSE_RECEIVED, {
+        latency_bucket: bucketLatency(Date.now() - startedAt),
+        has_citations: false,
+        response_status: "error",
+        error_code: code,
+      });
     } finally {
       streamReveal.flush();
       if (controller.signal.aborted) {
         abortRef.current = null;
         return;
       }
+      researchingRef.current = false;
       setIsResearching(false);
       setPendingStatus(undefined);
       setGroundingMessageId(null);
@@ -1129,25 +1228,29 @@ export default function MeraVakilPage() {
     }
   }
 
-  function handleResendEdit(messageId: string, newContent: string) {
-    void sendMessage(newContent, { editMessageId: messageId });
-  }
+  // Stable callbacks for memoized children, always calling the latest sendMessage.
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
 
-  const handleCitationClick = useCallback((marker: string) => {
-    const num = marker.replace(/[[\]]/g, "").replace(/^(KB|WEB)-/, "");
-    const el = document.getElementById(`source-${num}`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  const handleResendEdit = useCallback((messageId: string, newContent: string) => {
+    void sendMessageRef.current(newContent, { editMessageId: messageId });
   }, []);
 
-  const handleSuggestionSelect = useCallback(
-    (prompt: string) => {
-      void sendMessage(prompt);
-    },
-    // sendMessage reads activeConversationRef.current (always fresh) so stale closure is not
-    // a concern; isResearching in deps ensures the guard inside sendMessage is re-evaluated.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isResearching],
-  );
+  const handleCancelEdit = useCallback(() => setEditingMessageId(null), []);
+
+  /** Re-ask the question behind a failed answer. */
+  const handleRetry = useCallback((assistantMessageId: string) => {
+    const conv = activeConversationRef.current;
+    if (!conv) return;
+    const idx = conv.messages.findIndex((m) => m.id === assistantMessageId);
+    const question = idx > 0 ? conv.messages[idx - 1] : undefined;
+    if (!question || question.role !== "user") return;
+    void sendMessageRef.current(question.content, { editMessageId: question.id, attachments: question.attachments });
+  }, []);
+
+  const handleSuggestionSelect = useCallback((prompt: string) => {
+    void sendMessageRef.current(prompt);
+  }, []);
 
   const handleReadAloudToggle = useCallback(
     (id: string, content: string) => {
@@ -1205,6 +1308,7 @@ export default function MeraVakilPage() {
           open={voiceModeOpen}
           onClose={() => setVoiceModeOpen(false)}
           speechLocale={speechLocale}
+          sessionId={activeConversation?.id ?? null}
           conversationMessages={activeConversation?.messages}
           onConversationEnd={handleVoiceConversationEnd}
           onBookLawyer={FEATURES.BOOKING ? (lawyer) => setVoiceBookingLawyer(matchResultToProfile(lawyer)) : undefined}
@@ -1283,6 +1387,17 @@ export default function MeraVakilPage() {
             </div>
           </header>
 
+          {historyError && (
+            <div
+              role="alert"
+              className="mx-auto mt-3 flex w-full max-w-3xl items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50/70 px-4 py-2 text-[13px] text-amber-900 dark:border-amber-400/25 dark:bg-amber-900/15 dark:text-amber-200"
+            >
+              <span>{t("chat.historyLoadFailed")}</span>
+              <Button size="sm" variant="outline" className="h-7 rounded-lg text-xs" onClick={() => void retryLoadHistory()}>
+                {t("chat.reload")}
+              </Button>
+            </div>
+          )}
           {!hydrated ? (
             <div className="mx-auto flex max-w-3xl flex-1 flex-col gap-4 px-4 py-8 md:px-6">
               <Skeleton className="ml-auto h-16 w-[70%] rounded-2xl" />
@@ -1299,10 +1414,10 @@ export default function MeraVakilPage() {
               streamingMessageId={streamingMessageId}
               isGenerating={isResearching}
               editingMessageId={editingMessageId}
-              onCitationClick={handleCitationClick}
+              onRetry={handleRetry}
               onSuggestionSelect={handleSuggestionSelect}
               onStartEdit={setEditingMessageId}
-              onCancelEdit={() => setEditingMessageId(null)}
+              onCancelEdit={handleCancelEdit}
               onResendEdit={handleResendEdit}
               groundingMessageId={groundingMessageId}
               readAloudStatus={readAloud.state.status}
@@ -1331,14 +1446,14 @@ export default function MeraVakilPage() {
             disabled={false}
             isPending={isResearching}
             isGenerating={isResearching}
-            onStop={handleStopGeneration}
+            onStop={() => handleStopGeneration()}
             onVoiceModeOpen={FEATURES.VOICE && voiceSupported ? () => setVoiceModeOpen(true) : undefined}
             onVoiceNoteError={(message) =>
-              toast({ title: "Voice input", description: message, variant: "destructive" })
+              toast({ title: t("chat.recordVoice"), description: message, variant: "destructive" })
             }
           />
           <p className="-mt-2 hidden px-4 pb-2 text-center text-[11px] text-muted-foreground/50 sm:block">
-            Informational only · Not a substitute for licensed legal advice
+            {t("chat.informationalOnly")}
           </p>
         </div>
       }

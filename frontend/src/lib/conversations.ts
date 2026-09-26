@@ -1,5 +1,5 @@
 import type { ResearchResponse, ConversationTurn } from "@/lib/types";
-import { getToken } from "@/lib/api";
+import { authorizedFetch, forgetSession, type ChatErrorCode } from "@/lib/api";
 import { authServiceUrl } from "@/lib/service-urls";
 
 export type ChatMessageRole = "user" | "assistant";
@@ -50,6 +50,8 @@ export interface ChatMessage {
   attachments?: ChatAttachment[];
   /** For typewriter effect: how many chars of answer are revealed */
   revealedChars?: number;
+  /** Set when this answer failed; the bubble shows a friendly error and Retry. */
+  error?: ChatErrorCode;
 }
 
 export interface AttachedDocument {
@@ -78,23 +80,55 @@ const ACTIVE_ID_KEY = "legalos.meravakil.active-id";
 
 // In-memory conversation cache. Populated by initConversations() on page load.
 let _cache: ChatConversation[] = [];
+// Chats deleted in this session — a late save must never bring them back.
+const _deleted = new Set<string>();
+// Latest unsaved payload per conversation + which ones have a save in flight.
+const _pendingWrites = new Map<string, Record<string, unknown>>();
+const _inflight = new Set<string>();
+
+/** The conversation list couldn't be loaded (as opposed to the user having none). */
+export class ConversationsLoadError extends Error {
+  constructor() {
+    super("conversations_unavailable");
+    this.name = "ConversationsLoadError";
+  }
+}
 
 // ── Low-level API helper ───────────────────────────────────────────────────────
 
 async function _callApi<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const token = getToken();
-  if (!token) throw new Error("Not authenticated");
-  const res = await fetch(`${authServiceUrl()}${path}`, {
+  // authorizedFetch refreshes an expired access token and retries once.
+  const res = await authorizedFetch(`${authServiceUrl()}${path}`, {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-    },
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`Conversations API error ${res.status}`);
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+/** Save one conversation; writes to the same id are serialised, latest wins. */
+function _queueSave(id: string, payload: Record<string, unknown>): void {
+  _pendingWrites.set(id, payload);
+  if (_inflight.has(id)) return;
+  _inflight.add(id);
+  void (async () => {
+    try {
+      while (_pendingWrites.has(id)) {
+        const next = _pendingWrites.get(id)!;
+        _pendingWrites.delete(id);
+        if (_deleted.has(id)) break;
+        try {
+          await _callApi("POST", "/api/v1/conversations", next);
+        } catch {
+          /* best effort — the next save carries the full conversation again */
+        }
+      }
+    } finally {
+      _inflight.delete(id);
+    }
+  })();
 }
 
 function toApiPayload(conv: ChatConversation): Record<string, unknown> {
@@ -115,12 +149,13 @@ function toApiPayload(conv: ChatConversation): Record<string, unknown> {
 
 /** Fetch conversations from server and populate the in-memory cache. Call on mount. */
 export async function initConversations(): Promise<ChatConversation[]> {
+  let data: ChatConversation[];
   try {
-    const data = await _callApi<ChatConversation[]>("GET", "/api/v1/conversations");
-    _cache = Array.isArray(data) ? data : [];
+    data = await _callApi<ChatConversation[]>("GET", "/api/v1/conversations");
   } catch {
-    _cache = [];
+    throw new ConversationsLoadError();
   }
+  _cache = (Array.isArray(data) ? data : []).filter((c) => !_deleted.has(c.id));
   return _cache;
 }
 
@@ -190,6 +225,7 @@ export function createConversation(
 // ── Mutations (sync cache update + fire-and-forget server write) ──────────────
 
 export function upsertConversation(conversation: ChatConversation): ChatConversation {
+  if (_deleted.has(conversation.id)) return conversation;
   const all = [..._cache];
   const idx = all.findIndex((c) => c.id === conversation.id);
   const updated = { ...conversation, updatedAt: new Date().toISOString() };
@@ -199,7 +235,7 @@ export function upsertConversation(conversation: ChatConversation): ChatConversa
     all.unshift(updated);
   }
   syncCache(all);
-  void _callApi("POST", "/api/v1/conversations", toApiPayload(updated)).catch(() => {});
+  _queueSave(updated.id, toApiPayload(updated));
   return updated;
 }
 
@@ -216,9 +252,13 @@ export function togglePinConversation(id: string): ChatConversation | null {
 }
 
 export function deleteConversation(id: string): void {
+  _deleted.add(id);
+  _pendingWrites.delete(id);
   syncCache(_cache.filter((c) => c.id !== id));
   if (loadActiveConversationId() === id) saveActiveConversationId(null);
   void _callApi("DELETE", `/api/v1/conversations/${id}`).catch(() => {});
+  // Also drop Saarthi's server memory of this chat (history, attachments, learned facts).
+  void forgetSession(id).catch(() => {});
 }
 
 // ── Message builders ──────────────────────────────────────────────────────────
@@ -251,10 +291,18 @@ export function createAssistantMessage(research: ResearchResponse): ChatMessage 
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
+/** Truncate by user-perceived characters so Devanagari never splits mid-letter. */
+export function truncateGraphemes(text: string, max: number): string {
+  const segmenter =
+    typeof Intl !== "undefined" && "Segmenter" in Intl
+      ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+      : null;
+  const graphemes = segmenter ? Array.from(segmenter.segment(text), (s) => s.segment) : Array.from(text);
+  return graphemes.length <= max ? text : `${graphemes.slice(0, max).join("")}…`;
+}
+
 export function deriveTitleFromQuery(query: string): string {
-  const trimmed = query.trim();
-  if (trimmed.length <= 48) return trimmed;
-  return `${trimmed.slice(0, 48)}…`;
+  return truncateGraphemes(query.trim(), 48);
 }
 
 const MAX_HISTORY_TURNS = 20;
@@ -285,5 +333,5 @@ export function relativeTime(iso: string): string {
 export function lastMessagePreview(conv: ChatConversation): string {
   const last = conv.messages.at(-1);
   if (!last) return "No messages yet";
-  return last.content.replace(/\s+/g, " ").trim().slice(0, 72);
+  return truncateGraphemes(last.content.replace(/\s+/g, " ").trim(), 72);
 }

@@ -21,6 +21,8 @@ interface VoiceModeOverlayProps {
   guest?: boolean;
   onGuestLimit?: () => void;
   onGuestEnded?: () => void;
+  /** Conversation / guest session id, so voice turns share the chat's memory. */
+  sessionId?: string | null;
 }
 
 // Blob gradient per state — Saarthi amber brand palette
@@ -66,7 +68,7 @@ const BLOB_DURATION: Record<VoiceBotState, string> = {
   speaking: "2s",
 };
 
-export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMessages, onConversationEnd, onBookLawyer, guest, onGuestLimit, onGuestEnded }: VoiceModeOverlayProps) {
+export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMessages, onConversationEnd, onBookLawyer, guest, onGuestLimit, onGuestEnded, sessionId }: VoiceModeOverlayProps) {
   const { t } = useTranslation();
   const {
     botState,
@@ -79,7 +81,21 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
     dismissLastBooking,
     interrupt,
     stop,
-  } = useVoiceBot({ open, speechLocale, priorMessages: conversationMessages, guest, onGuestLimit, onGuestEnded });
+    errorKind,
+    needsGesture,
+    secondsLeft,
+    retry,
+  } = useVoiceBot({ open, speechLocale, priorMessages: conversationMessages, guest, onGuestLimit, onGuestEnded, sessionId });
+
+  const statusText = permissionDenied
+    ? t("chat.permissionDenied")
+    : errorKind === "reconnect_failed"
+      ? t("chat.voiceReconnectFailed")
+      : errorKind === "unavailable"
+        ? t("chat.voiceUnavailable")
+        : needsGesture
+          ? t("chat.voiceTapToStart")
+          : t(STATE_LABEL_KEY[botState]);
 
   const voiceMessagesRef = useRef(voiceMessages);
   const lawyerResultsRef = useRef(lawyerResults);
@@ -265,10 +281,28 @@ export function VoiceModeOverlay({ open, onClose, speechLocale, conversationMess
           ) : null}
         </div>
 
-        {/* State label */}
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/25">
-          {permissionDenied ? t("chat.permissionDenied") : t(STATE_LABEL_KEY[botState])}
+        {(needsGesture || errorKind) && !permissionDenied && (
+          <button
+            type="button"
+            onClick={retry}
+            className="rounded-full bg-white/10 px-4 py-2 text-[13px] font-medium text-white/85 transition-colors hover:bg-white/15"
+          >
+            {needsGesture ? t("chat.voiceTapToStart") : t("chat.retry")}
+          </button>
+        )}
+
+        {/* State label (announced to screen readers) */}
+        <p
+          aria-live="polite"
+          className="max-w-[320px] text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-white/25"
+        >
+          {statusText}
         </p>
+        {secondsLeft !== null && (
+          <p className="-mt-3 text-[11px] tabular-nums text-white/40">
+            {t("chat.voiceSecondsLeft").replace("{{count}}", String(secondsLeft))}
+          </p>
+        )}
 
         {/* Close / end button */}
         <button

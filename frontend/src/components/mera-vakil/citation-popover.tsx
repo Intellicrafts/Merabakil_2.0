@@ -87,13 +87,28 @@ export function CitationPopover({
     };
   }, []);
 
+  // Touch screens have no hover: a tap toggles the preview; tapping elsewhere closes it.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!triggerRef.current?.contains(e.target as Node)) hide();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
         aria-describedby={open ? id : undefined}
-        onClick={onClick}
+        aria-expanded={open}
+        onClick={() => {
+          if (open) hide();
+          else show();
+          onClick?.();
+        }}
         onMouseEnter={scheduleShow}
         onMouseLeave={scheduleHide}
         onFocus={scheduleShow}

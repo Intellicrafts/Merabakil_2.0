@@ -1,7 +1,8 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
-import { Pencil, X } from "lucide-react";
+import Link from "next/link";
+import { memo, useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
+import { AlertCircle, Pencil, RotateCcw, X } from "lucide-react";
 
 import { AnswerToolbar } from "@/components/mera-vakil/answer-toolbar";
 import { AssistantSkeleton } from "@/components/mera-vakil/assistant-skeleton";
@@ -15,11 +16,13 @@ import { DraftDocumentCard } from "@/components/mera-vakil/draft-document-card";
 import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gallery";
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
-import { ResearchMetadataPanel } from "@/components/mera-vakil/research-metadata-panel";
+import { ResearchMetadataPanel, sourceAnchorId } from "@/components/mera-vakil/research-metadata-panel";
 import { Button } from "@/components/ui/button";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
+import { chatErrorMessage } from "@/lib/chat-errors";
 import type { ChatMessage } from "@/lib/conversations";
 import { FEATURES } from "@/lib/features";
+import { useTranslation } from "@/lib/i18n";
 import type { DraftPayload, LawyerMatchResult } from "@/lib/types";
 
 interface MessageBubbleProps {
@@ -39,6 +42,8 @@ interface MessageBubbleProps {
   caseId?: string | null;
   question?: string;
   streamingStatus?: string;
+  /** Retry a failed answer (shown on messages with `error`). */
+  onRetry?: (messageId: string) => void;
 }
 
 function UserAttachmentCard({
@@ -93,9 +98,10 @@ export const MessageBubble = memo(function MessageBubble({
   caseId,
   question,
   streamingStatus,
+  onRetry,
 }: MessageBubbleProps) {
+  const { t } = useTranslation();
   const [editText, setEditText] = useState(message.content);
-  const [groundingOpen, setGroundingOpen] = useState(false);
   const [preview, setPreview] = useState<PreviewTarget | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
@@ -123,7 +129,7 @@ export const MessageBubble = memo(function MessageBubble({
                 if (e.key === "Escape") onCancelEdit?.();
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault();
-                  if (editText.trim().length >= 3) onResendEdit?.(message.id, editText.trim());
+                  if (editText.trim()) onResendEdit?.(message.id, editText.trim());
                 }
               }}
             />
@@ -136,15 +142,15 @@ export const MessageBubble = memo(function MessageBubble({
                 disabled={isPending}
               >
                 <X className="mr-1 h-3 w-3" />
-                Cancel
+                {t("chat.cancelEdit")}
               </Button>
               <Button
                 size="sm"
                 className="h-7 rounded-lg bg-amber-800 px-3 text-xs text-white hover:bg-amber-900 dark:bg-amber-600 dark:text-white"
                 onClick={() => onResendEdit?.(message.id, editText.trim())}
-                disabled={isPending || editText.trim().length < 3}
+                disabled={isPending || !editText.trim()}
               >
-                Resend
+                {t("chat.resend")}
               </Button>
             </div>
           </div>
@@ -166,7 +172,7 @@ export const MessageBubble = memo(function MessageBubble({
           )}
           {message.content ? (
             <div {...CLARITY_MASK} className="mv-user-bubble">
-              <p>{message.content}</p>
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
             </div>
           ) : null}
           <DocumentPreviewDialog target={preview} onClose={() => setPreview(null)} />
@@ -174,8 +180,8 @@ export const MessageBubble = memo(function MessageBubble({
             <button
               type="button"
               onClick={() => onStartEdit(message.id)}
-              className="absolute -left-8 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-black/[0.05] hover:text-foreground group-hover:opacity-100 dark:hover:bg-white/10"
-              aria-label="Edit message"
+              className="absolute -left-8 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-black/[0.05] hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-white/10 [@media(hover:none)]:opacity-60"
+              aria-label={t("chat.editMessage")}
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
@@ -185,19 +191,67 @@ export const MessageBubble = memo(function MessageBubble({
     );
   }
 
+  return (
+    <AssistantBubble
+      message={message}
+      isTyping={isTyping}
+      grounding={grounding}
+      onCitationClick={onCitationClick}
+      readAloudStatus={readAloudStatus}
+      readAloudActiveId={readAloudActiveId}
+      onReadAloudToggle={onReadAloudToggle}
+      onReadAloudStop={onReadAloudStop}
+      caseId={caseId}
+      question={question}
+      streamingStatus={streamingStatus}
+      onRetry={onRetry}
+    />
+  );
+});
+
+function AssistantBubble({
+  message,
+  isTyping,
+  grounding,
+  onCitationClick,
+  readAloudStatus = "idle",
+  readAloudActiveId = null,
+  onReadAloudToggle,
+  onReadAloudStop,
+  caseId,
+  question,
+  streamingStatus,
+  onRetry,
+}: Omit<MessageBubbleProps, "isEditing" | "isPending" | "onStartEdit" | "onCancelEdit" | "onResendEdit">) {
+  const { t } = useTranslation();
+  const [groundingOpen, setGroundingOpen] = useState(false);
   const research = message.research;
   const stillTyping = Boolean(isTyping);
   const revealedChars = message.revealedChars ?? message.content.length;
-  const visibleContent = stillTyping
-    ? message.content.slice(0, revealedChars)
-    : message.content;
+  const liveContent = stillTyping ? message.content.slice(0, revealedChars) : message.content;
+  // Markdown is re-parsed while streaming; deferring keeps typing smooth on slow phones.
+  const deferredContent = useDeferredValue(liveContent);
+  const visibleContent = stillTyping ? deferredContent : liveContent;
   const showSkeleton = stillTyping && !message.content;
+
+  const handleCitation = useCallback(
+    (marker: string) => {
+      setGroundingOpen(true);
+      onCitationClick?.(marker);
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById(sourceAnchorId(message.id, marker))
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    },
+    [message.id, onCitationClick],
+  );
   const showAvatar = !showSkeleton;
   const lawyers = (research?.specialist_payload?.lawyers ?? []) as LawyerMatchResult[];
   const appointment = research?.specialist_payload?.appointment as Record<string, unknown> | undefined;
   const draft = research?.specialist_payload?.draft as DraftPayload | undefined;
   const draftLoading = Boolean(research?.specialist_payload?.draft_loading);
-  const showMetadata = !stillTyping && Boolean(message.content);
+  const showMetadata = !stillTyping && Boolean(message.content) && !message.error;
 
   if (showSkeleton) {
     return <AssistantSkeleton statusMessage={streamingStatus} />;
@@ -215,30 +269,53 @@ export const MessageBubble = memo(function MessageBubble({
       <div className="mv-assistant-body">
         {grounding && stillTyping && (
           <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Grounding authorities…
+            {t("chat.groundingAuthorities")}
           </p>
         )}
-        <div {...CLARITY_MASK} className="mv-assistant-surface">
-          {stillTyping ? (
-            <p className="mv-stream-plain whitespace-pre-wrap">
-              {visibleContent}
-              <span
-                className="stream-caret ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[2px] bg-slate-600 dark:bg-slate-300"
-                aria-hidden
-              />
-            </p>
-          ) : (
-            <div className="mv-stream-complete">
+        {visibleContent ? (
+          <div {...CLARITY_MASK} className="mv-assistant-surface">
+            <div className="mv-stream-md">
               <Markdown
                 content={visibleContent}
-                onCitationClick={onCitationClick}
+                onCitationClick={handleCitation}
                 webSources={research?.web_sources}
                 sources={research?.sources}
                 citations={research?.citations}
               />
+              {stillTyping && (
+                <span
+                  className="stream-caret ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[2px] bg-slate-600 dark:bg-slate-300"
+                  aria-hidden
+                />
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
+
+        {message.error && !stillTyping && (
+          <div
+            role="alert"
+            className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-[13px] text-amber-900 dark:border-amber-400/25 dark:bg-amber-900/15 dark:text-amber-200"
+          >
+            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1">{chatErrorMessage(t, message.error)}</span>
+            {message.error === "insufficient_balance" ? (
+              <Button asChild size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs">
+                <Link href="/wallet">{t("chat.addBalance")}</Link>
+              </Button>
+            ) : onRetry ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 rounded-lg px-2.5 text-xs"
+                onClick={() => onRetry(message.id)}
+              >
+                <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
+                {t("chat.retry")}
+              </Button>
+            ) : null}
+          </div>
+        )}
 
         <div className={showMetadata ? "mv-assistant-after mv-assistant-after--complete" : "mv-assistant-after"}>
           {showMetadata && (
@@ -275,7 +352,12 @@ export const MessageBubble = memo(function MessageBubble({
               )}
 
               {groundingOpen && (
-                <ResearchMetadataPanel research={research} onCitationClick={onCitationClick} initialOpen />
+                <ResearchMetadataPanel
+                  research={research}
+                  onCitationClick={handleCitation}
+                  anchorPrefix={message.id}
+                  initialOpen
+                />
               )}
 
               {lawyers.length > 0 && FEATURES.AI_MATCHING && <LawyerRecommendationPanel lawyers={lawyers} caseId={caseId} />}
@@ -293,4 +375,4 @@ export const MessageBubble = memo(function MessageBubble({
       </div>
     </div>
   );
-});
+}

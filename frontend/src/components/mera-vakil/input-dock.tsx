@@ -296,13 +296,16 @@ export function InputDock({
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
+    // Append the transcript to whatever the user already typed — never overwrite it.
+    const typed = value.trim();
+    const prefix = typed ? `${typed} ` : "";
     let accumulated = "";
     try {
       await streamTranscribeAudio(
         blob,
         (token) => {
           accumulated += token;
-          onChange(accumulated);
+          onChange(prefix + accumulated);
         },
         ctrl.signal,
       );
@@ -358,11 +361,13 @@ export function InputDock({
     if (disabled || isPending || isGenerating) return;
     const text = value.trim();
     const readyCount = composerAttachments.filter((a) => a.status === "ready").length;
-    if (text.length < 3 && readyCount === 0) return;
+    if (!text && readyCount === 0) return;
     await onSend(text);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Hindi/regional input methods use Enter to pick a word — don't send mid-composition.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
@@ -376,7 +381,7 @@ export function InputDock({
   const busy = disabled || uploadsInFlight;
   const recording = recState === "recording";
   const transcribing = recState === "transcribing";
-  const hasText = value.trim().length >= 3;
+  const hasText = value.trim().length > 0;
   const canSend =
     !busy &&
     !isPending &&

@@ -106,6 +106,8 @@ export function AnswerToolbar({
             track(AnalyticsEvents.AI_RESPONSE_COPIED, { interaction_type: "plain" });
             flash("plain");
             toast({ title: t("common.copied"), description: t("chat.copiedAnswer") });
+          } else {
+            toast({ title: t("chat.copyFailed"), variant: "destructive" });
           }
         }}
       >
