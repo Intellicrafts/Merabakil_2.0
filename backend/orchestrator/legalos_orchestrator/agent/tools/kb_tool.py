@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Annotated
 
@@ -9,7 +8,6 @@ from langchain_core.tools import InjectedToolCallId, tool
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 
-from legalos_common.rag.filters import SearchFilters
 from legalos_orchestrator.agent.registry import get_registry
 from legalos_orchestrator.ports import RetrieverPort
 
@@ -61,32 +59,16 @@ def build_kb_tool(retriever: RetrieverPort):
         """
         registry = get_registry(state)
         filters = (state or {}).get("search_filters") or None
-        session_doc_ids: list[str] = (state or {}).get("session_document_ids") or []
         user_token = (state or {}).get("user_token") or None
         actual_top_k = min(max(1, top_k), 12)
 
+        # Curated legal corpus only. The user's own uploads reach the model as a
+        # separate document block (temporary per-conversation index), never here.
         failed = False
         try:
-            if session_doc_ids and not filters:
-                # Session documents + legal corpus, documents first.
-                half_k = max(3, actual_top_k // 2)
-                doc_results, corpus_results = await asyncio.gather(
-                    retriever.retrieve(
-                        query,
-                        top_k=half_k,
-                        filters=SearchFilters(document_ids=session_doc_ids),
-                        user_token=user_token,
-                    ),
-                    retriever.retrieve(query, top_k=half_k, filters=None, user_token=user_token),
-                    return_exceptions=True,
-                )
-                doc_results = doc_results if not isinstance(doc_results, Exception) else []
-                corpus_results = corpus_results if not isinstance(corpus_results, Exception) else []
-                sources = [*doc_results, *corpus_results][:actual_top_k]
-            else:
-                sources = await retriever.retrieve(
-                    query, top_k=actual_top_k, filters=filters, user_token=user_token
-                )
+            sources = await retriever.retrieve(
+                query, top_k=actual_top_k, filters=filters, user_token=user_token
+            )
         except Exception as exc:
             logger.error("kb_tool_retrieval_failed error=%s", exc)
             sources, failed = [], True

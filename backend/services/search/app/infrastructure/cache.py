@@ -16,9 +16,8 @@ class SearchResultCache:
         self._redis = aioredis.from_url(redis_url, decode_responses=True)
         self._ttl = ttl_seconds
 
-    def _key(self, query: str, mode: str, top_k: int, filters: SearchFilters | None, scope: str) -> str:
+    def _key(self, query: str, mode: str, top_k: int, filters: SearchFilters | None) -> str:
         payload = {
-            "s": scope,  # results differ per caller once private uploads are visible
             "q": query,
             "m": mode,
             "k": top_k,
@@ -28,9 +27,9 @@ class SearchResultCache:
         return f"search:cache:{digest}"
 
     async def get(
-        self, query: str, mode: str, top_k: int, filters: SearchFilters | None, *, scope: str
+        self, query: str, mode: str, top_k: int, filters: SearchFilters | None
     ) -> list[RetrievedSource] | None:
-        raw = await self._redis.get(self._key(query, mode, top_k, filters, scope))
+        raw = await self._redis.get(self._key(query, mode, top_k, filters))
         if not raw:
             return None
         data = json.loads(raw)
@@ -43,11 +42,9 @@ class SearchResultCache:
         top_k: int,
         filters: SearchFilters | None,
         results: list[RetrievedSource],
-        *,
-        scope: str,
     ) -> None:
         payload = json.dumps([r.model_dump() for r in results])
-        await self._redis.setex(self._key(query, mode, top_k, filters, scope), self._ttl, payload)
+        await self._redis.setex(self._key(query, mode, top_k, filters), self._ttl, payload)
 
     async def clear_all(self) -> None:
         async for key in self._redis.scan_iter("search:cache:*"):

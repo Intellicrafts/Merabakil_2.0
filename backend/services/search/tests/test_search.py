@@ -105,19 +105,15 @@ async def test_hybrid_search_respects_top_k() -> None:
 # ── Access control + relevance ───────────────────────────────────────────────
 
 
-def test_access_filter_allows_public_and_own_private_only() -> None:
+def test_access_filter_returns_public_corpus_only() -> None:
     from legalos_common.search.filter_builder import build_qdrant_filter
 
-    member = build_qdrant_filter(None, enforce_access=True, owner_id="user-1").model_dump()
-    text = str(member)
-    assert "'public'" in text and "'private'" in text and "'user-1'" in text
-
-    guest = str(build_qdrant_filter(None, enforce_access=True, owner_id=None).model_dump())
-    assert "'public'" in guest and "'private'" not in guest
+    text = str(build_qdrant_filter(None, enforce_access=True).model_dump())
+    assert "'public'" in text and "owner_id" not in text
 
 
 @pytest.mark.asyncio
-async def test_use_case_forwards_caller_identity() -> None:
+async def test_use_case_enforces_visibility() -> None:
     settings = get_settings()
     store = FakeHybridStore([_hit("a", "text")])
     use_case = HybridSearchUseCase(
@@ -126,8 +122,7 @@ async def test_use_case_forwards_caller_identity() -> None:
         reranker=LexicalReranker(),
         settings=settings,
     )
-    await use_case.search("text", top_k=1, owner_id="user-9")
-    assert store.access["owner_id"] == "user-9"
+    await use_case.search("text", top_k=1)
     assert store.access["enforce_access"] is True
 
 

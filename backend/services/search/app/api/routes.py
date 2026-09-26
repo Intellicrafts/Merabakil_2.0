@@ -19,24 +19,16 @@ router = APIRouter(prefix="/api/v1/search", tags=["search"])
 )
 async def search(
     body: SearchRequest,
-    user: CurrentUser = Depends(require_permissions(Permission.SEARCH_READ.value)),
+    _: CurrentUser = Depends(require_permissions(Permission.SEARCH_READ.value)),
 ) -> SearchResponse:
     container = get_container()
     query = sanitize_user_input(body.query)
     filters = None if body.filters().is_empty() else body.filters()
-    owner_id = None if user.is_guest else user.user_id
-    scope = owner_id or "public"
     results = None
     if container.cache:
-        results = await container.cache.get(query, body.mode.value, body.top_k, filters, scope=scope)
+        results = await container.cache.get(query, body.mode.value, body.top_k, filters)
     if results is None:
-        results = await container.use_case.search(
-            query,
-            top_k=body.top_k,
-            mode=body.mode,
-            filters=filters,
-            owner_id=owner_id,
-        )
+        results = await container.use_case.search(query, top_k=body.top_k, mode=body.mode, filters=filters)
         if container.cache:
-            await container.cache.set(query, body.mode.value, body.top_k, filters, results, scope=scope)
+            await container.cache.set(query, body.mode.value, body.top_k, filters, results)
     return SearchResponse(query=query, mode=body.mode, count=len(results), results=results)

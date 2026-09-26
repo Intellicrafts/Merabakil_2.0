@@ -43,7 +43,6 @@ class HybridSearchUseCase:
         top_k: int | None = None,
         mode: SearchMode = SearchMode.HYBRID,
         filters: SearchFilters | None = None,
-        owner_id: str | None = None,
     ) -> list[RetrievedSource]:
         top_k = top_k or self._settings.default_top_k
         multiplier = (
@@ -59,7 +58,6 @@ class HybridSearchUseCase:
             vector,
             limit=candidates,
             filters=filters,
-            owner_id=owner_id,
             enforce_access=self._settings.search_enforce_visibility,
             min_dense_score=self._settings.search_min_dense_score,
         )

@@ -124,8 +124,13 @@ class ChatRequest:
     document_id: str | None = None
 
 
-async def _resolve_documents(req: ChatRequest, sid: str | None) -> tuple[list[str], str]:
-    if req.is_guest:
+async def _resolve_documents(req: ChatRequest, sid: str | None, query: str) -> tuple[list[str], str]:
+    """Documents in play for this turn and the prompt text drawn from them.
+
+    Uploads are read through the per-user temporary index (doc_index.py): short
+    files whole, long files as their opening plus the passages relevant to this
+    question. They are never searched through the shared knowledge base."""
+    if req.is_guest or req.user is None:
         return [], ""
     container = get_container()
     ids: list[str] = []
@@ -137,24 +142,14 @@ async def _resolve_documents(req: ChatRequest, sid: str | None) -> tuple[list[st
             ids.append(doc_id)
     if not ids:
         return [], ""
-
-    # Cache per user: the document service enforces ownership, so a cached
-    # excerpt must never be served to someone else.
-    cache_key = f"research:doctext:{req.user.user_id}:" + ",".join(sorted(ids))
-    if container.redis:
-        with suppress(Exception):
-            cached = await container.redis.get(cache_key)
-            if cached:
-                return ids, cached.decode() if isinstance(cached, bytes) else cached
-    excerpt = ""
     try:
-        excerpt = await container.document_texts.fetch_excerpts(ids, user_token=req.token)
+        text = await container.doc_context.context_for(
+            owner=req.user.user_id, document_ids=ids, query=query, user_token=req.token
+        )
     except Exception as exc:
-        logger.warning("session_document_text_failed error=%s", exc)
-    if excerpt and container.redis:
-        with suppress(Exception):
-            await container.redis.set(cache_key, excerpt, ex=7200)
-    return ids, excerpt
+        logger.warning("session_document_context_failed error=%s", type(exc).__name__)
+        text = ""
+    return ids, text
 
 
 async def _chat_events(req: ChatRequest) -> AsyncIterator[str]:
@@ -195,15 +190,14 @@ async def _chat_events(req: ChatRequest) -> AsyncIterator[str]:
         client_turns = body.history[-GUEST_CLIENT_HISTORY_TURNS:] if req.is_guest else body.history
         history = history_from_turns(client_turns)
 
-    doc_ids, doc_text = await _resolve_documents(req, sid)
+    doc_ids, doc_text = await _resolve_documents(req, sid, query)
     if doc_text and route == QueryRoute.CONVERSATIONAL:
         route = QueryRoute.LEGAL
 
-    filters = body.search_filters().model_copy(update={"document_ids": None})
+    # Knowledge-base search is over curated law only — never scoped to user files.
+    filters = body.search_filters().model_copy(update={"document_id": None, "document_ids": None})
     if req.is_guest:
-        filters = filters.model_copy(update={"document_id": None, "doc_type": None})
-    if req.document_id:
-        filters = filters.model_copy(update={"document_id": req.document_id})
+        filters = filters.model_copy(update={"doc_type": None})
 
     state = OrchestratorState(
         query=query,

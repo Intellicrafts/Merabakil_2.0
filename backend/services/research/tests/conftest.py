@@ -51,6 +51,23 @@ class FakeRedis:
     async def ltrim(self, key, start, end):
         self.kv[key] = self.kv.get(key, [])[start : end + 1]
 
+    # hashes
+    async def hset(self, key, mapping):
+        self.kv.setdefault(key, {}).update(
+            {k.encode() if isinstance(k, str) else k: (v.encode() if isinstance(v, str) else v) for k, v in mapping.items()}
+        )
+
+    async def hgetall(self, key):
+        value = self.kv.get(key)
+        return dict(value) if isinstance(value, dict) else {}
+
+    async def scan_iter(self, match="*"):
+        import fnmatch
+
+        for key in list(self.kv):
+            if fnmatch.fnmatch(key, match):
+                yield key
+
     # sets
     async def sadd(self, key, value):
         self.kv.setdefault(key, set()).add(value)
@@ -121,6 +138,51 @@ class FakeSummarizer:
 
     async def summarize_turns(self, turns):
         return "summary"
+
+
+class FakeEmbedder:
+    """Deterministic bag-of-words vectors — enough to rank passages by topic."""
+
+    DIM = 256
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def _vec(self, text: str) -> list[float]:
+        import hashlib
+        import re
+
+        v = [0.0] * self.DIM
+        for word in re.findall(r"[a-z]{3,}", text.lower()):
+            v[int(hashlib.md5(word.encode()).hexdigest(), 16) % self.DIM] += 1.0
+        return v
+
+    async def embed(self, texts):
+        self.calls += 1
+        return [self._vec(t) for t in texts]
+
+    async def embed_one(self, text):
+        self.calls += 1
+        return self._vec(text)
+
+
+class FakeDocumentTexts:
+    """Stands in for the document service: each file is readable by its owner's token only."""
+
+    def __init__(self) -> None:
+        self.docs: dict[str, tuple[str, str, str]] = {}  # id -> (owner_token, title, text)
+
+    def add(self, doc_id: str, *, owner_token: str, title: str, text: str) -> None:
+        self.docs[doc_id] = (owner_token, title, text)
+
+    async def fetch_full(self, document_id, *, user_token):
+        doc = self.docs.get(document_id)
+        if not doc or doc[0] != user_token:
+            return None
+        return doc[1], doc[2]
+
+    async def can_access(self, document_id, *, user_token):
+        return (await self.fetch_full(document_id, user_token=user_token)) is not None
 
 
 class RecordingBilling:
@@ -228,6 +290,13 @@ def env():
     }
     from app.infrastructure.memory.session_documents import SessionDocuments
 
+    from app.infrastructure.doc_index import DocumentContext
+
+    texts = FakeDocumentTexts()
+    saved["doc_context"] = container.doc_context
+    saved["document_texts"] = container.document_texts
+    container.document_texts = texts
+    container.doc_context = DocumentContext(redis, FakeEmbedder(), texts, ttl=7200)
     container.orchestrator = orchestrator
     container.router = FakeRouter()
     container.redis = redis
@@ -242,6 +311,7 @@ def env():
 
     h = Handles()
     h.redis, h.orchestrator, h.billing, h.container = redis, orchestrator, billing, container
+    h.texts = texts
     yield h
 
     for key, value in saved.items():

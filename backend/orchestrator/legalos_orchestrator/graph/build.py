@@ -122,7 +122,6 @@ def _build_agent_state(
         session_id=state.session_id,
         user_id=state.user_id,
         search_filters=state.search_filters if not state.search_filters.is_empty() else None,
-        session_document_ids=state.session_document_ids or None,
         user_token=state.user_token,
         iterations=0,
     )

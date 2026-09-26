@@ -10,6 +10,7 @@ from app.infrastructure.memory import (
     MemoryManager,
     SessionMemory,
 )
+from app.infrastructure.doc_index import DocumentContext
 from app.infrastructure.document_client import DocumentTextClient
 from app.infrastructure.memory.session_documents import SessionDocuments
 from app.infrastructure.search_retriever import HttpSearchRetriever
@@ -46,6 +47,10 @@ class Container:
         self.redis = redis_client  # exposed for rate limiting
         self.session_documents = SessionDocuments(redis_client)
         self.document_texts = DocumentTextClient(settings.document_service_url)
+        # User uploads: temporary per-user index in Redis — never the knowledge base.
+        self.doc_context = DocumentContext(
+            redis_client, self.embedder, self.document_texts, ttl=settings.session_ttl_seconds
+        )
         qdrant_client = AsyncQdrantClient(
             url=settings.qdrant.qdrant_url,
             api_key=settings.qdrant.qdrant_api_key or None,

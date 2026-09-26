@@ -23,13 +23,9 @@ from legalos_common.logging import get_logger
 logger = get_logger(__name__)
 
 
-def _access_metadata(visibility: str, owner_id: uuid.UUID | None) -> dict[str, str]:
-    """Payload fields search uses to decide who may see a chunk."""
-    if visibility == "private":
-        if owner_id is None:
-            raise ValueError("Private documents need an owner")
-        return {"visibility": "private", "owner_id": str(owner_id)}
-    return {"visibility": "public"}
+# Everything in the knowledge base is curated public legal corpus; search only
+# returns chunks marked public. (User uploads are never ingested here.)
+_PUBLIC = {"visibility": "public"}
 
 
 @dataclass(slots=True)
@@ -126,9 +122,8 @@ class IngestDocumentUseCase:
         storage_key: str | None = None,
         owner_id: uuid.UUID | None = None,
         force: bool = False,
-        visibility: str = "public",
     ) -> IngestionResult:
-        access = _access_metadata(visibility, owner_id)
+        access = _PUBLIC
         text, page_count = extract_text(
             raw,
             content_type=content_type,
@@ -284,10 +279,9 @@ class IngestDocumentUseCase:
         content_type: str | None = None,
         content_hash: str | None = None,
         force: bool = False,
-        visibility: str = "public",
     ) -> IngestionResult:
         """Flat ingestion for pre-chunked structured inputs (no parent-child splitting)."""
-        access = _access_metadata(visibility, owner_id)
+        access = _PUBLIC
         if not structured_chunks:
             raise ValueError("No structured chunks provided")
 

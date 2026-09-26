@@ -237,9 +237,14 @@ async def ingest_file(
 )
 async def ingest_from_storage(
     body: IngestFromStorageRequest,
-    user: CurrentUser = Depends(require_permissions(Permission.DOCUMENT_WRITE.value)),
+    user: CurrentUser = Depends(require_permissions(Permission.KNOWLEDGE_INGEST.value)),
     use_case: IngestDocumentUseCase = Depends(build_ingest_use_case),
 ) -> IngestionResultResponse:
+    """Admin-only: index a curated legal source already in object storage.
+
+    The knowledge base holds public legal corpus only. User uploads never come
+    here — Saarthi indexes them temporarily, per conversation, in the research
+    service."""
     container = get_container()
     try:
         raw = await container.storage.get_object(body.storage_key)
@@ -247,12 +252,6 @@ async def ingest_from_storage(
         raise ValidationFailedError(f"Could not read file from storage: {exc}") from exc
 
     source_uri = f"gs://{container.storage.bucket}/{body.storage_key}"
-    # User uploads are private to their owner. Only an admin may index on
-    # someone else's behalf; everyone else always owns what they upload.
-    if body.owner_id and user.has_role("admin"):
-        owner_id = uuid.UUID(body.owner_id)
-    else:
-        owner_id = uuid.UUID(user.user_id)
     result = await use_case.execute(
         raw=raw,
         title=body.title,
@@ -261,8 +260,7 @@ async def ingest_from_storage(
         content_type=body.content_type,
         source_uri=source_uri,
         storage_key=body.storage_key,
-        owner_id=owner_id,
-        visibility="private",
+        owner_id=None,
     )
     return _to_response(result)
 

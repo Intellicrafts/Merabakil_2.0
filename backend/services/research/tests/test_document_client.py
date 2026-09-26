@@ -6,7 +6,7 @@ from app.infrastructure.document_client import DocumentTextClient
 
 
 @pytest.mark.asyncio
-async def test_fetch_excerpts_formats_user_files(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_full_returns_title_and_text(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeResp:
         status_code = 200
 
@@ -28,20 +28,19 @@ async def test_fetch_excerpts_formats_user_files(monkeypatch: pytest.MonkeyPatch
         lambda **_kwargs: FakeClient(),
     )
     client = DocumentTextClient("http://localhost:8005")
-    text = await client.fetch_excerpts(["doc-1"], user_token="token")
-    assert "lease.txt" in text
+    title, text = await client.fetch_full("doc-1", user_token="token")
+    assert title == "lease.txt"
     assert "50000" in text
-    assert "USER-UPLOADED" in text
 
 
 @pytest.mark.asyncio
-async def test_fetch_excerpts_empty_without_token() -> None:
+async def test_fetch_full_needs_a_token() -> None:
     client = DocumentTextClient("http://localhost:8005")
-    assert await client.fetch_excerpts(["doc-1"], user_token=None) == ""
+    assert await client.fetch_full("doc-1", user_token=None) is None
 
 
 @pytest.mark.asyncio
-async def test_fetch_excerpts_includes_image_placeholder(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_full_image_placeholder(monkeypatch: pytest.MonkeyPatch) -> None:
     class FakeResp:
         status_code = 200
 
@@ -63,6 +62,6 @@ async def test_fetch_excerpts_includes_image_placeholder(monkeypatch: pytest.Mon
         lambda **_kwargs: FakeClient(),
     )
     client = DocumentTextClient("http://localhost:8005")
-    text = await client.fetch_excerpts(["doc-img"], user_token="token")
-    assert "scan" in text
+    title, text = await client.fetch_full("doc-img", user_token="token")
+    assert title == "scan"
     assert "Image uploaded" in text

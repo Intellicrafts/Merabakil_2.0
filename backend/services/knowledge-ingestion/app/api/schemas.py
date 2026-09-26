@@ -75,7 +75,6 @@ class IngestFromStorageRequest(BaseModel):
     doc_type: str = Field(min_length=1, max_length=120)
     jurisdiction: str | None = None
     content_type: str | None = None
-    owner_id: str | None = None
 
 
 class CategoryResponse(BaseModel):

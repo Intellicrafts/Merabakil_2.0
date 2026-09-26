@@ -15,7 +15,6 @@ class HybridSearchPort(Protocol):
         *,
         limit: int,
         filters: SearchFilters | None,
-        owner_id: str | None = None,
         enforce_access: bool = True,
         min_dense_score: float = 0.0,
     ) -> list[dict[str, Any]]: ...

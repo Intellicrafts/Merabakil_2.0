@@ -24,6 +24,5 @@ class LegalAgentState(MessagesState):
     session_id: Optional[str]
     user_id: Optional[str]
     search_filters: Optional[object]  # legalos_common.rag.filters.SearchFilters
-    session_document_ids: Optional[list[str]]  # documents attached to this session
     user_token: Optional[str]
     iterations: int

@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import httpx
 
 logger = logging.getLogger(__name__)
-
-TEXT_CHAR_BUDGET = 24_000
 
 
 class DocumentTextClient:
@@ -46,6 +43,13 @@ class DocumentTextClient:
             logger.warning("document_text_fetch_failed document_id=%s error=%s", doc_id, exc)
             return None
 
+    async def fetch_full(self, document_id: str, *, user_token: str | None) -> tuple[str, str] | None:
+        """(title, full extracted text) if this user may read the document, else None."""
+        if not user_token:
+            return None
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            return await self._fetch_one(client, document_id, {"Authorization": f"Bearer {user_token}"})
+
     async def can_access(self, document_id: str, *, user_token: str) -> bool:
         """True when the document service lets this user read the document."""
         try:
@@ -58,39 +62,3 @@ class DocumentTextClient:
         except Exception as exc:
             logger.warning("document_access_check_failed error=%s", exc)
             return False
-
-    async def fetch_excerpts(
-        self,
-        document_ids: list[str],
-        *,
-        user_token: str | None,
-    ) -> str:
-        if not document_ids or not user_token:
-            return ""
-        headers = {"Authorization": f"Bearer {user_token}"}
-        # Fetch all docs in parallel — previously sequential with 8s timeout each
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            results = await asyncio.gather(
-                *[self._fetch_one(client, doc_id, headers) for doc_id in document_ids[:8]],
-                return_exceptions=True,
-            )
-
-        parts: list[str] = []
-        used = 0
-        for result in results:
-            if used >= TEXT_CHAR_BUDGET:
-                break
-            if not result or isinstance(result, Exception):
-                continue
-            title, text = result
-            remain = TEXT_CHAR_BUDGET - used
-            excerpt = text[:remain]
-            parts.append(f"### {title}\n{excerpt}")
-            used += len(excerpt)
-
-        if not parts:
-            return ""
-        return (
-            "USER-UPLOADED DOCUMENTS (treat as evidence supplied by the user; "
-            "cite them as the user's file, not as [KB] statutes):\n\n" + "\n\n".join(parts)
-        )

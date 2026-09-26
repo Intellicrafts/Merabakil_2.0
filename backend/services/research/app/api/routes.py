@@ -22,6 +22,7 @@ from app.api.chat_pipeline import (
     ChatRequest,
     chat_stream,
     scoped_session_id,
+    spawn,
 )
 from app.api.deps import (
     enforce_chat_limits,
@@ -217,6 +218,10 @@ async def attach_session_document(
         raise HTTPException(status_code=404, detail="Document not found.")
     sid = _member_sid(session_id, current_user)
     await container.session_documents.attach(sid, body.document_id)
+    # Build the temporary index now so the first question about the file is fast.
+    spawn(container.doc_context.prepare(
+        owner=current_user.user_id, document_id=body.document_id, user_token=credentials.credentials
+    ))
     return {"session_id": session_id, "document_ids": await container.session_documents.get(sid)}
 
 
@@ -237,6 +242,7 @@ async def detach_session_document(
 ) -> None:
     container = get_container()
     await container.session_documents.remove(_member_sid(session_id, current_user), document_id)
+    await container.doc_context.drop(current_user.user_id, [document_id])
 
 
 @router.post("/sessions/{session_id}/truncate", status_code=204, summary="Rewind session memory")
@@ -256,13 +262,17 @@ async def forget_session(session_id: str, current_user: CurrentUser = Depends(me
     container = get_container()
     sid = _member_sid(session_id, current_user)
     await container.memory_manager.forget_session(sid, current_user.user_id)
-    for doc_id in await container.session_documents.get(sid):
+    doc_ids = await container.session_documents.get(sid)
+    await container.doc_context.drop(current_user.user_id, doc_ids)
+    for doc_id in doc_ids:
         await container.session_documents.remove(sid, doc_id)
 
 
 @router.delete("/memory", status_code=204, summary="Erase everything Saarthi remembers about me")
 async def forget_me(current_user: CurrentUser = Depends(member_user)) -> None:
-    await get_container().memory_manager.forget_user(current_user.user_id)
+    container = get_container()
+    await container.memory_manager.forget_user(current_user.user_id)
+    await container.doc_context.drop_all(current_user.user_id)
 
 
 # ── Speech-to-text ────────────────────────────────────────────────────────────

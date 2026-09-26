@@ -58,7 +58,6 @@ async def client(monkeypatch):
     container_mock = MagicMock()
     container_mock.storage.put_object = AsyncMock(return_value="gs://merabakil-documents/test/doc.pdf")
     container_mock.storage.get_object = AsyncMock(return_value=b"hello extracted")
-    container_mock.ingestion.trigger = AsyncMock()
     monkeypatch.setattr("app.api.routes.get_container", lambda: container_mock)
 
     async def _fake_session():
@@ -71,6 +70,7 @@ async def client(monkeypatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        ac.container_mock = container_mock  # for assertions on what the upload touched
         yield ac
 
     app.dependency_overrides.clear()
@@ -169,3 +169,29 @@ async def test_get_document_text(client, access_token) -> None:
     )
     assert resp.status_code == 200, resp.text
     assert "deposit" in resp.json()["text"]
+
+
+@pytest.mark.asyncio
+async def test_upload_is_never_sent_to_the_knowledge_base(client, access_token, monkeypatch) -> None:
+    """User files stay out of the shared legal corpus — no ingestion call of any kind."""
+    import httpx
+
+    outbound: list[str] = []
+    real_send = httpx.AsyncClient.send
+
+    async def _guard(self, request, *args, **kwargs):
+        if request.url.host != "test":  # anything other than the in-process test app
+            outbound.append(str(request.url))
+            raise AssertionError(f"unexpected outbound request to {request.url}")
+        return await real_send(self, request, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", _guard)
+    resp = await client.post(
+        "/api/v1/documents/upload",
+        data={"title": "Lease", "doc_type": "contract", "visibility": "private"},
+        files={"file": ("lease.pdf", b"pdf-content", "application/pdf")},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    assert outbound == []
+    assert not [c for c in client.container_mock.mock_calls if "ingestion" in str(c)]

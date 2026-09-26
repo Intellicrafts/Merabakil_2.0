@@ -23,7 +23,6 @@ from app.infrastructure.extract import extract_document_text
 from app.infrastructure.repositories import DocumentRepository
 from legalos_common.api.errors import NotFoundError, ValidationFailedError
 from legalos_common.api.pagination import Page, PageParams, paginate
-from legalos_common.messaging import IngestionRequestedEvent
 from legalos_common.security.rbac import (
     CurrentUser,
     Permission,
@@ -77,7 +76,7 @@ def _to_response(doc) -> DocumentResponse:
     "/upload",
     response_model=UploadDocumentResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload a document and trigger ingestion",
+    summary="Upload a document and extract its text",
 )
 async def upload_document(
     title: str = Form(...),
@@ -151,30 +150,8 @@ async def upload_document(
     )
     await session.flush()
 
-    payload = IngestionRequestedEvent(
-        document_id=doc.id,
-        source_uri=source_uri,
-        storage_key=storage_key,
-        doc_type=doc_type,
-        jurisdiction=jurisdiction,
-        title=title,
-        owner_id=user.user_id,
-        content_type=file.content_type,
-        metadata={"visibility": visibility},
-    )
-    if container.ingestion is not None:
-        try:
-            await container.ingestion.trigger(
-                payload=payload,
-                user_token=credentials.credentials,
-            )
-        except Exception as exc:
-            logger.warning(
-                "ingestion_trigger_failed document_id=%s error=%s",
-                doc.id,
-                exc,
-            )
-
+    # Uploads are never added to the shared legal knowledge base. Saarthi reads
+    # the extracted text and builds a temporary, per-conversation index itself.
     return UploadDocumentResponse(
         document_id=str(doc.id),
         title=doc.title,
