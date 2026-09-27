@@ -231,6 +231,8 @@ class MockOrchestrator:
         self.mode = "agent"  # "agent" | "conversational" | "error" | "raise"
         self.answer = FIXED_RESULT.answer
         self.states: list[OrchestratorState] = []
+        # Opt-in: send suggestions after done, awaiting this first (a slow suggestions call).
+        self.after_done = None
 
     async def run_state_streaming(self, state: OrchestratorState):
         self.states.append(state)
@@ -245,6 +247,9 @@ class MockOrchestrator:
         payload["mode"] = self.mode
         yield f"event: citations\ndata: {json.dumps(payload)}\n\n"
         yield f"event: done\ndata: {json.dumps(payload)}\n\n"
+        if self.after_done is not None:
+            await self.after_done()
+            yield f"event: suggestions\ndata: {json.dumps({'suggestions': ['What next?']})}\n\n"
 
 
 def parse_sse(text: str) -> list[tuple[str, dict]]:

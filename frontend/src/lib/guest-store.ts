@@ -1,19 +1,35 @@
 /**
  * Client-side guest (logged-out) trial state for Saarthi. UX-only — the real
- * cap is the server-side per-IP daily limit on /research/stream/guest. This
- * gives instant "X of 5 free chats today" feedback and opens the signup wall.
+ * cap is the server's per-device daily limit on /research/stream/guest (5 chats,
+ * reset at midnight IST). This gives instant "X free chats left" feedback and
+ * opens the signup wall.
  */
 
-const CHAT_KEY = "legalos.guest.chat"; // { date: "YYYY-MM-DD", count: number }
+const CHAT_KEY = "legalos.guest.chat"; // { date: "YYYY-MM-DD" (IST), count: number }
+const DEVICE_KEY = "legalos.guest.id"; // random first-party id — the server counts chats per device
 const VOICE_KEY = "legalos.guest.voice"; // { date: "YYYY-MM-DD", used: boolean }
 const TRANSCRIPT_KEY = "legalos.guest.transcript"; // sessionStorage: carried into the account after sign-up
 
 export const GUEST_DAILY_CHAT_LIMIT = 5;
 
 function today(): string {
-  // Local calendar day (not UTC) so the counter resets at the user's midnight.
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // Calendar day in IST — the server resets guest limits at midnight IST too.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+}
+
+/** This browser's anonymous id for the guest limit. Not sent to analytics. */
+export function getGuestDeviceId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    let id = window.localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      window.localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch {
+    return undefined; // storage blocked: the server falls back to the network
+  }
 }
 
 let pageSessionId: string | null = null;

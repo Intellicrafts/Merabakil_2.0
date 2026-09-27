@@ -7,7 +7,7 @@ dependencies = [
     "legalos-common",
     "langgraph>=0.2.30",
     "langchain-openai>=0.2.0",
-    "langchain-google-genai>=2.0.0",
+    "langchain-google-genai>=4.3.0",  # thinking_level (guest_chat_model=pro_low)
     "pydantic>=2.9.0",
     "httpx>=0.27.0",
 ]

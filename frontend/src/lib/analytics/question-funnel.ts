@@ -19,7 +19,7 @@ export type QuestionSource =
   | "edit_resend"
   | "autosend";
 
-export type BlockReason = "guest_limit" | "wallet_empty" | "rate_limit" | "error";
+export type BlockReason = "guest_limit" | "wallet_empty" | "rate_limit" | "bot_check" | "error";
 
 export function lengthBucket(length: number): string {
   if (length < 50) return "short";

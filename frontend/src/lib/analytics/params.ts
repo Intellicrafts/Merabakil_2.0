@@ -23,6 +23,7 @@ export const ALLOWED_PARAM_KEYS = new Set([
   "has_attachment",
   "response_status",
   "latency_bucket",
+  "ttft_bucket",
   "has_citations",
   "message_count_bucket",
   "matter_category",

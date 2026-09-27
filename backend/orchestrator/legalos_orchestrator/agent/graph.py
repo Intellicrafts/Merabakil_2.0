@@ -18,19 +18,24 @@ TOOL_PROFILES: dict[str, tuple[str, ...]] = {
     "full": ("search_legal_knowledge_base", "search_web", "get_lawyer", "book_appointment"),
     "no_booking": ("search_legal_knowledge_base", "search_web", "get_lawyer"),
     "research": ("search_legal_knowledge_base", "search_web"),
+    # Guests: the knowledge base is searched BEFORE the model runs and the results
+    # are in the user message, so the model only decides about the web.
+    "guest": ("search_web",),
 }
 
 _LLM_TIMEOUT_S = 60
 _LLM_MAX_RETRIES = 2  # SDK-level retries happen before any token is streamed
 
 
-def _chat_model(model: str, api_key: str) -> ChatGoogleGenerativeAI:
+def _chat_model(model: str, api_key: str, *, thinking_level: str | None = None) -> ChatGoogleGenerativeAI:
+    extra = {"thinking_level": thinking_level} if thinking_level else {}
     return ChatGoogleGenerativeAI(
         model=model,
         google_api_key=api_key,
         streaming=True,
         timeout=_LLM_TIMEOUT_S,
         max_retries=_LLM_MAX_RETRIES,
+        **extra,
     )
 
 
@@ -58,6 +63,7 @@ class AgentGraph:
         llm_api_key: str = "",
         max_iterations: int = 3,
         fast_llm_model: str = "",
+        guest_chat_model: str = "pro",
     ) -> None:
         self._max_iter = max_iterations
 
@@ -67,14 +73,20 @@ class AgentGraph:
         primary = _chat_model(llm_model, llm_api_key)
         fast_model = fast_llm_model or llm_model
         fast = _chat_model(fast_model, llm_api_key) if fast_model != llm_model else primary
+        guest = {
+            "pro_low": lambda: _chat_model(llm_model, llm_api_key, thinking_level="low"),
+            "flash": lambda: fast,
+        }.get(guest_chat_model, lambda: primary)()
+        logger.info("guest_chat_model=%s", guest_chat_model)
 
         # (profile, use_fast) → model bound to that profile's tools
         self._bound: dict[tuple[str, bool], object] = {}
         for profile, names in TOOL_PROFILES.items():
             profile_tools = [by_name[n] for n in names if n in by_name]
-            self._bound[(profile, False)] = primary.bind_tools(profile_tools)
+            self._bound[(profile, False)] = (guest if profile == "guest" else primary).bind_tools(profile_tools)
             self._bound[(profile, True)] = fast.bind_tools(profile_tools)
         self._plain = {False: primary, True: fast}  # final forced turn: no tools
+        self._plain_guest = guest
         self._llm_fast = fast
 
         builder = StateGraph(LegalAgentState)
@@ -97,7 +109,8 @@ class AgentGraph:
                     "answer now using only the information already gathered."
                 )
             )
-            llm = self._plain[use_fast]
+            guest = state.get("tool_profile") == "guest" and not use_fast
+            llm = self._plain_guest if guest else self._plain[use_fast]
         else:
             profile = state.get("tool_profile") or "research"
             llm = self._bound.get((profile, use_fast)) or self._bound[("research", use_fast)]

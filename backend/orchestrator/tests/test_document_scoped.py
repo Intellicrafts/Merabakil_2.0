@@ -7,7 +7,7 @@ import pytest
 from legalos_common.rag.filters import SearchFilters
 from legalos_common.rag.schemas import RetrievedSource
 from legalos_orchestrator.agent.citation_merger import merge_citations
-from legalos_orchestrator.agent.tools.kb_tool import _format_sources
+from legalos_orchestrator.agent.tools.kb_tool import format_kb_sources
 
 
 def _make_source(doc_id: str, title: str = "Test Contract") -> RetrievedSource:
@@ -24,15 +24,15 @@ def _make_source(doc_id: str, title: str = "Test Contract") -> RetrievedSource:
 # KB tool formatting
 # ---------------------------------------------------------------------------
 
-def test_format_sources_single() -> None:
-    text = _format_sources([(1, _make_source("doc-123", "Test Contract"))])
+def testformat_kb_sources_single() -> None:
+    text = format_kb_sources([(1, _make_source("doc-123", "Test Contract"))])
     assert "[KB-1]" in text
     assert "Test Contract" in text
     assert "Indemnity clause" in text
 
 
-def test_format_sources_uses_registry_numbers() -> None:
-    text = _format_sources([(3, _make_source("doc-456", "Second Contract"))])
+def testformat_kb_sources_uses_registry_numbers() -> None:
+    text = format_kb_sources([(3, _make_source("doc-456", "Second Contract"))])
     assert "[KB-3]" in text
 
 

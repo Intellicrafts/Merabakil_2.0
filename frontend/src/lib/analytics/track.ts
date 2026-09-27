@@ -130,11 +130,13 @@ export function bucketCount(count: number): string {
   return "over_20";
 }
 
+/** latency_bucket and ttft_bucket share one scale. */
 export function bucketLatency(ms: number): string {
-  if (ms < 2000) return "under_2s";
-  if (ms < 5000) return "2_5s";
-  if (ms < 10000) return "5_10s";
-  return "over_10s";
+  if (ms < 2000) return "<2s";
+  if (ms < 5000) return "2-5s";
+  if (ms < 10000) return "5-10s";
+  if (ms < 20000) return "10-20s";
+  return "20s+";
 }
 
 export function bucketFileSize(bytes: number): string {

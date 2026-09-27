@@ -17,6 +17,7 @@ import { ImageGallery, toGalleryImages } from "@/components/mera-vakil/image-gal
 import { Markdown } from "@/components/mera-vakil/markdown";
 import { LawyerRecommendationPanel } from "@/components/mera-vakil/lawyer-recommendation-panel";
 import { ResearchMetadataPanel, sourceAnchorId } from "@/components/mera-vakil/research-metadata-panel";
+import { citedSources } from "@/lib/cited-sources";
 import { Button } from "@/components/ui/button";
 import type { ReadAloudStatus } from "@/hooks/use-read-aloud";
 import { chatErrorMessage } from "@/lib/chat-errors";
@@ -226,6 +227,7 @@ function AssistantBubble({
   const { t } = useTranslation();
   const [groundingOpen, setGroundingOpen] = useState(false);
   const research = message.research;
+  const cited = research ? citedSources(research) : null;
   const stillTyping = Boolean(isTyping);
   const revealedChars = message.revealedChars ?? message.content.length;
   const liveContent = stillTyping ? message.content.slice(0, revealedChars) : message.content;
@@ -324,14 +326,11 @@ function AssistantBubble({
               title={research?.query}
               question={question || research?.query}
               sources={[
-                ...(research?.sources ?? []).map((s) => ({
+                ...(cited?.kb ?? []).map(({ source: s }) => ({
                   title: s.title ?? undefined,
                   citation: s.citation ?? undefined,
                 })),
-                ...(research?.web_sources ?? []).map((s) => ({
-                  title: s.title,
-                  url: s.url,
-                })),
+                ...(cited?.web ?? []).map(({ source: s }) => ({ title: s.title, url: s.url })),
               ]}
               disclaimer={research?.disclaimer}
               messageId={message.id}

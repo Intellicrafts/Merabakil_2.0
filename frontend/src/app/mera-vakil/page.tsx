@@ -54,6 +54,7 @@ import {
   consumeMeraVakilPrefill,
   consumeMeraVakilVoiceOpen,
 } from "@/lib/prefill-store";
+import { INITIAL_STATUS_KEY, statusLabel } from "@/lib/chat-status";
 import { consumeGuestTranscript } from "@/lib/guest-store";
 import { loadSpeechLocale } from "@/lib/indian-locales";
 import { useTranslation } from "@/lib/i18n";
@@ -1046,11 +1047,12 @@ export default function MeraVakilPage() {
     streamReveal.reset();
     const generation = ++streamGenerationRef.current;
     setStreamingMessageId(null);
-    setPendingStatus(t("chat.preparingAnswer"));
+    setPendingStatus(t(INITIAL_STATUS_KEY));
     researchingRef.current = true;
     setIsResearching(true);
 
     const startedAt = Date.now();
+    let firstTokenAt: number | null = null;
     const isNewChat = baseMessages.length === 0;
     const source: QuestionSource = options?.source ?? (options?.editMessageId ? "edit_resend" : "typed");
     const messageNumber = withUser.messages.filter((m) => m.role === "user").length;
@@ -1103,11 +1105,12 @@ export default function MeraVakilPage() {
               hasAttachment: Boolean(options?.attachments?.length),
             });
           },
-          onStatus: (_stage, message) => {
-            setPendingStatus(message);
+          onStatus: (stage, message) => {
+            setPendingStatus(statusLabel(stage, message, t));
             ensureAssistantShell();
           },
           onToken: (token) => {
+            firstTokenAt ??= Date.now();
             setPendingStatus(undefined);
             ensureAssistantShell();
             streamReveal.appendToken(token);
@@ -1121,6 +1124,7 @@ export default function MeraVakilPage() {
                 is_guest: false,
                 has_citations: Boolean(citationsResult.citations?.length || citationsResult.web_sources?.length),
                 latency_bucket: bucketLatency(Date.now() - startedAt),
+                ttft_bucket: bucketLatency((firstTokenAt ?? Date.now()) - startedAt),
               });
             }
             const streamed = streamReveal.content.trim();
@@ -1150,6 +1154,19 @@ export default function MeraVakilPage() {
           },
           onDraft: (payload) => {
             draft = payload;
+          },
+          onSuggestions: (suggestions) => {
+            // Arrives after the answer is final and saved — add it and save again.
+            const withSuggestions = (m: ChatMessage): ChatMessage =>
+              m.id === assistantMsgId && m.research ? { ...m, research: { ...m.research, suggestions } } : m;
+            setActiveConversation((prev) =>
+              !prev || !isThisConversation(prev) ? prev : { ...prev, messages: prev.messages.map(withSuggestions) },
+            );
+            const stored = loadConversations().find((c) => c.id === withUser.id);
+            if (stored) {
+              upsertConversation({ ...stored, messages: stored.messages.map(withSuggestions) });
+              setConversations(loadConversations());
+            }
           },
         },
         {

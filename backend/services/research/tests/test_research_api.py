@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
+from datetime import UTC, datetime
 
 import pytest
 
 from legalos_common.security.jwt import create_scoped_token
 from legalos_common.security.rbac import GUEST_ROLE
 
+from app.api import deps
 from tests.conftest import parse_sse
 
 QUESTION = "What makes an agreement a valid contract in India?"
@@ -201,6 +204,83 @@ async def test_guest_stream_reports_remaining_and_uses_research_only(client, env
     assert state.is_guest and state.user_id is None
     assert state.search_filters.document_id is None  # guests can't target documents
     assert state.session_document_text == ""
+
+
+@pytest.mark.asyncio
+async def test_guest_limit_is_per_device_not_per_network(client, env) -> None:
+    ip = {"X-Real-IP": "203.0.113.20"}
+    a, b = str(uuid.uuid4()), str(uuid.uuid4())
+    for _ in range(5):
+        ok = await client.post("/api/v1/research/stream/guest", json={"query": QUESTION}, headers={**ip, "X-Guest-Id": a})
+        assert ok.status_code == 200
+    assert ok.headers["X-Guest-Remaining"] == "0"
+    blocked = await client.post("/api/v1/research/stream/guest", json={"query": QUESTION}, headers={**ip, "X-Guest-Id": a})
+    assert blocked.status_code == 429 and 0 < int(blocked.headers["Retry-After"]) <= 86_400
+    other = await client.post("/api/v1/research/stream/guest", json={"query": QUESTION}, headers={**ip, "X-Guest-Id": b})
+    assert other.status_code == 200 and other.headers["X-Guest-Remaining"] == "4"
+
+
+@pytest.mark.asyncio
+async def test_busy_network_needs_a_bot_check_above_the_ceiling(client, env, monkeypatch) -> None:
+    monkeypatch.setattr(deps, "GUEST_IP_DAILY_CEILING", 2)
+    monkeypatch.setattr(deps, "TURNSTILE_SECRET_KEY", "secret")
+    checked: list[str] = []
+
+    async def fake_verify(token: str, ip: str) -> bool:
+        checked.append(token)
+        return token == "good"
+
+    monkeypatch.setattr(deps, "verify_turnstile", fake_verify)
+    ip = {"X-Real-IP": "100.64.0.1"}  # e.g. a mobile carrier's shared address
+
+    def ask(device: str, token: str | None = None):
+        headers = {**ip, "X-Guest-Id": device, **({"X-Turnstile-Token": token} if token else {})}
+        return client.post("/api/v1/research/stream/guest", json={"query": QUESTION}, headers=headers)
+
+    for _ in range(2):
+        assert (await ask(str(uuid.uuid4()))).status_code == 200
+    device = str(uuid.uuid4())
+    challenged = await ask(device)
+    assert challenged.status_code == 403 and challenged.json()["detail"]["code"] == "challenge_required"
+    assert (await ask(device, "bad")).status_code == 403
+    passed = await ask(device, "good")
+    assert passed.status_code == 200 and passed.headers["X-Guest-Remaining"] == "4"  # challenges used no chats
+    assert (await ask(device)).status_code == 200  # verified once for the rest of the day
+    assert checked == ["bad", "good"]
+
+
+@pytest.mark.asyncio
+async def test_busy_network_without_turnstile_is_a_hard_stop(client, env, monkeypatch) -> None:
+    monkeypatch.setattr(deps, "GUEST_IP_DAILY_CEILING", 1)
+    monkeypatch.setattr(deps, "TURNSTILE_SECRET_KEY", "")
+    ip = {"X-Real-IP": "100.64.0.2"}
+    first = await client.post("/api/v1/research/stream/guest", json={"query": QUESTION}, headers={**ip, "X-Guest-Id": str(uuid.uuid4())})
+    second = await client.post("/api/v1/research/stream/guest", json={"query": QUESTION}, headers={**ip, "X-Guest-Id": str(uuid.uuid4())})
+    assert first.status_code == 200 and second.status_code == 429
+
+
+def test_guest_limits_reset_at_midnight_ist() -> None:
+    day, left = deps.ist_day_window(datetime(2026, 9, 27, 18, 29, tzinfo=UTC))  # 23:59 IST
+    assert (day, left) == ("20260927", 60)
+    day, left = deps.ist_day_window(datetime(2026, 9, 27, 18, 31, tzinfo=UTC))  # 00:01 IST next day
+    assert day == "20260928" and left == 86_340
+
+
+@pytest.mark.asyncio
+async def test_answer_is_saved_and_billed_before_suggestions_arrive(client, env, access_token) -> None:
+    seen: dict = {}
+
+    async def slow_suggestions() -> None:
+        await _settle()
+        seen["deductions"] = len(env.billing.deductions)
+
+    env.orchestrator.after_done = slow_suggestions
+    resp = await client.post(
+        "/api/v1/research/stream", json={"query": QUESTION, "session_id": "s-sugg"}, headers=_auth(access_token)
+    )
+    names = [e for e, _ in parse_sse(resp.text)]
+    assert names[-2:] == ["done", "suggestions"]
+    assert seen["deductions"] == 1  # billed as soon as the answer was done
 
 
 @pytest.mark.asyncio

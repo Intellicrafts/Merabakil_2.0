@@ -8,6 +8,7 @@ variables (and optionally a local ``.env`` file during development).
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -112,6 +113,9 @@ class LLMSettings(BaseSettings):
     tavily_api_key: str = ""
     llm_fast_model: str = "gemini-3.1-flash-lite"
     llm_router_model: str = "gemini-3.1-flash-lite"
+    # Model for logged-out (guest) chat: "pro" (llm_model, default thinking),
+    # "pro_low" (llm_model with thinking_level=low) or "flash" (llm_fast_model).
+    guest_chat_model: Literal["pro", "pro_low", "flash"] = "pro"
     marketplace_base_url: str = "http://localhost:8010"
 
 

@@ -151,7 +151,7 @@ async def research_document_stream(
 
 @router.post(
     "/stream/guest",
-    summary="Guest (logged-out) research — 5/day per IP, no billing, no lawyers or booking",
+    summary="Guest (logged-out) research — 5 per device per IST day, no billing, no lawyers or booking",
 )
 async def research_stream_guest(body: ResearchRequest, request: Request) -> StreamingResponse:
     """Anonymous free-trial chat. A short-lived token scoped to search only lets KB

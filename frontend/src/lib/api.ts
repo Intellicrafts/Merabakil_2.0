@@ -769,8 +769,10 @@ export interface ResearchStreamHandlers {
   onDraftStatus?: () => void;
   /** Fired when the draft document is ready — render the card. Arrives before `done`. */
   onDraft?: (draft: DraftPayload) => void;
-  /** Guest stream only: messages left today, from the server's per-IP counter. */
+  /** Guest stream only: messages this device has left today, from the server's counter. */
   onGuestRemaining?: (remaining: number) => void;
+  /** Follow-up questions — sent after `done`, so they arrive once the answer is complete. */
+  onSuggestions?: (suggestions: string[]) => void;
 }
 
 function parseSseBlock(block: string): { event: string; data: string } | null {
@@ -936,7 +938,7 @@ export async function streamResearch(
   }
 }
 
-/** Thrown when the guest daily limit (server-side per-IP cap) is hit → show the signup wall. */
+/** Thrown when the guest daily limit (server-side, per device) is hit → show the signup wall. */
 export class GuestLimitError extends Error {
   constructor() {
     super("guest_limit");
@@ -944,17 +946,36 @@ export class GuestLimitError extends Error {
   }
 }
 
+/** Busy network (many guests on one IP): the server wants a Turnstile bot check first. */
+export class GuestChallengeError extends Error {
+  constructor() {
+    super("challenge_required");
+    this.name = "GuestChallengeError";
+  }
+}
+
+async function isChallenge(res: Response): Promise<boolean> {
+  if (res.status !== 403) return false;
+  try {
+    const body = (await res.json()) as { detail?: { code?: string } };
+    return body.detail?.code === "challenge_required";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Anonymous (logged-out) research stream — no auth header, hits /stream/guest.
- * Server enforces the per-IP daily cap (429 → GuestLimitError) and reports what's
- * left in `X-Guest-Remaining` (→ handlers.onGuestRemaining).
+ * Server enforces the per-device daily cap (429 → GuestLimitError), may ask for a
+ * bot check on busy networks (403 → GuestChallengeError) and reports what's left
+ * in `X-Guest-Remaining` (→ handlers.onGuestRemaining).
  */
 export async function streamResearchGuest(
   query: string,
   jurisdiction: string | undefined,
   history: ConversationTurn[],
   handlers: ResearchStreamHandlers,
-  options?: { signal?: AbortSignal; sessionId?: string },
+  options?: { signal?: AbortSignal; sessionId?: string; deviceId?: string; turnstileToken?: string },
 ): Promise<ResearchResponse> {
   const guard = stallGuard(options?.signal);
   try {
@@ -962,7 +983,11 @@ export async function streamResearchGuest(
     try {
       res = await fetch(`${researchServiceUrl()}/api/v1/research/stream/guest`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(options?.deviceId ? { "X-Guest-Id": options.deviceId } : {}),
+          ...(options?.turnstileToken ? { "X-Turnstile-Token": options.turnstileToken } : {}),
+        },
         body: JSON.stringify({
           query,
           jurisdiction: jurisdiction || null,
@@ -975,6 +1000,7 @@ export async function streamResearchGuest(
       throw toChatError(err, guard);
     }
     if (res.status === 429) throw new GuestLimitError();
+    if (await isChallenge(res)) throw new GuestChallengeError();
     if (!res.ok) throw statusToChatError(res.status);
     const remaining = Number(res.headers.get("X-Guest-Remaining"));
     if (Number.isFinite(remaining) && res.headers.has("X-Guest-Remaining")) {
@@ -1013,6 +1039,51 @@ function normaliseResult(payload: ResearchResponse, suggestions?: string[]): Res
     suggestions: suggestions ?? payload.suggestions ?? [],
     disclaimer: payload.disclaimer ?? DEFAULT_DISCLAIMER,
   };
+}
+
+/** After `done` the answer is complete; keep listening (bounded) for the
+ *  follow-up suggestions the server sends next, then release the connection. */
+function readSuggestionsAfterDone(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  decoder: TextDecoder,
+  pending: string,
+  handlers: ResearchStreamHandlers,
+): void {
+  if (!handlers.onSuggestions) {
+    reader.cancel().catch(() => {});
+    return;
+  }
+  const deadline = Date.now() + 30_000;
+  void (async () => {
+    let buffer = pending;
+    try {
+      // Let the caller finish handling the resolved answer before suggestions land on it.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      for (;;) {
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+        for (const block of blocks) {
+          const parsed = parseSseBlock(block);
+          if (parsed?.event !== "suggestions") continue;
+          try {
+            const p = JSON.parse(parsed.data) as { suggestions?: string[] };
+            handlers.onSuggestions?.(p.suggestions ?? []);
+          } catch {
+            /* suggestions are optional */
+          }
+          return;
+        }
+        if (Date.now() > deadline) return;
+        const chunk = await reader.read();
+        if (chunk.done) return;
+        buffer += decoder.decode(chunk.value, { stream: true });
+      }
+    } catch {
+      /* stopped or dropped — the answer is already shown */
+    } finally {
+      reader.cancel().catch(() => {});
+    }
+  })();
 }
 
 /**
@@ -1084,6 +1155,8 @@ async function consumeResearchStream(
     }
   };
 
+  let afterDone = "";
+  let streamEnded = false;
   try {
     while (!finished) {
       let chunk: ReadableStreamReadResult<Uint8Array>;
@@ -1094,20 +1167,31 @@ async function consumeResearchStream(
       }
       if (chunk.done) {
         buffer += decoder.decode();
+        streamEnded = true;
         break;
       }
       guard.touch();
       buffer += decoder.decode(chunk.value, { stream: true });
       const blocks = buffer.split("\n\n");
       buffer = blocks.pop() ?? "";
-      for (const block of blocks) {
-        handle(block);
-        if (finished) break;
+      for (let i = 0; i < blocks.length; i++) {
+        handle(blocks[i]);
+        if (finished) {
+          afterDone = [...blocks.slice(i + 1), buffer].join("\n\n");
+          break;
+        }
       }
     }
-    if (!finished && buffer.trim()) handle(buffer);
+    if (!finished && buffer.trim()) {
+      handle(buffer);
+      if (finished) afterDone = "";
+    }
   } finally {
     if (!finished) reader.cancel().catch(() => {});
+  }
+  if (finished) {
+    if (streamEnded) reader.cancel().catch(() => {});
+    else readSuggestionsAfterDone(reader, decoder, afterDone, handlers);
   }
 
   if (!result) throw new ChatStreamError("interrupted");

@@ -73,6 +73,7 @@ export default function ResearchPage() {
     setStatusMessage("Understanding your question…");
     setIsStreaming(true);
 
+    let answered: ResearchResponse | null = null;
     try {
       const data = await streamResearch(
         q,
@@ -80,7 +81,7 @@ export default function ResearchPage() {
         [],
         {
           onStatus: (stage, message) => {
-            setActiveStage(stage);
+            setActiveStage(stage === "writing" ? "answer" : stage);
             setStatusMessage(message);
           },
           onToken: (token) => {
@@ -91,6 +92,9 @@ export default function ResearchPage() {
               tokenRafRef.current = requestAnimationFrame(flushStreamTokens);
             }
           },
+          // Sent after the answer; attach them to this question's result only.
+          onSuggestions: (suggestions) =>
+            setResult((prev) => (prev && prev === answered ? { ...prev, suggestions } : prev)),
         },
         { signal: controller.signal },
       );
@@ -100,6 +104,7 @@ export default function ResearchPage() {
         flushStreamTokens();
       }
 
+      answered = data;
       setResult(data);
       setStreamedAnswer(data.answer);
       setHistory(saveResearchHistory(data.query));

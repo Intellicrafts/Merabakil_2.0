@@ -106,11 +106,21 @@ answered directly.
 - Use search_web only for things likely to have changed recently.
 - One targeted call per tool is usually enough."""
 
+_GUEST_TOOLS = """\
+LEGAL SOURCES AND TOOLS:
+- The Indian legal knowledge base has already been searched for this question. The results \
+are in the user's message between <<<SOURCES and SOURCES>>>, numbered [KB-1], [KB-2]… Use \
+the ones that are relevant and ignore the rest.
+- If the block says nothing relevant was found, answer from general knowledge without \
+[KB-n] markers and do not say or imply that the answer is backed by cited or verified sources.
+- search_web — only for recent developments (judgments, amendments, notifications from 2024 \
+onwards). Results are cited [WEB-1], [WEB-2]… Most questions need no tool call."""
+
 _TEXT_CITATIONS = """\
 CITATIONS:
 - Every fact taken from a tool result must carry its marker, e.g. "…within 30 days [KB-2]".
-- Use only markers that appear in tool results from THIS turn. Never invent markers, case \
-names, citations or section numbers.
+- Use only markers that appear in tool results or the SOURCES block from THIS turn. Never \
+invent markers, case names, citations or section numbers.
 - When answering from general knowledge without tools, use no markers.
 - The user's uploaded files appear in their message as a separate block. Refer to them by \
 name and clause/passage ("your rent agreement, clause 7") — never with [KB-n] markers, which \
@@ -143,10 +153,8 @@ def build_text_system_prompt(
         "full": "- get_lawyer / book_appointment — see LAWYERS AND BOOKING.\n",
         "no_booking": "- get_lawyer — find verified lawyers on MeraBakil when the user asks for one.\n",
     }.get(tool_profile, "")
-    parts = [
-        PERSONA, EMERGENCY_OVERRIDE, LAW_MAPPING, LANGUAGE_RULES,
-        _TEXT_TOOLS.format(lawyer_tools=lawyer_tools),
-    ]
+    tools = _GUEST_TOOLS if tool_profile == "guest" else _TEXT_TOOLS.format(lawyer_tools=lawyer_tools)
+    parts = [PERSONA, EMERGENCY_OVERRIDE, LAW_MAPPING, LANGUAGE_RULES, tools]
     if tool_profile == "full":
         parts.append(booking_rules(voice=False))
     parts += [_TEXT_CITATIONS, _TEXT_FORMAT]

@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 _NO_RESULTS = (
     "No relevant documents found in the Indian legal knowledge base for this query. "
-    "Answer from general knowledge without [KB-n] markers, or use search_web if the "
-    "question is about a recent development."
+    "Answer from general knowledge without [KB-n] markers and do not say or imply that the "
+    "answer is backed by cited or verified sources. Use search_web if the question is about "
+    "a recent development."
 )
 _UNAVAILABLE = (
     "The legal knowledge base is temporarily unavailable. Answer from general knowledge "
@@ -24,7 +25,7 @@ _UNAVAILABLE = (
 )
 
 
-def _format_sources(numbered: list[tuple[int, object]]) -> str:
+def format_kb_sources(numbered: list[tuple[int, object]]) -> str:
     parts = []
     for idx, src in numbered:
         header = [f"[KB-{idx}]"]
@@ -75,7 +76,7 @@ def build_kb_tool(retriever: RetrieverPort):
 
         numbered = [(registry.add_kb(src), src) for src in sources]
         if numbered:
-            content = _format_sources(numbered)
+            content = format_kb_sources(numbered)
         else:
             content = _UNAVAILABLE if failed else _NO_RESULTS
         return Command(update={"messages": [ToolMessage(content=content, tool_call_id=tool_call_id)]})

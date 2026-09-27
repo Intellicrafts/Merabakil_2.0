@@ -5,6 +5,7 @@ import { ChevronRight, ExternalLink, ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { ResearchResponse } from "@/lib/types";
+import { citedSources } from "@/lib/cited-sources";
 
 interface ResearchMetadataPanelProps {
   research: ResearchResponse;
@@ -33,9 +34,11 @@ export function ResearchMetadataPanel({
 }: ResearchMetadataPanelProps) {
   const [open, setOpen] = useState(initialOpen);
 
-  const sourceCount = research.sources.length;
+  // Only what the answer cites — retrieved-but-unused chunks are not its sources.
+  const cited = citedSources(research);
+  const sourceCount = cited.kb.length;
   const citationCount = research.citations.length;
-  const webCount = research.web_sources?.length ?? 0;
+  const webCount = cited.web.length;
   const confidencePct = Math.round(research.confidence.overall * 100);
   const hasMetadata = sourceCount > 0 || citationCount > 0 || webCount > 0;
 
@@ -138,16 +141,16 @@ export function ResearchMetadataPanel({
 
             {webCount > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {research.web_sources.map((src, idx) => (
+                {cited.web.map(({ source: src, n }) => (
                   <a
                     key={src.url}
-                    id={sourceAnchorId(anchorPrefix, `WEB-${idx + 1}`)}
+                    id={sourceAnchorId(anchorPrefix, `WEB-${n}`)}
                     href={src.url}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 rounded-full border border-blue-200/70 bg-blue-50/60 px-2.5 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-100/80 dark:border-blue-400/20 dark:bg-blue-900/20 dark:text-blue-300"
                   >
-                    <span className="font-medium">{`[WEB-${idx + 1}]`}</span>
+                    <span className="font-medium">{`[WEB-${n}]`}</span>
                     <span className="max-w-[180px] truncate">{src.title}</span>
                     <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-60" />
                   </a>
@@ -155,16 +158,16 @@ export function ResearchMetadataPanel({
               </div>
             )}
 
-            {research.sources.length > 0 && (
+            {sourceCount > 0 && (
               <div className="space-y-2">
-                {research.sources.map((source, idx) => (
+                {cited.kb.map(({ source, n }) => (
                   <div
-                    key={`${source.chunk_id}-${idx}`}
-                    id={sourceAnchorId(anchorPrefix, `KB-${idx + 1}`)}
+                    key={`${source.chunk_id}-${n}`}
+                    id={sourceAnchorId(anchorPrefix, `KB-${n}`)}
                     className="rounded-lg bg-black/[0.02] px-3 py-2 text-xs dark:bg-white/[0.03]"
                   >
                     <p className="font-medium text-foreground/80">
-                      [KB-{idx + 1}] {source.title ?? source.document_id}
+                      [KB-{n}] {source.title ?? source.document_id}
                       <span className="ml-2 font-normal text-muted-foreground">
                         {source.score.toFixed(2)} · {source.retrieval}
                       </span>

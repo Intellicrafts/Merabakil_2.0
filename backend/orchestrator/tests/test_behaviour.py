@@ -114,11 +114,13 @@ class _FakeGraph:
         self.fail_primary = fail_primary
         self.fail_fast = fail_fast
         self.calls: list[bool] = []
+        self.initials: list[dict] = []
         self.direct_calls = 0
 
     async def astream_events(self, initial):
         use_fast = bool(initial.get("use_fast"))
         self.calls.append(use_fast)
+        self.initials.append(initial)
         if (use_fast and self.fail_fast) or (not use_fast and self.fail_primary):
             raise RuntimeError("provider down")
         for t in self.tokens:
@@ -132,10 +134,25 @@ class _FakeGraph:
         return "Q1?\nQ2?\nQ3?"
 
 
-def _orchestrator(graph: _FakeGraph) -> LegalOrchestrator:
+class _FakeRetriever:
+    def __init__(self, sources=()):
+        self.sources = list(sources)
+        self.queries: list[str] = []
+
+    async def retrieve(self, query, *, top_k, filters, user_token):
+        self.queries.append(query)
+        return self.sources
+
+
+def _orchestrator(graph: _FakeGraph, retriever: _FakeRetriever | None = None) -> LegalOrchestrator:
     orch = object.__new__(LegalOrchestrator)
     orch._agent_graph = graph
+    orch._retriever = retriever or _FakeRetriever()
     return orch
+
+
+def _done(events: list[tuple[str, dict]]) -> dict:
+    return next(d for e, d in events if e == "done")
 
 
 def _events(orch: LegalOrchestrator, state: OrchestratorState) -> list[tuple[str, dict]]:
@@ -160,7 +177,7 @@ def test_yes_after_history_goes_to_the_agent_not_small_talk() -> None:
     )
     events = _events(_orchestrator(graph), state)
     assert graph.direct_calls == 0 and graph.calls == [False]
-    assert events[-1][0] == "done" and events[-1][1]["mode"] == "agent"
+    assert _done(events)["mode"] == "agent"
 
 
 def test_fresh_greeting_uses_fast_path_and_is_marked_conversational() -> None:
@@ -174,7 +191,7 @@ def test_primary_failure_before_tokens_falls_back_to_fast_model() -> None:
     graph = _FakeGraph(fail_primary=True)
     events = _events(_orchestrator(graph), OrchestratorState(query="What is Section 138 NI Act?"))
     assert graph.calls == [False, True]
-    assert events[-1][0] == "done"
+    assert _done(events)["answer"] == "Answer"
 
 
 def test_total_failure_ends_with_error_and_no_done() -> None:
@@ -191,5 +208,87 @@ def test_emergency_message_leads_with_helplines() -> None:
     events = _events(_orchestrator(graph), OrchestratorState(query="My husband beats me", route=QueryRoute.LEGAL))
     first_token = next(d["text"] for e, d in events if e == "token")
     assert "112" in first_token
-    done = events[-1][1]
+    done = _done(events)
     assert done["answer"].startswith(first_token)
+
+
+# ── Answer first, suggestions after (latency) ────────────────────────────────
+
+
+def test_answer_is_done_before_suggestions_are_generated() -> None:
+    events = _events(_orchestrator(_FakeGraph()), OrchestratorState(query="What is Section 138 NI Act?"))
+    names = [e for e, _ in events]
+    assert names[-3:] == ["citations", "done", "suggestions"]
+    assert _done(events)["suggestions"] == []
+    assert events[-1][1] == {"suggestions": ["Q1?", "Q2?", "Q3?"]}
+
+
+def test_run_state_still_returns_suggestions() -> None:
+    result = asyncio.run(_orchestrator(_FakeGraph()).run_state(OrchestratorState(query="What is Section 138?")))
+    assert result.suggestions == ["Q1?", "Q2?", "Q3?"]
+
+
+# ── Guests: knowledge base searched before the model ─────────────────────────
+
+
+def _src(n: int) -> RetrievedSource:
+    return RetrievedSource(
+        chunk_id=f"c{n}", document_id=f"d{n}", title=f"Consumer Protection Act 2019 part {n}",
+        content=f"A complaint may be filed before the District Commission ({n}).", score=0.7,
+    )
+
+
+def test_guest_question_is_searched_before_the_model_runs() -> None:
+    graph = _FakeGraph(tokens=("File before the District Commission [KB-1].",))
+    retriever = _FakeRetriever([_src(1), _src(2)])
+    state = OrchestratorState(query="How do I file a consumer complaint?", is_guest=True, route=QueryRoute.LEGAL)
+    events = _events(_orchestrator(graph, retriever), state)
+
+    stages = [d.get("stage") for e, d in events if e == "status"]
+    first_token = next(i for i, (e, _) in enumerate(events) if e == "token")
+    assert stages[:2] == ["research", "writing"]
+    assert all(e != "token" for e, _ in events[: first_token]) and "writing" in stages
+    assert retriever.queries == ["How do I file a consumer complaint?"]
+
+    initial = graph.initials[0]
+    assert initial["tool_profile"] == "guest"
+    prompt = initial["messages"][-1].content
+    assert "<<<SOURCES" in prompt and "[KB-1] Consumer Protection Act 2019 part 1" in prompt
+    assert prompt.endswith("MY QUESTION: How do I file a consumer complaint?")
+    assert [c["marker"] for c in _done(events)["citations"]] == ["[KB-1]"]
+
+
+def test_guest_with_nothing_relevant_is_told_so() -> None:
+    graph = _FakeGraph()
+    state = OrchestratorState(query="Cheque bounce time limit?", is_guest=True, route=QueryRoute.LEGAL)
+    events = _events(_orchestrator(graph, _FakeRetriever([])), state)
+    assert "Nothing relevant was found" in graph.initials[0]["messages"][-1].content
+    assert _done(events)["citations"] == [] and _done(events)["sources"] == []
+
+
+def test_guest_follow_up_is_searched_with_the_previous_question() -> None:
+    retriever = _FakeRetriever([])
+    state = OrchestratorState(
+        query="And the time limit?", is_guest=True, route=QueryRoute.LEGAL,
+        history=[
+            ConversationMessage(role="user", content="My cheque bounced, what can I do?"),
+            ConversationMessage(role="assistant", content="You can send a demand notice."),
+        ],
+    )
+    _events(_orchestrator(_FakeGraph(), retriever), state)
+    assert retriever.queries == ["My cheque bounced, what can I do?\nAnd the time limit?"]
+
+
+def test_guest_fallback_keeps_the_same_source_numbers() -> None:
+    graph = _FakeGraph(tokens=("See [KB-2].",), fail_primary=True)
+    state = OrchestratorState(query="Consumer complaint?", is_guest=True, route=QueryRoute.LEGAL)
+    events = _events(_orchestrator(graph, _FakeRetriever([_src(1), _src(2)])), state)
+    assert graph.calls == [False, True]
+    assert [c["marker"] for c in _done(events)["citations"]] == ["[KB-2]"]
+
+
+def test_member_questions_are_not_prefetched() -> None:
+    retriever = _FakeRetriever([_src(1)])
+    graph = _FakeGraph()
+    _events(_orchestrator(graph, retriever), OrchestratorState(query="Consumer complaint?", route=QueryRoute.LEGAL))
+    assert retriever.queries == [] and graph.initials[0]["tool_profile"] == "full"

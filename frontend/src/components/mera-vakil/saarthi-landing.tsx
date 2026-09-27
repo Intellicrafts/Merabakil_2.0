@@ -20,13 +20,16 @@ import {
   type QuestionSource,
 } from "@/lib/analytics/question-funnel";
 import type { SignupTrigger } from "@/lib/analytics/signup-source";
-import { GuestLimitError, streamResearchGuest } from "@/lib/api";
+import { TurnstileChallenge, TURNSTILE_SITE_KEY } from "@/components/security/turnstile-challenge";
+import { GuestChallengeError, GuestLimitError, streamResearchGuest } from "@/lib/api";
 import { chatErrorCode } from "@/lib/chat-errors";
+import { INITIAL_STATUS_KEY, statusLabel } from "@/lib/chat-status";
 import { createUserMessage, toResearchHistory, type ChatMessage } from "@/lib/conversations";
 import { FEATURES } from "@/lib/features";
 import {
   canGuestChat,
   canGuestVoice,
+  getGuestDeviceId,
   getGuestSessionId,
   GUEST_DAILY_CHAT_LIMIT,
   guestChatsRemaining,
@@ -70,6 +73,8 @@ function SaarthiLandingInner() {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | undefined>();
+  // Busy network: the server asked for a bot check before this question goes through.
+  const [challenge, setChallenge] = useState<{ question: string; source: QuestionSource } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
@@ -195,7 +200,7 @@ function SaarthiLandingInner() {
   async function submitQuestion(
     text: string,
     requestedSource: QuestionSource,
-    opts?: { voice?: boolean; retryOf?: string },
+    opts?: { voice?: boolean; retryOf?: string; turnstileToken?: string },
   ) {
     if (opts?.voice) {
       openGuestVoice(text.trim());
@@ -211,6 +216,8 @@ function SaarthiLandingInner() {
       return;
     }
     const startedAt = Date.now();
+    let firstTokenAt: number | null = null;
+    setChallenge(null);
 
     // A retry replaces the failed exchange instead of stacking a new one.
     let base = messagesRef.current;
@@ -227,7 +234,7 @@ function SaarthiLandingInner() {
     setMessages([...base, userMsg, assistant]);
     setQuery("");
     setStreamingId(assistantId);
-    setStatus(t("chat.preparingAnswer"));
+    setStatus(t(INITIAL_STATUS_KEY));
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -252,8 +259,9 @@ function SaarthiLandingInner() {
               entryPoint: "guest",
             });
           },
-          onStatus: (_stage, message) => setStatus(message),
+          onStatus: (stage, message) => setStatus(statusLabel(stage, message, t)),
           onToken: (tok) => {
+            firstTokenAt ??= Date.now();
             setStatus(undefined);
             patch((m) => ({ ...m, content: m.content + tok, revealedChars: m.content.length + tok.length }));
           },
@@ -270,11 +278,19 @@ function SaarthiLandingInner() {
                 is_guest: true,
                 has_citations: Boolean(result.citations?.length || result.web_sources?.length),
                 latency_bucket: bucketLatency(Date.now() - startedAt),
+                ttft_bucket: bucketLatency((firstTokenAt ?? Date.now()) - startedAt),
               });
             }
           },
+          onSuggestions: (suggestions) =>
+            patch((m) => (m.research ? { ...m, research: { ...m.research, suggestions } } : m)),
         },
-        { sessionId: getGuestSessionId(), signal: controller.signal },
+        {
+          sessionId: getGuestSessionId(),
+          signal: controller.signal,
+          deviceId: getGuestDeviceId(),
+          turnstileToken: opts?.turnstileToken,
+        },
       );
       patch((m) => ({ ...m, research: result, content: result.answer, revealedChars: result.answer.length }));
       track(AnalyticsEvents.AI_RESPONSE_RECEIVED, {
@@ -298,6 +314,12 @@ function SaarthiLandingInner() {
         setRemaining(0);
         setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
         openSignupPrompt("text_limit", trimmed, { reason: "text", limitType: "daily_messages" });
+      } else if (err instanceof GuestChallengeError) {
+        // Not a chat yet: take the exchange back and ask for the bot check.
+        trackQuestionBlocked({ isGuest: true, reason: "bot_check", source });
+        setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
+        if (TURNSTILE_SITE_KEY) setChallenge({ question: trimmed, source });
+        else openSignupPrompt("text_limit", trimmed, { reason: "text", limitType: "daily_messages" });
       } else {
         patch((m) => ({ ...m, error: chatErrorCode(err) }));
         if (accepted) {
@@ -336,7 +358,9 @@ function SaarthiLandingInner() {
   const chatStarted = messages.length > 0;
   const streaming = streamingId !== null;
   const remainingLabel =
-    remaining !== null ? `${remaining} ${t("ask.freeChatsLeft")}` : "";
+    remaining !== null
+      ? `${remaining} ${t(remaining === 1 ? "ask.freeChatLeft" : "ask.freeChatsLeft")} · ${t("ask.resetsMidnightIst")}`
+      : "";
   const streamingMessage = messages.find((m) => m.id === streamingId);
 
   return (
@@ -437,6 +461,29 @@ function SaarthiLandingInner() {
             onSuggestionSelect={handleSuggestion}
             onRetry={handleRetry}
           />
+          {challenge && (
+            <div
+              role="dialog"
+              aria-labelledby="guest-bot-check-title"
+              className="mx-auto mb-2 w-full max-w-2xl shrink-0 px-4"
+            >
+              <div className="rounded-xl border border-black/[0.08] bg-background p-4 text-center shadow-sm dark:border-white/10">
+                <p id="guest-bot-check-title" className="text-sm font-medium text-foreground">
+                  {t("ask.botCheckTitle")}
+                </p>
+                <p className="mb-3 mt-1 text-[12px] text-muted-foreground">{t("ask.botCheckBody")}</p>
+                <TurnstileChallenge
+                  lang={lang}
+                  onToken={(token) => void submitRef.current(challenge.question, challenge.source, { turnstileToken: token })}
+                  onError={() => {
+                    const pending = challenge.question;
+                    setChallenge(null);
+                    openSignupPrompt("text_limit", pending);
+                  }}
+                />
+              </div>
+            </div>
+          )}
           <div className="mv-guest-dock mx-auto w-full max-w-2xl shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
             {streaming && (
               <div className="mb-2 flex justify-center">

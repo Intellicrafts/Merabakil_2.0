@@ -7,6 +7,7 @@ SSE contract sent to the browser:
   draft_status {status}          — a document draft is being generated (members)
   draft {title, document_type, content} — sent BEFORE done when a draft was requested
   citations / done {…, mode}     — the answer completed (terminal)
+  suggestions {suggestions}      — follow-up questions, sent after done (agent answers)
   error {code, message}          — no answer (terminal); nothing is billed or saved
   ": ping" comments              — keepalive every 15s while the model is working
 
@@ -238,7 +239,6 @@ async def _chat_events(req: ChatRequest) -> AsyncIterator[str]:
             )
             yield sse("draft_status", {"status": "generating"})
 
-    done_payload: dict | None = None
     try:
         async for chunk in container.orchestrator.run_state_streaming(state):
             if chunk.startswith("event: done"):
@@ -251,14 +251,21 @@ async def _chat_events(req: ChatRequest) -> AsyncIterator[str]:
                     draft_task = None
                     if draft:
                         yield sse("draft", draft)
+                # Save and bill now: suggestions still follow on this stream, and a
+                # client that leaves meanwhile must not cancel either.
+                _after_answer(done_payload, sid=sid, user_id=user_id, query=query, billable=billable,
+                              session_id=body.session_id)
             yield chunk
     finally:
         if draft_task is not None and not draft_task.done():
             draft_task.cancel()
 
-    if not done_payload:
-        return  # orchestrator already sent a terminal error; bill and save nothing
 
+def _after_answer(
+    done_payload: dict, *, sid: str | None, user_id: str | None, query: str, billable: bool,
+    session_id: str | None,
+) -> None:
+    container = get_container()
     answer = done_payload.get("answer") or ""
     mode = done_payload.get("mode")
     lawyers = (done_payload.get("specialist_payload") or {}).get("lawyers")
@@ -272,7 +279,7 @@ async def _chat_events(req: ChatRequest) -> AsyncIterator[str]:
             )
         )
     if answer and billable and mode == "agent":
-        spawn(billing.deduct_chatbot_query(user_id=user_id, fee=CHATBOT_FEE, session_id=body.session_id))
+        spawn(billing.deduct_chatbot_query(user_id=user_id, fee=CHATBOT_FEE, session_id=session_id))
 
 
 async def chat_stream(req: ChatRequest) -> AsyncIterator[str]:
