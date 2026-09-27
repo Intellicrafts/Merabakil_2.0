@@ -2,6 +2,7 @@
 
 SSE contract sent to the browser:
   status {stage, message}        — progress, any number
+  accepted {}                    — the question passed input and wallet checks
   token {text}                   — answer text, any number
   draft_status {status}          — a document draft is being generated (members)
   draft {title, document_type, content} — sent BEFORE done when a draft was requested
@@ -169,6 +170,10 @@ async def _chat_events(req: ChatRequest) -> AsyncIterator[str]:
     if billable and not await billing.has_balance(user_token=req.token, minimum=CHATBOT_FEE):
         yield error_event("insufficient_balance")
         return
+
+    # The question passed every gate and an answer is now being produced — the
+    # client counts it as sent (question_submitted) only from here.
+    yield sse("accepted", {})
 
     quick = container.router.quick_classify(query)
     if quick == QueryRoute.CONVERSATIONAL:

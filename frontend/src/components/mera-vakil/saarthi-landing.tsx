@@ -12,7 +12,13 @@ import { MessageList } from "@/components/mera-vakil/message-list";
 import { StarterSuggestions } from "@/components/mera-vakil/starter-suggestions";
 import { VoiceModeOverlay } from "@/components/mera-vakil/voice-mode-overlay";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
-import { AnalyticsEvents, bucketCount, bucketLatency, captureUtmFromSearch, track } from "@/lib/analytics";
+import { AnalyticsEvents, bucketLatency, captureUtmFromSearch, track } from "@/lib/analytics";
+import {
+  blockReasonFor,
+  trackQuestionBlocked,
+  trackQuestionSent,
+  type QuestionSource,
+} from "@/lib/analytics/question-funnel";
 import type { SignupTrigger } from "@/lib/analytics/signup-source";
 import { GuestLimitError, streamResearchGuest } from "@/lib/api";
 import { chatErrorCode } from "@/lib/chat-errors";
@@ -42,14 +48,6 @@ import {
 
 const SAARTHI = "/mera-vakil";
 
-type Source = "typed" | "chip" | "example";
-
-function lengthBucket(len: number): string {
-  if (len < 50) return "short";
-  if (len < 200) return "medium";
-  if (len < 600) return "long";
-  return "very_long";
-}
 
 function emptyAssistant(): ChatMessage {
   return {
@@ -69,7 +67,6 @@ function SaarthiLandingInner() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [wall, setWall] = useState<{ title?: string; subtitle?: string; trigger?: SignupTrigger }>({});
-  const nudgeShownRef = useRef(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | undefined>();
@@ -116,7 +113,7 @@ function SaarthiLandingInner() {
       track(AnalyticsEvents.SAARTHI_VOICE_MODE_ACTIVATED, { is_guest: true });
       setVoiceOpen(true);
     } else if (carried && autoSend) {
-      void submitQuestion(carried, "typed");
+      void submitQuestion(carried, "autosend");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -130,14 +127,6 @@ function SaarthiLandingInner() {
         .map((m) => ({ role: m.role, content: m.content })),
     );
   }, [messages, streamingId]);
-
-  // The in-chat sign-up nudge counts as a prompt the first time it appears.
-  useEffect(() => {
-    if (messages.length > 0 && !nudgeShownRef.current) {
-      nudgeShownRef.current = true;
-      track(AnalyticsEvents.GUEST_SIGNUP_PROMPT_SHOWN, { trigger: "nudge" });
-    }
-  }, [messages.length]);
 
   // Stop an in-flight answer if the visitor leaves the page.
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -181,7 +170,8 @@ function SaarthiLandingInner() {
         ...(limit.voiceSeconds !== undefined ? { voice_seconds_used: limit.voiceSeconds } : {}),
       });
     }
-    track(AnalyticsEvents.GUEST_SIGNUP_PROMPT_SHOWN, { trigger });
+    // Every time the sign-up sheet is shown — limits and the nudge alike.
+    track(AnalyticsEvents.GUEST_SIGNUP_PROMPT_SHOWN, { trigger, is_guest: true });
     setWall(
       trigger === "nudge"
         ? { trigger }
@@ -204,7 +194,7 @@ function SaarthiLandingInner() {
 
   async function submitQuestion(
     text: string,
-    source: Source,
+    requestedSource: QuestionSource,
     opts?: { voice?: boolean; retryOf?: string },
   ) {
     if (opts?.voice) {
@@ -214,28 +204,13 @@ function SaarthiLandingInner() {
 
     const trimmed = text.trim();
     if (!trimmed || abortRef.current) return;
+    const source: QuestionSource = opts?.retryOf ? "retry" : requestedSource;
     if (!canGuestChat()) {
+      trackQuestionBlocked({ isGuest: true, reason: "guest_limit", source });
       openSignupPrompt("text_limit", trimmed, { reason: "text", limitType: "daily_messages" });
       return;
     }
     const startedAt = Date.now();
-
-    const isFirstMessage = !messagesRef.current.some((m) => m.role === "user");
-    track(AnalyticsEvents.QUESTION_SUBMITTED, {
-      source: opts?.retryOf ? "retry" : source,
-      lang,
-      length_bucket: lengthBucket(trimmed.length),
-      is_guest: true,
-    });
-    if (isFirstMessage) {
-      track(AnalyticsEvents.AI_CHAT_STARTED, { session_type: "saarthi", entry_point: "guest", is_guest: true });
-    }
-    track(AnalyticsEvents.AI_MESSAGE_SENT, {
-      has_attachment: false,
-      message_count_bucket: bucketCount(messagesRef.current.filter((m) => m.role === "user").length + 1),
-      interaction_type: opts?.retryOf ? "retry" : "send",
-      is_guest: true,
-    });
 
     // A retry replaces the failed exchange instead of stacking a new one.
     let base = messagesRef.current;
@@ -243,6 +218,8 @@ function SaarthiLandingInner() {
       const idx = base.findIndex((m) => m.id === opts.retryOf);
       if (idx > 0) base = base.slice(0, idx - 1);
     }
+    const messageNumber = base.filter((m) => m.role === "user").length + 1;
+    let accepted = false;
     const history = toResearchHistory(base.filter((m) => m.content.trim() && !m.error));
     const userMsg = createUserMessage(trimmed);
     const assistant = emptyAssistant();
@@ -264,6 +241,17 @@ function SaarthiLandingInner() {
         undefined,
         history,
         {
+          onAccepted: () => {
+            accepted = true;
+            trackQuestionSent({
+              isGuest: true,
+              source,
+              lang,
+              questionLength: trimmed.length,
+              messageNumber,
+              entryPoint: "guest",
+            });
+          },
           onStatus: (_stage, message) => setStatus(message),
           onToken: (tok) => {
             setStatus(undefined);
@@ -289,6 +277,12 @@ function SaarthiLandingInner() {
         { sessionId: getGuestSessionId(), signal: controller.signal },
       );
       patch((m) => ({ ...m, research: result, content: result.answer, revealedChars: result.answer.length }));
+      track(AnalyticsEvents.AI_RESPONSE_RECEIVED, {
+        latency_bucket: bucketLatency(Date.now() - startedAt),
+        has_citations: Boolean(result.citations?.length || result.web_sources?.length),
+        response_status: "success",
+        is_guest: true,
+      });
       if (!serverCounted) {
         recordGuestChat();
         setRemaining(guestChatsRemaining());
@@ -299,12 +293,24 @@ function SaarthiLandingInner() {
         setMessages((prev) => prev.filter((m) => !(m.id === assistantId && !m.content.trim())));
       } else if (err instanceof GuestLimitError) {
         // Roll back the empty exchange and show the signup wall.
+        trackQuestionBlocked({ isGuest: true, reason: "guest_limit", source });
         markGuestChatLimitReached();
         setRemaining(0);
         setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
         openSignupPrompt("text_limit", trimmed, { reason: "text", limitType: "daily_messages" });
       } else {
         patch((m) => ({ ...m, error: chatErrorCode(err) }));
+        if (accepted) {
+          track(AnalyticsEvents.AI_RESPONSE_RECEIVED, {
+            latency_bucket: bucketLatency(Date.now() - startedAt),
+            has_citations: false,
+            response_status: "error",
+            error_code: chatErrorCode(err),
+            is_guest: true,
+          });
+        } else {
+          trackQuestionBlocked({ isGuest: true, source, ...blockReasonFor(err, true) });
+        }
       }
     } finally {
       abortRef.current = null;
@@ -324,7 +330,7 @@ function SaarthiLandingInner() {
   }, []);
 
   const handleSuggestion = useCallback((prompt: string) => {
-    void submitRef.current(prompt, "chip");
+    void submitRef.current(prompt, "suggestion");
   }, []);
 
   const chatStarted = messages.length > 0;
@@ -415,10 +421,7 @@ function SaarthiLandingInner() {
           <p className="mx-auto mt-1 w-full max-w-2xl shrink-0 px-4">
             <button
               type="button"
-              onClick={() => {
-                setWall({ trigger: "nudge" });
-                setAuthOpen(true);
-              }}
+              onClick={() => openSignupPrompt("nudge")}
               className="block w-full rounded-lg bg-primary/[0.06] px-3 py-2 text-center text-[12px] text-muted-foreground transition-colors hover:bg-primary/[0.1] hover:text-foreground"
             >
               {t("ask.guestNudge")}

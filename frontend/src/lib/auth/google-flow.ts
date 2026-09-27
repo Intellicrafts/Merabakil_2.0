@@ -1,6 +1,7 @@
 "use client";
 
 import { clearSignupSource, signupSourceParam } from "@/lib/analytics/signup-source";
+import { setUserType } from "@/lib/analytics";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 import { acquisitionPayload, AnalyticsEvents, track, utmAsAnalyticsParams } from "@/lib/analytics";
@@ -79,11 +80,14 @@ export async function handleGoogleAuthResult(
     router.push(`/auth/onboarding/role${onboardingNext}`);
     return;
   }
+  setUserType("registered");
   track(AnalyticsEvents.LOGIN_COMPLETED, {
-    authentication_method: "google",
+    method: "google",
+    ...signupSourceParam(),
     account_type: result.user.roles?.[0] ?? "citizen",
     ...utmAsAnalyticsParams(),
   });
+  clearSignupSource();
   await finishAuthSession(result, router, nextPath);
 }
 
@@ -108,8 +112,10 @@ export async function completeGoogleOnboarding(
     { terms_version: LEGAL_VERSIONS.terms, privacy_version: LEGAL_VERSIONS.privacy },
     acquisitionPayload(),
   );
+  setUserType("registered"); // before the completion event (the session is set just after)
   track(AnalyticsEvents.SIGNUP_COMPLETED, {
-    signup_method: "google",
+    method: "google",
+    signup_method: "google", // Legacy key for the existing GA4 dimension — remove after 2026-10-27.
     account_type: role,
     ...signupSourceParam(),
     ...utmAsAnalyticsParams(),

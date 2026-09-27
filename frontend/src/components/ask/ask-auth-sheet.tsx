@@ -91,6 +91,7 @@ export function AskAuthSheet({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
+        clearSignupSource();
         onClose();
         return;
       }
@@ -125,6 +126,13 @@ export function AskAuthSheet({
   }, [open]);
 
   if (!open || !mounted) return null;
+
+  // Closing without signing up ends this prompt's attribution, so a later,
+  // unrelated sign-up in the same tab isn't credited to it.
+  const close = () => {
+    clearSignupSource();
+    onClose();
+  };
 
   function reset(nextTab: Tab) {
     setTab(nextTab);
@@ -171,7 +179,7 @@ export function AskAuthSheet({
         const auth = await verifyLoginOtp(email.trim(), otp);
         setSession(auth);
         track(AnalyticsEvents.LOGIN_COMPLETED, {
-          authentication_method: "otp",
+          method: "otp",
           account_type: auth.user.roles?.[0] ?? "citizen",
           ...(source ? { source } : {}),
           ...utmAsAnalyticsParams(),
@@ -210,7 +218,8 @@ export function AskAuthSheet({
       );
       setSession(auth);
       track(AnalyticsEvents.SIGNUP_COMPLETED, {
-        signup_method: "email",
+        method: "email",
+        signup_method: "email", // Legacy key for the existing GA4 dimension — remove after 2026-10-27.
         account_type: "citizen",
         ...(source ? { source } : {}),
         ...utmAsAnalyticsParams(),
@@ -229,7 +238,7 @@ export function AskAuthSheet({
       <button
         type="button"
         aria-label="Close"
-        onClick={onClose}
+        onClick={close}
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
       />
       <div
@@ -242,7 +251,7 @@ export function AskAuthSheet({
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-black/15 dark:bg-white/20 sm:hidden" />
         <button
           type="button"
-          onClick={onClose}
+          onClick={close}
           aria-label="Close"
           className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/[0.05] dark:hover:bg-white/[0.08]"
         >

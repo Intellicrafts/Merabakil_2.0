@@ -89,12 +89,13 @@ function RegisterForm() {
         acquisitionPayload(),
       ),
     onSuccess: async (auth) => {
+      setSession(auth); // user_type → registered before the completion event
       track(AnalyticsEvents.SIGNUP_COMPLETED, {
-        signup_method: "email",
+        method: "email",
+        signup_method: "email", // Legacy key for the existing GA4 dimension — remove after 2026-10-27.
         account_type: role,
         ...utmAsAnalyticsParams(),
       });
-      setSession(auth);
       await syncAdvocateListing();
       if (nextPath && nextPath.startsWith("/")) {
         router.push(nextPath);
@@ -223,7 +224,7 @@ function RegisterForm() {
             e.preventDefault();
             setGoogleError(null);
             setStepError(null);
-            track(AnalyticsEvents.ONBOARDING_STARTED, { signup_method: "email" });
+            track(AnalyticsEvents.ONBOARDING_STARTED, { method: "email" });
             registerMutation.mutate();
           }}
         >

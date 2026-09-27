@@ -9,6 +9,7 @@ export const AnalyticsEvents = {
   // Saarthi question-first funnel (NEVER include question text)
   ASK_PAGE_VIEWED: "ask_page_viewed",
   QUESTION_SUBMITTED: "question_submitted",
+  QUESTION_BLOCKED: "question_blocked",
   FIRST_ANSWER_SHOWN: "first_answer_shown",
   GUEST_LIMIT_REACHED: "guest_limit_reached",
   GUEST_SIGNUP_PROMPT_SHOWN: "guest_signup_prompt_shown",

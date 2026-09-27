@@ -71,7 +71,9 @@ async def test_stream_ends_with_done_and_bills_once(client, env, access_token) -
         "/api/v1/research/stream", json={"query": QUESTION, "session_id": "s1"}, headers=_auth(access_token)
     )
     events = parse_sse(resp.text)
-    assert events[-1][0] == "done"
+    names = [e for e, _ in events]
+    assert names[-1] == "done"
+    assert names.index("accepted") < names.index("token")  # accepted before any answer text
     await _settle()
     assert len(env.billing.deductions) == 1
 
@@ -113,6 +115,7 @@ async def test_zero_balance_stops_before_the_model_runs(client, env, access_toke
     resp = await client.post("/api/v1/research/stream", json={"query": QUESTION}, headers=_auth(access_token))
     events = parse_sse(resp.text)
     assert events[-1] == ("error", {"code": "insufficient_balance", "message": events[-1][1]["message"]})
+    assert "accepted" not in [e for e, _ in events]  # blocked questions are never "accepted"
     assert env.orchestrator.states == []
 
 

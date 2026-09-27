@@ -5,7 +5,8 @@ import { useEffect } from "react";
 
 import { GA_ENABLED, GA_MEASUREMENT_ID, GOOGLE_ADS_ID } from "@/lib/analytics/constants";
 import { updateConsentMode } from "@/lib/analytics/consent-bridge";
-import { clearAnalyticsUser, setUserType } from "@/lib/analytics/track";
+import { ATTRIBUTION_PARAMS, clearAnalyticsUser, setUserType } from "@/lib/analytics/track";
+import { clearStoredGclid } from "@/lib/analytics/utm";
 import { getToken } from "@/lib/api";
 import { CONSENT_STORAGE_KEY, readConsent } from "@/lib/consent";
 
@@ -48,6 +49,24 @@ function initScript(): string {
       security_storage: 'granted'
     });
     gtag('js', new Date());
+    // Same rule as analyticsUrl(): only attribution params, so GA4's automatic
+    // events (site search, history page views) never see e.g. a ?q= question.
+    var keepParams = ${JSON.stringify([...ATTRIBUTION_PARAMS])};
+    function cleanUrl(url) {
+      try {
+        var u = new URL(url, location.origin);
+        if (u.origin !== location.origin) return url;
+        var kept = new URLSearchParams();
+        u.searchParams.forEach(function (v, k) { if (keepParams.indexOf(k) !== -1) kept.append(k, v); });
+        var qs = kept.toString();
+        return u.origin + u.pathname + (qs ? '?' + qs : '');
+      } catch (e) { return ''; }
+    }
+    // 'set', not config: config values would outrank trackPageView's later updates.
+    gtag('set', {
+      page_location: cleanUrl(location.href),
+      page_referrer: document.referrer ? cleanUrl(document.referrer) : ''
+    });
     var gaConfig = {
       send_page_view: false,
       anonymize_ip: true,
@@ -70,6 +89,7 @@ export function GoogleAnalytics() {
       updateConsentMode(detail.analytics);
       if (!detail.analytics) {
         clearAnalyticsUser();
+        clearStoredGclid();
       }
     }
 

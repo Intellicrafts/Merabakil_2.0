@@ -201,8 +201,10 @@ export function ChatConversationDetail({
                     Updated {formatDate(conversation.updatedAt)}
                   </span>
                 </div>
+                {/* No ?search=<email>: the page never read it, and GA4 site search
+                    would record the address as a search term. */}
                 <Link
-                  href={`/admin/users?search=${encodeURIComponent(conversation.user.email)}`}
+                  href="/admin/users"
                   className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                 >
                   View in User Management

@@ -45,14 +45,8 @@ export function getWebSiteSchema() {
     url: SITE.url,
     description: SITE.description,
     publisher: { "@type": "Organization", name: SITE.name, url: SITE.url },
-    potentialAction: {
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: `${SITE.url}/mera-vakil?q={search_term_string}`,
-      },
-      "query-input": "required name=search_term_string",
-    },
+    // No SearchAction: it would put users' legal questions in the URL (and so in
+    // analytics and server logs), and Google no longer shows a sitelinks search box.
   };
 }
 

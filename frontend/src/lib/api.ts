@@ -759,6 +759,8 @@ export async function runResearch(
 }
 
 export interface ResearchStreamHandlers {
+  /** The server accepted the question (passed input + wallet checks); fires once. */
+  onAccepted?: () => void;
   onStatus?: (stage: string, message: string) => void;
   onToken?: (text: string) => void;
   /** Fired as soon as citations are ready — before suggestions arrive. */
@@ -1030,6 +1032,13 @@ async function consumeResearchStream(
   let buffer = "";
   let result: ResearchResponse | null = null;
   let finished = false;
+  let accepted = false;
+  // Older backends don't send `accepted`; the first answer content implies it.
+  const accept = () => {
+    if (accepted) return;
+    accepted = true;
+    handlers.onAccepted?.();
+  };
 
   const handle = (block: string) => {
     const parsed = parseSseBlock(block);
@@ -1041,12 +1050,16 @@ async function consumeResearchStream(
       return; // one malformed event must not kill the whole answer
     }
     switch (parsed.event) {
+      case "accepted":
+        accept();
+        break;
       case "status": {
         const p = payload as { stage: string; message: string };
         handlers.onStatus?.(p.stage, p.message);
         break;
       }
       case "token":
+        accept();
         handlers.onToken?.((payload as { text: string }).text);
         break;
       case "error": {
@@ -1054,6 +1067,7 @@ async function consumeResearchStream(
         throw new ChatStreamError(p.code ?? "server_error", p.message || undefined);
       }
       case "citations":
+        accept();
         handlers.onCitations?.(normaliseResult(payload as ResearchResponse, []));
         break;
       case "draft_status":
@@ -1063,6 +1077,7 @@ async function consumeResearchStream(
         handlers.onDraft?.(payload as DraftPayload);
         break;
       case "done":
+        accept();
         result = normaliseResult(payload as ResearchResponse);
         finished = true;
         break;

@@ -47,7 +47,7 @@ export function SocialLoginButtons({
       if (disabledRef.current || loadingRef.current) return;
       setLoading(true);
       try {
-        track(AnalyticsEvents.LOGIN_STARTED, { authentication_method: "google" });
+        track(AnalyticsEvents.LOGIN_STARTED, { method: "google" });
         await handleGoogleCredential(credential, router, nextPathRef.current);
       } catch (err) {
         const message = (err as Error).message || "Google sign-in failed.";

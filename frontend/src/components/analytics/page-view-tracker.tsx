@@ -17,6 +17,19 @@ import { hashUserId } from "@/lib/analytics/user-id";
 import { getStoredUser, primaryRole } from "@/lib/api";
 import { readConsent } from "@/lib/consent";
 
+/** URL params that only reflect UI state (open conversation, debug switch) —
+ *  changing them is not a new page view. */
+const STATE_PARAMS = new Set(["c", "ga_debug"]);
+
+function pageKey(pathname: string, params: URLSearchParams): string {
+  const meaningful = new URLSearchParams();
+  params.forEach((value, key) => {
+    if (!STATE_PARAMS.has(key)) meaningful.append(key, value);
+  });
+  const search = meaningful.toString();
+  return search ? `${pathname}?${search}` : pathname;
+}
+
 export function PageViewTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -29,9 +42,9 @@ export function PageViewTracker() {
     const search = searchParams.toString();
     captureUtmFromSearch(search ? `?${search}` : "");
 
-    const fullPath = search ? `${pathname}?${search}` : pathname;
-    if (lastPath.current === fullPath) return;
-    lastPath.current = fullPath;
+    const key = pageKey(pathname, new URLSearchParams(search));
+    if (lastPath.current === key) return;
+    lastPath.current = key;
 
     const pageType = resolvePageType(pathname);
     const utm = utmAsAnalyticsParams();

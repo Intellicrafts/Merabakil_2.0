@@ -52,12 +52,12 @@ function LoginForm() {
   const passwordMutation = useMutation({
     mutationFn: () => login(email, password),
     onSuccess: async (auth) => {
+      setSession(auth);
       track(AnalyticsEvents.LOGIN_COMPLETED, {
-        authentication_method: "email",
+        method: "email",
         account_type: auth.user.roles?.[0] ?? "citizen",
         ...utmAsAnalyticsParams(),
       });
-      setSession(auth);
       await syncAdvocateListing();
       if (nextPath && nextPath.startsWith("/")) {
         router.push(nextPath);
@@ -80,12 +80,12 @@ function LoginForm() {
   const verifyOtpMutation = useMutation({
     mutationFn: () => verifyLoginOtp(email.trim(), otp),
     onSuccess: async (auth) => {
+      setSession(auth);
       track(AnalyticsEvents.LOGIN_COMPLETED, {
-        authentication_method: "otp",
+        method: "otp",
         account_type: auth.user.roles?.[0] ?? "citizen",
         ...utmAsAnalyticsParams(),
       });
-      setSession(auth);
       await syncAdvocateListing();
       if (nextPath && nextPath.startsWith("/")) {
         router.push(nextPath);
@@ -108,7 +108,7 @@ function LoginForm() {
       setStepError(t("auth.invalidEmail"));
       return;
     }
-    track(AnalyticsEvents.LOGIN_STARTED, { authentication_method: "otp" });
+    track(AnalyticsEvents.LOGIN_STARTED, { method: "otp" });
     sendOtpMutation.mutate();
   };
 
@@ -156,7 +156,7 @@ function LoginForm() {
             e.preventDefault();
             setGoogleError(null);
             setStepError(null);
-            track(AnalyticsEvents.LOGIN_STARTED, { authentication_method: "email" });
+            track(AnalyticsEvents.LOGIN_STARTED, { method: "email" });
             passwordMutation.mutate();
           }}
         >

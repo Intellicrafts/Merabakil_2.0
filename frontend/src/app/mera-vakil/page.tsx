@@ -21,7 +21,6 @@ import { useReadAloud } from "@/hooks/use-read-aloud";
 import { useStreamingReveal } from "@/hooks/use-streaming-reveal";
 import {
   AnalyticsEvents,
-  bucketCount,
   bucketFileSize,
   bucketLatency,
   track,
@@ -38,6 +37,12 @@ import {
   uploadUserDocument,
 } from "@/lib/api";
 import { chatErrorCode } from "@/lib/chat-errors";
+import {
+  blockReasonFor,
+  trackQuestionBlocked,
+  trackQuestionSent,
+  type QuestionSource,
+} from "@/lib/analytics/question-funnel";
 import {
   buildDefaultAttachmentQuery,
   isImageFile,
@@ -136,7 +141,8 @@ export default function MeraVakilPage() {
   // From /ask: a question to auto-send once hydrated, and a flag to fire the
   // first_answer_shown conversion when its first response arrives.
   const autoSendQuestionRef = useRef<string | null>(null);
-  const firstAnswerPendingRef = useRef(false);
+  // first_answer_shown: the first answer this page session (same rule as guests).
+  const firstAnswerFiredRef = useRef(false);
   const streamReveal = useStreamingReveal();
   const streamGenerationRef = useRef(0);
   const [groundingMessageId, setGroundingMessageId] = useState<string | null>(null);
@@ -409,8 +415,7 @@ export default function MeraVakilPage() {
     const q = autoSendQuestionRef.current;
     if (!q) return;
     autoSendQuestionRef.current = null;
-    firstAnswerPendingRef.current = true;
-    void sendMessage(q);
+    void sendMessage(q, { source: "autosend" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
@@ -919,7 +924,7 @@ export default function MeraVakilPage() {
       contentType: item.contentType,
     }));
 
-    await sendMessage(query, { attachments: uploadedAttachments, clearComposerAttachments: true });
+    await sendMessage(query, { attachments: uploadedAttachments, clearComposerAttachments: true, source: "typed" });
   }
 
   function handleStopGeneration(opts: { silent?: boolean; save?: boolean } = {}) {
@@ -978,6 +983,8 @@ export default function MeraVakilPage() {
       editMessageId?: string;
       attachments?: ChatAttachment[];
       clearComposerAttachments?: boolean;
+      /** For analytics: where the question came from. */
+      source?: QuestionSource;
     },
   ) {
     const query = (queryText ?? input).trim();
@@ -1045,23 +1052,9 @@ export default function MeraVakilPage() {
 
     const startedAt = Date.now();
     const isNewChat = baseMessages.length === 0;
-    const lengthBucket =
-      query.length < 50 ? "short" : query.length < 200 ? "medium" : query.length < 600 ? "long" : "very_long";
-    track(AnalyticsEvents.QUESTION_SUBMITTED, {
-      source: options?.editMessageId ? "edit_resend" : "typed",
-      lang,
-      length_bucket: lengthBucket,
-      is_guest: false,
-    });
-    if (isNewChat) {
-      track(AnalyticsEvents.AI_CHAT_STARTED, { session_type: "saarthi", entry_point: "composer", is_guest: false });
-    }
-    track(AnalyticsEvents.AI_MESSAGE_SENT, {
-      has_attachment: Boolean(options?.attachments?.length),
-      message_count_bucket: bucketCount(withUser.messages.length),
-      interaction_type: options?.editMessageId ? "edit_resend" : "send",
-      is_guest: false,
-    });
+    const source: QuestionSource = options?.source ?? (options?.editMessageId ? "edit_resend" : "typed");
+    const messageNumber = withUser.messages.filter((m) => m.role === "user").length;
+    let accepted = false;
 
     const assistantMsgId = crypto.randomUUID?.() ?? `asst-${Date.now()}`;
     assistantMsgIdRef.current = assistantMsgId;
@@ -1098,6 +1091,18 @@ export default function MeraVakilPage() {
         jurisdiction || undefined,
         priorHistory,
         {
+          onAccepted: () => {
+            accepted = true;
+            trackQuestionSent({
+              isGuest: false,
+              source,
+              lang,
+              questionLength: query.length,
+              messageNumber,
+              entryPoint: "composer",
+              hasAttachment: Boolean(options?.attachments?.length),
+            });
+          },
           onStatus: (_stage, message) => {
             setPendingStatus(message);
             ensureAssistantShell();
@@ -1110,10 +1115,13 @@ export default function MeraVakilPage() {
           onCitations: (citationsResult) => {
             streamReveal.flush();
             setGroundingMessageId(assistantMsgId);
-            // Conversion: the /ask visitor's first question just got its answer.
-            if (firstAnswerPendingRef.current) {
-              firstAnswerPendingRef.current = false;
-              track(AnalyticsEvents.FIRST_ANSWER_SHOWN, { is_guest: false });
+            if (!firstAnswerFiredRef.current) {
+              firstAnswerFiredRef.current = true;
+              track(AnalyticsEvents.FIRST_ANSWER_SHOWN, {
+                is_guest: false,
+                has_citations: Boolean(citationsResult.citations?.length || citationsResult.web_sources?.length),
+                latency_bucket: bucketLatency(Date.now() - startedAt),
+              });
             }
             const streamed = streamReveal.content.trim();
             const guardrailed = (citationsResult.answer ?? "").trim();
@@ -1191,6 +1199,7 @@ export default function MeraVakilPage() {
         latency_bucket: bucketLatency(Date.now() - startedAt),
         has_citations: Boolean(result.citations?.length || result.web_sources?.length),
         response_status: "success",
+        is_guest: false,
       });
     } catch (err) {
       if (controller.signal.aborted) return; // Stop / navigation — handled there
@@ -1209,12 +1218,17 @@ export default function MeraVakilPage() {
       upsertConversation(failedConv);
       setConversations(loadConversations());
       setActiveConversation((prev) => (prev && !isThisConversation(prev) ? prev : failedConv));
-      track(AnalyticsEvents.AI_RESPONSE_RECEIVED, {
-        latency_bucket: bucketLatency(Date.now() - startedAt),
-        has_citations: false,
-        response_status: "error",
-        error_code: code,
-      });
+      if (accepted) {
+        track(AnalyticsEvents.AI_RESPONSE_RECEIVED, {
+          latency_bucket: bucketLatency(Date.now() - startedAt),
+          has_citations: false,
+          response_status: "error",
+          error_code: code,
+          is_guest: false,
+        });
+      } else {
+        trackQuestionBlocked({ isGuest: false, source, ...blockReasonFor(err, false) });
+      }
     } finally {
       streamReveal.flush();
       if (controller.signal.aborted) {
@@ -1242,7 +1256,7 @@ export default function MeraVakilPage() {
   sendMessageRef.current = sendMessage;
 
   const handleResendEdit = useCallback((messageId: string, newContent: string) => {
-    void sendMessageRef.current(newContent, { editMessageId: messageId });
+    void sendMessageRef.current(newContent, { editMessageId: messageId, source: "edit_resend" });
   }, []);
 
   const handleCancelEdit = useCallback(() => setEditingMessageId(null), []);
@@ -1254,11 +1268,15 @@ export default function MeraVakilPage() {
     const idx = conv.messages.findIndex((m) => m.id === assistantMessageId);
     const question = idx > 0 ? conv.messages[idx - 1] : undefined;
     if (!question || question.role !== "user") return;
-    void sendMessageRef.current(question.content, { editMessageId: question.id, attachments: question.attachments });
+    void sendMessageRef.current(question.content, {
+      editMessageId: question.id,
+      attachments: question.attachments,
+      source: "retry",
+    });
   }, []);
 
   const handleSuggestionSelect = useCallback((prompt: string) => {
-    void sendMessageRef.current(prompt);
+    void sendMessageRef.current(prompt, { source: "suggestion" });
   }, []);
 
   const handleReadAloudToggle = useCallback(
@@ -1439,7 +1457,7 @@ export default function MeraVakilPage() {
 
           {hydrated && !hasMessages && !isResearching ? (
             <StarterSuggestions
-              onSelect={(prompt) => sendMessage(prompt)}
+              onSelect={(prompt) => sendMessage(prompt, { source: "chip" })}
               disabled={isResearching}
             />
           ) : null}

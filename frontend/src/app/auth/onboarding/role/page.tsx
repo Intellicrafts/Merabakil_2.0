@@ -33,7 +33,7 @@ function RoleOnboardingForm() {
     }
     setContext(stored);
     storeAvatarUrl(stored.picture);
-    track(AnalyticsEvents.ONBOARDING_STARTED, { signup_method: "google" });
+    track(AnalyticsEvents.ONBOARDING_STARTED, { method: "google" });
   }, [router]);
 
   const mutation = useMutation({

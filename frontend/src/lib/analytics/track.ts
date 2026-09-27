@@ -6,7 +6,7 @@ import {
   claritySetTagsFromParams,
   clarityUpgrade,
 } from "@/lib/analytics/clarity";
-import { GA_ENABLED, GA_MEASUREMENT_ID } from "@/lib/analytics/constants";
+import { GA_ENABLED, GA_MEASUREMENT_ID, UTM_PARAMS } from "@/lib/analytics/constants";
 import { readConsent } from "@/lib/consent";
 import type { AnalyticsEventName } from "@/lib/analytics/events";
 import type { AnalyticsParams } from "@/lib/analytics/params";
@@ -55,12 +55,43 @@ export function track(event: AnalyticsEventName, params?: AnalyticsParams): void
   if (CLARITY_UPGRADE_EVENTS.has(event)) clarityUpgrade(event);
 }
 
+/** Query params GA4 needs for attribution. Everything else (e.g. a `?q=` from a
+ *  shared or search-engine link) could carry a legal question, so it never leaves
+ *  the browser. */
+export const ATTRIBUTION_PARAMS = new Set<string>([...UTM_PARAMS, "utm_id", "gclid", "gbraid", "wbraid", "dclid"]);
+
+/** `url` with only attribution params and no fragment; other-origin URLs untouched. */
+export function analyticsUrl(url: string, origin: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url, origin);
+  } catch {
+    return "";
+  }
+  if (parsed.origin !== origin) return url;
+  const kept = new URLSearchParams();
+  parsed.searchParams.forEach((value, key) => {
+    if (ATTRIBUTION_PARAMS.has(key)) kept.append(key, value);
+  });
+  const search = kept.toString();
+  return `${parsed.origin}${parsed.pathname}${search ? `?${search}` : ""}`;
+}
+
 export function trackPageView(params: AnalyticsParams): void {
   if (typeof window === "undefined") return;
   const safe = sanitizeParams(params);
 
-  // No send_to: page views reach every configured tag (GA4 + Google Ads remarketing).
-  if (canTrackGa()) gtag("event", "page_view", safe);
+  if (canTrackGa()) {
+    // gtag otherwise sends the full address bar on every hit. `set` also covers the
+    // events that follow until the next page view.
+    const origin = window.location.origin;
+    gtag("set", {
+      page_location: analyticsUrl(window.location.href, origin),
+      page_referrer: document.referrer ? analyticsUrl(document.referrer, origin) : "",
+    });
+    // No send_to: page views reach every configured tag (GA4 + Google Ads remarketing).
+    gtag("event", "page_view", safe);
+  }
 
   claritySetTagsFromParams(safe);
 }
