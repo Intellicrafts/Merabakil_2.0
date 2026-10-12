@@ -84,6 +84,8 @@ class MarketplaceRepository:
         """
         if not user_ids:
             return {}
+        if self._session.bind.dialect.name != "postgresql":
+            return {}  # the auth `users` table is only shared in the production Postgres
         from sqlalchemy import text
         rows = await self._session.execute(
             text(

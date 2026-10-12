@@ -142,16 +142,32 @@ async def _get_user_email(session: AsyncSession, user_id: uuid.UUID) -> tuple[st
         return (None, None)
 
 
+def _missing_for_listing(lawyer: Lawyer) -> list[str]:
+    """What keeps an advocate out of the listing — the same rules as
+    MarketplaceRepository.list_lawyers (verified + a consultation fee)."""
+    missing = []
+    if not lawyer.is_verified:
+        missing.append("verification")
+    if not (lawyer.hourly_rate or 0) > 0:
+        missing.append("consultation_fee")
+    return missing
+
+
+def _missing_for_matching(lawyer: Lawyer) -> list[str]:
+    """What keeps a profile out of the AI summary + matching index."""
+    checks = [
+        ("practice_areas", bool(lawyer.practice_areas)),
+        ("jurisdictions", bool(lawyer.jurisdictions)),
+        ("years_experience", (lawyer.years_experience or 0) > 0),
+        ("bio", len(lawyer.bio or "") >= 50),
+        ("consultation_fee", (lawyer.hourly_rate or 0) > 0),
+    ]
+    return [name for name, ok in checks if not ok]
+
+
 def _is_indexable(lawyer: Lawyer) -> bool:
     """Profile is complete enough to generate an AI summary and index for matching."""
-    return bool(
-        lawyer.practice_areas
-        and lawyer.jurisdictions
-        and (lawyer.years_experience or 0) > 0
-        and lawyer.bio
-        and len(lawyer.bio) >= 50
-        and (lawyer.hourly_rate or 0) > 0
-    )
+    return not _missing_for_matching(lawyer)
 
 
 async def _remove_from_index(lawyer_id: uuid.UUID) -> None:
@@ -224,6 +240,9 @@ def _lawyer_public(
         ai_recommended=recommended,
         verification_data=getattr(lawyer, "verification_data", None),
         verified_at=_iso(getattr(lawyer, "verified_at", None)),
+        listed=not _missing_for_listing(lawyer),
+        missing_for_listing=_missing_for_listing(lawyer),
+        missing_for_matching=_missing_for_matching(lawyer),
         # `photo_url` is the caller-resolved, browser-ready URL (a signed URL for a
         # GCS object, or a passthrough external avatar). When no override is given,
         # only pass through a stored external http(s) URL — never a raw gs:// ref.
@@ -744,11 +763,23 @@ async def upsert_my_listing(
     session: AsyncSession = Depends(get_session),
 ) -> LawyerPublic:
     await _require_advocate(user)
-    repo = MarketplaceRepository(session)
-    before = await repo.get_lawyer_by_user(uuid.UUID(user.user_id))
+    return await _save_listing(MarketplaceRepository(session), session, uuid.UUID(user.user_id), body)
+
+
+_LISTING_FIELDS = (
+    "full_name", "bar_council_id", "practice_areas", "jurisdictions", "languages", "city",
+    "pincode", "location_state", "years_experience", "hourly_rate", "bio",
+)
+
+
+async def _save_listing(
+    repo: MarketplaceRepository, session: AsyncSession, user_id: uuid.UUID, body: LawyerMeUpdate
+) -> LawyerPublic:
+    """Save an advocate's listing — by the advocate or by an admin, same rules."""
+    before = await repo.get_lawyer_by_user(user_id)
     old_name, old_bar_id = (before.full_name, before.bar_council_id) if before else (None, None)
     lawyer = await repo.upsert_lawyer_for_user(
-        uuid.UUID(user.user_id),
+        user_id,
         full_name=(body.full_name or "").strip() or "Advocate",
         bar_council_id=body.bar_council_id,
         practice_areas=body.practice_areas,
@@ -2573,6 +2604,20 @@ async def _verify_enrollment(lawyer, enrollment_number: str, state: str | None) 
         verified_at=lawyer.verified_at.isoformat() if lawyer.verified_at else None,
         data=record or None,
     )
+
+
+@admin_router.put("/lawyers/by-user/{user_id}/listing", response_model=LawyerPublic)
+async def admin_save_lawyer_listing(
+    user_id: uuid.UUID,
+    body: LawyerMeUpdate,
+    admin: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> LawyerPublic:
+    """An admin completes or corrects an advocate's listing. Never changes
+    verified status (that stays with Satyapan and the review panel)."""
+    changed = sorted(k for k in _LISTING_FIELDS if getattr(body, k) is not None)
+    logger.info("admin_listing_edit admin=%s user=%s fields=%s", admin.user_id, user_id, ",".join(changed))
+    return await _save_listing(MarketplaceRepository(session), session, user_id, body)
 
 
 @admin_router.get("/lawyers/by-user/{user_id}")

@@ -166,3 +166,45 @@ def test_new_enrolment_number_must_be_verified_again() -> None:
     lawyer = _verified("Mandeep Kaur", "P/9999/2001", "MANDEEP KAUR")
     api._recheck_after_profile_edit(lawyer, old_name="Mandeep Kaur", old_bar_id="P/1150/1993")
     assert not lawyer.is_verified and lawyer.verification_data["outcome"] is None
+
+
+# ── Admin completes an advocate's listing ────────────────────────────────────
+
+from tests.helpers import auth  # noqa: E402
+
+ADV = uuid.UUID("00000000-0000-4000-8000-0000000000a1")
+COMPLETE = {
+    "full_name": "Naveen Sheokand", "bar_council_id": "P/1417/2012", "city": "Chandigarh",
+    "practice_areas": ["Criminal"], "jurisdictions": ["Punjab and Haryana High Court"],
+    "years_experience": 12, "hourly_rate": 1500,
+    "bio": "Practising in criminal and civil matters before the Punjab and Haryana High Court.",
+}
+
+
+def test_admin_saves_a_listing_without_touching_verification(client) -> None:
+    resp = client.put(f"/api/v1/admin/lawyers/by-user/{ADV}/listing", headers=auth("admin"), json=COMPLETE)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["full_name"] == "Naveen Sheokand" and body["hourly_rate"] == 1500
+    assert body["is_verified"] is False  # an admin edit never verifies
+    assert body["missing_for_listing"] == ["verification"] and body["missing_for_matching"] == []
+    assert body["listed"] is False
+
+
+def test_only_admins_can_edit_someone_elses_listing(client) -> None:
+    for role in ("advocate", "citizen"):
+        resp = client.put(f"/api/v1/admin/lawyers/by-user/{ADV}/listing", headers=auth(role), json=COMPLETE)
+        assert resp.status_code == 403, role
+
+
+def test_listing_status_explains_what_is_missing(client) -> None:
+    no_fee = {k: v for k, v in COMPLETE.items() if k != "hourly_rate"} | {"bio": "Short"}
+    created = client.put(f"/api/v1/admin/lawyers/by-user/{ADV}/listing", headers=auth("admin"), json=no_fee).json()
+    assert created["missing_for_listing"] == ["verification", "consultation_fee"]
+    assert created["missing_for_matching"] == ["bio", "consultation_fee"]
+
+    client.patch(f"/api/v1/admin/lawyers/{created['id']}", headers=auth("admin"), json={"is_verified": True})
+    done = client.put(f"/api/v1/admin/lawyers/by-user/{ADV}/listing", headers=auth("admin"), json=COMPLETE).json()
+    assert done["is_verified"] is True and done["listed"] is True and done["missing_for_listing"] == []
+    listing = client.get("/api/v1/lawyers", headers=auth("citizen")).json()
+    assert "Naveen Sheokand" in {row["full_name"] for row in listing}  # now in the marketplace

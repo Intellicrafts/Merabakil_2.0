@@ -265,6 +265,12 @@ export interface LawyerMatchResult {
   ai_recommended: boolean;
   verification_data?: Record<string, string> | null;
   verified_at?: string | null;
+  /** In the advocate listing (verified + consultation fee). */
+  listed?: boolean;
+  /** Why not listed: "verification" | "consultation_fee". */
+  missing_for_listing?: string[];
+  /** Why not in AI recommendations: "practice_areas" | "jurisdictions" | "years_experience" | "bio" | "consultation_fee". */
+  missing_for_matching?: string[];
 }
 
 export interface VerifyResult {

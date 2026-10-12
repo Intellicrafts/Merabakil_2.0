@@ -69,6 +69,7 @@ const ROUTE_RULES: { pattern: RegExp; permission: PermissionCode | null }[] = [
   { pattern: /^\/documents(\/.*)?$/, permission: Permission.DOCUMENT_READ },
   { pattern: /^\/admin\/knowledge$/, permission: Permission.KNOWLEDGE_INGEST },
   { pattern: /^\/admin\/users$/, permission: Permission.USER_MANAGE },
+  { pattern: /^\/admin\/advocates\/[^/]+\/listing$/, permission: Permission.USER_MANAGE },
   { pattern: /^\/admin\/appointments$/, permission: Permission.USER_MANAGE },
   { pattern: /^\/admin\/chat-ops(\/.*)?$/, permission: Permission.USER_MANAGE },
   { pattern: /^\/wallet$/, permission: Permission.RESEARCH_READ },

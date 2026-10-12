@@ -1572,6 +1572,26 @@ export interface LawyerListingInput {
   bio?: string;
 }
 
+/** Admin: an advocate's listing, or null when they haven't created one yet. */
+export async function adminGetLawyerListing(userId: string): Promise<RankedMarketplaceLawyer | null> {
+  const url = `${marketplaceServiceUrl()}/api/v1/admin/lawyers/by-user/${userId}`;
+  const res = await authorizedFetch(url, { headers: authHeaders() });
+  if (res.status === 404) return null;
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as RankedMarketplaceLawyer;
+}
+
+/** Admin: complete or correct an advocate's listing (never changes verification). */
+export async function adminSaveLawyerListing(
+  userId: string,
+  body: LawyerListingInput,
+): Promise<RankedMarketplaceLawyer> {
+  return apiFetch<RankedMarketplaceLawyer>(
+    `${marketplaceServiceUrl()}/api/v1/admin/lawyers/by-user/${userId}/listing`,
+    { method: "PUT", headers: authHeaders(), body: JSON.stringify(body) },
+  );
+}
+
 export async function getMyLawyerListing(): Promise<RankedMarketplaceLawyer> {
   return apiFetch<RankedMarketplaceLawyer>(`${marketplaceServiceUrl()}/api/v1/lawyers/me`);
 }

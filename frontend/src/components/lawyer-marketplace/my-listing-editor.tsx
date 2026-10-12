@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import {
+  adminGetLawyerListing,
+  adminSaveLawyerListing,
   getMyLawyerListing,
   getStoredUser,
   upsertMyLawyerListing,
@@ -19,6 +21,7 @@ import type { VerifyResult } from "@/lib/types";
 import { PRACTICE_AREAS, JURISDICTIONS } from "@/lib/mock/lawyers";
 import { cn } from "@/lib/utils";
 import { BAR_COUNCILS, barCouncilForState, detectBarCouncil } from "@/lib/bar-councils";
+import { describeMissing } from "@/lib/listing-status";
 
 const FIELD_LABELS: Record<string, string> = {
   name:              "Name",
@@ -70,7 +73,12 @@ function stateToJurisdictions(apiState: string): string[] {
 
 interface MyListingEditorProps {
   onSaved?: () => void;
+  /** Admin mode: edit this advocate's listing instead of the signed-in user's. */
+  advocateUserId?: string;
+  advocateName?: string;
 }
+
+type ListingStatus = { listed?: boolean; missing_for_listing?: string[]; missing_for_matching?: string[] };
 
 const COMPLETION_CHECKS = [
   { key: "areas",         label: "Practice areas" },
@@ -99,15 +107,19 @@ function useCompletion(
   }, [areas, years, bio, jurisdictions, rate]);
 }
 
-export function MyListingEditor({ onSaved }: MyListingEditorProps) {
+export function MyListingEditor({ onSaved, advocateUserId, advocateName }: MyListingEditorProps) {
   const { toast } = useToast();
   const user = getStoredUser();
-  const canEdit = Boolean(user?.roles.includes("advocate"));
+  const adminMode = Boolean(advocateUserId);
+  const canEdit = adminMode || Boolean(user?.roles.includes("advocate"));
+  // Never fall back to the signed-in admin's own name when editing someone else.
+  const fallbackName = adminMode ? (advocateName ?? "") : (user?.full_name ?? "");
+  const [status, setStatus] = useState<ListingStatus | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [fullName, setFullName] = useState(user?.full_name ?? "");
+  const [fullName, setFullName] = useState(fallbackName);
   const [city, setCity] = useState("");
   const [barId, setBarId] = useState("");
   const [rate, setRate] = useState("");
@@ -145,8 +157,15 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
     setLoading(true);
     setLoadError(null);
     try {
-      const row = await getMyLawyerListing();
-      setFullName(row.full_name || user?.full_name || "");
+      const row = adminMode ? await adminGetLawyerListing(advocateUserId!) : await getMyLawyerListing();
+      if (!row) {
+        // This advocate has no listing yet — start a new one.
+        setFullName(fallbackName);
+        setStatus({ listed: false, missing_for_listing: ["verification", "consultation_fee"] });
+        return;
+      }
+      setStatus(row);
+      setFullName(row.full_name || fallbackName);
       setCity(row.city || "");
       setPincode((row as { pincode?: string }).pincode ?? "");
       setLocationState((row as { location_state?: string }).location_state ?? "");
@@ -169,11 +188,11 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         setVerifyResult({ status: "needs_review", data: null, message: "" });
       }
     } catch {
-      setLoadError("Could not load your profile.");
+      setLoadError(adminMode ? "Could not load this advocate's listing." : "Could not load your profile.");
     } finally {
       setLoading(false);
     }
-  }, [user?.full_name]);
+  }, [adminMode, advocateUserId, fallbackName]);
 
   useEffect(() => {
     if (!canEdit) return;
@@ -241,8 +260,8 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   async function handleSave() {
     setSaving(true);
     try {
-      await upsertMyLawyerListing({
-        full_name: fullName.trim() || user?.full_name,
+      const listing = {
+        full_name: fullName.trim() || fallbackName,
         city: city.trim(),
         pincode: pincode.trim(),
         location_state: locationState.trim(),
@@ -253,13 +272,17 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         jurisdictions,
         languages: languages.split(",").map((s) => s.trim()).filter(Boolean),
         bio: bio.trim(),
-      });
+      };
+      const saved = adminMode
+        ? await adminSaveLawyerListing(advocateUserId!, listing)
+        : await upsertMyLawyerListing(listing);
+      setStatus(saved);
       toast({
-        title: "Profile saved",
-        description: isComplete
-          ? "AI summary will be generated shortly — your listing is now indexable."
-          : `Complete all ${COMPLETION_CHECKS.length} sections to enable AI matching.`,
-        variant: isComplete ? "success" : "default",
+        title: adminMode ? "Listing saved" : "Profile saved",
+        description: saved.listed
+          ? "Shown in the advocate listing."
+          : `Not in the advocate listing yet — missing: ${describeMissing(saved.missing_for_listing)}.`,
+        variant: saved.listed ? "success" : "default",
       });
       onSaved?.();
     } catch (err) {
@@ -340,6 +363,23 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   return (
     <div className="space-y-4 pb-28 sm:pb-0">
 
+      {/* ── Listing visibility (from the server's own rules) ─── */}
+      {status && (
+        <p
+          role="status"
+          className={cn(
+            "rounded-xl px-4 py-2.5 text-[12px] font-medium",
+            status.listed
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
+              : "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400",
+          )}
+        >
+          {status.listed
+            ? "Shown in the advocate listing."
+            : `${adminMode ? "This listing is" : "Your listing is"} hidden from clients until it has: ${describeMissing(status.missing_for_listing)}.`}
+        </p>
+      )}
+
       {/* ── Completion progress ─────────────────────────────── */}
       <ProfileSectionCard>
         {isComplete ? (
@@ -350,7 +390,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             <div>
               <p className="text-[13px] font-semibold">Profile complete</p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Your listing is live and indexed for AI-powered case matching
+                Ready for AI-powered case matching
               </p>
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {completion.checks.map((c) => (
@@ -369,7 +409,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
           <>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <p className="text-[13px] font-semibold">Complete your profile</p>
+                <p className="text-[13px] font-semibold">{adminMode ? "Complete this listing" : "Complete your profile"}</p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   Finish all sections to appear in AI-powered case matching
                 </p>
@@ -570,6 +610,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
               placeholder="e.g. UP1234/25, D/105/2005, PH/1234/2020"
               className="h-11 flex-1 rounded-xl"
             />
+{!adminMode && (
             <button
               type="button"
               disabled={!barId.trim() || verifying}
@@ -583,9 +624,15 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             >
               {verifying ? "Verifying…" : verifyResult?.status === "success" ? "✓ Verified" : "Verify"}
             </button>
+            )}
           </div>
 
-          {showStatePicker && (
+          {adminMode && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Changing the number removes verification. Verify it from User management after saving.
+            </p>
+          )}
+          {!adminMode && showStatePicker && (
             <div className="mt-2 flex items-center gap-2">
               <select
                 value={verifyState}
@@ -608,7 +655,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             </div>
           )}
 
-          {verifyResult?.status === "success" && verifyResult.data && (
+          {!adminMode && verifyResult?.status === "success" && verifyResult.data && (
             <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-50/50 p-3 dark:border-emerald-500/15 dark:bg-emerald-900/10">
               <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
                 <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
@@ -628,12 +675,12 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
               </dl>
             </div>
           )}
-          {verifyResult?.status === "needs_review" && (
+          {!adminMode && verifyResult?.status === "needs_review" && (
             <p role="status" className="mt-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
               {verifyResult.message || "We couldn't confirm this automatically. Our team will review it."}
             </p>
           )}
-          {verifyResult?.status === "failed" && (
+          {!adminMode && verifyResult?.status === "failed" && (
             <p className="mt-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
               {verifyResult.message || "Not found on bar council records"}
             </p>

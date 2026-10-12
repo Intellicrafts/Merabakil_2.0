@@ -27,6 +27,12 @@ export interface RankedMarketplaceLawyer {
   photo_url?: string | null;
   match_score: number;
   ai_recommended: boolean;
+  pincode?: string;
+  location_state?: string;
+  /** In the advocate listing (verified + consultation fee). */
+  listed?: boolean;
+  missing_for_listing?: string[];
+  missing_for_matching?: string[];
 }
 
 export interface ModerationState {

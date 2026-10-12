@@ -381,7 +381,7 @@ def test_admin_extend_reassign_and_system_message(client: TestClient) -> None:
     listing = client.put(
         "/api/v1/lawyers/me",
         headers=_auth("advocate", uuid.UUID("00000000-0000-4000-8000-000000000099")),
-        json={"full_name": "Adv. Backup Counsel", "city": "Delhi", "bio": "Backup listing"},
+        json={"full_name": "Adv. Backup Counsel", "city": "Delhi", "bio": "Backup listing", "bar_council_id": "D/99/2015"},
     )
     assert listing.status_code == 200
     backup_id = listing.json()["id"]
@@ -898,7 +898,7 @@ def test_reassign_removes_old_counsel_access(client: TestClient, fake_livekit) -
     listing = client.put(
         "/api/v1/lawyers/me",
         headers=_auth("advocate", uuid.UUID("00000000-0000-4000-8000-000000000099")),
-        json={"full_name": "Adv. Backup Counsel", "city": "Delhi", "bio": "Backup listing for reassign tests."},
+        json={"full_name": "Adv. Backup Counsel", "city": "Delhi", "bio": "Backup listing for reassign tests.", "bar_council_id": "D/99/2015"},
     )
     backup_id = listing.json()["id"]
     client.patch(f"/api/v1/admin/lawyers/{backup_id}", headers=_auth("admin"), json={"is_verified": True})

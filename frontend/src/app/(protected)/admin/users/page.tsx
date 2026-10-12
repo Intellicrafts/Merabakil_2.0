@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BadgeCheck,
@@ -40,6 +41,7 @@ import {
   listUsers,
 } from "@/lib/api";
 import { BAR_COUNCILS, detectBarCouncil } from "@/lib/bar-councils";
+import { describeMissing } from "@/lib/listing-status";
 import type { AuthUser, LawyerMatchResult, VerifyResult, WalletBalance } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
@@ -332,6 +334,9 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
     },
   });
   const vInfo = (lawyer?.verification_data ?? null) as VerificationInfo | null;
+  const listingHref = user
+    ? `/admin/advocates/${user.user_id}/listing?name=${encodeURIComponent(user.full_name)}`
+    : "#";
 
   const toggleActiveMutation = useMutation({
     mutationFn: () =>
@@ -597,9 +602,44 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
                         Advocate has not set their enrollment number yet.
                       </p>
                     )}
+
+                    {/* Marketplace listing — what keeps them out of the listing and AI matching */}
+                    <div className="space-y-2 rounded-xl border border-black/[0.06] bg-black/[0.02] px-4 py-3 text-xs dark:border-white/[0.08] dark:bg-white/[0.03]">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Marketplace listing
+                        </p>
+                        <span className="text-muted-foreground">
+                          Fee: {lawyer.hourly_rate ? `₹${lawyer.hourly_rate}` : "Not set"}
+                        </span>
+                      </div>
+                      <p className={cn(
+                        "font-medium",
+                        lawyer.listed ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400",
+                      )}>
+                        {lawyer.listed
+                          ? "Listed in the marketplace"
+                          : `Not listed — missing: ${describeMissing(lawyer.missing_for_listing)}`}
+                      </p>
+                      {(lawyer.missing_for_matching?.length ?? 0) > 0 && (
+                        <p className="text-muted-foreground">
+                          Not in AI recommendations — missing: {describeMissing(lawyer.missing_for_matching)}
+                        </p>
+                      )}
+                      <Button asChild size="sm" variant="outline" className="rounded-xl">
+                        <Link href={listingHref}>
+                          {(lawyer.missing_for_matching?.length ?? 0) > 0 ? "Complete listing" : "Edit listing"}
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No lawyer profile found.</p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">This advocate hasn&apos;t created a listing yet.</p>
+                    <Button asChild size="sm" variant="outline" className="rounded-xl">
+                      <Link href={listingHref}>Create listing</Link>
+                    </Button>
+                  </div>
                 )}
               </div>
             )}

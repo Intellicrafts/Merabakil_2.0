@@ -66,6 +66,11 @@ class LawyerPublic(BaseModel):
     verification_data: dict | None = None
     verified_at: str | None = None
     photo_url: str | None = None
+    # Shown in the advocate listing only when nothing is missing for it; in
+    # Saarthi's AI recommendations only when nothing is missing for matching.
+    listed: bool = False
+    missing_for_listing: list[str] = []
+    missing_for_matching: list[str] = []
 
 
 class ParticipantModeration(BaseModel):
