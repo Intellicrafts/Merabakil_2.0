@@ -118,3 +118,51 @@ def test_admin_approval_survives_a_recheck(monkeypatch) -> None:
     lawyer.bar_council_id, lawyer.is_verified, lawyer.verification_data = "PH/1/2026", True, approved
     asyncio.run(api._verify_enrollment(lawyer, "PH/1/2026", None))
     assert lawyer.is_verified and lawyer.verification_data["review"]["decision"] == "approve"
+
+
+# ── Manual decisions and profile edits ───────────────────────────────────────
+
+from fastapi import HTTPException  # noqa: E402
+
+
+def test_admin_decisions_are_recorded_and_need_an_enrolment_number() -> None:
+    lawyer = _lawyer("Ashu")
+    with pytest.raises(HTTPException) as err:
+        api._record_admin_decision(lawyer, "approve", "admin-1", None)
+    assert err.value.status_code == 400 and not lawyer.is_verified
+
+    lawyer.bar_council_id = "PH/1/2026"
+    api._record_admin_decision(lawyer, "approve", "admin-1", "Checked certificate")
+    review = lawyer.verification_data["review"]
+    assert lawyer.is_verified and lawyer.verified_at
+    assert (review["by"], review["note"], review["bar_council_id"]) == ("admin-1", "Checked certificate", "PH/1/2026")
+
+    api._record_admin_decision(lawyer, "revoke", "admin-2", None)  # the appointments-page toggle
+    assert not lawyer.is_verified and lawyer.verification_data["outcome"] == "revoked"
+
+
+def _verified(name: str, bar_id: str, record_name: str):
+    lawyer = _lawyer(name)
+    lawyer.bar_council_id, lawyer.is_verified, lawyer.verified_at = bar_id, True, "2026-10-01"
+    lawyer.verification_data = {"outcome": "verified", "record_name": record_name, "data": {"name": record_name}}
+    return lawyer
+
+
+def test_renaming_to_someone_else_after_verification_needs_review() -> None:
+    lawyer = _verified("Mandeep Kaur", "P/1150/1993", "MANDEEP KAUR")
+    lawyer.full_name = "Senior Advocate Harish Salve"
+    api._recheck_after_profile_edit(lawyer, old_name="Mandeep Kaur", old_bar_id="P/1150/1993")
+    assert not lawyer.is_verified and lawyer.verification_data["review_reason"] == "name_changed"
+
+
+def test_harmless_edits_keep_verification() -> None:
+    lawyer = _verified("Mandeep Kaur", "P/1150/1993", "MANDEEP KAUR")
+    lawyer.full_name = "Adv. Mandeep Kaur"  # still the record's name
+    api._recheck_after_profile_edit(lawyer, old_name="Mandeep Kaur", old_bar_id="P/1150/1993")
+    assert lawyer.is_verified
+
+
+def test_new_enrolment_number_must_be_verified_again() -> None:
+    lawyer = _verified("Mandeep Kaur", "P/9999/2001", "MANDEEP KAUR")
+    api._recheck_after_profile_edit(lawyer, old_name="Mandeep Kaur", old_bar_id="P/1150/1993")
+    assert not lawyer.is_verified and lawyer.verification_data["outcome"] is None

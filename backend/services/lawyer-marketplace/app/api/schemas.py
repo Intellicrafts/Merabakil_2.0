@@ -8,19 +8,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class CreateLawyerRequest(BaseModel):
-    user_id: str
-    full_name: str
-    bar_council_id: str | None = None
-    practice_areas: list[str] = Field(default_factory=list)
-    jurisdictions: list[str] = Field(default_factory=list)
-    years_experience: int = 0
-    languages: list[str] = Field(default_factory=list)
-    hourly_rate: float | None = None
-    bio: str | None = None
-    is_verified: bool = False
-
-
 class MatchRequest(BaseModel):
     practice_areas: list[str] = Field(default_factory=list)
     jurisdictions: list[str] = Field(default_factory=list)
@@ -252,6 +239,7 @@ class CallCancelRequest(BaseModel):
 
 class AdminLawyerPatch(BaseModel):
     is_verified: bool
+    note: str | None = Field(default=None, max_length=500)
 
 
 class VerifyRequest(BaseModel):

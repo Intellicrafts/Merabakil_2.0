@@ -731,7 +731,7 @@ async def get_my_listing(
         lawyer = await repo.upsert_lawyer_for_user(
             uuid.UUID(user.user_id),
             full_name="Advocate",
-            is_verified=True,
+            is_verified=False,  # verified only by Satyapan or an admin
         )
     [public] = await _serialize_lawyers(repo, [(lawyer, score_lawyer(lawyer), False)])
     return public
@@ -745,6 +745,8 @@ async def upsert_my_listing(
 ) -> LawyerPublic:
     await _require_advocate(user)
     repo = MarketplaceRepository(session)
+    before = await repo.get_lawyer_by_user(uuid.UUID(user.user_id))
+    old_name, old_bar_id = (before.full_name, before.bar_council_id) if before else (None, None)
     lawyer = await repo.upsert_lawyer_for_user(
         uuid.UUID(user.user_id),
         full_name=(body.full_name or "").strip() or "Advocate",
@@ -758,8 +760,9 @@ async def upsert_my_listing(
         years_experience=body.years_experience,
         hourly_rate=body.hourly_rate,
         bio=body.bio,
-        is_verified=True,
+        is_verified=None,  # saving a profile never changes verified status
     )
+    _recheck_after_profile_edit(lawyer, old_name=old_name, old_bar_id=old_bar_id)
     await session.commit()
     if _is_indexable(lawyer):
         asyncio.create_task(_generate_and_index(lawyer.id))
@@ -2457,6 +2460,41 @@ def _detect_bar_council_state(enrollment_number: str) -> str | None:
     return None
 
 
+def _record_admin_decision(lawyer, decision: str, admin_id: str, note: str | None) -> dict:
+    """Every manual verification change — review or toggle — leaves who, when and why."""
+    approve = decision == "approve"
+    if approve and not (lawyer.bar_council_id or "").strip():
+        raise HTTPException(status_code=400, detail="Add the advocate's enrolment number before verifying them")
+    now = datetime.now(UTC)
+    data = dict(lawyer.verification_data or {})
+    data["outcome"] = "verified" if approve else ("rejected" if decision == "reject" else "revoked")
+    data["review"] = {"decision": decision, "note": note, "by": admin_id, "at": now.isoformat(),
+                      "bar_council_id": lawyer.bar_council_id}
+    lawyer.verification_data = data  # reassigned so the JSON change is saved
+    lawyer.is_verified = approve
+    lawyer.verified_at = now if approve else None
+    return data
+
+
+def _recheck_after_profile_edit(lawyer, *, old_name: str | None, old_bar_id: str | None) -> None:
+    """A verified advocate who changes their enrolment number, or renames the
+    profile to a name the Bar Council record doesn't support, is verified no more."""
+    if not lawyer.is_verified:
+        return
+    data = dict(lawyer.verification_data or {})
+    record_name = data.get("record_name") or (data.get("data") or {}).get("name")
+    if (lawyer.bar_council_id or "") != (old_bar_id or ""):
+        data.update(outcome=None, review_reason=None)
+        data.pop("review", None)
+    elif lawyer.full_name != old_name and not names_match(lawyer.full_name, record_name):
+        data.update(outcome="needs_review", review_reason="name_changed")
+    else:
+        return
+    lawyer.verification_data = data
+    lawyer.is_verified = False
+    lawyer.verified_at = None
+
+
 def verification_outcome(satyapan_status: str, profile_name: str | None, record_name: str | None) -> tuple[str, str | None]:
     """(outcome, review_reason): "verified", "needs_review" or "failed".
 
@@ -2579,13 +2617,7 @@ async def admin_review_verification(
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer not found")
     approve = body.decision == "approve"
-    now = datetime.now(UTC)
-    data = dict(lawyer.verification_data or {})
-    data["outcome"] = "verified" if approve else "rejected"
-    data["review"] = {"decision": body.decision, "note": body.note, "by": admin.user_id, "at": now.isoformat()}
-    lawyer.verification_data = data  # reassigned so the JSON change is saved
-    lawyer.is_verified = approve
-    lawyer.verified_at = now if approve else None
+    data = _record_admin_decision(lawyer, body.decision, admin.user_id, body.note)
     return VerifyResponse(
         lawyer_id=lawyer.id,
         status="success" if approve else "rejected",
@@ -2644,13 +2676,13 @@ async def admin_sync_lawyer_index(
 async def admin_patch_lawyer(
     lawyer_id: uuid.UUID,
     body: AdminLawyerPatch,
-    _: CurrentUser = Depends(get_current_user),
+    admin: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> LawyerPublic:
     repo = MarketplaceRepository(session)
     lawyer = await repo.get_lawyer(lawyer_id)
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer not found")
-    lawyer.is_verified = body.is_verified
+    _record_admin_decision(lawyer, "approve" if body.is_verified else "revoke", admin.user_id, body.note)
     [public] = await _serialize_lawyers(repo, [(lawyer, score_lawyer(lawyer), False)])
     return public
