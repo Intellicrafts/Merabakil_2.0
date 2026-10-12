@@ -18,8 +18,7 @@ import {
 import type { VerifyResult } from "@/lib/types";
 import { PRACTICE_AREAS, JURISDICTIONS } from "@/lib/mock/lawyers";
 import { cn } from "@/lib/utils";
-
-const SUPPORTED_STATES = ["Uttar Pradesh", "Delhi", "Andhra Pradesh", "Rajasthan"] as const;
+import { BAR_COUNCILS, barCouncilForState, detectBarCouncil } from "@/lib/bar-councils";
 
 const FIELD_LABELS: Record<string, string> = {
   name:              "Name",
@@ -35,31 +34,14 @@ const FIELD_LABELS: Record<string, string> = {
   degree_year:       "Degree year",
   status:            "Enrolment status",
   place_of_practice: "Place of practice",
+  bar_council:       "Bar council",
   aibe_applicable:   "AIBE applicable",
   fake:              "Flagged as fake",
   licence_removed:   "Licence removed",
   licence_cancelled: "Licence cancelled",
 };
 
-const SKIP_FIELDS = new Set(["state", "enrollment_number"]);
-
-function detectBarCouncilState(enrollment: string): string {
-  const en = enrollment.toUpperCase().trim();
-  if (en.startsWith("UP")) return "Uttar Pradesh";
-  if (en.startsWith("D/")) return "Delhi";
-  if (en.startsWith("AP/")) return "Andhra Pradesh";
-  if (en.startsWith("R/")) return "Rajasthan";
-  return "";
-}
-
-function stateToBarCouncil(apiState: string): string {
-  const s = apiState.toLowerCase();
-  if (s.includes("uttar pradesh"))  return "Uttar Pradesh";
-  if (s.includes("delhi"))          return "Delhi";
-  if (s.includes("andhra pradesh")) return "Andhra Pradesh";
-  if (s.includes("rajasthan"))      return "Rajasthan";
-  return "";
-}
+const SKIP_FIELDS = new Set(["state", "enrollment_number", "source", "sources", "index_built_at"]);
 
 function stateToJurisdictions(apiState: string): string[] {
   const s = apiState.toLowerCase();
@@ -137,7 +119,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
   const [verified, setVerified] = useState(false);
 
   const [verifying, setVerifying] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<Pick<VerifyResult, "status" | "data"> | null>(null);
+  const [verifyResult, setVerifyResult] = useState<Pick<VerifyResult, "status" | "data" | "message"> | null>(null);
   const [verifyState, setVerifyState] = useState("");
   const [showStatePicker, setShowStatePicker] = useState(false);
   const [loadedBarId, setLoadedBarId] = useState("");
@@ -179,10 +161,12 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
       setBio(row.bio || "");
       const isV = Boolean(row.is_verified ?? row.verified);
       setVerified(isV);
-      setVerifyState(detectBarCouncilState(bar));
-      const savedVData = (row.verification_data as { data?: Record<string, string> } | null)?.data;
-      if (isV && savedVData?.name) {
-        setVerifyResult({ status: "success", data: savedVData });
+      setVerifyState(detectBarCouncil(bar));
+      const saved = row.verification_data as { data?: Record<string, string>; outcome?: string } | null;
+      if (isV && saved?.data?.name) {
+        setVerifyResult({ status: "success", data: saved.data, message: "" });
+      } else if (!isV && saved?.outcome === "needs_review") {
+        setVerifyResult({ status: "needs_review", data: null, message: "" });
       }
     } catch {
       setLoadError("Could not load your profile.");
@@ -306,7 +290,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
         setPincodeInfo({ state: po.State, district: po.District });
         setCity(po.District);
         setLocationState(po.State);
-        const barState = stateToBarCouncil(po.State);
+        const barState = barCouncilForState(po.State);
         if (barState) setVerifyState(barState);
         const detectedJurisdictions = stateToJurisdictions(po.State);
         if (detectedJurisdictions.length > 0) {
@@ -322,7 +306,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
 
   async function handleVerify() {
     if (!barId.trim()) return;
-    const state = verifyState || detectBarCouncilState(barId);
+    const state = verifyState || detectBarCouncil(barId);
     if (!state) {
       setShowStatePicker(true);
       return;
@@ -332,7 +316,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
     try {
       const result = await verifyMyEnrollment(barId.trim(), state);
       setVerified(result.is_verified);
-      setVerifyResult({ status: result.status, data: result.data });
+      setVerifyResult({ status: result.status, data: result.data, message: result.message });
       if (result.status === "success" && result.data?.name) {
         setFullName(result.data.name);
       }
@@ -341,8 +325,10 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
           title: `Verified — ${result.data?.name ?? "enrollment confirmed"}`,
           variant: "success",
         });
+      } else if (result.status === "needs_review") {
+        toast({ title: "Sent for review", description: result.message });
       } else {
-        toast({ title: "Not found on bar council records", variant: "destructive" });
+        toast({ title: result.message || "Not found on bar council records", variant: "destructive" });
       }
     } catch {
       toast({ title: "Verification failed. Try again later.", variant: "destructive" });
@@ -521,7 +507,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
             {pincodeInfo && (
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {pincodeInfo.district} · {pincodeInfo.state}
-                {stateToBarCouncil(pincodeInfo.state) && (
+                {barCouncilForState(pincodeInfo.state) && (
                   <span className="ml-1 text-emerald-600 dark:text-emerald-400">
                     · Bar council state set
                   </span>
@@ -581,7 +567,7 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
               id="adv-bar-id"
               value={barId}
               onChange={(e) => setBarId(e.target.value)}
-              placeholder="e.g. UP1234/25, D/105/2005"
+              placeholder="e.g. UP1234/25, D/105/2005, PH/1234/2020"
               className="h-11 flex-1 rounded-xl"
             />
             <button
@@ -607,8 +593,8 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
                 className="flex-1 rounded-xl border border-black/[0.08] bg-white px-3 py-2.5 text-sm text-foreground dark:border-white/10 dark:bg-zinc-900"
               >
                 <option value="">Select your state bar council</option>
-                {SUPPORTED_STATES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                {BAR_COUNCILS.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
                 ))}
               </select>
               <button
@@ -642,9 +628,14 @@ export function MyListingEditor({ onSaved }: MyListingEditorProps) {
               </dl>
             </div>
           )}
+          {verifyResult?.status === "needs_review" && (
+            <p role="status" className="mt-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+              {verifyResult.message || "We couldn't confirm this automatically. Our team will review it."}
+            </p>
+          )}
           {verifyResult?.status === "failed" && (
             <p className="mt-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
-              Not found on bar council records
+              {verifyResult.message || "Not found on bar council records"}
             </p>
           )}
         </Field>

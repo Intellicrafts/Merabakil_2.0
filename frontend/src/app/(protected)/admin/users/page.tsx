@@ -33,10 +33,13 @@ import {
   adminAdjustWallet,
   adminGetLawyerByUser,
   adminGetUserWallet,
+  adminListLawyers,
+  adminReviewLawyerVerification,
   adminUpdateUser,
   adminVerifyLawyer,
   listUsers,
 } from "@/lib/api";
+import { BAR_COUNCILS, detectBarCouncil } from "@/lib/bar-councils";
 import type { AuthUser, LawyerMatchResult, VerifyResult, WalletBalance } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CLARITY_MASK } from "@/lib/analytics/clarity-mask";
@@ -59,15 +62,22 @@ function formatDate(iso: string | null | undefined): string {
   }).format(new Date(iso));
 }
 
-const SUPPORTED_STATES = ["Uttar Pradesh", "Delhi", "Andhra Pradesh", "Rajasthan"] as const;
+/** The parts of a lawyer's stored verification result this page reads. */
+type VerificationInfo = {
+  outcome?: string;
+  review_reason?: string | null;
+  record_name?: string | null;
+  data?: Record<string, string> | null;
+  review?: { decision?: string; note?: string | null; at?: string } | null;
+};
 
-function detectBarCouncilState(enrollment: string): string {
-  const en = enrollment.toUpperCase().trim();
-  if (en.startsWith("UP")) return "Uttar Pradesh";
-  if (en.startsWith("D/")) return "Delhi";
-  if (en.startsWith("AP/")) return "Andhra Pradesh";
-  if (en.startsWith("R/")) return "Rajasthan";
-  return "";
+const REVIEW_REASONS: Record<string, string> = {
+  name_mismatch: "The Bar Council record is under a different name than the profile.",
+  not_in_roll: "Not on the Bar Council's published lists yet (often a recent enrolment). Check the enrolment certificate.",
+};
+
+function needsReview(lawyer: { is_verified?: boolean; verification_data?: unknown } | null | undefined): boolean {
+  return Boolean(lawyer && !lawyer.is_verified && (lawyer.verification_data as VerificationInfo | null)?.outcome === "needs_review");
 }
 
 function UserInitials({ name }: { name: string }) {
@@ -286,7 +296,7 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
   // pre-fill state from enrollment number when lawyer data arrives
   useEffect(() => {
     if (lawyer?.bar_council_id && !verifyState) {
-      setVerifyState(detectBarCouncilState(lawyer.bar_council_id));
+      setVerifyState(detectBarCouncil(lawyer.bar_council_id));
     }
   }, [lawyer?.bar_council_id]);
 
@@ -297,14 +307,31 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
       refetchLawyer();
       if (result.status === "success") {
         toast({ title: `Verified — ${result.data?.name ?? ""}` });
+      } else if (result.status === "needs_review") {
+        toast({ title: "Needs review", description: result.message });
       } else {
-        toast({ title: "Not found on bar council records", variant: "destructive" });
+        toast({ title: result.message || "Not found on bar council records", variant: "destructive" });
       }
     },
     onError: (e: Error) => {
       toast({ title: "Verification failed", description: e.message, variant: "destructive" });
     },
   });
+
+  const [reviewNote, setReviewNote] = useState("");
+  const reviewMutation = useMutation({
+    mutationFn: (decision: "approve" | "reject") => adminReviewLawyerVerification(lawyer!.id, decision, reviewNote),
+    onSuccess: (result) => {
+      setReviewNote("");
+      refetchLawyer();
+      queryClient.invalidateQueries({ queryKey: ["admin-lawyers-review"] });
+      toast({ title: result.is_verified ? "Advocate approved" : "Verification rejected" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Could not save the decision", description: e.message, variant: "destructive" });
+    },
+  });
+  const vInfo = (lawyer?.verification_data ?? null) as VerificationInfo | null;
 
   const toggleActiveMutation = useMutation({
     mutationFn: () =>
@@ -475,9 +502,57 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
                           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
                           : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
                       )}>
-                        {lawyer.is_verified ? "Verified" : "Unverified"}
+                        {lawyer.is_verified ? "Verified" : needsReview(lawyer) ? "Needs review" : "Unverified"}
                       </span>
                     </div>
+
+                    {/* Automatic check couldn't confirm it — the admin decides */}
+                    {needsReview(lawyer) && (
+                      <div className="space-y-3 rounded-xl border border-amber-200/70 bg-amber-50/60 px-4 py-3 text-xs dark:border-amber-800/40 dark:bg-amber-950/30">
+                        <p className="font-medium text-amber-800 dark:text-amber-300">
+                          {REVIEW_REASONS[vInfo?.review_reason ?? ""] ?? "The automatic check could not confirm this enrolment."}
+                        </p>
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                          <dt className="text-muted-foreground">Profile name</dt>
+                          <dd className="font-medium">{lawyer.full_name}</dd>
+                          <dt className="text-muted-foreground">Bar Council record</dt>
+                          <dd className="font-medium">{vInfo?.record_name || "—"}</dd>
+                          {vInfo?.data?.place_of_practice && (
+                            <>
+                              <dt className="text-muted-foreground">Place of practice</dt>
+                              <dd>{vInfo.data.place_of_practice}</dd>
+                            </>
+                          )}
+                        </dl>
+                        <Input
+                          value={reviewNote}
+                          onChange={(e) => setReviewNote(e.target.value)}
+                          maxLength={500}
+                          placeholder="Note (optional) — e.g. checked enrolment certificate"
+                          aria-label="Review note"
+                          className="h-8 rounded-lg text-xs"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="rounded-xl"
+                            disabled={reviewMutation.isPending}
+                            onClick={() => reviewMutation.mutate("approve")}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-xl"
+                            disabled={reviewMutation.isPending}
+                            onClick={() => reviewMutation.mutate("reject")}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Scraped data if available */}
                     {lawyer.verification_data?.data && typeof lawyer.verification_data.data === "object" && (
@@ -502,8 +577,8 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
                           className="flex-1 rounded-xl border border-black/[0.08] bg-white px-3 py-2 text-sm text-foreground dark:border-white/10 dark:bg-zinc-900"
                         >
                           <option value="">Auto-detect state</option>
-                          {SUPPORTED_STATES.map((s) => (
-                            <option key={s} value={s}>{s}</option>
+                          {BAR_COUNCILS.map((c) => (
+                            <option key={c.value} value={c.value}>{c.label}</option>
                           ))}
                         </select>
                         <Button
@@ -639,6 +714,12 @@ export default function AdminUsersPage() {
     queryFn: () => listUsers(page, 20, queryOpts),
   });
 
+  // Advocates whose enrolment the automatic check couldn't confirm.
+  const { data: reviewQueue } = useQuery({
+    queryKey: ["admin-lawyers-review"],
+    queryFn: async () => (await adminListLawyers()).filter((l) => needsReview(l)),
+  });
+
   const toggleActiveMutation = useMutation({
     mutationFn: (user: AuthUser) =>
       adminUpdateUser(user.user_id, { is_active: !(user.is_active !== false) }),
@@ -689,6 +770,24 @@ export default function AdminUsersPage() {
             </select>
           </div>
         </div>
+
+        {reviewQueue && reviewQueue.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-200/70 bg-amber-50/60 px-4 py-3 text-sm dark:border-amber-800/40 dark:bg-amber-950/30">
+            <span className="font-medium text-amber-800 dark:text-amber-300">
+              {reviewQueue.length} advocate{reviewQueue.length === 1 ? "" : "s"} need{reviewQueue.length === 1 ? "s" : ""} verification review:
+            </span>
+            {reviewQueue.slice(0, 8).map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => { setTab("advocate"); setSearch(l.full_name); }}
+                className="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-medium text-foreground hover:bg-white dark:bg-white/10 dark:hover:bg-white/15"
+              >
+                {l.full_name}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Desktop tabs */}
         <div className="hidden items-center gap-1 md:flex">

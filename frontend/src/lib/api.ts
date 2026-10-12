@@ -517,6 +517,19 @@ export async function adminVerifyLawyer(lawyerId: string, state?: string): Promi
   );
 }
 
+/** An admin's decision on an enrolment the automatic check couldn't confirm. */
+export async function adminReviewLawyerVerification(
+  lawyerId: string,
+  decision: "approve" | "reject",
+  note?: string,
+): Promise<VerifyResult> {
+  return apiFetch<VerifyResult>(`${marketplaceServiceUrl()}/api/v1/admin/lawyers/${lawyerId}/review`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ decision, note: note?.trim() || null }),
+  });
+}
+
 export async function listCategories(): Promise<Category[]> {
   return apiFetch(`${ingestionServiceUrl()}/api/v1/knowledge/categories`, {
     headers: authHeaders(),

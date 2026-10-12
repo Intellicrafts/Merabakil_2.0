@@ -10,3 +10,5 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 PyYAML
+pdfplumber
+certifi

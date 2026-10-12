@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
@@ -46,6 +46,7 @@ from app.api.schemas import (
     PriorityRequest,
     ReactionRequest,
     ReasonRequest,
+    ReviewVerificationRequest,
     ReassignRequest,
     RoomTokenOut,
     SessionHealthOut,
@@ -84,6 +85,7 @@ from app.application.livekit_tokens import (
     remove_room_participant,
 )
 from app.application.matching import score_lawyer
+from app.application.name_match import names_match
 from app.application.room_hub import publish, publish_admin, publish_user, subscribe, subscribe_admin, subscribe_user, unsubscribe, unsubscribe_admin, unsubscribe_user
 from app.constants import EMERGENCY_STATUSES, PRIORITIES, SUMMON_TTL_SECONDS
 from app.infrastructure.appointment_models import AppointmentParticipant, Consultation, Notification
@@ -799,55 +801,11 @@ async def verify_my_enrollment(
     current: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> VerifyResponse:
-    import os
-    from datetime import timezone
-
-    import httpx
-
     repo = MarketplaceRepository(session)
     lawyer = await repo.get_lawyer_by_user(uuid.UUID(current.user_id))
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer profile not found")
-
-    state = body.state or _detect_bar_council_state(body.enrollment_number)
-    if not state:
-        raise HTTPException(
-            status_code=422,
-            detail="Cannot determine state bar council. Provide 'state' in request body.",
-        )
-
-    satyapan_url = os.getenv("SATYAPAN_URL", "http://satyapan:8000")
-    try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            r = await client.post(
-                f"{satyapan_url}/api/v1/verify",
-                json={"enrollment_number": body.enrollment_number, "state": state},
-            )
-        result = r.json()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Satyapan service unavailable: {exc}") from exc
-
-    # Satyapan wraps the scraper result in its own envelope:
-    # {status, message, data: {status, data: {name, father_name, ...}}}
-    # We need the inner layer for the real status and flat field dict.
-    scraper_result = result.get("data") or {}
-    scraper_status = scraper_result.get("status", "error")
-    actual_data = scraper_result.get("data") or None
-
-    lawyer.bar_council_id = body.enrollment_number
-    lawyer.verification_data = scraper_result
-    lawyer.is_verified = scraper_status == "success"
-    if lawyer.is_verified:
-        lawyer.verified_at = datetime.now(timezone.utc)
-
-    return VerifyResponse(
-        lawyer_id=lawyer.id,
-        status=scraper_status,
-        message=scraper_result.get("message", result.get("message", "")),
-        is_verified=lawyer.is_verified,
-        verified_at=lawyer.verified_at.isoformat() if lawyer.verified_at else None,
-        data=actual_data,
-    )
+    return await _verify_enrollment(lawyer, body.enrollment_number.strip(), body.state)
 
 
 @lawyers_router.get("/{lawyer_id}", response_model=LawyerPublic)
@@ -2494,7 +2452,89 @@ def _detect_bar_council_state(enrollment_number: str) -> str | None:
         return "Andhra Pradesh"
     if en.startswith("R/"):
         return "Rajasthan"
+    if en.startswith(("P/", "PH/", "P-", "PH-")):  # Punjab, Haryana and Chandigarh share one council
+        return "Punjab & Haryana"
     return None
+
+
+def verification_outcome(satyapan_status: str, profile_name: str | None, record_name: str | None) -> tuple[str, str | None]:
+    """(outcome, review_reason): "verified", "needs_review" or "failed".
+
+    A record that exists but carries someone else's name is never verified
+    automatically, and an enrolment missing from a council's published lists
+    (recent enrolments) goes to a person instead of being rejected."""
+    if satyapan_status == "success":
+        if names_match(profile_name, record_name):
+            return "verified", None
+        return "needs_review", "name_mismatch"
+    if satyapan_status == "not_found":
+        return "needs_review", "not_in_roll"
+    return "failed", None
+
+
+async def _verify_enrollment(lawyer, enrollment_number: str, state: str | None) -> VerifyResponse:
+    import httpx
+
+    state = state or _detect_bar_council_state(enrollment_number)
+    if not state:
+        raise HTTPException(
+            status_code=422,
+            detail="Cannot determine state bar council. Provide 'state' in request body.",
+        )
+    satyapan_url = os.getenv("SATYAPAN_URL", "http://satyapan:8000")
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            r = await client.post(
+                f"{satyapan_url}/api/v1/verify",
+                json={"enrollment_number": enrollment_number, "state": state},
+            )
+        result = r.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Satyapan service unavailable: {exc}") from exc
+
+    # Satyapan wraps the scraper result: {status, message, data: {status, message, data: {...}}}
+    scraper_result = result.get("data") or {}
+    scraper_status = scraper_result.get("status", "error")
+    record = scraper_result.get("data") or {}
+    outcome, reason = verification_outcome(scraper_status, lawyer.full_name, record.get("name"))
+
+    previous = lawyer.verification_data or {}
+    admin_approved = (
+        lawyer.is_verified
+        and lawyer.bar_council_id == enrollment_number
+        and (previous.get("review") or {}).get("decision") == "approve"
+    )
+    if outcome == "needs_review" and admin_approved:
+        outcome = "verified"  # an admin already confirmed this enrolment by hand
+
+    now = datetime.now(UTC)
+    lawyer.bar_council_id = enrollment_number
+    lawyer.verification_data = {
+        **scraper_result,
+        "outcome": outcome,
+        "review_reason": reason,
+        "record_name": record.get("name"),
+        "checked_at": now.isoformat(),
+        **({"review": previous["review"]} if admin_approved else {}),
+    }
+    lawyer.is_verified = outcome == "verified"
+    if lawyer.is_verified and not admin_approved:
+        lawyer.verified_at = now
+    elif not lawyer.is_verified:
+        lawyer.verified_at = None
+
+    messages = {
+        "name_mismatch": "The Bar Council record is under a different name. Our team will review it.",
+        "not_in_roll": "We couldn't confirm this automatically. Our team will review it.",
+    }
+    return VerifyResponse(
+        lawyer_id=lawyer.id,
+        status="success" if outcome == "verified" else ("needs_review" if outcome == "needs_review" else scraper_status),
+        message=messages.get(reason or "", scraper_result.get("message", result.get("message", ""))),
+        is_verified=lawyer.is_verified,
+        verified_at=lawyer.verified_at.isoformat() if lawyer.verified_at else None,
+        data=record or None,
+    )
 
 
 @admin_router.get("/lawyers/by-user/{user_id}")
@@ -2518,52 +2558,41 @@ async def admin_verify_lawyer(
     _: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> VerifyResponse:
-    import os
-    from datetime import timezone
-
-    import httpx
-
     repo = MarketplaceRepository(session)
     lawyer = await repo.get_lawyer(lawyer_id)
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer not found")
     if not lawyer.bar_council_id:
         raise HTTPException(status_code=400, detail="No bar council ID on file for this advocate")
+    return await _verify_enrollment(lawyer, lawyer.bar_council_id, body.state)
 
-    state = body.state or _detect_bar_council_state(lawyer.bar_council_id)
-    if not state:
-        raise HTTPException(
-            status_code=422,
-            detail="Cannot determine state bar council. Provide 'state' in request body.",
-        )
 
-    satyapan_url = os.getenv("SATYAPAN_URL", "http://satyapan:8000")
-    try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            r = await client.post(
-                f"{satyapan_url}/api/v1/verify",
-                json={"enrollment_number": lawyer.bar_council_id, "state": state},
-            )
-        result = r.json()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Satyapan service unavailable: {exc}") from exc
-
-    scraper_result = result.get("data") or {}
-    scraper_status = scraper_result.get("status", "error")
-    actual_data = scraper_result.get("data") or None
-
-    lawyer.verification_data = scraper_result
-    lawyer.is_verified = scraper_status == "success"
-    if lawyer.is_verified:
-        lawyer.verified_at = datetime.now(timezone.utc)
-
+@admin_router.post("/lawyers/{lawyer_id}/review", response_model=VerifyResponse)
+async def admin_review_verification(
+    lawyer_id: uuid.UUID,
+    body: ReviewVerificationRequest,
+    admin: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> VerifyResponse:
+    """An admin's decision on an enrolment the automatic check could not confirm."""
+    lawyer = await MarketplaceRepository(session).get_lawyer(lawyer_id)
+    if not lawyer:
+        raise HTTPException(status_code=404, detail="Lawyer not found")
+    approve = body.decision == "approve"
+    now = datetime.now(UTC)
+    data = dict(lawyer.verification_data or {})
+    data["outcome"] = "verified" if approve else "rejected"
+    data["review"] = {"decision": body.decision, "note": body.note, "by": admin.user_id, "at": now.isoformat()}
+    lawyer.verification_data = data  # reassigned so the JSON change is saved
+    lawyer.is_verified = approve
+    lawyer.verified_at = now if approve else None
     return VerifyResponse(
         lawyer_id=lawyer.id,
-        status=scraper_status,
-        message=scraper_result.get("message", result.get("message", "")),
+        status="success" if approve else "rejected",
+        message="Approved by admin" if approve else "Rejected by admin",
         is_verified=lawyer.is_verified,
         verified_at=lawyer.verified_at.isoformat() if lawyer.verified_at else None,
-        data=actual_data,
+        data=(data.get("data") or None),
     )
 
 

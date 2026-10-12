@@ -269,7 +269,9 @@ export interface LawyerMatchResult {
 
 export interface VerifyResult {
   lawyer_id: string;
-  status: "success" | "failed" | "error";
+  /** needs_review: the record couldn't be confirmed automatically (name differs, or not on the
+   *  council's published lists yet) — an admin decides. rejected: an admin turned it down. */
+  status: "success" | "needs_review" | "failed" | "error" | "rejected";
   message: string;
   is_verified: boolean;
   verified_at: string | null;

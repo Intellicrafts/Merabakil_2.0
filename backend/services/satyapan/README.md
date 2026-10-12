@@ -9,6 +9,7 @@
     *   **Delhi** (D)
     *   **Andhra Pradesh** (AP)
     *   **Rajasthan** (R)
+    *   **Punjab, Haryana & Chandigarh** (P/…, PH/…) — one Bar Council; see below
 *   **Standardized API**: Unified JSON response structure for all states.
 *   **Advanced Authentication**:
     *   OAuth2 Password Bearer Flow.
@@ -180,3 +181,39 @@ See [deploy_aws.md](deploy_aws.md) for a detailed walkthrough.
 ├── deploy_aws.sh       # AWS Deployment Automation
 └── requirements.txt    # Python Dependencies
 ```
+
+
+---
+
+## Punjab, Haryana & Chandigarh (offline index)
+
+The Bar Council of Punjab & Haryana (bcph.co.in) has no working online search, so
+Satyapan checks an index built from the lists BCPH publishes:
+
+* the **State Roll** PDF (~134k advocates enrolled up to Oct 2023), and
+* the annual **bar-association voter lists**: "Uploaded" lists add recent
+  enrolments (2024–26); "Invalid" lists carry BCPH's status (suspended, deceased,
+  transferred, not eligible).
+
+Only enrolment number, name, place of practice, district, state and status are
+stored — never phone numbers, addresses, father's names or dates of birth.
+
+Results: found and active → `success`; suspended / deceased / removed → `failed`;
+not on the lists, or a remark such as "Transfered" → `not_found`, which the
+marketplace sends to an admin for review instead of rejecting.
+
+**Build / refresh** (≈6 minutes; the old index stays in place until the new one is complete):
+
+```bash
+docker compose -p merabakil -f docker-compose.prod.yml exec satyapan python scripts/build_ph_index.py
+```
+
+Refresh monthly, e.g. a host cron entry:
+
+```cron
+0 3 1 * * cd /opt/merabakil/repo/infrastructure && docker compose -p merabakil -f docker-compose.prod.yml exec -T satyapan python scripts/build_ph_index.py >> /var/log/satyapan-ph-index.log 2>&1
+```
+
+Each election year BCPH publishes new voter lists at a new address — update
+`roll_indexes.punjab_haryana.voter_lists_page` in `app/core/urls.yaml`.
+`GET /api/v1/status` shows when the index was built and how many advocates it holds.

@@ -263,6 +263,11 @@ class MeVerifyRequest(BaseModel):
     state: str | None = None
 
 
+class ReviewVerificationRequest(BaseModel):
+    decision: Literal["approve", "reject"]
+    note: str | None = Field(default=None, max_length=500)
+
+
 class VerifyResponse(BaseModel):
     lawyer_id: uuid.UUID
     status: str

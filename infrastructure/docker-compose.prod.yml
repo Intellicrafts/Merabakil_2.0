@@ -222,6 +222,10 @@ services:
       HOME: /tmp
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       HEADLESS: "true"
+      PH_INDEX_PATH: /app/data/ph_roll.sqlite
+    volumes:
+      # Punjab & Haryana index, built by scripts/build_ph_index.py (see satyapan README)
+      - satyapan_data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/ || exit 1"]
       interval: 30s
@@ -299,6 +303,7 @@ services:
 volumes:
   pgdata:
   redisdata:
+  satyapan_data:
 
 # ── Networks ──────────────────────────────────────────────────────────────
 

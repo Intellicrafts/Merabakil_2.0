@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from app.api.models import VerificationRequest, VerificationResponse
-from app.services.verification_service import VerificationService
+from app.services.roll_index.punjab_haryana import RollIndex
+from app.services.verification_service import VerificationService, supported_states
 import os
 
 from app.api.deps import get_current_user
@@ -15,7 +16,8 @@ def get_service_status():
     return {
         "service": "Satyapan - Lawyer Verification Engine",
         "status": "running",
-        "supported_states": ["Uttar Pradesh", "Delhi"],
+        "supported_states": supported_states(),
+        "punjab_haryana_index": RollIndex().meta() or "not built",
         "timestamp": datetime.utcnow().isoformat()
     }
 
@@ -36,6 +38,14 @@ async def verify_lawyer(request: VerificationRequest):
             return VerificationResponse(
                 status="failed",
                 message=result.get("message", "Verification failed"),
+                data=result
+            )
+
+        if result.get("status") == "not_found":
+            # Not on the published lists (e.g. a recent enrolment) — needs a person to check.
+            return VerificationResponse(
+                status="not_found",
+                message=result.get("message", "Could not be confirmed automatically"),
                 data=result
             )
 
