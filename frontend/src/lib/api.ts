@@ -488,14 +488,23 @@ export async function adminGetUserWallet(userId: string): Promise<WalletBalance>
   });
 }
 
+/**
+ * Verify the advocate's enrolment with their State Bar Council. `state: "other"`
+ * (a council we can't check automatically) or `manualReview` hands it to our team.
+ */
 export async function verifyMyEnrollment(
   enrollmentNumber: string,
   state?: string,
+  options?: { manualReview?: boolean },
 ): Promise<VerifyResult> {
   return apiFetch<VerifyResult>(`${marketplaceServiceUrl()}/api/v1/lawyers/me/verify`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ enrollment_number: enrollmentNumber, state: state ?? null }),
+    body: JSON.stringify({
+      enrollment_number: enrollmentNumber,
+      state: state ?? null,
+      manual_review: Boolean(options?.manualReview),
+    }),
   });
 }
 
@@ -1581,15 +1590,51 @@ export async function adminGetLawyerListing(userId: string): Promise<RankedMarke
   return (await res.json()) as RankedMarketplaceLawyer;
 }
 
+/** A listing save the server rejected, with a message per API field (e.g. `pincode`). */
+export class ListingValidationError extends Error {
+  constructor(
+    message: string,
+    readonly fields: Record<string, string>,
+  ) {
+    super(message);
+    this.name = "ListingValidationError";
+  }
+}
+
+async function putListing(url: string, body: LawyerListingInput): Promise<RankedMarketplaceLawyer> {
+  const res = await authorizedFetch(url, { method: "PUT", headers: authHeaders(), body: JSON.stringify(body) });
+  if (res.status === 422) {
+    let detail: unknown = null;
+    try {
+      detail = ((await res.json()) as { detail?: unknown }).detail;
+    } catch {
+      /* fall through to a generic message */
+    }
+    const fields: Record<string, string> = {};
+    let message = "Some details need attention.";
+    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+      const d = detail as { message?: string; fields?: Record<string, string> };
+      if (d.message) message = d.message;
+      Object.assign(fields, d.fields ?? {});
+    } else if (Array.isArray(detail)) {
+      // Request-format errors from the API (e.g. a malformed pincode).
+      for (const item of detail as { loc?: (string | number)[]; msg?: string }[]) {
+        const key = item.loc?.[item.loc.length - 1];
+        if (typeof key === "string") fields[key] = item.msg ?? "Check this value.";
+      }
+    }
+    throw new ListingValidationError(message, fields);
+  }
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as RankedMarketplaceLawyer;
+}
+
 /** Admin: complete or correct an advocate's listing (never changes verification). */
 export async function adminSaveLawyerListing(
   userId: string,
   body: LawyerListingInput,
 ): Promise<RankedMarketplaceLawyer> {
-  return apiFetch<RankedMarketplaceLawyer>(
-    `${marketplaceServiceUrl()}/api/v1/admin/lawyers/by-user/${userId}/listing`,
-    { method: "PUT", headers: authHeaders(), body: JSON.stringify(body) },
-  );
+  return putListing(`${marketplaceServiceUrl()}/api/v1/admin/lawyers/by-user/${userId}/listing`, body);
 }
 
 export async function getMyLawyerListing(): Promise<RankedMarketplaceLawyer> {
@@ -1599,18 +1644,21 @@ export async function getMyLawyerListing(): Promise<RankedMarketplaceLawyer> {
 export async function upsertMyLawyerListing(
   body: LawyerListingInput,
 ): Promise<RankedMarketplaceLawyer> {
-  return apiFetch<RankedMarketplaceLawyer>(`${marketplaceServiceUrl()}/api/v1/lawyers/me`, {
-    method: "PUT",
-    headers: authHeaders(),
-    body: JSON.stringify(body),
-  });
+  return putListing(`${marketplaceServiceUrl()}/api/v1/lawyers/me`, body);
 }
 
+/** Make sure an advocate has a listing, named after the account until they
+ *  choose a name. A chosen name is checked against the Bar Council record,
+ *  so a login never overwrites it. */
 export async function syncAdvocateListing(): Promise<void> {
   const user = getStoredUser();
   if (!user?.roles.includes("advocate")) return;
   try {
-    await upsertMyLawyerListing({ full_name: user.full_name });
+    const listing = await getMyLawyerListing();
+    const name = (listing.full_name ?? "").trim();
+    if ((!name || name.toLowerCase() === "advocate") && user.full_name?.trim()) {
+      await upsertMyLawyerListing({ full_name: user.full_name });
+    }
   } catch {
     /* marketplace may be offline during login */
   }

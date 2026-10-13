@@ -82,6 +82,11 @@ export const AnalyticsEvents = {
   // Profile
   PROFILE_PAGE_VIEWED: "profile_page_viewed",
   PROFILE_SAVED: "profile_saved",
+  // Advocate listing setup (no names, pincodes, enrolment numbers or exact fees).
+  LISTING_SETUP_STARTED: "listing_setup_started",
+  LISTING_SETUP_STEP_COMPLETED: "listing_setup_step_completed",
+  LISTING_PUBLISHED: "listing_published",
+  LISTING_SAVE_FAILED: "listing_save_failed",
 
   // Engagement
   FEATURE_DISCOVERED: "feature_discovered",

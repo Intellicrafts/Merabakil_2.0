@@ -71,6 +71,9 @@ class LawyerPublic(BaseModel):
     listed: bool = False
     missing_for_listing: list[str] = []
     missing_for_matching: list[str] = []
+    # Mandatory details not yet filled in (API field names) — see listing_rules.
+    missing_required: list[str] = []
+    practising_since: int | None = None
 
 
 class ParticipantModeration(BaseModel):
@@ -211,17 +214,20 @@ class TranscriptOut(BaseModel):
 
 
 class LawyerMeUpdate(BaseModel):
-    full_name: str | None = None
-    bar_council_id: str | None = None
-    practice_areas: list[str] | None = None
-    jurisdictions: list[str] | None = None
-    languages: list[str] | None = None
-    city: str | None = None
-    pincode: str | None = None
-    location_state: str | None = None
+    """Omitted (None) fields are left unchanged. Format rules apply to every
+    field sent; completeness is checked on the resulting listing (listing_rules)."""
+
+    full_name: str | None = Field(default=None, max_length=255)
+    bar_council_id: str | None = Field(default=None, max_length=120)
+    practice_areas: list[str] | None = Field(default=None, max_length=20)
+    jurisdictions: list[str] | None = Field(default=None, max_length=30)
+    languages: list[str] | None = Field(default=None, max_length=15)
+    city: str | None = Field(default=None, max_length=80)
+    pincode: str | None = Field(default=None, pattern=r"^([1-9][0-9]{5})?$")
+    location_state: str | None = Field(default=None, max_length=100)
     years_experience: int | None = Field(default=None, ge=0, le=70)
-    hourly_rate: float | None = Field(default=None, ge=0)
-    bio: str | None = None
+    hourly_rate: float | None = Field(default=None, gt=0, multiple_of=1)  # whole rupees, per consultation
+    bio: str | None = Field(default=None, max_length=3000)
 
 
 class CallEventRequest(BaseModel):
@@ -252,8 +258,11 @@ class VerifyRequest(BaseModel):
 
 
 class MeVerifyRequest(BaseModel):
-    enrollment_number: str
+    enrollment_number: str = Field(min_length=1, max_length=120)
+    # "other" = a Bar Council Satyapan can't check yet → manual review.
     state: str | None = None
+    # The advocate asks our team to check (e.g. not found on the roll).
+    manual_review: bool = False
 
 
 class ReviewVerificationRequest(BaseModel):

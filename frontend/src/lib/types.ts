@@ -271,6 +271,8 @@ export interface LawyerMatchResult {
   missing_for_listing?: string[];
   /** Why not in AI recommendations: "practice_areas" | "jurisdictions" | "years_experience" | "bio" | "consultation_fee". */
   missing_for_matching?: string[];
+  /** Mandatory details not yet on the listing (API field names). */
+  missing_required?: string[];
 }
 
 export interface VerifyResult {

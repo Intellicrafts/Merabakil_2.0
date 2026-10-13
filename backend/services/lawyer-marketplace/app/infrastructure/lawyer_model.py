@@ -28,6 +28,9 @@ class Lawyer(Base, TimestampMixin):
     practice_areas: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     jurisdictions: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     years_experience: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Year practice began — keeps experience current and makes "less than a year" (0)
+    # distinguishable from "never filled in".
+    practising_since: Mapped[int | None] = mapped_column(Integer, nullable=True)
     languages: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     rating: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=0, nullable=False)
     rating_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

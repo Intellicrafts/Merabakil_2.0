@@ -63,6 +63,7 @@ export const ALLOWED_PARAM_KEYS = new Set([
   // Profile
   "profile_type",
   "profile_strength",
+  "setup_step",
   "fields_changed_count",
   // Google Ads attribution
   "gclid",

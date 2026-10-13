@@ -1,0 +1,350 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, BadgeCheck, Clock3 } from "lucide-react";
+
+import { RegisterStepIndicator } from "@/components/auth/register-step-indicator";
+import { ProfileSectionCard } from "@/components/profile/profile-hero";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
+import { AnalyticsEvents, bucketAmount, track } from "@/lib/analytics";
+import { ListingValidationError, getMyLawyerListing, upsertMyLawyerListing } from "@/lib/api";
+import type { RankedMarketplaceLawyer } from "@/lib/appointment-types";
+
+import { FeeSection } from "./fee-section";
+import { firstErrorField, focusField, mapServerFields } from "./focus";
+import { IdentitySection } from "./identity-section";
+import {
+  BIO_MIN_FOR_MATCHING,
+  SETUP_STEPS,
+  STEP_FIELDS,
+  firstIncompleteStep,
+  fromListing,
+  toPayload,
+  validate,
+  verificationOf,
+  yearsSinceEnrolment,
+  type FieldErrors,
+  type ListingField,
+  type ListingForm,
+  type ListingStep,
+} from "./listing-form";
+import { PracticeSection } from "./practice-section";
+import { useListingVerification } from "./use-listing-verification";
+
+const STEP_INDEX: Record<ListingStep, 1 | 2 | 3> = { identity: 1, practice: 2, fee: 3 };
+
+function stepOf(field: ListingField): ListingStep {
+  return (Object.keys(STEP_FIELDS) as ListingStep[]).find((s) => STEP_FIELDS[s].includes(field)) ?? "identity";
+}
+
+/** New advocates: three short steps to a live listing. */
+export function ListingSetup({
+  initialRow,
+  fallbackName,
+  onFinished,
+}: {
+  initialRow: RankedMarketplaceLawyer | null;
+  fallbackName: string;
+  onFinished: (row: RankedMarketplaceLawyer) => void;
+}) {
+  const { toast } = useToast();
+  const [row, setRow] = useState(initialRow);
+  const [form, setForm] = useState<ListingForm>(() => fromListing(initialRow, fallbackName));
+  const [step, setStep] = useState<ListingStep>(() => firstIncompleteStep(initialRow) ?? "fee");
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const startedRef = useRef(false);
+  const movedRef = useRef(false);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    track(AnalyticsEvents.LISTING_SETUP_STARTED, { profile_type: "advocate", setup_step: step });
+  }, [step]);
+
+  // Experience: start from the years since enrolment (the advocate can change it).
+  useEffect(() => {
+    if (step !== "practice" || form.years !== "") return;
+    const since = yearsSinceEnrolment(form.enrolment);
+    if (since != null) setForm((f) => ({ ...f, years: String(since) }));
+  }, [step, form.years, form.enrolment]);
+
+  // Focus the new step's heading after moving, so keyboard and screen-reader users land on it.
+  useEffect(() => {
+    if (movedRef.current) headingRef.current?.focus();
+  }, [step, done]);
+
+  const onChange = <K extends ListingField>(field: K, value: ListingForm[K]) => {
+    setForm((f) => ({ ...f, [field]: value }));
+    setErrors((e) => (e[field] ? { ...e, [field]: undefined } : e));
+  };
+
+  function go(next: ListingStep) {
+    movedRef.current = true;
+    setErrors({});
+    setStep(next);
+  }
+
+  function showErrors(next: FieldErrors) {
+    setErrors(next);
+    const first = firstErrorField(next);
+    if (!first) return;
+    if (stepOf(first) !== step) {
+      movedRef.current = false;
+      setStep(stepOf(first));
+    }
+    requestAnimationFrame(() => focusField(first));
+    track(AnalyticsEvents.LISTING_SAVE_FAILED, { profile_type: "advocate", setup_step: step, error_type: "validation" });
+  }
+
+  const refresh = async () => {
+    const fresh = await getMyLawyerListing();
+    setRow(fresh);
+    return fresh;
+  };
+  const verification = useListingVerification({
+    save: upsertMyLawyerListing,
+    refresh,
+    getForm: () => formRef.current,
+    onFieldErrors: (fields) => showErrors(mapServerFields(fields)),
+  });
+  const view = verificationOf(row);
+
+  async function afterVerification(fresh: RankedMarketplaceLawyer | null) {
+    if (!fresh) return;
+    const v = verificationOf(fresh);
+    // Verified, or with our team: carry on. A name mismatch waits for the advocate's choice.
+    if (v.state === "verified" || (v.state === "review" && v.reason !== "name_mismatch")) {
+      track(AnalyticsEvents.LISTING_SETUP_STEP_COMPLETED, { profile_type: "advocate", setup_step: "identity" });
+      go("practice");
+    }
+  }
+
+  const identityUnchanged =
+    (row?.bar_council_id ?? "") === form.enrolment.trim() && (row?.full_name ?? "") === form.fullName.trim();
+  const identityAccepted = identityUnchanged && (view.state === "verified" || view.state === "review");
+
+  async function next() {
+    const stepErrors = validate(form, step);
+    if (Object.keys(stepErrors).length) {
+      showErrors(stepErrors);
+      return;
+    }
+    if (step === "identity") {
+      if (identityAccepted) {
+        track(AnalyticsEvents.LISTING_SETUP_STEP_COMPLETED, { profile_type: "advocate", setup_step: "identity" });
+        go("practice");
+        return;
+      }
+      await afterVerification(await verification.run());
+      return;
+    }
+    setSaving(true);
+    try {
+      const saved = await upsertMyLawyerListing(toPayload(form, step));
+      setRow(saved);
+      track(AnalyticsEvents.LISTING_SETUP_STEP_COMPLETED, { profile_type: "advocate", setup_step: step });
+      if (step === "practice") {
+        go("fee");
+      } else {
+        track(AnalyticsEvents.LISTING_PUBLISHED, {
+          profile_type: "advocate",
+          price_bucket: bucketAmount(Number(form.fee)),
+          reason: saved.listed ? "live" : "awaiting_verification",
+        });
+        movedRef.current = true;
+        setDone(true);
+      }
+    } catch (err) {
+      if (err instanceof ListingValidationError && Object.keys(mapServerFields(err.fields)).length) {
+        showErrors(mapServerFields(err.fields));
+      } else if (err instanceof ListingValidationError) {
+        toast({ title: "Couldn't save", description: err.message, variant: "destructive" });
+      } else {
+        track(AnalyticsEvents.LISTING_SAVE_FAILED, { profile_type: "advocate", setup_step: step, error_type: "network" });
+        toast({
+          title: "Couldn't save",
+          description: "Check your connection and try again — nothing you entered is lost.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (done && row) {
+    const live = Boolean(row.listed);
+    const needsBio = form.bio.trim().length < BIO_MIN_FOR_MATCHING;
+    return (
+      <ProfileSectionCard>
+        <div className="space-y-5">
+          <div className="flex items-start gap-3">
+            <span
+              className={
+                live
+                  ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+              }
+            >
+              {live ? <BadgeCheck className="h-5 w-5" aria-hidden /> : <Clock3 className="h-5 w-5" aria-hidden />}
+            </span>
+            <div>
+              <h2 ref={headingRef} tabIndex={-1} className="text-[17px] font-semibold tracking-tight outline-none">
+                {live ? "You're live" : "Saved — you'll go live once your enrolment is confirmed"}
+              </h2>
+              <p className="mt-1 text-[13px] text-muted-foreground">
+                {live
+                  ? "Clients can now find you in the advocate listing and book a consultation."
+                  : "Our team is checking your enrolment. Your listing appears to clients as soon as it's confirmed."}
+              </p>
+              {needsBio && (
+                <p className="mt-2 text-[12px] text-muted-foreground">
+                  Tip: add a short bio (50+ characters) so Saarthi can recommend you to clients with matching cases.
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button asChild className="mp-btn-accent h-11 rounded-xl px-5 text-[13px] font-semibold">
+              <Link href="/dashboard">Go to dashboard</Link>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl px-5 text-[13px]"
+              onClick={() => onFinished(row)}
+            >
+              Review your listing
+            </Button>
+          </div>
+        </div>
+      </ProfileSectionCard>
+    );
+  }
+
+  const meta = SETUP_STEPS[STEP_INDEX[step] - 1];
+  const busy = saving || verification.verifying;
+  const primaryLabel =
+    step === "identity"
+      ? identityAccepted
+        ? "Continue"
+        : verification.verifying
+          ? "Verifying…"
+          : "Verify and continue"
+      : saving
+        ? "Saving…"
+        : step === "fee"
+          ? "Finish and go live"
+          : "Continue";
+
+  return (
+    <div className="space-y-4 pb-28 sm:pb-0">
+      <ProfileSectionCard>
+        <div className="space-y-1 text-center">
+          <p className="text-[15px] font-semibold tracking-tight">Get listed</p>
+          <p className="text-[12px] text-muted-foreground">3 short steps · about 3 minutes. Clients find you once you&apos;re live.</p>
+        </div>
+        <div className="mt-4">
+          <RegisterStepIndicator
+            currentStep={STEP_INDEX[step]}
+            labels={[SETUP_STEPS[0].label, SETUP_STEPS[1].label, SETUP_STEPS[2].label]}
+          />
+        </div>
+      </ProfileSectionCard>
+
+      <ProfileSectionCard>
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            void next();
+          }}
+          aria-labelledby="listing-step-title"
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Step {STEP_INDEX[step]} of 3
+          </p>
+          <h2
+            id="listing-step-title"
+            ref={headingRef}
+            tabIndex={-1}
+            className="mt-1 text-[17px] font-semibold tracking-tight outline-none"
+          >
+            {meta.title}
+          </h2>
+          <p className="mb-5 mt-1 text-[13px] text-muted-foreground">{meta.intro}</p>
+
+          {step === "identity" && (
+            <IdentitySection
+              form={form}
+              errors={errors}
+              onChange={onChange}
+              disabled={busy}
+              verification={{
+                view: identityUnchanged ? view : { state: "none", reason: null, recordName: null, message: null },
+                verifying: verification.verifying,
+                councilPrompt: verification.councilPrompt,
+                council: verification.council,
+                onCouncilChange: (value) => void verification.chooseCouncil(value).then(afterVerification),
+                error: verification.error,
+                onVerify: () => void next(),
+                onUseRecordName: (name) => {
+                  onChange("fullName", name);
+                  void verification.run({ nameOverride: name }).then(afterVerification);
+                },
+                onRequestReview: () => void verification.run({ manualReview: true }).then(afterVerification),
+              }}
+            />
+          )}
+          {step === "practice" && (
+            <PracticeSection
+              form={form}
+              errors={errors}
+              onChange={onChange}
+              disabled={busy}
+              onLookupFailed={() =>
+                track(AnalyticsEvents.LISTING_SAVE_FAILED, {
+                  profile_type: "advocate",
+                  setup_step: "practice",
+                  error_type: "pincode_lookup",
+                })
+              }
+            />
+          )}
+          {step === "fee" && <FeeSection form={form} errors={errors} onChange={onChange} disabled={busy} />}
+
+          <div className="mp-profile-sticky-footer mt-6 flex items-center gap-2 sm:justify-between">
+            {step !== "identity" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-11 rounded-xl px-3 text-[13px]"
+                disabled={busy}
+                onClick={() => go(step === "fee" ? "practice" : "identity")}
+              >
+                <ArrowLeft className="mr-1 h-4 w-4" aria-hidden />
+                Back
+              </Button>
+            ) : (
+              <span className="hidden sm:block" />
+            )}
+            <Button
+              type="submit"
+              disabled={busy}
+              className="mp-btn-accent h-11 flex-1 rounded-xl text-[13px] font-semibold sm:min-w-[12rem] sm:flex-none"
+            >
+              {primaryLabel}
+            </Button>
+          </div>
+        </form>
+      </ProfileSectionCard>
+    </div>
+  );
+}

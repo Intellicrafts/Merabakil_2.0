@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import uuid
+from types import SimpleNamespace
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -85,6 +86,13 @@ from app.application.livekit_tokens import (
     remove_room_participant,
 )
 from app.application.matching import score_lawyer
+from app.application.listing_rules import (
+    completeness_errors,
+    experience_provided,
+    experience_years,
+    missing_required,
+    practising_since_for,
+)
 from app.application.name_match import names_match
 from app.application.room_hub import publish, publish_admin, publish_user, subscribe, subscribe_admin, subscribe_user, unsubscribe, unsubscribe_admin, unsubscribe_user
 from app.constants import EMERGENCY_STATUSES, PRIORITIES, SUMMON_TTL_SECONDS
@@ -158,7 +166,7 @@ def _missing_for_matching(lawyer: Lawyer) -> list[str]:
     checks = [
         ("practice_areas", bool(lawyer.practice_areas)),
         ("jurisdictions", bool(lawyer.jurisdictions)),
-        ("years_experience", (lawyer.years_experience or 0) > 0),
+        ("years_experience", experience_provided(lawyer)),
         ("bio", len(lawyer.bio or "") >= 50),
         ("consultation_fee", (lawyer.hourly_rate or 0) > 0),
     ]
@@ -229,7 +237,8 @@ def _lawyer_public(
         location_state=getattr(lawyer, "location_state", None) or "",
         jurisdictions=list(lawyer.jurisdictions or []),
         languages=list(lawyer.languages or []),
-        years_experience=lawyer.years_experience,
+        years_experience=experience_years(lawyer),
+        practising_since=getattr(lawyer, "practising_since", None),
         rating=float(lawyer.rating or 0),
         rating_count=lawyer.rating_count,
         hourly_rate=float(lawyer.hourly_rate) if lawyer.hourly_rate is not None else None,
@@ -243,6 +252,7 @@ def _lawyer_public(
         listed=not _missing_for_listing(lawyer),
         missing_for_listing=_missing_for_listing(lawyer),
         missing_for_matching=_missing_for_matching(lawyer),
+        missing_required=missing_required(lawyer),
         # `photo_url` is the caller-resolved, browser-ready URL (a signed URL for a
         # GCS object, or a passthrough external avatar). When no override is given,
         # only pass through a stored external http(s) URL — never a raw gs:// ref.
@@ -772,11 +782,47 @@ _LISTING_FIELDS = (
 )
 
 
+def _resulting_profile(before: Lawyer | None, body: LawyerMeUpdate) -> SimpleNamespace:
+    """The listing as it will be after this save — mirrors upsert_lawyer_for_user
+    (None leaves a field unchanged; a blank or "Advocate" name keeps the current one)."""
+
+    def pick(field: str, default):
+        value = getattr(body, field)
+        if value is not None:
+            return value
+        current = getattr(before, field, None) if before is not None else None
+        return default if current is None else current
+
+    name = (body.full_name or "").strip()
+    years = body.years_experience
+    return SimpleNamespace(
+        full_name=name if name and name.lower() != "advocate" else (before.full_name if before else "Advocate"),
+        bar_council_id=pick("bar_council_id", None),
+        practice_areas=pick("practice_areas", []),
+        jurisdictions=pick("jurisdictions", []),
+        city=pick("city", ""),
+        pincode=pick("pincode", ""),
+        location_state=pick("location_state", ""),
+        years_experience=years if years is not None else (before.years_experience if before else 0),
+        practising_since=(
+            practising_since_for(years) if years is not None else getattr(before, "practising_since", None)
+        ),
+        hourly_rate=pick("hourly_rate", None),
+    )
+
+
 async def _save_listing(
     repo: MarketplaceRepository, session: AsyncSession, user_id: uuid.UUID, body: LawyerMeUpdate
 ) -> LawyerPublic:
-    """Save an advocate's listing — by the advocate or by an admin, same rules."""
+    """Save an advocate's listing — by the advocate or by an admin, same rules.
+    A listing with a consultation fee must be complete; nothing is written if not."""
     before = await repo.get_lawyer_by_user(user_id)
+    errors = completeness_errors(_resulting_profile(before, body))
+    if errors:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Add the required details to save this listing.", "fields": errors},
+        )
     old_name, old_bar_id = (before.full_name, before.bar_council_id) if before else (None, None)
     lawyer = await repo.upsert_lawyer_for_user(
         user_id,
@@ -793,6 +839,8 @@ async def _save_listing(
         bio=body.bio,
         is_verified=None,  # saving a profile never changes verified status
     )
+    if body.years_experience is not None:
+        lawyer.practising_since = practising_since_for(body.years_experience)
     _recheck_after_profile_edit(lawyer, old_name=old_name, old_bar_id=old_bar_id)
     await session.commit()
     if _is_indexable(lawyer):
@@ -839,7 +887,9 @@ async def verify_my_enrollment(
     lawyer = await repo.get_lawyer_by_user(uuid.UUID(current.user_id))
     if not lawyer:
         raise HTTPException(status_code=404, detail="Lawyer profile not found")
-    return await _verify_enrollment(lawyer, body.enrollment_number.strip(), body.state)
+    return await _verify_enrollment(
+        lawyer, body.enrollment_number.strip(), body.state, manual_review=body.manual_review
+    )
 
 
 @lawyers_router.get("/{lawyer_id}", response_model=LawyerPublic)
@@ -2541,9 +2591,51 @@ def verification_outcome(satyapan_status: str, profile_name: str | None, record_
     return "failed", None
 
 
-async def _verify_enrollment(lawyer, enrollment_number: str, state: str | None) -> VerifyResponse:
+_MANUAL_REVIEW_MESSAGES = {
+    "council_not_supported": "We can't check this Bar Council automatically yet. Our team will verify your enrolment.",
+    "manual_request": "Our team will check your enrolment and confirm it.",
+}
+
+
+def _request_manual_review(lawyer, enrollment_number: str, reason: str) -> VerifyResponse:
+    """Hand the enrolment to an admin (review panel) instead of Satyapan."""
+    previous = lawyer.verification_data or {}
+    admin_approved = (
+        lawyer.is_verified
+        and lawyer.bar_council_id == enrollment_number
+        and (previous.get("review") or {}).get("decision") == "approve"
+    )
+    lawyer.bar_council_id = enrollment_number
+    if not admin_approved:
+        lawyer.verification_data = {
+            "status": "manual_review",
+            "message": _MANUAL_REVIEW_MESSAGES[reason],
+            "outcome": "needs_review",
+            "review_reason": reason,
+            "record_name": None,
+            "checked_at": datetime.now(UTC).isoformat(),
+        }
+        lawyer.is_verified = False
+        lawyer.verified_at = None
+    return VerifyResponse(
+        lawyer_id=lawyer.id,
+        status="success" if admin_approved else "needs_review",
+        message="Already verified by our team" if admin_approved else _MANUAL_REVIEW_MESSAGES[reason],
+        is_verified=lawyer.is_verified,
+        verified_at=lawyer.verified_at.isoformat() if lawyer.verified_at else None,
+        data=None,
+    )
+
+
+async def _verify_enrollment(
+    lawyer, enrollment_number: str, state: str | None, *, manual_review: bool = False
+) -> VerifyResponse:
     import httpx
 
+    if (state or "").strip().lower() == "other":
+        return _request_manual_review(lawyer, enrollment_number, "council_not_supported")
+    if manual_review:
+        return _request_manual_review(lawyer, enrollment_number, "manual_request")
     state = state or _detect_bar_council_state(enrollment_number)
     if not state:
         raise HTTPException(

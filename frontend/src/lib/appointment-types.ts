@@ -33,6 +33,10 @@ export interface RankedMarketplaceLawyer {
   listed?: boolean;
   missing_for_listing?: string[];
   missing_for_matching?: string[];
+  /** Mandatory details not yet on the listing (API field names). */
+  missing_required?: string[];
+  /** Year practice began — experience is counted from it. */
+  practising_since?: number | null;
 }
 
 export interface ModerationState {

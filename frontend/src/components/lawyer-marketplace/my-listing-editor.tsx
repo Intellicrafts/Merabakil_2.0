@@ -1,75 +1,14 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { BadgeCheck, CheckCircle2, Circle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
+import { ListingEditForm } from "@/components/lawyer-marketplace/listing/listing-edit-form";
+import { usesSetup } from "@/components/lawyer-marketplace/listing/listing-form";
+import { ListingSetup } from "@/components/lawyer-marketplace/listing/listing-setup";
 import { ProfileSectionCard } from "@/components/profile/profile-hero";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/toast";
-import {
-  adminGetLawyerListing,
-  adminSaveLawyerListing,
-  getMyLawyerListing,
-  getStoredUser,
-  upsertMyLawyerListing,
-  verifyMyEnrollment,
-} from "@/lib/api";
-import type { VerifyResult } from "@/lib/types";
-import { PRACTICE_AREAS, JURISDICTIONS } from "@/lib/mock/lawyers";
-import { cn } from "@/lib/utils";
-import { BAR_COUNCILS, barCouncilForState, detectBarCouncil } from "@/lib/bar-councils";
-import { describeMissing } from "@/lib/listing-status";
-
-const FIELD_LABELS: Record<string, string> = {
-  name:              "Name",
-  father_name:       "Father's name",
-  address:           "Address",
-  district:          "District",
-  enrollment_date:   "Enrolled on",
-  transfer_date:     "Transfer date",
-  dob:               "Date of birth",
-  tr_date:           "TR date",
-  mobile_no:         "Mobile",
-  email:             "Email",
-  degree_year:       "Degree year",
-  status:            "Enrolment status",
-  place_of_practice: "Place of practice",
-  bar_council:       "Bar council",
-  aibe_applicable:   "AIBE applicable",
-  fake:              "Flagged as fake",
-  licence_removed:   "Licence removed",
-  licence_cancelled: "Licence cancelled",
-};
-
-const SKIP_FIELDS = new Set(["state", "enrollment_number", "source", "sources", "index_built_at"]);
-
-function stateToJurisdictions(apiState: string): string[] {
-  const s = apiState.toLowerCase();
-  if (s.includes("uttar pradesh"))                             return ["Allahabad High Court"];
-  if (s.includes("uttarakhand"))                               return ["Uttarakhand High Court"];
-  if (s.includes("delhi"))                                     return ["Delhi High Court"];
-  if (s.includes("andhra pradesh") || s.includes("telangana")) return ["Hyderabad High Court"];
-  if (s.includes("rajasthan"))                                 return ["Rajasthan High Court"];
-  if (s.includes("maharashtra") || s.includes("goa"))          return ["Bombay High Court"];
-  if (s.includes("karnataka"))                                 return ["Karnataka High Court"];
-  if (s.includes("tamil nadu") || s.includes("puducherry"))    return ["Madras High Court"];
-  if (s.includes("west bengal") || s.includes("andaman"))      return ["Calcutta High Court"];
-  if (s.includes("kerala") || s.includes("lakshadweep"))       return ["Kerala High Court"];
-  if (s.includes("gujarat") || s.includes("dadra"))            return ["Gujarat High Court"];
-  if (s.includes("punjab") || s.includes("haryana") || s.includes("chandigarh")) return ["Punjab and Haryana High Court"];
-  if (s.includes("himachal"))                                  return ["Himachal Pradesh High Court"];
-  if (s.includes("bihar") || s.includes("jharkhand"))          return ["Patna High Court"];
-  if (s.includes("madhya pradesh") || s.includes("chhattisgarh")) return ["Madhya Pradesh High Court"];
-  if (s.includes("odisha") || s.includes("orissa"))            return ["Orissa High Court"];
-  if (s.includes("assam") || s.includes("manipur") || s.includes("meghalaya") ||
-      s.includes("nagaland") || s.includes("mizoram") || s.includes("arunachal") ||
-      s.includes("tripura") || s.includes("sikkim"))           return ["Gauhati High Court"];
-  if (s.includes("jammu") || s.includes("kashmir") || s.includes("ladakh")) return ["Jammu & Kashmir and Ladakh High Court"];
-  return [];
-}
+import { adminGetLawyerListing, getMyLawyerListing, getStoredUser } from "@/lib/api";
+import type { RankedMarketplaceLawyer } from "@/lib/appointment-types";
 
 interface MyListingEditorProps {
   onSaved?: () => void;
@@ -78,165 +17,53 @@ interface MyListingEditorProps {
   advocateName?: string;
 }
 
-type ListingStatus = { listed?: boolean; missing_for_listing?: string[]; missing_for_matching?: string[] };
-
-const COMPLETION_CHECKS = [
-  { key: "areas",         label: "Practice areas" },
-  { key: "experience",    label: "Experience" },
-  { key: "bio",           label: "Bio (50+ chars)" },
-  { key: "jurisdictions", label: "Jurisdictions" },
-  { key: "rate",          label: "Hourly rate" },
-] as const;
-
-function useCompletion(
-  areas: string[],
-  years: string,
-  bio: string,
-  jurisdictions: string[],
-  rate: string,
-) {
-  return useMemo(() => {
-    const checks = [
-      { label: "Practice areas",  done: areas.length > 0 },
-      { label: "Experience",      done: Number(years) > 0 },
-      { label: "Bio (50+ chars)", done: bio.trim().length >= 50 },
-      { label: "Jurisdictions",   done: jurisdictions.length > 0 },
-      { label: "Hourly rate",     done: Number(rate) > 0 },
-    ];
-    return { checks, count: checks.filter((c) => c.done).length };
-  }, [areas, years, bio, jurisdictions, rate]);
-}
-
+/**
+ * An advocate's marketplace listing. New advocates get the guided setup;
+ * live listings, and admins, get the single edit page with the same rules.
+ */
 export function MyListingEditor({ onSaved, advocateUserId, advocateName }: MyListingEditorProps) {
-  const { toast } = useToast();
   const user = getStoredUser();
   const adminMode = Boolean(advocateUserId);
   const canEdit = adminMode || Boolean(user?.roles.includes("advocate"));
   // Never fall back to the signed-in admin's own name when editing someone else.
   const fallbackName = adminMode ? (advocateName ?? "") : (user?.full_name ?? "");
-  const [status, setStatus] = useState<ListingStatus | null>(null);
 
+  const [row, setRow] = useState<RankedMarketplaceLawyer | null>(null);
+  const [mode, setMode] = useState<"setup" | "edit" | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [fullName, setFullName] = useState(fallbackName);
-  const [city, setCity] = useState("");
-  const [barId, setBarId] = useState("");
-  const [rate, setRate] = useState("");
-  const [years, setYears] = useState("0");
-  const [areas, setAreas] = useState<string[]>([]);
-  const [jurisdictions, setJurisdictions] = useState<string[]>([]);
-  const [languages, setLanguages] = useState("English, Hindi");
-  const [bio, setBio] = useState("");
-  const [verified, setVerified] = useState(false);
 
-  const [verifying, setVerifying] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<Pick<VerifyResult, "status" | "data" | "message"> | null>(null);
-  const [verifyState, setVerifyState] = useState("");
-  const [showStatePicker, setShowStatePicker] = useState(false);
-  const [loadedBarId, setLoadedBarId] = useState("");
-
-  const [pincode, setPincode] = useState("");
-  const [locationState, setLocationState] = useState("");
-  const [pincodeLoading, setPincodeLoading] = useState(false);
-  const [pincodeInfo, setPincodeInfo] = useState<{ state: string; district: string } | null>(null);
-
-  const completion = useCompletion(areas, years, bio, jurisdictions, rate);
-  const isComplete = completion.count === COMPLETION_CHECKS.length;
-
-  const sortedJurisdictions = useMemo(() => {
-    if (!pincodeInfo) return JURISDICTIONS as unknown as string[];
-    const primary = stateToJurisdictions(pincodeInfo.state);
-    return [
-      ...primary.filter((j) => (JURISDICTIONS as readonly string[]).includes(j)),
-      ...(JURISDICTIONS as readonly string[]).filter((j) => !primary.includes(j)),
-    ];
-  }, [pincodeInfo]);
-
-  const loadProfile = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const row = adminMode ? await adminGetLawyerListing(advocateUserId!) : await getMyLawyerListing();
-      if (!row) {
-        // This advocate has no listing yet — start a new one.
-        setFullName(fallbackName);
-        setStatus({ listed: false, missing_for_listing: ["verification", "consultation_fee"] });
-        return;
-      }
-      setStatus(row);
-      setFullName(row.full_name || fallbackName);
-      setCity(row.city || "");
-      setPincode((row as { pincode?: string }).pincode ?? "");
-      setLocationState((row as { location_state?: string }).location_state ?? "");
-      const bar = row.bar_council_id || "";
-      setBarId(bar);
-      setLoadedBarId(bar);
-      setRate(row.hourly_rate != null ? String(row.hourly_rate) : "");
-      setYears(String(row.years_experience ?? 0));
-      setAreas(row.practice_areas ?? []);
-      setJurisdictions(row.jurisdictions ?? []);
-      setLanguages((row.languages ?? []).join(", ") || "English, Hindi");
-      setBio(row.bio || "");
-      const isV = Boolean(row.is_verified ?? row.verified);
-      setVerified(isV);
-      setVerifyState(detectBarCouncil(bar));
-      const saved = row.verification_data as { data?: Record<string, string>; outcome?: string } | null;
-      if (isV && saved?.data?.name) {
-        setVerifyResult({ status: "success", data: saved.data, message: "" });
-      } else if (!isV && saved?.outcome === "needs_review") {
-        setVerifyResult({ status: "needs_review", data: null, message: "" });
-      }
+      const listing = adminMode ? await adminGetLawyerListing(advocateUserId!) : await getMyLawyerListing();
+      setRow(listing);
+      setMode(usesSetup(listing, adminMode) ? "setup" : "edit");
     } catch {
-      setLoadError(adminMode ? "Could not load this advocate's listing." : "Could not load your profile.");
+      setLoadError(adminMode ? "We couldn't load this advocate's listing." : "We couldn't load your listing.");
     } finally {
       setLoading(false);
     }
-  }, [adminMode, advocateUserId, fallbackName]);
+  }, [adminMode, advocateUserId]);
 
   useEffect(() => {
-    if (!canEdit) return;
-    void loadProfile();
-  }, [canEdit, loadProfile]);
-
-  useEffect(() => {
-    if (barId === loadedBarId) return;
-    setVerifyResult(null);
-    setShowStatePicker(false);
-  }, [barId, loadedBarId]);
+    if (canEdit) void load();
+  }, [canEdit, load]);
 
   if (!canEdit) return null;
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <ProfileSectionCard>
-          <div className="animate-pulse space-y-3">
-            <div className="h-3.5 w-1/3 rounded-lg bg-black/[0.05] dark:bg-white/[0.07]" />
-            <div className="h-1.5 rounded-full bg-black/[0.05] dark:bg-white/[0.07]" />
-            <div className="flex gap-4">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-3 w-16 rounded bg-black/[0.05] dark:bg-white/[0.07]" />
-              ))}
+      <div className="space-y-4" aria-busy="true" aria-label="Loading your listing">
+        {[0, 1, 2].map((i) => (
+          <ProfileSectionCard key={i}>
+            <div className="animate-pulse space-y-3">
+              <div className="h-3.5 w-1/3 rounded-lg bg-black/[0.05] dark:bg-white/[0.07]" />
+              <div className="h-11 rounded-xl bg-black/[0.05] dark:bg-white/[0.07]" />
             </div>
-          </div>
-        </ProfileSectionCard>
-        <ProfileSectionCard>
-          <div className="animate-pulse grid gap-4 sm:grid-cols-2">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="space-y-2">
-                <div className="h-3 w-1/3 rounded bg-black/[0.05] dark:bg-white/[0.07]" />
-                <div className="h-11 rounded-xl bg-black/[0.05] dark:bg-white/[0.07]" />
-              </div>
-            ))}
-          </div>
-        </ProfileSectionCard>
-        <ProfileSectionCard>
-          <div className="animate-pulse space-y-3">
-            <div className="h-3 w-1/4 rounded bg-black/[0.05] dark:bg-white/[0.07]" />
-            <div className="h-11 rounded-xl bg-black/[0.05] dark:bg-white/[0.07]" />
-          </div>
-        </ProfileSectionCard>
+          </ProfileSectionCard>
+        ))}
       </div>
     );
   }
@@ -244,556 +71,37 @@ export function MyListingEditor({ onSaved, advocateUserId, advocateName }: MyLis
   if (loadError) {
     return (
       <ProfileSectionCard>
-        <p className="text-[13px] text-destructive">{loadError}</p>
-        <Button
-          type="button"
-          variant="ghost"
-          className="mt-3 h-10 rounded-xl"
-          onClick={() => void loadProfile()}
-        >
+        <p role="alert" className="text-[13px] text-destructive">
+          {loadError} Check your connection and try again.
+        </p>
+        <Button type="button" variant="outline" className="mt-3 h-10 rounded-xl" onClick={() => void load()}>
           Try again
         </Button>
       </ProfileSectionCard>
     );
   }
 
-  async function handleSave() {
-    setSaving(true);
-    try {
-      const listing = {
-        full_name: fullName.trim() || fallbackName,
-        city: city.trim(),
-        pincode: pincode.trim(),
-        location_state: locationState.trim(),
-        bar_council_id: barId.trim() || null,
-        hourly_rate: rate ? Number(rate) : null,
-        years_experience: Number(years) || 0,
-        practice_areas: areas,
-        jurisdictions,
-        languages: languages.split(",").map((s) => s.trim()).filter(Boolean),
-        bio: bio.trim(),
-      };
-      const saved = adminMode
-        ? await adminSaveLawyerListing(advocateUserId!, listing)
-        : await upsertMyLawyerListing(listing);
-      setStatus(saved);
-      toast({
-        title: adminMode ? "Listing saved" : "Profile saved",
-        description: saved.listed
-          ? "Shown in the advocate listing."
-          : `Not in the advocate listing yet — missing: ${describeMissing(saved.missing_for_listing)}.`,
-        variant: saved.listed ? "success" : "default",
-      });
-      onSaved?.();
-    } catch (err) {
-      toast({
-        title: "Could not save profile",
-        description: (err as Error).message,
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handlePincodeLookup(value: string) {
-    if (value.length !== 6 || !/^\d{6}$/.test(value)) {
-      setPincodeInfo(null);
-      return;
-    }
-    setPincodeLoading(true);
-    setPincodeInfo(null);
-    try {
-      const res = await fetch(`https://api.postalpincode.in/pincode/${value}`);
-      const [json] = (await res.json()) as [
-        { Status: string; PostOffice?: { State: string; District: string }[] },
-      ];
-      if (json.Status === "Success" && json.PostOffice?.length) {
-        const po = json.PostOffice[0];
-        setPincodeInfo({ state: po.State, district: po.District });
-        setCity(po.District);
-        setLocationState(po.State);
-        const barState = barCouncilForState(po.State);
-        if (barState) setVerifyState(barState);
-        const detectedJurisdictions = stateToJurisdictions(po.State);
-        if (detectedJurisdictions.length > 0) {
-          setJurisdictions((prev) => [...new Set([...detectedJurisdictions, ...prev])]);
-        }
-      }
-    } catch {
-      // silently fail — pincode is a helper, not required
-    } finally {
-      setPincodeLoading(false);
-    }
-  }
-
-  async function handleVerify() {
-    if (!barId.trim()) return;
-    const state = verifyState || detectBarCouncil(barId);
-    if (!state) {
-      setShowStatePicker(true);
-      return;
-    }
-    setVerifying(true);
-    setVerifyResult(null);
-    try {
-      const result = await verifyMyEnrollment(barId.trim(), state);
-      setVerified(result.is_verified);
-      setVerifyResult({ status: result.status, data: result.data, message: result.message });
-      if (result.status === "success" && result.data?.name) {
-        setFullName(result.data.name);
-      }
-      if (result.status === "success") {
-        toast({
-          title: `Verified — ${result.data?.name ?? "enrollment confirmed"}`,
-          variant: "success",
-        });
-      } else if (result.status === "needs_review") {
-        toast({ title: "Sent for review", description: result.message });
-      } else {
-        toast({ title: result.message || "Not found on bar council records", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Verification failed. Try again later.", variant: "destructive" });
-    } finally {
-      setVerifying(false);
-    }
+  if (mode === "setup") {
+    return (
+      <ListingSetup
+        initialRow={row}
+        fallbackName={fallbackName}
+        onFinished={(finished) => {
+          setRow(finished);
+          setMode("edit");
+          onSaved?.();
+        }}
+      />
+    );
   }
 
   return (
-    <div className="space-y-4 pb-28 sm:pb-0">
-
-      {/* ── Listing visibility (from the server's own rules) ─── */}
-      {status && (
-        <p
-          role="status"
-          className={cn(
-            "rounded-xl px-4 py-2.5 text-[12px] font-medium",
-            status.listed
-              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
-              : "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400",
-          )}
-        >
-          {status.listed
-            ? "Shown in the advocate listing."
-            : `${adminMode ? "This listing is" : "Your listing is"} hidden from clients until it has: ${describeMissing(status.missing_for_listing)}.`}
-        </p>
-      )}
-
-      {/* ── Completion progress ─────────────────────────────── */}
-      <ProfileSectionCard>
-        {isComplete ? (
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
-              <BadgeCheck className="h-[18px] w-[18px] text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-[13px] font-semibold">Profile complete</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Ready for AI-powered case matching
-              </p>
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {completion.checks.map((c) => (
-                  <span
-                    key={c.label}
-                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
-                  >
-                    <CheckCircle2 className="h-2.5 w-2.5" />
-                    {c.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[13px] font-semibold">{adminMode ? "Complete this listing" : "Complete your profile"}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Finish all sections to appear in AI-powered case matching
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-                {completion.count}/{COMPLETION_CHECKS.length}
-              </span>
-            </div>
-
-            <div className="mb-3 flex gap-1">
-              {completion.checks.map((c) => (
-                <div
-                  key={c.label}
-                  className={cn(
-                    "h-1.5 flex-1 rounded-full transition-colors duration-500",
-                    c.done ? "bg-emerald-500" : "bg-black/[0.07] dark:bg-white/[0.08]",
-                  )}
-                />
-              ))}
-            </div>
-
-            <div className="space-y-0.5">
-              {(() => {
-                const firstUndoneIdx = completion.checks.findIndex((x) => !x.done);
-                return completion.checks.map((c, i) => {
-                  const isNext = !c.done && i === firstUndoneIdx;
-                  return (
-                    <div
-                      key={c.label}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors",
-                        isNext && "bg-amber-50/70 dark:bg-amber-900/10",
-                      )}
-                    >
-                      {c.done ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                      ) : (
-                        <Circle
-                          className={cn(
-                            "h-3.5 w-3.5 shrink-0",
-                            isNext
-                              ? "text-amber-500 dark:text-amber-400"
-                              : "text-black/[0.18] dark:text-white/[0.18]",
-                          )}
-                        />
-                      )}
-                      <span
-                        className={cn(
-                          "text-[12px] font-medium",
-                          c.done ? "text-muted-foreground" : "text-foreground",
-                        )}
-                      >
-                        {c.label}
-                      </span>
-                      {isNext && (
-                        <span className="ml-auto text-[10px] font-semibold tracking-wide text-amber-600 dark:text-amber-400">
-                          Next
-                        </span>
-                      )}
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </>
-        )}
-      </ProfileSectionCard>
-
-      {/* ── Professional details ────────────────────────────── */}
-      <ProfileSectionCard title="Professional details">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" htmlFor="adv-name">
-            <Input
-              id="adv-name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="h-11 rounded-xl"
-              autoComplete="name"
-            />
-          </Field>
-
-          <Field label="City" htmlFor="adv-city">
-            <Input
-              id="adv-city"
-              value={city}
-              readOnly
-              placeholder="Enter pincode to auto-fill"
-              className="h-11 cursor-default rounded-xl bg-black/[0.02] text-muted-foreground dark:bg-white/[0.03]"
-            />
-          </Field>
-
-          <Field label="State" htmlFor="adv-state">
-            <Input
-              id="adv-state"
-              value={locationState}
-              readOnly
-              placeholder="Enter pincode to auto-fill"
-              className="h-11 cursor-default rounded-xl bg-black/[0.02] text-muted-foreground dark:bg-white/[0.03]"
-            />
-          </Field>
-
-          <Field label="Hourly rate (INR)" htmlFor="adv-rate">
-            <Input
-              id="adv-rate"
-              type="number"
-              min={0}
-              value={rate}
-              onChange={(e) => setRate(e.target.value)}
-              className="h-11 rounded-xl"
-            />
-          </Field>
-
-          <Field label="Pincode" htmlFor="adv-pincode">
-            <div className="relative">
-              <Input
-                id="adv-pincode"
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                value={pincode}
-                onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                  setPincode(v);
-                  void handlePincodeLookup(v);
-                }}
-                placeholder="6-digit pincode"
-                className="h-11 rounded-xl pr-8"
-              />
-              {pincodeLoading && (
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
-                  …
-                </span>
-              )}
-            </div>
-            {pincodeInfo && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {pincodeInfo.district} · {pincodeInfo.state}
-                {barCouncilForState(pincodeInfo.state) && (
-                  <span className="ml-1 text-emerald-600 dark:text-emerald-400">
-                    · Bar council state set
-                  </span>
-                )}
-              </p>
-            )}
-          </Field>
-
-          <Field label="Years of experience *" htmlFor="adv-years">
-            <Input
-              id="adv-years"
-              type="number"
-              min={0}
-              value={years}
-              onChange={(e) => setYears(e.target.value)}
-              className="h-11 rounded-xl"
-            />
-          </Field>
-
-          <div className="sm:col-span-2">
-            <Field label="Languages" htmlFor="adv-languages">
-              <Input
-                id="adv-languages"
-                value={languages}
-                onChange={(e) => setLanguages(e.target.value)}
-                className="h-11 rounded-xl"
-              />
-            </Field>
-          </div>
-        </div>
-      </ProfileSectionCard>
-
-      {/* ── Bar council verification ────────────────────────── */}
-      <ProfileSectionCard>
-        <div className="mb-4 flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-semibold">Bar council verification</p>
-            <p
-              className={cn(
-                "mt-0.5 flex items-center gap-1 text-[11px]",
-                verified
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-muted-foreground",
-              )}
-            >
-              {verified && <BadgeCheck className="h-3 w-3 shrink-0" />}
-              {verified
-                ? "Verified — visible in search results"
-                : "Verify your enrollment number to appear in search"}
-            </p>
-          </div>
-        </div>
-
-        <Field label="Enrollment number" htmlFor="adv-bar-id">
-          <div className="flex gap-2">
-            <Input
-              id="adv-bar-id"
-              value={barId}
-              onChange={(e) => setBarId(e.target.value)}
-              placeholder="e.g. UP1234/25, D/105/2005, PH/1234/2020"
-              className="h-11 flex-1 rounded-xl"
-            />
-{!adminMode && (
-            <button
-              type="button"
-              disabled={!barId.trim() || verifying}
-              onClick={() => void handleVerify()}
-              className={cn(
-                "shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
-                verifyResult?.status === "success"
-                  ? "border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950 dark:text-emerald-400"
-                  : "border-black/[0.08] bg-black/[0.02] text-muted-foreground hover:bg-black/[0.06] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/[0.02]",
-              )}
-            >
-              {verifying ? "Verifying…" : verifyResult?.status === "success" ? "✓ Verified" : "Verify"}
-            </button>
-            )}
-          </div>
-
-          {adminMode && (
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Changing the number removes verification. Verify it from User management after saving.
-            </p>
-          )}
-          {!adminMode && showStatePicker && (
-            <div className="mt-2 flex items-center gap-2">
-              <select
-                value={verifyState}
-                onChange={(e) => setVerifyState(e.target.value)}
-                className="flex-1 rounded-xl border border-black/[0.08] bg-white px-3 py-2.5 text-sm text-foreground dark:border-white/10 dark:bg-zinc-900"
-              >
-                <option value="">Select your state bar council</option>
-                {BAR_COUNCILS.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={!verifyState || verifying}
-                onClick={() => void handleVerify()}
-                className="rounded-xl border border-black/[0.08] bg-black/[0.02] px-3 py-2.5 text-xs font-semibold disabled:opacity-40 hover:bg-black/[0.06] dark:border-white/10 dark:bg-white/[0.02]"
-              >
-                {verifying ? "Verifying…" : "Verify"}
-              </button>
-            </div>
-          )}
-
-          {!adminMode && verifyResult?.status === "success" && verifyResult.data && (
-            <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-50/50 p-3 dark:border-emerald-500/15 dark:bg-emerald-900/10">
-              <p className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
-                Details from {verifyResult.data.state ?? "bar council"} registry — confirm these match your records
-              </p>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
-                {Object.entries(verifyResult.data)
-                  .filter(([k, v]) => !SKIP_FIELDS.has(k) && v != null && String(v).trim() !== "")
-                  .map(([k, v]) => (
-                    <Fragment key={k}>
-                      <dt className="whitespace-nowrap text-[11px] text-muted-foreground">
-                        {FIELD_LABELS[k] ?? k}
-                      </dt>
-                      <dd className="text-[11px] font-medium">{v}</dd>
-                    </Fragment>
-                  ))}
-              </dl>
-            </div>
-          )}
-          {!adminMode && verifyResult?.status === "needs_review" && (
-            <p role="status" className="mt-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
-              {verifyResult.message || "We couldn't confirm this automatically. Our team will review it."}
-            </p>
-          )}
-          {!adminMode && verifyResult?.status === "failed" && (
-            <p className="mt-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
-              {verifyResult.message || "Not found on bar council records"}
-            </p>
-          )}
-        </Field>
-      </ProfileSectionCard>
-
-      {/* ── Expertise ───────────────────────────────────────── */}
-      <ProfileSectionCard title="Expertise">
-        <div className="space-y-5">
-          <div>
-            <p className="mb-2 text-[12px] font-medium text-muted-foreground">Practice areas *</p>
-            <div className="flex flex-wrap gap-1.5">
-              {PRACTICE_AREAS.map((area) => {
-                const on = areas.includes(area);
-                return (
-                  <button
-                    key={area}
-                    type="button"
-                    onClick={() =>
-                      setAreas((prev) =>
-                        on ? prev.filter((a) => a !== area) : [...prev, area],
-                      )
-                    }
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                      on
-                        ? "border-slate-400/60 bg-slate-100 dark:border-white/25 dark:bg-white/15"
-                        : "border-black/[0.08] text-muted-foreground dark:border-white/10",
-                    )}
-                  >
-                    {area}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[12px] font-medium text-muted-foreground">Jurisdictions *</p>
-            <div className="flex flex-wrap gap-1.5">
-              {sortedJurisdictions.map((j) => {
-                const on = jurisdictions.includes(j);
-                return (
-                  <button
-                    key={j}
-                    type="button"
-                    onClick={() =>
-                      setJurisdictions((prev) =>
-                        on ? prev.filter((x) => x !== j) : [...prev, j],
-                      )
-                    }
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                      on
-                        ? "border-slate-400/60 bg-slate-100 dark:border-white/25 dark:bg-white/15"
-                        : "border-black/[0.08] text-muted-foreground dark:border-white/10",
-                    )}
-                  >
-                    {j}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <Field label="Bio * (min 50 chars for AI matching)" htmlFor="adv-bio">
-            <Textarea
-              id="adv-bio"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={4}
-              className="rounded-xl text-[13px]"
-            />
-            {bio.trim().length > 0 && bio.trim().length < 50 && (
-              <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">
-                {50 - bio.trim().length} more characters needed
-              </p>
-            )}
-          </Field>
-        </div>
-      </ProfileSectionCard>
-
-      {/* ── Save — sticky on mobile, inline on desktop ──────── */}
-      <div className="mp-profile-sticky-footer sm:static sm:border-0 sm:bg-transparent sm:p-0">
-        <Button
-          type="button"
-          className="mp-btn-accent h-11 w-full rounded-xl text-[13px] font-semibold sm:w-auto sm:min-w-[10rem]"
-          disabled={saving}
-          onClick={() => void handleSave()}
-        >
-          {saving ? "Saving…" : "Save profile"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: React.ReactNode;
-  htmlFor?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="mp-profile-field">
-      <Label htmlFor={htmlFor} className="text-[12px] font-medium text-muted-foreground">
-        {label}
-      </Label>
-      {children}
-    </div>
+    <ListingEditForm
+      key={row?.id ?? "new"}
+      initialRow={row}
+      fallbackName={fallbackName}
+      advocateUserId={advocateUserId}
+      onSaved={onSaved}
+    />
   );
 }

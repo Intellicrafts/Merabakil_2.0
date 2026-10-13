@@ -175,6 +175,7 @@ from tests.helpers import auth  # noqa: E402
 ADV = uuid.UUID("00000000-0000-4000-8000-0000000000a1")
 COMPLETE = {
     "full_name": "Naveen Sheokand", "bar_council_id": "P/1417/2012", "city": "Chandigarh",
+    "pincode": "160017", "location_state": "Chandigarh",
     "practice_areas": ["Criminal"], "jurisdictions": ["Punjab and Haryana High Court"],
     "years_experience": 12, "hourly_rate": 1500,
     "bio": "Practising in criminal and civil matters before the Punjab and Haryana High Court.",
