@@ -11,16 +11,19 @@ import { useToast } from "@/components/ui/toast";
 import { AnalyticsEvents, bucketAmount, track } from "@/lib/analytics";
 import { ListingValidationError, getMyLawyerListing, upsertMyLawyerListing } from "@/lib/api";
 import type { RankedMarketplaceLawyer } from "@/lib/appointment-types";
+import { barCouncilForState } from "@/lib/bar-councils";
 
 import { FeeSection } from "./fee-section";
 import { firstErrorField, focusField, mapServerFields } from "./focus";
 import { IdentitySection } from "./identity-section";
 import {
   BIO_MIN_FOR_MATCHING,
+  NO_VERIFICATION,
   SETUP_STEPS,
   STEP_FIELDS,
   firstIncompleteStep,
   fromListing,
+  officeLeavesCouncil,
   toPayload,
   validate,
   verificationOf,
@@ -126,9 +129,16 @@ export function ListingSetup({
     }
   }
 
+  // Same name, number and Bar Council (from the office's state) as the last check.
   const identityUnchanged =
-    (row?.bar_council_id ?? "") === form.enrolment.trim() && (row?.full_name ?? "") === form.fullName.trim();
+    (row?.bar_council_id ?? "") === form.enrolment.trim() &&
+    (row?.full_name ?? "") === form.fullName.trim() &&
+    !officeLeavesCouncil(row, form.state);
   const identityAccepted = identityUnchanged && (view.state === "verified" || view.state === "review");
+  const locationChanged =
+    (row?.pincode ?? "") !== form.pincode ||
+    (row?.city ?? "") !== form.city.trim() ||
+    (row?.location_state ?? "") !== form.state.trim();
 
   async function next() {
     const stepErrors = validate(form, step);
@@ -136,13 +146,13 @@ export function ListingSetup({
       showErrors(stepErrors);
       return;
     }
-    if (step === "identity") {
-      if (identityAccepted) {
-        track(AnalyticsEvents.LISTING_SETUP_STEP_COMPLETED, { profile_type: "advocate", setup_step: "identity" });
-        go("practice");
-        return;
-      }
+    if (step === "identity" && !identityAccepted) {
       await afterVerification(await verification.run());
+      return;
+    }
+    if (step === "identity" && !locationChanged) {
+      track(AnalyticsEvents.LISTING_SETUP_STEP_COMPLETED, { profile_type: "advocate", setup_step: "identity" });
+      go("practice");
       return;
     }
     setSaving(true);
@@ -150,7 +160,9 @@ export function ListingSetup({
       const saved = await upsertMyLawyerListing(toPayload(form, step));
       setRow(saved);
       track(AnalyticsEvents.LISTING_SETUP_STEP_COMPLETED, { profile_type: "advocate", setup_step: step });
-      if (step === "practice") {
+      if (step === "identity") {
+        go("practice");
+      } else if (step === "practice") {
         go("fee");
       } else {
         track(AnalyticsEvents.LISTING_PUBLISHED, {
@@ -231,13 +243,19 @@ export function ListingSetup({
 
   const meta = SETUP_STEPS[STEP_INDEX[step] - 1];
   const busy = saving || verification.verifying;
+  // An office in a state whose council we can't check goes to our team — nothing to verify here.
+  const councilUnsupported = Boolean(form.state.trim()) && !barCouncilForState(form.state);
   const primaryLabel =
     step === "identity"
-      ? identityAccepted
-        ? "Continue"
-        : verification.verifying
-          ? "Verifying…"
-          : "Verify and continue"
+      ? verification.verifying
+        ? councilUnsupported
+          ? "Saving…"
+          : "Verifying…"
+        : saving
+          ? "Saving…"
+          : identityAccepted || councilUnsupported
+            ? "Continue"
+            : "Verify and continue"
       : saving
         ? "Saving…"
         : step === "fee"
@@ -287,12 +305,16 @@ export function ListingSetup({
               errors={errors}
               onChange={onChange}
               disabled={busy}
+              onLookupFailed={() =>
+                track(AnalyticsEvents.LISTING_SAVE_FAILED, {
+                  profile_type: "advocate",
+                  setup_step: "identity",
+                  error_type: "pincode_lookup",
+                })
+              }
               verification={{
-                view: identityUnchanged ? view : { state: "none", reason: null, recordName: null, message: null },
+                view: identityUnchanged ? view : NO_VERIFICATION,
                 verifying: verification.verifying,
-                councilPrompt: verification.councilPrompt,
-                council: verification.council,
-                onCouncilChange: (value) => void verification.chooseCouncil(value).then(afterVerification),
                 error: verification.error,
                 onVerify: () => void next(),
                 onUseRecordName: (name) => {
@@ -304,19 +326,7 @@ export function ListingSetup({
             />
           )}
           {step === "practice" && (
-            <PracticeSection
-              form={form}
-              errors={errors}
-              onChange={onChange}
-              disabled={busy}
-              onLookupFailed={() =>
-                track(AnalyticsEvents.LISTING_SAVE_FAILED, {
-                  profile_type: "advocate",
-                  setup_step: "practice",
-                  error_type: "pincode_lookup",
-                })
-              }
-            />
+            <PracticeSection form={form} errors={errors} onChange={onChange} disabled={busy} />
           )}
           {step === "fee" && <FeeSection form={form} errors={errors} onChange={onChange} disabled={busy} />}
 

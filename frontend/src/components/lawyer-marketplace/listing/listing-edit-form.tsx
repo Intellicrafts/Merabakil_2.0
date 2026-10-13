@@ -21,9 +21,11 @@ import { FeeSection } from "./fee-section";
 import { FIELD_IDS, firstErrorField, focusField, mapServerFields } from "./focus";
 import { IdentitySection } from "./identity-section";
 import {
+  NO_VERIFICATION,
   describeRequired,
   fieldsChanged,
   fromListing,
+  officeLeavesCouncil,
   toPayload,
   validate,
   verificationOf,
@@ -83,7 +85,11 @@ export function ListingEditForm({
 
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(baseline), [form, baseline]);
   const view = verificationOf(row);
-  const identityChanged = form.fullName.trim() !== baseline.fullName || form.enrolment.trim() !== baseline.enrolment;
+  // A new name or number, or an office in another Bar Council's state, needs checking again.
+  const pendingCheck =
+    form.fullName.trim() !== baseline.fullName ||
+    form.enrolment.trim() !== baseline.enrolment ||
+    officeLeavesCouncil(row, form.state);
 
   // Leaving with unsaved changes asks first.
   useEffect(() => {
@@ -121,8 +127,16 @@ export function ListingEditForm({
     save,
     refresh: async () => {
       const fresh = await refresh();
-      // The identity part is now saved — keep the rest of the edits.
-      setBaseline((b) => ({ ...b, fullName: formRef.current.fullName.trim(), enrolment: formRef.current.enrolment.trim() }));
+      // The office and identity part is now saved — keep the rest of the edits.
+      const f = formRef.current;
+      setBaseline((b) => ({
+        ...b,
+        pincode: f.pincode,
+        city: f.city.trim(),
+        state: f.state.trim(),
+        fullName: f.fullName.trim(),
+        enrolment: f.enrolment.trim(),
+      }));
       return fresh;
     },
     getForm: () => formRef.current,
@@ -217,21 +231,21 @@ export function ListingEditForm({
         </div>
       )}
 
-      <ProfileSectionCard title="Identity and verification">
+      <ProfileSectionCard title="Office and enrolment">
         <IdentitySection
           form={form}
           errors={errors}
           onChange={onChange}
           disabled={busy}
           adminMode={adminMode}
-          changeWarning={view.state === "verified" && identityChanged}
+          changeWarning={view.state === "verified" && pendingCheck}
           showVerifyButton
+          onLookupFailed={() =>
+            track(AnalyticsEvents.LISTING_SAVE_FAILED, { profile_type: "advocate", error_type: "pincode_lookup" })
+          }
           verification={{
-            view: identityChanged ? { state: "none", reason: null, recordName: null, message: null } : view,
+            view: pendingCheck ? NO_VERIFICATION : view,
             verifying: verification.verifying,
-            councilPrompt: verification.councilPrompt,
-            council: verification.council,
-            onCouncilChange: (value) => void verification.chooseCouncil(value),
             error: verification.error,
             onVerify: () => {
               const found = validate(form, "identity");
@@ -248,15 +262,7 @@ export function ListingEditForm({
       </ProfileSectionCard>
 
       <ProfileSectionCard title="Your practice">
-        <PracticeSection
-          form={form}
-          errors={errors}
-          onChange={onChange}
-          disabled={busy}
-          onLookupFailed={() =>
-            track(AnalyticsEvents.LISTING_SAVE_FAILED, { profile_type: "advocate", error_type: "pincode_lookup" })
-          }
-        />
+        <PracticeSection form={form} errors={errors} onChange={onChange} disabled={busy} />
       </ProfileSectionCard>
 
       <ProfileSectionCard title="Fee and about you">

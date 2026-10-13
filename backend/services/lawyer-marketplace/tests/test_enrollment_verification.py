@@ -209,3 +209,156 @@ def test_listing_status_explains_what_is_missing(client) -> None:
     assert done["is_verified"] is True and done["listed"] is True and done["missing_for_listing"] == []
     listing = client.get("/api/v1/lawyers", headers=auth("citizen")).json()
     assert "Naveen Sheokand" in {row["full_name"] for row in listing}  # now in the marketplace
+
+
+# ── The office's state (from the pincode) decides which Bar Council checks ───
+
+from app.application.bar_councils import council_for_state, pincode_in_council  # noqa: E402
+
+OFFICE_ADV = uuid.UUID("00000000-0000-4000-8000-0000000000a2")
+IDENTITY = {"full_name": "Mandeep Kaur", "bar_council_id": "P/1150/1993"}
+CHANDIGARH = {"pincode": "160017", "city": "Chandigarh", "location_state": "Chandigarh"}
+GURUGRAM = {"pincode": "122001", "city": "Gurugram", "location_state": "Haryana"}
+NOIDA = {"pincode": "201301", "city": "Gautam Buddha Nagar", "location_state": "Uttar Pradesh"}
+MUMBAI = {"pincode": "400001", "city": "Mumbai", "location_state": "Maharashtra"}
+FOUND = {"status": "success", "data": {"name": "MANDEEP KAUR", "state": "Punjab"}}
+NOT_FOUND_UP = {"status": "failed", "message": "Record not found or timeout waiting for results.", "data": {}}
+
+
+def _councils_checked(monkeypatch, inner: dict) -> list[str]:
+    """Fake Satyapan; returns the councils it was asked to check."""
+    asked: list[str] = []
+
+    class FakeClient:
+        def __init__(self, *a, **kw): ...
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+
+        async def post(self, url, json=None, **kw):
+            if url.endswith("/api/v1/verify"):
+                asked.append(json["state"])
+            return SimpleNamespace(json=lambda: {"status": "success", "message": "", "data": inner})
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+    return asked
+
+
+def _save(client, body):
+    return client.put("/api/v1/lawyers/me", headers=auth("advocate", OFFICE_ADV), json=body)
+
+
+def _verify(client, **body):
+    return client.post("/api/v1/lawyers/me/verify", headers=auth("advocate", OFFICE_ADV),
+                       json={"enrollment_number": IDENTITY["bar_council_id"], **body})
+
+
+def _me(client):
+    return client.get("/api/v1/lawyers/me", headers=auth("advocate", OFFICE_ADV)).json()
+
+
+@pytest.mark.parametrize(
+    ("state", "council"),
+    [("Uttar Pradesh", "Uttar Pradesh"), ("Delhi", "Delhi"), ("Punjab", "Punjab & Haryana"),
+     ("Haryana", "Punjab & Haryana"), ("Chandigarh", "Punjab & Haryana"), ("Rajasthan", "Rajasthan"),
+     ("Andhra Pradesh", "Andhra Pradesh"), ("Uttarakhand", None), ("Maharashtra", None), ("", None)],
+)
+def test_council_for_the_office_state(state: str, council: str | None) -> None:
+    assert council_for_state(state) == council
+
+
+def test_pincodes_belong_to_their_council() -> None:
+    assert pincode_in_council("160017", "Punjab & Haryana") and pincode_in_council("122001", "Punjab & Haryana")
+    assert pincode_in_council("201301", "Uttar Pradesh") and pincode_in_council("110001", "Delhi")
+    assert not pincode_in_council("201301", "Punjab & Haryana")
+    assert not pincode_in_council("160017", "Uttar Pradesh")
+    assert pincode_in_council("400001", None)  # a council we can't check: nothing to compare
+
+
+def test_a_punjab_number_with_an_up_office_is_checked_with_up(client, monkeypatch) -> None:
+    assert _save(client, {**IDENTITY, **NOIDA}).status_code == 200
+    asked = _councils_checked(monkeypatch, NOT_FOUND_UP)
+    resp = _verify(client, state="Punjab & Haryana")  # the caller can't pick the council
+    assert resp.status_code == 200, resp.text
+    assert asked == ["Uttar Pradesh"]
+    me = _me(client)
+    assert me["is_verified"] is False
+    assert me["verification_data"]["outcome"] == "failed"
+    assert me["verification_data"]["council"] == "Uttar Pradesh"
+
+
+def test_a_punjab_number_with_a_chandigarh_office_is_verified(client, monkeypatch) -> None:
+    assert _save(client, {**IDENTITY, **CHANDIGARH}).status_code == 200
+    asked = _councils_checked(monkeypatch, FOUND)
+    assert _verify(client).json()["status"] == "success"
+    assert asked == ["Punjab & Haryana"]
+    data = _me(client)["verification_data"]
+    assert data["council"] == "Punjab & Haryana" and data["office_state"] == "Chandigarh"
+
+    # Moving within the same council keeps verification; to another council's state doesn't.
+    assert _save(client, GURUGRAM).json()["is_verified"] is True
+    assert _save(client, {"bio": "Criminal and civil matters."}).json()["is_verified"] is True
+    moved = _save(client, NOIDA).json()
+    assert moved["is_verified"] is False and moved["verification_data"]["outcome"] is None
+
+
+def test_an_office_in_a_state_we_cant_check_goes_to_review_without_satyapan(client, monkeypatch) -> None:
+    assert _save(client, {**IDENTITY, **MUMBAI}).status_code == 200
+    asked = _councils_checked(monkeypatch, FOUND)
+    resp = _verify(client)
+    assert resp.json()["status"] == "needs_review" and asked == []
+    data = _me(client)["verification_data"]
+    assert data["review_reason"] == "council_not_supported"
+    assert data["council"] is None and data["office_state"] == "Maharashtra"
+
+
+def test_verifying_needs_the_office_pincode_first(client, monkeypatch) -> None:
+    assert _save(client, IDENTITY).status_code == 200
+    asked = _councils_checked(monkeypatch, FOUND)
+    resp = _verify(client)
+    assert resp.status_code == 422 and "pincode" in resp.json()["detail"]["fields"]
+    assert asked == []
+
+
+def test_the_pincode_must_be_in_the_office_state(client) -> None:
+    resp = _save(client, {**IDENTITY, "pincode": "201301", "city": "Noida", "location_state": "Punjab"})
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["fields"]["pincode"].startswith("This pincode isn't in Punjab")
+    assert _me(client)["pincode"] == ""  # nothing written
+    assert _save(client, {**IDENTITY, **NOIDA}).status_code == 200
+
+
+def test_a_manual_review_records_the_office_council(client, monkeypatch) -> None:
+    _save(client, {**IDENTITY, **NOIDA})
+    asked = _councils_checked(monkeypatch, FOUND)
+    assert _verify(client, manual_review=True).json()["status"] == "needs_review" and asked == []
+    data = _me(client)["verification_data"]
+    assert data["review_reason"] == "manual_request" and data["council"] == "Uttar Pradesh"
+
+
+def test_admins_check_the_office_council_unless_they_choose_one(client, monkeypatch) -> None:
+    _save(client, {**IDENTITY, **NOIDA})
+    lawyer_id = _me(client)["id"]
+    asked = _councils_checked(monkeypatch, NOT_FOUND_UP)
+    url = f"/api/v1/admin/lawyers/{lawyer_id}/verify"
+    assert client.post(url, headers=auth("admin"), json={}).status_code == 200
+    assert client.post(url, headers=auth("admin"), json={"state": "Punjab & Haryana"}).status_code == 200
+    assert asked == ["Uttar Pradesh", "Punjab & Haryana"]
+
+
+def test_verifications_before_councils_were_recorded_use_the_numbers_council() -> None:
+    kept = _verified("Mandeep Kaur", "P/1150/1993", "MANDEEP KAUR")  # no "council" on record
+    kept.location_state = "Chandigarh"
+    api._recheck_after_profile_edit(kept, old_name="Mandeep Kaur", old_bar_id="P/1150/1993", old_state="")
+    assert kept.is_verified
+
+    moved = _verified("Mandeep Kaur", "P/1150/1993", "MANDEEP KAUR")
+    moved.location_state = "Uttar Pradesh"
+    api._recheck_after_profile_edit(moved, old_name="Mandeep Kaur", old_bar_id="P/1150/1993", old_state="")
+    assert not moved.is_verified
+
+    # Confirmed by hand, number and office unknown to us: nothing to compare against.
+    by_hand = _verified("Asha Patil", "MAH/123/2015", "ASHA PATIL")
+    by_hand.location_state = "Maharashtra"
+    api._recheck_after_profile_edit(by_hand, old_name="Asha Patil", old_bar_id="MAH/123/2015", old_state="")
+    assert by_hand.is_verified

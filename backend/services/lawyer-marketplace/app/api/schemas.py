@@ -259,7 +259,7 @@ class VerifyRequest(BaseModel):
 
 class MeVerifyRequest(BaseModel):
     enrollment_number: str = Field(min_length=1, max_length=120)
-    # "other" = a Bar Council Satyapan can't check yet → manual review.
+    # Ignored: the office's state (from the pincode) decides the council. Kept for older clients.
     state: str | None = None
     # The advocate asks our team to check (e.g. not found on the roll).
     manual_review: bool = False

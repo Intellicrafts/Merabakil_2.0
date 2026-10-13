@@ -12,6 +12,8 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from app.application.bar_councils import council_for_state, pincode_in_council
+
 IST = ZoneInfo("Asia/Kolkata")
 PINCODE_RE = re.compile(r"^[1-9][0-9]{5}$")
 _PLACEHOLDER_NAMES = {"", "advocate"}
@@ -75,3 +77,12 @@ def completeness_errors(profile) -> dict[str, str]:
     if not (profile.hourly_rate or 0) > 0:
         return {}
     return {name: FIELD_MESSAGES[name] for name in missing_required(profile) if name != "hourly_rate"}
+
+
+def office_errors(pincode: str | None, state: str | None) -> dict[str, str]:
+    """The office pincode must be in the office state — the state decides which
+    Bar Council checks the enrolment (e.g. a UP pincode can't be filed under Punjab)."""
+    council = council_for_state(state)
+    if council and pincode and not pincode_in_council(pincode, council):
+        return {"pincode": f"This pincode isn't in {state}. Check the pincode and the state."}
+    return {}

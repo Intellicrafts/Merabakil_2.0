@@ -273,6 +273,8 @@ export interface LawyerMatchResult {
   missing_for_matching?: string[];
   /** Mandatory details not yet on the listing (API field names). */
   missing_required?: string[];
+  /** Office state (from the pincode) — decides which Bar Council checks the enrolment. */
+  location_state?: string;
 }
 
 export interface VerifyResult {

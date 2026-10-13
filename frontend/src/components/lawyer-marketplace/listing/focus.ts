@@ -17,7 +17,7 @@ export const FIELD_IDS: Record<ListingField, string> = {
 
 /** Field order on screen — the first error in this order gets focus. */
 const ORDER: ListingField[] = [
-  "fullName", "enrolment", "pincode", "city", "state", "courts", "practiceAreas", "years", "languages", "fee", "bio",
+  "pincode", "city", "state", "fullName", "enrolment", "courts", "practiceAreas", "years", "languages", "fee", "bio",
 ];
 
 export function firstErrorField(errors: FieldErrors): ListingField | null {

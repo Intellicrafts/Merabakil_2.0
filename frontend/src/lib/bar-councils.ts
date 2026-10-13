@@ -22,7 +22,11 @@ export function detectBarCouncil(enrollment: string): string {
   return "";
 }
 
-/** The council for a state name as returned in a verification record. */
+/**
+ * The council for a state ("" if Satyapan can't check it). An advocate's office
+ * state decides which council checks their enrolment — mirrors lawyer-marketplace
+ * app/application/bar_councils.py.
+ */
 export function barCouncilForState(state: string): string {
   const s = state.toLowerCase();
   if (s.includes("uttar pradesh")) return "Uttar Pradesh";
@@ -31,4 +35,9 @@ export function barCouncilForState(state: string): string {
   if (s.includes("rajasthan")) return "Rajasthan";
   if (s.includes("punjab") || s.includes("haryana") || s.includes("chandigarh")) return "Punjab & Haryana";
   return "";
+}
+
+/** "Bar Council of Punjab, Haryana & Chandigarh" for a council value. */
+export function barCouncilName(council: string): string {
+  return `Bar Council of ${BAR_COUNCILS.find((c) => c.value === council)?.label ?? council}`;
 }

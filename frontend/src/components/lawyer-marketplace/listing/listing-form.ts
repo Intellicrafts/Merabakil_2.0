@@ -5,9 +5,13 @@
  * app/application/listing_rules.py): a listing with a consultation fee must
  * have name, enrolment number, pincode, city, state, experience, at least one
  * practice area and one court. Bio and languages are optional.
+ *
+ * The office pincode comes first: its state decides which Bar Council checks
+ * the enrolment number.
  */
 import type { LawyerListingInput } from "@/lib/api";
 import type { RankedMarketplaceLawyer } from "@/lib/appointment-types";
+import { barCouncilForState, detectBarCouncil } from "@/lib/bar-councils";
 
 export type ListingStep = "identity" | "practice" | "fee";
 
@@ -16,13 +20,13 @@ export const SETUP_STEPS: { id: ListingStep; label: string; title: string; intro
     id: "identity",
     label: "Verify",
     title: "Verify your enrolment",
-    intro: "Clients only see advocates confirmed with their State Bar Council.",
+    intro: "Your office pincode tells us which State Bar Council to check. Clients only see confirmed advocates.",
   },
   {
     id: "practice",
     label: "Practice",
     title: "Your practice",
-    intro: "Where you practise and the matters you take on — this is how clients find you.",
+    intro: "The courts and matters you take on — this is how clients find you.",
   },
   {
     id: "fee",
@@ -50,8 +54,8 @@ export type ListingField = keyof ListingForm;
 export type FieldErrors = Partial<Record<ListingField, string>>;
 
 export const STEP_FIELDS: Record<ListingStep, ListingField[]> = {
-  identity: ["fullName", "enrolment"],
-  practice: ["pincode", "city", "state", "years", "courts", "practiceAreas", "languages"],
+  identity: ["pincode", "city", "state", "fullName", "enrolment"],
+  practice: ["courts", "practiceAreas", "years", "languages"],
   fee: ["fee", "bio"],
 };
 
@@ -73,7 +77,8 @@ export const SERVER_FIELD: Record<string, ListingField> = {
 export const PINCODE_RE = /^[1-9][0-9]{5}$/;
 export const BIO_MIN_FOR_MATCHING = 50;
 export const BIO_MAX = 3000;
-const PRACTICE_KEYS = ["pincode", "city", "location_state", "years_experience", "practice_areas", "jurisdictions"];
+const IDENTITY_KEYS = ["full_name", "bar_council_id", "pincode", "city", "location_state"];
+const PRACTICE_KEYS = ["years_experience", "practice_areas", "jurisdictions"];
 
 const MESSAGES: Partial<Record<ListingField, string>> = {
   fullName: "Enter the name clients should see.",
@@ -130,13 +135,13 @@ export function toPayload(form: ListingForm, step: ListingStep | "all"): LawyerL
   const has = (s: ListingStep) => step === "all" || step === s;
   const payload: LawyerListingInput = {};
   if (has("identity")) {
+    payload.pincode = form.pincode;
+    payload.city = form.city.trim();
+    payload.location_state = form.state.trim();
     payload.full_name = form.fullName.trim();
     payload.bar_council_id = form.enrolment.trim();
   }
   if (has("practice")) {
-    payload.pincode = form.pincode;
-    payload.city = form.city.trim();
-    payload.location_state = form.state.trim();
     payload.years_experience = Number(form.years);
     payload.practice_areas = form.practiceAreas;
     payload.jurisdictions = form.courts;
@@ -183,6 +188,16 @@ export type VerificationView = {
   reason: string | null;
   recordName: string | null;
   message: string | null;
+  /** The Bar Council that was asked (null for older checks, or one we can't check automatically). */
+  council: string | null;
+};
+
+export const NO_VERIFICATION: VerificationView = {
+  state: "none",
+  reason: null,
+  recordName: null,
+  message: null,
+  council: null,
 };
 
 export function verificationOf(row: RankedMarketplaceLawyer | null | undefined): VerificationView {
@@ -195,10 +210,27 @@ export function verificationOf(row: RankedMarketplaceLawyer | null | undefined):
     null;
   const reason = typeof data.review_reason === "string" ? data.review_reason : null;
   const message = typeof data.message === "string" ? data.message : null;
-  if (row?.is_verified || row?.verified) return { state: "verified", reason, recordName, message };
-  if (outcome === "needs_review") return { state: "review", reason, recordName, message };
-  if (outcome && outcome !== "verified") return { state: "failed", reason, recordName, message };
-  return { state: "none", reason: null, recordName, message: null };
+  const council = typeof data.council === "string" ? data.council : null;
+  if (row?.is_verified || row?.verified) return { state: "verified", reason, recordName, message, council };
+  if (outcome === "needs_review") return { state: "review", reason, recordName, message, council };
+  if (outcome && outcome !== "verified") return { state: "failed", reason, recordName, message, council };
+  return { ...NO_VERIFICATION, recordName };
+}
+
+/**
+ * The office has moved to a state another Bar Council covers, so the enrolment
+ * must be checked again. Mirrors the server (marketplace_api._office_left_council).
+ */
+export function officeLeavesCouncil(row: RankedMarketplaceLawyer | null | undefined, state: string): boolean {
+  const next = state.trim();
+  if (!row || !next || next === (row.location_state ?? "").trim()) return false;
+  const data = (row.verification_data ?? {}) as Record<string, unknown>;
+  // Checked before the council was recorded: the council the number belongs to.
+  const used = "council" in data ? (typeof data.council === "string" ? data.council : "") : detectBarCouncil(row.bar_council_id ?? "");
+  const nextCouncil = barCouncilForState(next);
+  if (used || nextCouncil) return used !== nextCouncil;
+  const usedState = typeof data.office_state === "string" ? data.office_state.trim().toLowerCase() : "";
+  return Boolean(usedState) && usedState !== next.toLowerCase();
 }
 
 const REQUIRED_LABELS: Record<string, string> = {
@@ -244,7 +276,7 @@ export function listingState(row: RankedMarketplaceLawyer | null | undefined): L
 export function firstIncompleteStep(row: RankedMarketplaceLawyer | null | undefined): ListingStep | null {
   const missing = new Set(row?.missing_required ?? []);
   const verification = verificationOf(row).state;
-  if (missing.has("full_name") || missing.has("bar_council_id") || verification === "none" || verification === "failed")
+  if (IDENTITY_KEYS.some((k) => missing.has(k)) || verification === "none" || verification === "failed")
     return "identity";
   if (PRACTICE_KEYS.some((k) => missing.has(k))) return "practice";
   if (missing.has("hourly_rate")) return "fee";

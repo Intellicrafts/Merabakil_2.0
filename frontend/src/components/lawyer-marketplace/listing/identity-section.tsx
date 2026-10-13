@@ -1,16 +1,17 @@
 "use client";
 
-import { AlertTriangle, BadgeCheck, Clock3, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Clock3, Landmark, XCircle } from "lucide-react";
 
 import { FIELD_ERROR_BORDER, FormField, fieldProps } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { BAR_COUNCILS } from "@/lib/bar-councils";
+import { barCouncilForState, barCouncilName } from "@/lib/bar-councils";
 import { cn } from "@/lib/utils";
 
 import { titleCaseName, type SectionProps, type VerificationView } from "./listing-form";
+import { LocationFields } from "./location-fields";
 
 const REVIEW_COPY: Record<string, string> = {
-  council_not_supported: "We can't check this Bar Council automatically yet — our team will verify your enrolment.",
+  council_not_supported: "We can't check enrolments in your state automatically yet — our team will verify your enrolment.",
   manual_request: "Our team will check your enrolment and confirm it.",
   not_in_roll: "Your enrolment isn't on the Bar Council's published lists yet (common for recent enrolments) — our team will confirm it.",
   name_changed: "Your name changed after verification — our team will re-check it.",
@@ -19,10 +20,6 @@ const REVIEW_COPY: Record<string, string> = {
 export type VerificationControls = {
   view: VerificationView;
   verifying: boolean;
-  /** The Bar Council couldn't be told from the number — ask which one. */
-  councilPrompt: boolean;
-  council: string;
-  onCouncilChange: (council: string) => void;
   /** Couldn't reach the Bar Council records (or another temporary failure). */
   error: string | null;
   onVerify: () => void;
@@ -30,6 +27,7 @@ export type VerificationControls = {
   onRequestReview: () => void;
 };
 
+/** Office location first (its state decides the Bar Council), then name and enrolment number. */
 export function IdentitySection({
   form,
   errors,
@@ -39,16 +37,24 @@ export function IdentitySection({
   adminMode,
   changeWarning,
   showVerifyButton,
+  onLookupFailed,
 }: SectionProps & {
   verification: VerificationControls;
   adminMode?: boolean;
-  /** Edit page: a change here sends a verified profile back for review. */
+  /** Edit page: saving these changes sends a verified profile back for checking. */
   changeWarning?: boolean;
   /** Edit page: an explicit Verify button (setup verifies on Continue). */
   showVerifyButton?: boolean;
+  onLookupFailed?: () => void;
 }) {
   return (
     <div className="space-y-4">
+      <LocationFields form={form} errors={errors} onChange={onChange} disabled={disabled} onLookupFailed={onLookupFailed} />
+
+      {form.state.trim() && verification.view.state === "none" && (
+        <CouncilLine state={form.state.trim()} adminMode={adminMode} />
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           id="listing-name"
@@ -86,13 +92,43 @@ export function IdentitySection({
       {changeWarning && (
         <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-          Saving a different name or enrolment number sends your profile for re-verification.
+          Saving these changes sends {adminMode ? "this advocate's" : "your"} profile for re-verification.
         </p>
       )}
 
       <VerificationStatus verification={verification} adminMode={adminMode} showVerifyButton={showVerifyButton} />
     </div>
   );
+}
+
+/** Which Bar Council the office's state sends the enrolment to. */
+function CouncilLine({ state, adminMode }: { state: string; adminMode?: boolean }) {
+  const council = barCouncilForState(state);
+  return (
+    <p className="flex items-start gap-2 text-[12px] text-muted-foreground">
+      <Landmark className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+      {council ? (
+        <span>
+          {adminMode ? "The enrolment is checked with the " : "We'll check your enrolment with the "}
+          <span className="font-medium text-foreground">{barCouncilName(council)}</span>, from{" "}
+          {adminMode ? "the" : "your"} office&apos;s state.
+        </span>
+      ) : (
+        <span>
+          {adminMode
+            ? `Enrolments in ${state} are verified by our team.`
+            : `We can't check enrolments in ${state} automatically yet — our team will verify yours.`}
+        </span>
+      )}
+    </p>
+  );
+}
+
+function failureCopy(view: VerificationView): string {
+  if (!view.council) return `We couldn't confirm this enrolment${view.message ? `: ${view.message}` : "."}`;
+  const council = barCouncilName(view.council);
+  if (!view.message || /not found/i.test(view.message)) return `We couldn't find this enrolment with the ${council}.`;
+  return `The ${council} couldn't confirm this enrolment: ${view.message}`;
 }
 
 function VerificationStatus({
@@ -104,8 +140,7 @@ function VerificationStatus({
   adminMode?: boolean;
   showVerifyButton?: boolean;
 }) {
-  const { view, verifying, councilPrompt, council, onCouncilChange, error, onVerify, onUseRecordName, onRequestReview } =
-    verification;
+  const { view, verifying, error, onVerify, onUseRecordName, onRequestReview } = verification;
   const linkButton =
     "font-semibold underline underline-offset-2 hover:text-foreground disabled:opacity-50 disabled:no-underline";
 
@@ -115,7 +150,7 @@ function VerificationStatus({
         <p className="flex items-start gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-[12px] text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
           <BadgeCheck className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>
-            Verified with the Bar Council
+            Verified with the {view.council ? barCouncilName(view.council) : "Bar Council"}
             {view.recordName ? ` — record: ${view.recordName}` : ""}.
           </span>
         </p>
@@ -160,8 +195,8 @@ function VerificationStatus({
           <p className="flex items-start gap-2">
             <XCircle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
             <span>
-              We couldn&apos;t confirm this enrolment{view.message ? `: ${view.message}` : "."} Check the number
-              {adminMode ? "." : ", or ask our team to check it."}
+              {failureCopy(view)} Check the number
+              {adminMode ? "." : ". If you're enrolled with another State Bar Council, request a manual review."}
             </span>
           </p>
           {!adminMode && (
@@ -187,29 +222,6 @@ function VerificationStatus({
             </button>
           </div>
         </div>
-      )}
-
-      {councilPrompt && !adminMode && (
-        <FormField
-          id="listing-council"
-          label="Which State Bar Council are you enrolled with?"
-          hint="We couldn't tell from the number."
-        >
-          <select
-            {...fieldProps("listing-council", { hint: true })}
-            value={council}
-            onChange={(e) => onCouncilChange(e.target.value)}
-            className="h-11 w-full min-w-0 rounded-xl border border-input bg-background px-3 text-sm text-foreground"
-          >
-            <option value="">Choose your Bar Council</option>
-            {BAR_COUNCILS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-            <option value="other">My Bar Council isn&apos;t listed</option>
-          </select>
-        </FormField>
       )}
 
       {adminMode && view.state !== "verified" && (

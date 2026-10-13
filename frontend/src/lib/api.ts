@@ -489,23 +489,21 @@ export async function adminGetUserWallet(userId: string): Promise<WalletBalance>
 }
 
 /**
- * Verify the advocate's enrolment with their State Bar Council. `state: "other"`
- * (a council we can't check automatically) or `manualReview` hands it to our team.
+ * Verify the advocate's enrolment. The server checks it with the Bar Council of
+ * the saved office state (from the pincode); `manualReview` hands it to our team.
  */
 export async function verifyMyEnrollment(
   enrollmentNumber: string,
-  state?: string,
   options?: { manualReview?: boolean },
 ): Promise<VerifyResult> {
-  return apiFetch<VerifyResult>(`${marketplaceServiceUrl()}/api/v1/lawyers/me/verify`, {
+  const res = await authorizedFetch(`${marketplaceServiceUrl()}/api/v1/lawyers/me/verify`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({
-      enrollment_number: enrollmentNumber,
-      state: state ?? null,
-      manual_review: Boolean(options?.manualReview),
-    }),
+    body: JSON.stringify({ enrollment_number: enrollmentNumber, manual_review: Boolean(options?.manualReview) }),
   });
+  if (res.status === 422) throw await listingValidationError(res);
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as VerifyResult;
 }
 
 export async function adminGetLawyerByUser(userId: string): Promise<LawyerMatchResult> {
@@ -1601,30 +1599,33 @@ export class ListingValidationError extends Error {
   }
 }
 
+/** A 422 from the listing endpoints → per-field messages (`detail.fields`, or pydantic's `loc`). */
+async function listingValidationError(res: Response): Promise<ListingValidationError> {
+  let detail: unknown = null;
+  try {
+    detail = ((await res.json()) as { detail?: unknown }).detail;
+  } catch {
+    /* fall through to a generic message */
+  }
+  const fields: Record<string, string> = {};
+  let message = "Some details need attention.";
+  if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+    const d = detail as { message?: string; fields?: Record<string, string> };
+    if (d.message) message = d.message;
+    Object.assign(fields, d.fields ?? {});
+  } else if (Array.isArray(detail)) {
+    // Request-format errors from the API (e.g. a malformed pincode).
+    for (const item of detail as { loc?: (string | number)[]; msg?: string }[]) {
+      const key = item.loc?.[item.loc.length - 1];
+      if (typeof key === "string") fields[key] = item.msg ?? "Check this value.";
+    }
+  }
+  return new ListingValidationError(message, fields);
+}
+
 async function putListing(url: string, body: LawyerListingInput): Promise<RankedMarketplaceLawyer> {
   const res = await authorizedFetch(url, { method: "PUT", headers: authHeaders(), body: JSON.stringify(body) });
-  if (res.status === 422) {
-    let detail: unknown = null;
-    try {
-      detail = ((await res.json()) as { detail?: unknown }).detail;
-    } catch {
-      /* fall through to a generic message */
-    }
-    const fields: Record<string, string> = {};
-    let message = "Some details need attention.";
-    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
-      const d = detail as { message?: string; fields?: Record<string, string> };
-      if (d.message) message = d.message;
-      Object.assign(fields, d.fields ?? {});
-    } else if (Array.isArray(detail)) {
-      // Request-format errors from the API (e.g. a malformed pincode).
-      for (const item of detail as { loc?: (string | number)[]; msg?: string }[]) {
-        const key = item.loc?.[item.loc.length - 1];
-        if (typeof key === "string") fields[key] = item.msg ?? "Check this value.";
-      }
-    }
-    throw new ListingValidationError(message, fields);
-  }
+  if (res.status === 422) throw await listingValidationError(res);
   if (!res.ok) return parseError(res);
   return (await res.json()) as RankedMarketplaceLawyer;
 }

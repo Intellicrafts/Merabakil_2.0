@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BAR_COUNCILS, barCouncilForState, detectBarCouncil } from "@/lib/bar-councils";
+import { BAR_COUNCILS, barCouncilForState, barCouncilName, detectBarCouncil } from "@/lib/bar-councils";
 
 describe("bar councils", () => {
   it("detects the council from the enrolment number", () => {
@@ -16,5 +16,12 @@ describe("bar councils", () => {
   it("maps Punjab, Haryana and Chandigarh to their one council", () => {
     for (const state of ["Punjab", "HARYANA", "Chandigarh"]) expect(barCouncilForState(state)).toBe("Punjab & Haryana");
     expect(BAR_COUNCILS.map((c) => c.value)).toContain("Punjab & Haryana");
+  });
+
+  it("names the council for an office state, and none it can't check", () => {
+    expect(barCouncilName(barCouncilForState("Uttar Pradesh"))).toBe("Bar Council of Uttar Pradesh");
+    expect(barCouncilName(barCouncilForState("Haryana"))).toBe("Bar Council of Punjab, Haryana & Chandigarh");
+    expect(barCouncilForState("Uttarakhand")).toBe("");
+    expect(barCouncilForState("Maharashtra")).toBe("");
   });
 });

@@ -10,6 +10,7 @@ import {
   formatInr,
   fromListing,
   listingState,
+  officeLeavesCouncil,
   toPayload,
   usesSetup,
   validate,
@@ -44,14 +45,17 @@ describe("validate", () => {
     expect(validate(COMPLETE, "all")).toEqual({});
   });
 
-  it("checks only the fields of the step being saved", () => {
+  it("checks only the fields of the step being saved — the office location comes with the enrolment", () => {
     const empty = { ...COMPLETE, fullName: "", enrolment: "", pincode: "", city: "", state: "", years: "" };
-    expect(Object.keys(validate({ ...empty, practiceAreas: [], courts: [], fee: "" }, "identity"))).toEqual([
-      "fullName",
+    expect(Object.keys(validate({ ...empty, practiceAreas: [], courts: [], fee: "" }, "identity")).sort()).toEqual([
+      "city",
       "enrolment",
+      "fullName",
+      "pincode",
+      "state",
     ]);
     expect(Object.keys(validate({ ...empty, practiceAreas: [], courts: [], languages: "" }, "practice")).sort()).toEqual(
-      ["city", "courts", "pincode", "practiceAreas", "state", "years"],
+      ["courts", "practiceAreas", "years"],
     );
     expect(Object.keys(validate({ ...COMPLETE, fee: "" }, "fee"))).toEqual(["fee"]);
   });
@@ -63,9 +67,9 @@ describe("validate", () => {
 
   it("needs a 6-digit pincode that doesn't start with 0", () => {
     for (const bad of ["", "16001", "1600171", "060017", "16OO17"]) {
-      expect(validate({ ...COMPLETE, pincode: bad }, "practice").pincode).toBeTruthy();
+      expect(validate({ ...COMPLETE, pincode: bad }, "identity").pincode).toBeTruthy();
     }
-    expect(validate({ ...COMPLETE, pincode: "110001" }, "practice").pincode).toBeUndefined();
+    expect(validate({ ...COMPLETE, pincode: "110001" }, "identity").pincode).toBeUndefined();
   });
 
   it("allows 0 years (less than a year) up to 70", () => {
@@ -92,11 +96,14 @@ describe("validate", () => {
 
 describe("toPayload", () => {
   it("sends only the step's fields", () => {
-    expect(toPayload(COMPLETE, "identity")).toEqual({ full_name: "Naveen Sheokhand", bar_council_id: "P/1417/2012" });
-    expect(toPayload({ ...COMPLETE, languages: " English, ,Hindi " }, "practice")).toEqual({
+    expect(toPayload(COMPLETE, "identity")).toEqual({
       pincode: "160017",
       city: "Chandigarh",
       location_state: "Chandigarh",
+      full_name: "Naveen Sheokhand",
+      bar_council_id: "P/1417/2012",
+    });
+    expect(toPayload({ ...COMPLETE, languages: " English, ,Hindi " }, "practice")).toEqual({
       years_experience: 14,
       practice_areas: ["Criminal"],
       jurisdictions: ["Punjab and Haryana High Court"],
@@ -189,11 +196,15 @@ describe("where the advocate lands", () => {
   it("resumes setup at the first incomplete step", () => {
     expect(firstIncompleteStep(null)).toBe("identity");
     expect(firstIncompleteStep(row({ missing_required: ["bar_council_id", "pincode"] }))).toBe("identity");
-    expect(firstIncompleteStep(row({ ...VERIFIED, missing_required: ["pincode", "hourly_rate"] }))).toBe("practice");
+    // The office pincode is part of step 1 now.
+    expect(firstIncompleteStep(row({ ...VERIFIED, missing_required: ["pincode", "hourly_rate"] }))).toBe("identity");
+    expect(firstIncompleteStep(row({ ...VERIFIED, missing_required: ["years_experience", "hourly_rate"] }))).toBe(
+      "practice",
+    );
     expect(firstIncompleteStep(row({ ...VERIFIED, missing_required: ["hourly_rate"] }))).toBe("fee");
     expect(
       firstIncompleteStep(
-        row({ verification_data: { outcome: "needs_review", review_reason: "not_in_roll" }, missing_required: ["pincode"] }),
+        row({ verification_data: { outcome: "needs_review", review_reason: "not_in_roll" }, missing_required: ["jurisdictions"] }),
       ),
     ).toBe("practice");
     expect(firstIncompleteStep(row({ verification_data: { outcome: "failed" }, missing_required: ["pincode"] }))).toBe(
@@ -240,5 +251,35 @@ describe("server errors", () => {
     });
     expect(errors).toEqual({ fee: "Enter your consultation fee.", pincode: "Enter a valid 6-digit pincode." });
     expect(firstErrorField(errors)).toBe("pincode");
+  });
+});
+
+describe("an office move to another Bar Council's state", () => {
+  const checked = (council: string | null, extra: Partial<RankedMarketplaceLawyer> = {}) =>
+    row({
+      bar_council_id: "P/1417/2012",
+      location_state: "Chandigarh",
+      is_verified: true,
+      verification_data: { outcome: "verified", council, office_state: "Chandigarh" },
+      ...extra,
+    });
+
+  it("needs a new check; a move within the same council doesn't", () => {
+    expect(officeLeavesCouncil(checked("Punjab & Haryana"), "Uttar Pradesh")).toBe(true);
+    expect(officeLeavesCouncil(checked("Punjab & Haryana"), "Haryana")).toBe(false);
+    expect(officeLeavesCouncil(checked("Punjab & Haryana"), "Chandigarh")).toBe(false);
+    expect(officeLeavesCouncil(checked("Punjab & Haryana"), "Maharashtra")).toBe(true);
+  });
+
+  it("uses the number's council for checks made before councils were recorded", () => {
+    const older = row({ bar_council_id: "P/1417/2012", location_state: "", is_verified: true, verification_data: { outcome: "verified" } });
+    expect(officeLeavesCouncil(older, "Chandigarh")).toBe(false);
+    expect(officeLeavesCouncil(older, "Uttar Pradesh")).toBe(true);
+  });
+
+  it("tells councils we can't check apart by state", () => {
+    const byHand = checked(null, { location_state: "Maharashtra", verification_data: { outcome: "verified", council: null, office_state: "Maharashtra" } });
+    expect(officeLeavesCouncil(byHand, "Karnataka")).toBe(true);
+    expect(officeLeavesCouncil(byHand, "Uttar Pradesh")).toBe(true);
   });
 });
