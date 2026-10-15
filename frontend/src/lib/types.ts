@@ -49,7 +49,12 @@ export type GoogleAuthResult = AuthResponse | GoogleNeedsRoleResponse;
 export function isGoogleNeedsRole(
   result: GoogleAuthResult,
 ): result is GoogleNeedsRoleResponse {
-  return "status" in result && result.status === "needs_role";
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "onboarding_token" in result &&
+    !("tokens" in result)
+  );
 }
 
 export interface Page<T> {

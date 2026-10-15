@@ -21,7 +21,7 @@ function RoleOnboardingForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
-  const [role, setRole] = useState<AccountRole>("citizen");
+  const [role, setRole] = useState<AccountRole | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [context, setContext] = useState(readGoogleOnboarding());
 
@@ -40,6 +40,9 @@ function RoleOnboardingForm() {
     mutationFn: () => {
       if (!context?.onboarding_token) {
         throw new Error("Your Google sign-in session expired. Please try again.");
+      }
+      if (!role) {
+        throw new Error("Please choose Citizen or Advocate.");
       }
       storeAvatarUrl(context.picture);
       return completeGoogleOnboarding(context.onboarding_token, role, router, nextPath);
@@ -87,7 +90,7 @@ function RoleOnboardingForm() {
           type="button"
           className="h-11 w-full rounded-xl"
           size="lg"
-          disabled={mutation.isPending || !termsAccepted}
+          disabled={mutation.isPending || !termsAccepted || !role}
           onClick={() => mutation.mutate()}
         >
           {mutation.isPending ? "Creating your account…" : "Continue to dashboard"}

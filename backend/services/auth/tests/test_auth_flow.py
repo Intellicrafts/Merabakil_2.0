@@ -275,6 +275,22 @@ async def test_api_google_complete(mock_verify, client, auth_service: AuthServic
     assert body["tokens"]["access_token"]
 
 
+@pytest.mark.asyncio
+@patch("app.application.use_cases.verify_google_id_token")
+async def test_api_google_complete_requires_role(mock_verify, client, auth_service: AuthService) -> None:
+    mock_verify.return_value = _google_profile(email="norole.google@example.com", sub="norole-sub")
+    auth_service._settings.google_oauth_client_id = "test-client-id.apps.googleusercontent.com"
+
+    needs = await client.post("/api/v1/auth/google", json={"id_token": "fake-token"})
+    token = needs.json()["onboarding_token"]
+
+    resp = await client.post(
+        "/api/v1/auth/google/complete",
+        json={"onboarding_token": token},
+    )
+    assert resp.status_code == 422
+
+
 def test_google_client_id_falls_back_to_next_public(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NEXT_PUBLIC_GOOGLE_CLIENT_ID", "fallback.apps.googleusercontent.com")
     settings = AuthSettings(google_oauth_client_id="")
