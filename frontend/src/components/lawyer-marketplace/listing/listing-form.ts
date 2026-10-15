@@ -20,19 +20,19 @@ export const SETUP_STEPS: { id: ListingStep; label: string; title: string; intro
     id: "identity",
     label: "Verify",
     title: "Verify your enrolment",
-    intro: "Your office pincode tells us which State Bar Council to check. Clients only see confirmed advocates.",
+    intro: "Office pincode chooses the Bar Council we check. Clients only see confirmed advocates.",
   },
   {
     id: "practice",
     label: "Practice",
     title: "Your practice",
-    intro: "The courts and matters you take on — this is how clients find you.",
+    intro: "Courts and matters you take — this is how clients find you.",
   },
   {
     id: "fee",
     label: "Fee & about",
     title: "Fee and about you",
-    intro: "What clients pay for a consultation, and a few lines about your practice.",
+    intro: "Your consultation fee, then a few lines about your practice.",
   },
 ];
 
@@ -270,6 +270,31 @@ export function listingState(row: RankedMarketplaceLawyer | null | undefined): L
   if (row.listed) return missing.length ? "live_incomplete" : "live";
   if (missing.length) return "incomplete";
   return verificationOf(row).state === "review" ? "under_review" : "not_verified";
+}
+
+/** Dashboard / tour prompt: complete remaining details, or wait on enrolment review. */
+export type ActivationPromptKind = "complete" | "review" | null;
+
+export function activationPromptKind(
+  row: RankedMarketplaceLawyer | null | undefined,
+): ActivationPromptKind {
+  const state = listingState(row);
+  if (state === "live") return null;
+  if (state === "under_review") return "review";
+  return "complete";
+}
+
+export function needsProfessionalActivation(
+  row: RankedMarketplaceLawyer | null | undefined,
+): boolean {
+  return activationPromptKind(row) !== null;
+}
+
+export function remainingRequiredCount(
+  row: RankedMarketplaceLawyer | null | undefined,
+): number {
+  if (!row) return 9;
+  return row.missing_required?.length ?? 0;
 }
 
 /** The setup step to resume at, worked out from the saved listing. */

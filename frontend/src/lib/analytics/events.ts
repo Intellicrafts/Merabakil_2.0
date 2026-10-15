@@ -87,6 +87,8 @@ export const AnalyticsEvents = {
   LISTING_SETUP_STEP_COMPLETED: "listing_setup_step_completed",
   LISTING_PUBLISHED: "listing_published",
   LISTING_SAVE_FAILED: "listing_save_failed",
+  LISTING_ACTIVATION_BANNER_SHOWN: "listing_activation_banner_shown",
+  LISTING_ACTIVATION_BANNER_CLICKED: "listing_activation_banner_clicked",
 
   // Engagement
   FEATURE_DISCOVERED: "feature_discovered",

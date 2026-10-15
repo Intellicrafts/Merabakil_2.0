@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { ListingEditForm } from "@/components/lawyer-marketplace/listing/listing-edit-form";
-import { usesSetup } from "@/components/lawyer-marketplace/listing/listing-form";
+import { firstIncompleteStep, usesSetup } from "@/components/lawyer-marketplace/listing/listing-form";
 import { ListingSetup } from "@/components/lawyer-marketplace/listing/listing-setup";
 import { ProfileSectionCard } from "@/components/profile/profile-hero";
 import { Button } from "@/components/ui/button";
@@ -15,13 +15,15 @@ interface MyListingEditorProps {
   /** Admin mode: edit this advocate's listing instead of the signed-in user's. */
   advocateUserId?: string;
   advocateName?: string;
+  /** Focused activation tour from the dashboard nudge. */
+  tour?: boolean;
 }
 
 /**
  * An advocate's marketplace listing. New advocates get the guided setup;
  * live listings, and admins, get the single edit page with the same rules.
  */
-export function MyListingEditor({ onSaved, advocateUserId, advocateName }: MyListingEditorProps) {
+export function MyListingEditor({ onSaved, advocateUserId, advocateName, tour = false }: MyListingEditorProps) {
   const user = getStoredUser();
   const adminMode = Boolean(advocateUserId);
   const canEdit = adminMode || Boolean(user?.roles.includes("advocate"));
@@ -39,13 +41,15 @@ export function MyListingEditor({ onSaved, advocateUserId, advocateName }: MyLis
     try {
       const listing = adminMode ? await adminGetLawyerListing(advocateUserId!) : await getMyLawyerListing();
       setRow(listing);
-      setMode(usesSetup(listing, adminMode) ? "setup" : "edit");
+      const setup =
+        usesSetup(listing, adminMode) || Boolean(tour && !adminMode && firstIncompleteStep(listing));
+      setMode(setup ? "setup" : "edit");
     } catch {
       setLoadError(adminMode ? "We couldn't load this advocate's listing." : "We couldn't load your listing.");
     } finally {
       setLoading(false);
     }
-  }, [adminMode, advocateUserId]);
+  }, [adminMode, advocateUserId, tour]);
 
   useEffect(() => {
     if (canEdit) void load();
@@ -86,6 +90,7 @@ export function MyListingEditor({ onSaved, advocateUserId, advocateName }: MyLis
       <ListingSetup
         initialRow={row}
         fallbackName={fallbackName}
+        tour={tour}
         onFinished={(finished) => {
           setRow(finished);
           setMode("edit");

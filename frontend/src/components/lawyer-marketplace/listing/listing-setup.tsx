@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, BadgeCheck, Clock3 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { RegisterStepIndicator } from "@/components/auth/register-step-indicator";
 import { ProfileSectionCard } from "@/components/profile/profile-hero";
@@ -12,7 +11,10 @@ import { AnalyticsEvents, bucketAmount, track } from "@/lib/analytics";
 import { ListingValidationError, getMyLawyerListing, upsertMyLawyerListing } from "@/lib/api";
 import type { RankedMarketplaceLawyer } from "@/lib/appointment-types";
 import { barCouncilForState } from "@/lib/bar-councils";
+import { useTranslation } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
+import { ListingActivationCeremony } from "./listing-activation-ceremony";
 import { FeeSection } from "./fee-section";
 import { firstErrorField, focusField, mapServerFields } from "./focus";
 import { IdentitySection } from "./identity-section";
@@ -47,11 +49,14 @@ export function ListingSetup({
   initialRow,
   fallbackName,
   onFinished,
+  tour = false,
 }: {
   initialRow: RankedMarketplaceLawyer | null;
   fallbackName: string;
   onFinished: (row: RankedMarketplaceLawyer) => void;
+  tour?: boolean;
 }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [row, setRow] = useState(initialRow);
   const [form, setForm] = useState<ListingForm>(() => fromListing(initialRow, fallbackName));
@@ -192,52 +197,13 @@ export function ListingSetup({
   }
 
   if (done && row) {
-    const live = Boolean(row.listed);
-    const needsBio = form.bio.trim().length < BIO_MIN_FOR_MATCHING;
     return (
-      <ProfileSectionCard>
-        <div className="space-y-5">
-          <div className="flex items-start gap-3">
-            <span
-              className={
-                live
-                  ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                  : "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
-              }
-            >
-              {live ? <BadgeCheck className="h-5 w-5" aria-hidden /> : <Clock3 className="h-5 w-5" aria-hidden />}
-            </span>
-            <div>
-              <h2 ref={headingRef} tabIndex={-1} className="text-[17px] font-semibold tracking-tight outline-none">
-                {live ? "You're live" : "Saved — you'll go live once your enrolment is confirmed"}
-              </h2>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                {live
-                  ? "Clients can now find you in the advocate listing and book a consultation."
-                  : "Our team is checking your enrolment. Your listing appears to clients as soon as it's confirmed."}
-              </p>
-              {needsBio && (
-                <p className="mt-2 text-[12px] text-muted-foreground">
-                  Tip: add a short bio (50+ characters) so Saarthi can recommend you to clients with matching cases.
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button asChild className="mp-btn-accent h-11 rounded-xl px-5 text-[13px] font-semibold">
-              <Link href="/dashboard">Go to dashboard</Link>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 rounded-xl px-5 text-[13px]"
-              onClick={() => onFinished(row)}
-            >
-              Review your listing
-            </Button>
-          </div>
-        </div>
-      </ProfileSectionCard>
+      <ListingActivationCeremony
+        live={Boolean(row.listed)}
+        needsBio={form.bio.trim().length < BIO_MIN_FOR_MATCHING}
+        headingRef={headingRef}
+        onReview={() => onFinished(row)}
+      />
     );
   }
 
@@ -262,19 +228,57 @@ export function ListingSetup({
           ? "Finish and go live"
           : "Continue";
 
+  const progress = (STEP_INDEX[step] / 3) * 100;
+
   return (
-    <div className="space-y-4 pb-28 sm:pb-0">
+    <div className={cn("space-y-4 pb-28 sm:pb-0", tour && "listing-tour")}>
       <ProfileSectionCard>
         <div className="space-y-1 text-center">
-          <p className="text-[15px] font-semibold tracking-tight">Get listed</p>
-          <p className="text-[12px] text-muted-foreground">3 short steps · about 3 minutes. Clients find you once you&apos;re live.</p>
+          {tour ? (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {t("listingActivation.tourEyebrow")}
+              </p>
+              <p className="text-[15px] font-semibold tracking-tight">
+                {t("listingActivation.stepOf")
+                  .replace("{current}", String(STEP_INDEX[step]))
+                  .replace("{total}", "3")}
+              </p>
+              <p className="text-[12px] text-muted-foreground">{t("listingActivation.tourSubtitle")}</p>
+            </>
+          ) : (
+            <>
+              <p className="text-[15px] font-semibold tracking-tight">Get listed</p>
+              <p className="text-[12px] text-muted-foreground">
+                3 short steps · about 3 minutes. Clients find you once you&apos;re live.
+              </p>
+            </>
+          )}
         </div>
-        <div className="mt-4">
-          <RegisterStepIndicator
-            currentStep={STEP_INDEX[step]}
-            labels={[SETUP_STEPS[0].label, SETUP_STEPS[1].label, SETUP_STEPS[2].label]}
-          />
-        </div>
+        {tour ? (
+          <div
+            className="listing-tour-progress mt-4 h-1 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/[0.08]"
+            role="progressbar"
+            aria-valuemin={1}
+            aria-valuemax={3}
+            aria-valuenow={STEP_INDEX[step]}
+            aria-label={t("listingActivation.stepOf")
+              .replace("{current}", String(STEP_INDEX[step]))
+              .replace("{total}", "3")}
+          >
+            <span
+              className="block h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        ) : (
+          <div className="mt-4">
+            <RegisterStepIndicator
+              currentStep={STEP_INDEX[step]}
+              labels={[SETUP_STEPS[0].label, SETUP_STEPS[1].label, SETUP_STEPS[2].label]}
+            />
+          </div>
+        )}
       </ProfileSectionCard>
 
       <ProfileSectionCard>

@@ -4,13 +4,16 @@ import type { RankedMarketplaceLawyer } from "@/lib/appointment-types";
 
 import { firstErrorField, mapServerFields } from "./focus";
 import {
+  activationPromptKind,
   describeRequired,
   enrolmentYear,
   firstIncompleteStep,
   formatInr,
   fromListing,
   listingState,
+  needsProfessionalActivation,
   officeLeavesCouncil,
+  remainingRequiredCount,
   toPayload,
   usesSetup,
   validate,
@@ -232,6 +235,23 @@ describe("listing status", () => {
     expect(listingState(row({ listed: false, missing_required: [], verification_data: { outcome: "failed" } }))).toBe(
       "not_verified",
     );
+  });
+
+  it("decides the dashboard activation prompt from listing state", () => {
+    expect(activationPromptKind(null)).toBe("complete");
+    expect(needsProfessionalActivation(null)).toBe(true);
+    expect(activationPromptKind(row({ listed: false, missing_required: ["pincode"] }))).toBe("complete");
+    expect(activationPromptKind(row({ listed: true, missing_required: ["pincode"] }))).toBe("complete");
+    expect(activationPromptKind(row({ listed: false, missing_required: [], verification_data: { outcome: "failed" } }))).toBe(
+      "complete",
+    );
+    expect(
+      activationPromptKind(row({ listed: false, missing_required: [], verification_data: { outcome: "needs_review" } })),
+    ).toBe("review");
+    expect(activationPromptKind(row({ listed: true, missing_required: [] }))).toBeNull();
+    expect(needsProfessionalActivation(row({ listed: true, missing_required: [] }))).toBe(false);
+    expect(remainingRequiredCount(null)).toBe(9);
+    expect(remainingRequiredCount(row({ missing_required: ["pincode", "hourly_rate"] }))).toBe(2);
   });
 
   it("names the missing details in plain words", () => {

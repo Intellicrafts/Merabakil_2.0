@@ -7,6 +7,7 @@ import { DashboardHero } from "@/components/dashboard/dashboard-hero";
 import { DashboardHomeFeed } from "@/components/dashboard/dashboard-home-feed";
 import { DashboardModuleCard } from "@/components/dashboard/dashboard-module-card";
 import { DashboardQuickLaunch } from "@/components/dashboard/dashboard-quick-launch";
+import { ProfessionalActivationBanner } from "@/components/dashboard/professional-activation-banner";
 import { useDashboardSnapshot } from "@/hooks/use-dashboard-snapshot";
 import { AnalyticsEvents, track } from "@/lib/analytics";
 import { getStoredUser, syncStoredUser } from "@/lib/api";
@@ -40,6 +41,7 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1180px] space-y-5 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:space-y-6 sm:px-5 md:px-0 md:pb-12 md:pt-2">
+      <ProfessionalActivationBanner user={user} />
       <DashboardHero
         firstName={firstName}
         config={config}

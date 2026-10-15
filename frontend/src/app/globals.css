@@ -4750,3 +4750,76 @@
 .cookie-banner-visible .mv-guest-dock {
   padding-bottom: var(--cookie-banner-h, 6rem);
 }
+
+/* Advocate professional activation: ceremony overlay + tour progress. */
+@keyframes listing-ceremony-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes listing-ceremony-rise {
+  from { opacity: 0; transform: translateY(1.25rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes listing-ceremony-pop {
+  0% { transform: scale(0.72); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes listing-ceremony-burst {
+  0% { opacity: 0.9; transform: rotate(calc(var(--i) * 30deg)) translateY(0) scale(0.4); }
+  100% { opacity: 0; transform: rotate(calc(var(--i) * 30deg)) translateY(-4.5rem) scale(1); }
+}
+
+.listing-ceremony {
+  animation: listing-ceremony-fade 0.28s ease-out;
+}
+
+.listing-ceremony-card {
+  animation: listing-ceremony-rise 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.listing-ceremony-mark {
+  animation: listing-ceremony-pop 0.48s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.listing-ceremony-burst {
+  pointer-events: none;
+  position: absolute;
+  inset: 1.5rem 0 auto;
+  height: 5.5rem;
+}
+
+.listing-ceremony-burst span {
+  position: absolute;
+  left: 50%;
+  top: 2.4rem;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  animation: listing-ceremony-burst 0.72s ease-out forwards;
+  animation-delay: calc(var(--i) * 18ms);
+}
+
+.listing-ceremony-burst span:nth-child(odd) {
+  background: hsl(152 60% 42%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listing-ceremony,
+  .listing-ceremony-card,
+  .listing-ceremony-mark,
+  .listing-ceremony-burst span,
+  .listing-tour-progress span {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .listing-ceremony-burst {
+    display: none;
+  }
+}
