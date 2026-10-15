@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Scale, Users } from "lucide-react";
 
 import { AuthDivider } from "@/components/auth/auth-divider";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { EmailOtpStep } from "@/components/auth/email-otp-step";
 import { RegisterStepIndicator } from "@/components/auth/register-step-indicator";
+import { RolePicker, type AccountRole } from "@/components/auth/role-picker";
 import { SocialLoginButtons } from "@/components/auth/social-login-buttons";
 import { TermsConsentCheckbox } from "@/components/legal/terms-consent-checkbox";
 import { Button } from "@/components/ui/button";
@@ -21,22 +21,6 @@ import { register, sendOtp, setSession, syncAdvocateListing, verifyRegisterOtp }
 import { useTranslation } from "@/lib/i18n";
 import { loginRedirectForUser } from "@/lib/permissions";
 import { LEGAL_VERSIONS } from "@/lib/site-metadata";
-import { cn } from "@/lib/utils";
-
-const ROLES = [
-  {
-    id: "citizen",
-    labelKey: "auth.citizen" as const,
-    descriptionKey: "auth.citizenDesc" as const,
-    icon: Users,
-  },
-  {
-    id: "advocate",
-    labelKey: "auth.advocate" as const,
-    descriptionKey: "auth.advocateDesc" as const,
-    icon: Scale,
-  },
-] as const;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -52,7 +36,7 @@ function RegisterForm() {
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("citizen");
+  const [role, setRole] = useState<AccountRole>("citizen");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
@@ -260,48 +244,7 @@ function RegisterForm() {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>{t("auth.iAm")}</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {ROLES.map(({ id, labelKey, descriptionKey, icon: Icon }) => {
-                const selected = role === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setRole(id)}
-                    className={cn(
-                      "flex flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-all duration-150",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-                      selected
-                        ? "border-primary/40 bg-primary/[0.06] ring-1 ring-primary/20"
-                        : "border-black/[0.08] bg-white hover:border-black/[0.14] hover:bg-slate-50 dark:border-white/[0.10] dark:bg-zinc-800 dark:hover:border-white/[0.18]",
-                    )}
-                    aria-pressed={selected}
-                  >
-                    <div
-                      className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-lg",
-                        selected
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-black/[0.06] text-muted-foreground dark:bg-white/[0.10]",
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    </div>
-                    <div>
-                      <p className={cn("text-[13px] font-semibold", selected && "text-primary")}>
-                        {t(labelKey)}
-                      </p>
-                      <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                        {t(descriptionKey)}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <RolePicker value={role} onChange={setRole} disabled={registerMutation.isPending} />
 
           <TermsConsentCheckbox
             checked={termsAccepted}

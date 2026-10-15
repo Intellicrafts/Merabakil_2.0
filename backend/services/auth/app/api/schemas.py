@@ -67,7 +67,7 @@ class GoogleAuthRequest(BaseModel):
 
 class GoogleCompleteRequest(BaseModel):
     onboarding_token: str = Field(min_length=1)
-    role: Role = Role.CITIZEN
+    role: Role
     terms_version: str | None = Field(default=None, max_length=20)
     privacy_version: str | None = Field(default=None, max_length=20)
     acquisition: AcquisitionInput | None = None
