@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgeCheck, Lock, Scale, ShieldCheck, Square } from "lucide-react";
+import { BadgeCheck, FileDown, Loader2, Lock, Scale, ShieldCheck, Square } from "lucide-react";
 
 import { AskAuthSheet } from "@/components/ask/ask-auth-sheet";
 import { AskComposer } from "@/components/ask/ask-composer";
@@ -24,6 +24,8 @@ import { TurnstileChallenge, TURNSTILE_SITE_KEY } from "@/components/security/tu
 import { GuestChallengeError, GuestLimitError, streamResearchGuest } from "@/lib/api";
 import { chatErrorCode } from "@/lib/chat-errors";
 import { INITIAL_STATUS_KEY, statusLabel } from "@/lib/chat-status";
+import { buildConversationPayload } from "@/lib/counsel-report-model";
+import { downloadConversationReportPdf } from "@/lib/counsel-report-pdf";
 import { createUserMessage, toResearchHistory, type ChatMessage } from "@/lib/conversations";
 import { FEATURES } from "@/lib/features";
 import {
@@ -73,6 +75,7 @@ function SaarthiLandingInner() {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | undefined>();
+  const [exportingReport, setExportingReport] = useState(false);
   // Busy network: the server asked for a bot check before this question goes through.
   const [challenge, setChallenge] = useState<{ question: string; source: QuestionSource } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -356,7 +359,19 @@ function SaarthiLandingInner() {
   }, []);
 
   const chatStarted = messages.length > 0;
+  const hasAnswers = messages.some((m) => m.role === "assistant" && m.content.trim().length > 0);
   const streaming = streamingId !== null;
+
+  const handleExportConversation = useCallback(async () => {
+    setExportingReport(true);
+    try {
+      await downloadConversationReportPdf(buildConversationPayload(messagesRef.current));
+    } catch {
+      // Download failures are rare and non-critical; the guest can retry.
+    } finally {
+      setExportingReport(false);
+    }
+  }, []);
   const remainingLabel =
     remaining !== null
       ? `${remaining} ${t(remaining === 1 ? "ask.freeChatLeft" : "ask.freeChatsLeft")} · ${t("ask.resetsMidnightIst")}`
@@ -380,6 +395,23 @@ function SaarthiLandingInner() {
             <span className="hidden rounded-full bg-black/[0.04] px-2.5 py-1 text-[11px] font-medium text-muted-foreground dark:bg-white/[0.06] sm:inline">
               {remainingLabel}
             </span>
+          ) : null}
+          {chatStarted && hasAnswers ? (
+            <button
+              type="button"
+              onClick={handleExportConversation}
+              disabled={exportingReport}
+              aria-label={t("chat.exportConversation")}
+              title={t("chat.exportConversation")}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              {exportingReport ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <FileDown className="h-4 w-4" aria-hidden />
+              )}
+              <span className="hidden sm:inline">{t("chat.exportConversation")}</span>
+            </button>
           ) : null}
           <LanguageSwitcher />
           <Link

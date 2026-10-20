@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Moon, PanelRight, Sun } from "lucide-react";
+import { FileDown, Loader2, Moon, PanelRight, Sun } from "lucide-react";
 
 import { BackButton } from "@/components/layout/back-button";
 import { BookingDialog } from "@/components/lawyer-marketplace/booking-dialog";
@@ -55,6 +55,8 @@ import {
   consumeMeraVakilVoiceOpen,
 } from "@/lib/prefill-store";
 import { INITIAL_STATUS_KEY, statusLabel } from "@/lib/chat-status";
+import { buildConversationPayload } from "@/lib/counsel-report-model";
+import { downloadConversationReportPdf } from "@/lib/counsel-report-pdf";
 import { consumeGuestTranscript } from "@/lib/guest-store";
 import { loadSpeechLocale } from "@/lib/indian-locales";
 import { useTranslation } from "@/lib/i18n";
@@ -124,6 +126,7 @@ export default function MeraVakilPage() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  const [exportingReport, setExportingReport] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState<string | undefined>();
   const [speechLocale, setSpeechLocale] = useState("en-IN");
@@ -1314,6 +1317,19 @@ export default function MeraVakilPage() {
     localStorage.setItem(THEME_KEY, next ? "dark" : "light");
   }
 
+  async function handleExportConversation() {
+    const messages = activeConversationRef.current?.messages ?? [];
+    setExportingReport(true);
+    try {
+      await downloadConversationReportPdf(buildConversationPayload(messages));
+      toast({ title: t("common.exported"), description: t("chat.conversationDownloaded") });
+    } catch {
+      toast({ title: t("chat.exportFailed"), description: t("chat.pdfError"), variant: "destructive" });
+    } finally {
+      setExportingReport(false);
+    }
+  }
+
   function matchResultToProfile(lawyer: LawyerMatchResult): LawyerProfile {
     return {
       id: lawyer.id,
@@ -1403,6 +1419,26 @@ export default function MeraVakilPage() {
           <header className="app-topbar flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 md:px-6">
             <BackButton />
             <div className="flex items-center gap-1">
+              {(activeConversation?.messages ?? []).some(
+                (m) => m.role === "assistant" && m.content.trim().length > 0,
+              ) ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExportConversation}
+                  disabled={exportingReport}
+                  aria-label={t("chat.exportConversation")}
+                  title={t("chat.exportConversation")}
+                  className="gap-1.5 rounded-full px-3"
+                >
+                  {exportingReport ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileDown className="h-4 w-4" />
+                  )}
+                  <span className="hidden text-[13px] sm:inline">{t("chat.exportConversation")}</span>
+                </Button>
+              ) : null}
               <Button
                 variant="ghost"
                 size="sm"
