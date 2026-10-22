@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Menu, Moon, Sun, X } from "lucide-react";
+import { Download, Menu, Moon, Sun, X } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import { trackMarketingCta } from "@/lib/analytics/track-cta";
 import { getToken } from "@/lib/api";
 import { initTheme, toggleTheme } from "@/lib/theme";
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -28,6 +29,7 @@ export function MarketingShell({ children }: MarketingShellProps) {
   const [dark, setDark] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const { canInstall, install } = useInstallPrompt();
 
   useEffect(() => {
     setDark(initTheme());
@@ -66,6 +68,20 @@ export function MarketingShell({ children }: MarketingShellProps) {
           </nav>
 
           <div className="flex items-center gap-2">
+            {/* PWA install button — only visible when the browser queues an install prompt */}
+            {canInstall && (
+              <button
+                type="button"
+                onClick={() => void install()}
+                aria-label="Install Mera Bakil app"
+                title="Install app"
+                className="nav-install-btn"
+              >
+                <Download className="nav-install-icon" strokeWidth={2} aria-hidden />
+                <span className="nav-install-label">Install App</span>
+              </button>
+            )}
+
             <Button
               variant="ghost"
               size="sm"
@@ -163,6 +179,17 @@ export function MarketingShell({ children }: MarketingShellProps) {
                   </Link>
                 </Button>
               </div>
+            )}
+            {/* Install row in the mobile drawer */}
+            {canInstall && (
+              <button
+                type="button"
+                onClick={() => { void install(); setMobileOpen(false); }}
+                className="nav-install-btn-mobile"
+              >
+                <Download className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                <span>Install Mera Bakil App</span>
+              </button>
             )}
           </nav>
         </div>

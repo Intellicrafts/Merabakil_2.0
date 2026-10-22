@@ -4,23 +4,41 @@ import { useState } from "react";
 
 import { AskComposer } from "@/components/ask/ask-composer";
 import { useAskSubmit } from "@/components/ask/use-ask-submit";
+import { useGuestSignupWall } from "@/components/ask/use-guest-signup-wall";
+import { useGuestVoice } from "@/components/ask/use-guest-voice";
+import { trackMarketingCta } from "@/lib/analytics/track-cta";
 import { cn } from "@/lib/utils";
 
 /**
- * Homepage hero entry point — reuses the shared composer + submit hook. Asking a
- * question sends the visitor into the Saarthi guest chat (no signup wall).
+ * Homepage hero entry point (visitors here are always logged out).
+ * Ask always hands off to the free question page. Voice stays on the home page
+ * and goes through the same guest entitlement check as the question page.
  */
 export function HomeAskEntry({ className }: { className?: string }) {
   const [query, setQuery] = useState("");
   const { submitQuestion } = useAskSubmit();
+  const { openSignupPrompt, signupSheet } = useGuestSignupWall();
+  const { openGuestVoice, voiceOverlay } = useGuestVoice(openSignupPrompt);
 
   return (
     <div className={cn("w-full", className)}>
       <AskComposer
         value={query}
         onChange={setQuery}
-        onAsk={(q, opts) => submitQuestion(q, "typed", opts)}
+        allowEmpty
+        onAsk={(q, opts) => {
+          if (opts?.voice) {
+            openGuestVoice(q, "home_hero");
+            return;
+          }
+          // Keep the primary CTA deterministic even when the field is empty:
+          // the question page is the place to continue a written question.
+          trackMarketingCta("hero", "ask_saarthi", "/mera-vakil");
+          submitQuestion(q, "typed");
+        }}
       />
+      {signupSheet}
+      {voiceOverlay}
     </div>
   );
 }

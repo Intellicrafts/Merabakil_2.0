@@ -37,12 +37,15 @@ export function trackQuestionSent(p: {
   messageNumber: number;
   entryPoint: "guest" | "composer";
   hasAttachment?: boolean;
+  /** Topic of a tapped example question (e.g. "fraud"). */
+  exampleTopic?: string;
 }): void {
   track(AnalyticsEvents.QUESTION_SUBMITTED, {
     source: p.source,
     lang: p.lang,
     length_bucket: lengthBucket(p.questionLength),
     is_guest: p.isGuest,
+    ...(p.exampleTopic ? { example_topic: p.exampleTopic } : {}),
   });
   if (p.messageNumber === 1) {
     track(AnalyticsEvents.AI_CHAT_STARTED, { session_type: "saarthi", entry_point: p.entryPoint, is_guest: p.isGuest });

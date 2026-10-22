@@ -83,6 +83,8 @@ export const ALLOWED_PARAM_KEYS = new Set([
   "trigger",
   "method",
   "error_code",
+  // Which topic a tapped example question belongs to (e.g. "fraud") — never its text
+  "example_topic",
 ]);
 
 export type AnalyticsParamValue = string | number | boolean;

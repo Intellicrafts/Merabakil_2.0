@@ -2,14 +2,30 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgeCheck, FileDown, Loader2, Lock, Scale, ShieldCheck, Square } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
+import {
+  ArrowUpRight,
+  BadgeCheck,
+  BriefcaseBusiness,
+  FileDown,
+  Gavel,
+  Home,
+  Landmark,
+  Loader2,
+  Lock,
+  Scale,
+  ShieldAlert,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  Square,
+  Users,
+} from "lucide-react";
 
 import { AskAuthSheet } from "@/components/ask/ask-auth-sheet";
 import { AskComposer } from "@/components/ask/ask-composer";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { MessageList } from "@/components/mera-vakil/message-list";
-import { StarterSuggestions } from "@/components/mera-vakil/starter-suggestions";
 import { VoiceModeOverlay } from "@/components/mera-vakil/voice-mode-overlay";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { AnalyticsEvents, bucketLatency, captureUtmFromSearch, track } from "@/lib/analytics";
@@ -50,9 +66,20 @@ import {
   setMeraVakilAutoSend,
   setMeraVakilPrefill,
 } from "@/lib/prefill-store";
+import { examplesFor, type AskExample, type AskTopic } from "@/lib/ask-examples";
 
 const SAARTHI = "/mera-vakil";
 
+// Small topic cue for each suggested question (icon only — keeps the row compact).
+const TOPIC_ICON: Record<AskTopic, ElementType> = {
+  fraud: ShieldAlert,
+  property: Home,
+  job: BriefcaseBusiness,
+  family: Users,
+  money: Landmark,
+  consumer: ShoppingBag,
+  police: Gavel,
+};
 
 function emptyAssistant(): ChatMessage {
   return {
@@ -138,15 +165,6 @@ function SaarthiLandingInner() {
 
   // Stop an in-flight answer if the visitor leaves the page.
   useEffect(() => () => abortRef.current?.abort(), []);
-
-  const examples =
-    topic === "property"
-      ? [t("ask.propertyEx1"), t("ask.propertyEx2"), t("ask.propertyEx3")]
-      : topic === "family"
-        ? [t("ask.familyEx1"), t("ask.familyEx2"), t("ask.familyEx3")]
-        : topic === "labour"
-          ? [t("ask.labourEx1"), t("ask.labourEx2"), t("ask.labourEx3")]
-          : [t("ask.example1"), t("ask.example2"), t("ask.example3"), t("ask.example4")];
 
   const trust = [
     { icon: Scale, label: t("ask.trust1") },
@@ -377,14 +395,12 @@ function SaarthiLandingInner() {
       ? `${remaining} ${t(remaining === 1 ? "ask.freeChatLeft" : "ask.freeChatsLeft")} · ${t("ask.resetsMidnightIst")}`
       : "";
   const streamingMessage = messages.find((m) => m.id === streamingId);
+  // The strongest, highest-intent questions (one per topic) — shown compactly.
+  const suggested = useMemo<AskExample[]>(() => examplesFor("popular", lang).slice(0, 6), [lang]);
 
   return (
     <div
-      className={
-        chatStarted
-          ? "flex h-[100dvh] flex-col overflow-hidden bg-background"
-          : "flex min-h-[100dvh] flex-col bg-background"
-      }
+      className={chatStarted ? "flex h-[100dvh] flex-col overflow-hidden bg-background" : "saarthi-ask-page flex min-h-[100dvh] flex-col bg-background"}
     >
       <header className="flex shrink-0 items-center justify-between px-4 py-3.5 sm:px-6">
         <Link href="/" aria-label="MeraBakil home">
@@ -424,15 +440,21 @@ function SaarthiLandingInner() {
       </header>
 
       {!chatStarted ? (
-        <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-24 pt-6 sm:justify-center sm:pb-16 sm:pt-4">
-          <h1 className="text-balance text-[1.6rem] font-semibold leading-[1.15] tracking-tight sm:text-[2.1rem]">
-            {t("ask.headline")}
-          </h1>
-          <p className="mt-2.5 max-w-xl text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">
-            {t("ask.subline")}
-          </p>
+        <main className="saarthi-ask-hero mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-14 pt-5 sm:px-6 sm:pb-16 sm:pt-7">
+          <section className="saarthi-ask-intro mx-auto w-full max-w-3xl text-center">
+            <div className="saarthi-ask-eyebrow">
+              <span className="saarthi-ask-eyebrow-spark" aria-hidden><Sparkles className="h-3.5 w-3.5" /></span>
+              Free legal guidance · Hindi or English
+            </div>
+            <h1 className="mt-4 text-balance text-[2rem] font-semibold leading-[1.06] tracking-[-0.045em] sm:text-[2.75rem]">
+              {t("ask.headline")}
+            </h1>
+            <p className="mx-auto mt-3 max-w-2xl text-pretty text-[14px] leading-relaxed text-muted-foreground sm:text-[16px]">
+              {t("ask.subline")}
+            </p>
+          </section>
 
-          <div className="mt-5">
+          <div className="saarthi-ask-composer mx-auto mt-6 w-full max-w-3xl sm:mt-7">
             <AskComposer
               value={query}
               onChange={setQuery}
@@ -441,29 +463,36 @@ function SaarthiLandingInner() {
             />
           </div>
 
-          <div className="mt-3">
-            <StarterSuggestions onSelect={(p) => submitQuestion(p, "chip")} hideBooking disabled={streaming} />
-          </div>
-
-          <div className="mt-5">
-            <p className="mb-2 px-0.5 text-[12px] font-medium text-muted-foreground">
-              {t("ask.examplesLabel")}
-            </p>
-            <div className="flex flex-col gap-2">
-              {examples.map((ex) => (
+          <div className="mx-auto mt-5 grid w-full max-w-3xl grid-cols-1 gap-2 sm:mt-6 sm:grid-cols-2">
+            {suggested.map((ex, i) => {
+              const Icon = TOPIC_ICON[ex.topic];
+              return (
                 <button
-                  key={ex}
+                  key={ex.id}
                   type="button"
-                  onClick={() => submitQuestion(ex, "example")}
-                  className="rounded-xl border border-black/[0.07] bg-black/[0.02] px-3.5 py-2.5 text-left text-[13.5px] text-foreground/90 transition-colors hover:border-black/[0.12] hover:bg-black/[0.04] dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
+                  title={ex.text}
+                  onClick={() => submitQuestion(ex.text, "example")}
+                  disabled={streaming}
+                  className={`group items-center gap-2.5 rounded-xl border border-border/70 bg-card/50 px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-card disabled:cursor-not-allowed disabled:opacity-50 ${
+                    i >= 4 ? "hidden sm:flex" : "flex"
+                  }`}
                 >
-                  {ex}
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="h-3.5 w-3.5" strokeWidth={1.8} aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+                    {ex.text}
+                  </span>
+                  <ArrowUpRight
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary"
+                    aria-hidden
+                  />
                 </button>
-              ))}
-            </div>
+              );
+            })}
           </div>
 
-          <ul className="mt-6 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground/80">
+          <ul className="mx-auto mt-6 flex w-full max-w-3xl flex-wrap justify-center gap-x-4 gap-y-2 text-[11.5px] text-muted-foreground/80">
             {trust.map(({ icon: Icon, label }) => (
               <li key={label} className="inline-flex items-center gap-1.5">
                 <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />

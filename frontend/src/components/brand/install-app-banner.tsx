@@ -1,56 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { brandAssets, brandUrl } from "@/lib/brand-assets";
 import { Button } from "@/components/ui/button";
-
-const DISMISS_KEY = "merabakil.install-banner-dismissed";
-
-type InstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
-
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  const media = window.matchMedia?.("(display-mode: standalone)")?.matches;
-  const ios = "standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
-  return Boolean(media || ios);
-}
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
 
 export function InstallAppBanner() {
-  const [promptEvent, setPromptEvent] = useState<InstallPromptEvent | null>(null);
-  const [open, setOpen] = useState(false);
+  const { canInstall, install, dismiss } = useInstallPrompt();
 
-  useEffect(() => {
-    if (isStandalone() || localStorage.getItem(DISMISS_KEY) === "1") return;
-
-    const onPrompt = (event: Event) => {
-      event.preventDefault();
-      setPromptEvent(event as InstallPromptEvent);
-      setOpen(true);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
-  }, []);
-
-  if (!open || !promptEvent || isStandalone()) return null;
-
-  async function install() {
-    await promptEvent?.prompt();
-    const choice = await promptEvent?.userChoice;
-    if (choice?.outcome === "accepted") {
-      localStorage.setItem(DISMISS_KEY, "1");
-    }
-    setOpen(false);
-    setPromptEvent(null);
-  }
-
-  function dismiss() {
-    localStorage.setItem(DISMISS_KEY, "1");
-    setOpen(false);
-  }
+  if (!canInstall) return null;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-[90] px-3 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-2 sm:px-4">
@@ -64,7 +21,7 @@ export function InstallAppBanner() {
           alt="MeraBakil app icon"
           width={56}
           height={56}
-          className="brand-pwa-icon h-14 w-14 shrink-0 rounded-full object-cover"
+          className="brand-pwa-icon h-14 w-14 shrink-0 rounded-[18px] object-cover"
         />
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-semibold tracking-tight">Install Mera Bakil</p>
