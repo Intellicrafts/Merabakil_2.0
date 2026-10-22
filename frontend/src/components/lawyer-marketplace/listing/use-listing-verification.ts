@@ -11,10 +11,9 @@ import { toPayload, type ListingForm } from "./listing-form";
 type RunOptions = { manualReview?: boolean; nameOverride?: string };
 
 /**
- * Verify the enrolment: save the office location, name and number first (the
- * office's state decides which Bar Council checks the number, and the saved
- * name is compared with its record), then verify, then re-read the listing so
- * its status is what the server stored.
+ * Verify the enrolment: save the name and number first (the number decides which
+ * Bar Council checks it, and the saved name is compared with its record), then
+ * verify, then re-read the listing so its status is what the server stored.
  */
 export function useListingVerification({
   save,

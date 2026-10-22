@@ -25,7 +25,6 @@ import {
   STEP_FIELDS,
   firstIncompleteStep,
   fromListing,
-  officeLeavesCouncil,
   toPayload,
   validate,
   verificationOf,
@@ -134,11 +133,10 @@ export function ListingSetup({
     }
   }
 
-  // Same name, number and Bar Council (from the office's state) as the last check.
+  // Same name and number as the last check (the office no longer affects the council).
   const identityUnchanged =
     (row?.bar_council_id ?? "") === form.enrolment.trim() &&
-    (row?.full_name ?? "") === form.fullName.trim() &&
-    !officeLeavesCouncil(row, form.state);
+    (row?.full_name ?? "") === form.fullName.trim();
   const identityAccepted = identityUnchanged && (view.state === "verified" || view.state === "review");
   const locationChanged =
     (row?.pincode ?? "") !== form.pincode ||

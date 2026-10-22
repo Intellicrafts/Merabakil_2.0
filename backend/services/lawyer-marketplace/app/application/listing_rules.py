@@ -80,8 +80,8 @@ def completeness_errors(profile) -> dict[str, str]:
 
 
 def office_errors(pincode: str | None, state: str | None) -> dict[str, str]:
-    """The office pincode must be in the office state — the state decides which
-    Bar Council checks the enrolment (e.g. a UP pincode can't be filed under Punjab)."""
+    """The office pincode must match the office state — an address sanity check
+    (e.g. a UP pincode can't sit under Punjab). Independent of enrolment."""
     council = council_for_state(state)
     if council and pincode and not pincode_in_council(pincode, council):
         return {"pincode": f"This pincode isn't in {state}. Check the pincode and the state."}

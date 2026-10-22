@@ -11,7 +11,6 @@
  */
 import type { LawyerListingInput } from "@/lib/api";
 import type { RankedMarketplaceLawyer } from "@/lib/appointment-types";
-import { barCouncilForState, detectBarCouncil } from "@/lib/bar-councils";
 
 export type ListingStep = "identity" | "practice" | "fee";
 
@@ -218,19 +217,13 @@ export function verificationOf(row: RankedMarketplaceLawyer | null | undefined):
 }
 
 /**
- * The office has moved to a state another Bar Council covers, so the enrolment
- * must be checked again. Mirrors the server (marketplace_api._office_left_council).
+ * The enrolment number differs from the verified one on file, so it must be
+ * checked again. Mirrors the server (marketplace_api._recheck_after_profile_edit):
+ * the office address no longer affects verification.
  */
-export function officeLeavesCouncil(row: RankedMarketplaceLawyer | null | undefined, state: string): boolean {
-  const next = state.trim();
-  if (!row || !next || next === (row.location_state ?? "").trim()) return false;
-  const data = (row.verification_data ?? {}) as Record<string, unknown>;
-  // Checked before the council was recorded: the council the number belongs to.
-  const used = "council" in data ? (typeof data.council === "string" ? data.council : "") : detectBarCouncil(row.bar_council_id ?? "");
-  const nextCouncil = barCouncilForState(next);
-  if (used || nextCouncil) return used !== nextCouncil;
-  const usedState = typeof data.office_state === "string" ? data.office_state.trim().toLowerCase() : "";
-  return Boolean(usedState) && usedState !== next.toLowerCase();
+export function enrolmentChanged(row: RankedMarketplaceLawyer | null | undefined, enrolment: string): boolean {
+  if (!row) return false;
+  return enrolment.trim() !== (row.bar_council_id ?? "").trim();
 }
 
 const REQUIRED_LABELS: Record<string, string> = {

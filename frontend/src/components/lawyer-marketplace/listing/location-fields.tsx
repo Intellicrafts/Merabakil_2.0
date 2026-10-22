@@ -30,7 +30,7 @@ async function lookupPincode(pincode: string, signal: AbortSignal): Promise<Look
   return office ? { status: "found", district: office.District, state: office.State } : { status: "not_found" };
 }
 
-/** Office pincode, city and state. The state decides which Bar Council checks the enrolment. */
+/** Office pincode → city and state (auto-filled from the pincode, still editable). */
 export function LocationFields({
   form,
   errors,
@@ -100,7 +100,7 @@ export function LocationFields({
     ) : lookup.status === "unavailable" ? (
       "We couldn't look up this pincode right now — enter your city and state."
     ) : (
-      "Of your office or chamber. Its state decides which Bar Council checks your enrolment."
+      "Of your office or chamber — your city and state fill in from the pincode."
     );
 
   return (

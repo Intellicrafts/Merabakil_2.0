@@ -211,7 +211,7 @@ def test_listing_status_explains_what_is_missing(client) -> None:
     assert "Naveen Sheokand" in {row["full_name"] for row in listing}  # now in the marketplace
 
 
-# ── The office's state (from the pincode) decides which Bar Council checks ───
+# ── The enrolment number (its prefix) decides which Bar Council checks ───────
 
 from app.application.bar_councils import council_for_state, pincode_in_council  # noqa: E402
 
@@ -275,49 +275,46 @@ def test_pincodes_belong_to_their_council() -> None:
     assert pincode_in_council("400001", None)  # a council we can't check: nothing to compare
 
 
-def test_a_punjab_number_with_an_up_office_is_checked_with_up(client, monkeypatch) -> None:
-    assert _save(client, {**IDENTITY, **NOIDA}).status_code == 200
-    asked = _councils_checked(monkeypatch, NOT_FOUND_UP)
-    resp = _verify(client, state="Punjab & Haryana")  # the caller can't pick the council
-    assert resp.status_code == 200, resp.text
-    assert asked == ["Uttar Pradesh"]
-    me = _me(client)
-    assert me["is_verified"] is False
-    assert me["verification_data"]["outcome"] == "failed"
-    assert me["verification_data"]["council"] == "Uttar Pradesh"
-
-
-def test_a_punjab_number_with_a_chandigarh_office_is_verified(client, monkeypatch) -> None:
-    assert _save(client, {**IDENTITY, **CHANDIGARH}).status_code == 200
+def test_the_enrolment_number_not_the_office_decides_the_council(client, monkeypatch) -> None:
+    assert _save(client, {**IDENTITY, **NOIDA}).status_code == 200  # office sits in Uttar Pradesh
     asked = _councils_checked(monkeypatch, FOUND)
+    resp = _verify(client, state="Uttar Pradesh")  # the caller can't pick the council
+    assert resp.status_code == 200, resp.text
+    assert asked == ["Punjab & Haryana"]  # P/1150/1993 is a Punjab & Haryana number
+    me = _me(client)
+    assert me["is_verified"] is True
+    assert me["verification_data"]["council"] == "Punjab & Haryana"
+
+
+def test_office_moves_do_not_affect_a_verified_profile(client, monkeypatch) -> None:
+    assert _save(client, {**IDENTITY, **CHANDIGARH}).status_code == 200
+    _councils_checked(monkeypatch, FOUND)
     assert _verify(client).json()["status"] == "success"
-    assert asked == ["Punjab & Haryana"]
     data = _me(client)["verification_data"]
     assert data["council"] == "Punjab & Haryana" and data["office_state"] == "Chandigarh"
 
-    # Moving within the same council keeps verification; to another council's state doesn't.
+    # The office address no longer decides the council, so moving offices keeps verification.
     assert _save(client, GURUGRAM).json()["is_verified"] is True
+    assert _save(client, NOIDA).json()["is_verified"] is True
     assert _save(client, {"bio": "Criminal and civil matters."}).json()["is_verified"] is True
-    moved = _save(client, NOIDA).json()
-    assert moved["is_verified"] is False and moved["verification_data"]["outcome"] is None
 
 
-def test_an_office_in_a_state_we_cant_check_goes_to_review_without_satyapan(client, monkeypatch) -> None:
-    assert _save(client, {**IDENTITY, **MUMBAI}).status_code == 200
+def test_a_number_we_cant_place_goes_to_review_without_satyapan(client, monkeypatch) -> None:
+    assert _save(client, {"full_name": "Asha Patil", "bar_council_id": "MAH/123/2015", **MUMBAI}).status_code == 200
     asked = _councils_checked(monkeypatch, FOUND)
-    resp = _verify(client)
+    resp = client.post("/api/v1/lawyers/me/verify", headers=auth("advocate", OFFICE_ADV),
+                       json={"enrollment_number": "MAH/123/2015"})
     assert resp.json()["status"] == "needs_review" and asked == []
     data = _me(client)["verification_data"]
-    assert data["review_reason"] == "council_not_supported"
-    assert data["council"] is None and data["office_state"] == "Maharashtra"
+    assert data["review_reason"] == "council_not_supported" and data["council"] is None
 
 
-def test_verifying_needs_the_office_pincode_first(client, monkeypatch) -> None:
-    assert _save(client, IDENTITY).status_code == 200
+def test_verifying_does_not_need_the_office_pincode(client, monkeypatch) -> None:
+    assert _save(client, IDENTITY).status_code == 200  # no office pincode yet
     asked = _councils_checked(monkeypatch, FOUND)
     resp = _verify(client)
-    assert resp.status_code == 422 and "pincode" in resp.json()["detail"]["fields"]
-    assert asked == []
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "success" and asked == ["Punjab & Haryana"]
 
 
 def test_the_pincode_must_be_in_the_office_state(client) -> None:
@@ -328,37 +325,30 @@ def test_the_pincode_must_be_in_the_office_state(client) -> None:
     assert _save(client, {**IDENTITY, **NOIDA}).status_code == 200
 
 
-def test_a_manual_review_records_the_office_council(client, monkeypatch) -> None:
+def test_a_manual_review_records_the_numbers_council(client, monkeypatch) -> None:
     _save(client, {**IDENTITY, **NOIDA})
     asked = _councils_checked(monkeypatch, FOUND)
     assert _verify(client, manual_review=True).json()["status"] == "needs_review" and asked == []
     data = _me(client)["verification_data"]
-    assert data["review_reason"] == "manual_request" and data["council"] == "Uttar Pradesh"
+    assert data["review_reason"] == "manual_request" and data["council"] == "Punjab & Haryana"
 
 
-def test_admins_check_the_office_council_unless_they_choose_one(client, monkeypatch) -> None:
+def test_admins_check_the_numbers_council_unless_they_choose_one(client, monkeypatch) -> None:
     _save(client, {**IDENTITY, **NOIDA})
     lawyer_id = _me(client)["id"]
     asked = _councils_checked(monkeypatch, NOT_FOUND_UP)
     url = f"/api/v1/admin/lawyers/{lawyer_id}/verify"
     assert client.post(url, headers=auth("admin"), json={}).status_code == 200
-    assert client.post(url, headers=auth("admin"), json={"state": "Punjab & Haryana"}).status_code == 200
-    assert asked == ["Uttar Pradesh", "Punjab & Haryana"]
+    assert client.post(url, headers=auth("admin"), json={"state": "Uttar Pradesh"}).status_code == 200
+    assert asked == ["Punjab & Haryana", "Uttar Pradesh"]
 
 
-def test_verifications_before_councils_were_recorded_use_the_numbers_council() -> None:
-    kept = _verified("Mandeep Kaur", "P/1150/1993", "MANDEEP KAUR")  # no "council" on record
-    kept.location_state = "Chandigarh"
-    api._recheck_after_profile_edit(kept, old_name="Mandeep Kaur", old_bar_id="P/1150/1993", old_state="")
-    assert kept.is_verified
+def test_office_moves_no_longer_unverify_but_a_new_number_does() -> None:
+    kept = _verified("Mandeep Kaur", "P/1150/1993", "MANDEEP KAUR")
+    kept.location_state = "Uttar Pradesh"  # moved to a different state
+    api._recheck_after_profile_edit(kept, old_name="Mandeep Kaur", old_bar_id="P/1150/1993")
+    assert kept.is_verified  # the office no longer decides the council
 
-    moved = _verified("Mandeep Kaur", "P/1150/1993", "MANDEEP KAUR")
-    moved.location_state = "Uttar Pradesh"
-    api._recheck_after_profile_edit(moved, old_name="Mandeep Kaur", old_bar_id="P/1150/1993", old_state="")
-    assert not moved.is_verified
-
-    # Confirmed by hand, number and office unknown to us: nothing to compare against.
-    by_hand = _verified("Asha Patil", "MAH/123/2015", "ASHA PATIL")
-    by_hand.location_state = "Maharashtra"
-    api._recheck_after_profile_edit(by_hand, old_name="Asha Patil", old_bar_id="MAH/123/2015", old_state="")
-    assert by_hand.is_verified
+    changed = _verified("Mandeep Kaur", "P/9999/2001", "MANDEEP KAUR")
+    api._recheck_after_profile_edit(changed, old_name="Mandeep Kaur", old_bar_id="P/1150/1993")
+    assert not changed.is_verified  # a new enrolment number still needs re-checking

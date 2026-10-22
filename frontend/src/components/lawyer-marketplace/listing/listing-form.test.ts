@@ -12,7 +12,7 @@ import {
   fromListing,
   listingState,
   needsProfessionalActivation,
-  officeLeavesCouncil,
+  enrolmentChanged,
   remainingRequiredCount,
   toPayload,
   usesSetup,
@@ -274,32 +274,14 @@ describe("server errors", () => {
   });
 });
 
-describe("an office move to another Bar Council's state", () => {
-  const checked = (council: string | null, extra: Partial<RankedMarketplaceLawyer> = {}) =>
-    row({
-      bar_council_id: "P/1417/2012",
-      location_state: "Chandigarh",
-      is_verified: true,
-      verification_data: { outcome: "verified", council, office_state: "Chandigarh" },
-      ...extra,
-    });
+describe("enrolmentChanged (re-check keys off the number, not the office)", () => {
+  const verified = (barId: string) =>
+    row({ bar_council_id: barId, is_verified: true, verification_data: { outcome: "verified" } });
 
-  it("needs a new check; a move within the same council doesn't", () => {
-    expect(officeLeavesCouncil(checked("Punjab & Haryana"), "Uttar Pradesh")).toBe(true);
-    expect(officeLeavesCouncil(checked("Punjab & Haryana"), "Haryana")).toBe(false);
-    expect(officeLeavesCouncil(checked("Punjab & Haryana"), "Chandigarh")).toBe(false);
-    expect(officeLeavesCouncil(checked("Punjab & Haryana"), "Maharashtra")).toBe(true);
-  });
-
-  it("uses the number's council for checks made before councils were recorded", () => {
-    const older = row({ bar_council_id: "P/1417/2012", location_state: "", is_verified: true, verification_data: { outcome: "verified" } });
-    expect(officeLeavesCouncil(older, "Chandigarh")).toBe(false);
-    expect(officeLeavesCouncil(older, "Uttar Pradesh")).toBe(true);
-  });
-
-  it("tells councils we can't check apart by state", () => {
-    const byHand = checked(null, { location_state: "Maharashtra", verification_data: { outcome: "verified", council: null, office_state: "Maharashtra" } });
-    expect(officeLeavesCouncil(byHand, "Karnataka")).toBe(true);
-    expect(officeLeavesCouncil(byHand, "Uttar Pradesh")).toBe(true);
+  it("is true only when the enrolment number differs from the verified one on file", () => {
+    expect(enrolmentChanged(verified("P/1417/2012"), "P/1417/2012")).toBe(false);
+    expect(enrolmentChanged(verified("P/1417/2012"), "  P/1417/2012  ")).toBe(false);
+    expect(enrolmentChanged(verified("P/1417/2012"), "UP1234/2020")).toBe(true);
+    expect(enrolmentChanged(null, "P/1417/2012")).toBe(false);
   });
 });

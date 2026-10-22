@@ -25,7 +25,6 @@ import {
   describeRequired,
   fieldsChanged,
   fromListing,
-  officeLeavesCouncil,
   toPayload,
   validate,
   verificationOf,
@@ -85,11 +84,10 @@ export function ListingEditForm({
 
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(baseline), [form, baseline]);
   const view = verificationOf(row);
-  // A new name or number, or an office in another Bar Council's state, needs checking again.
+  // A new name or number needs checking again (the office no longer affects the council).
   const pendingCheck =
     form.fullName.trim() !== baseline.fullName ||
-    form.enrolment.trim() !== baseline.enrolment ||
-    officeLeavesCouncil(row, form.state);
+    form.enrolment.trim() !== baseline.enrolment;
 
   // Leaving with unsaved changes asks first.
   useEffect(() => {

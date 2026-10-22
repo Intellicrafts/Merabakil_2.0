@@ -86,7 +86,7 @@ from app.application.livekit_tokens import (
     remove_room_participant,
 )
 from app.application.matching import score_lawyer
-from app.application.bar_councils import council_for_state, same_council
+from app.application.bar_councils import council_for_state
 from app.application.listing_rules import (
     completeness_errors,
     experience_provided,
@@ -828,8 +828,8 @@ async def _save_listing(
             status_code=422,
             detail={"message": "Add the required details to save this listing.", "fields": errors},
         )
-    old_name, old_bar_id, old_state = (
-        (before.full_name, before.bar_council_id, before.location_state or "") if before else (None, None, "")
+    old_name, old_bar_id = (
+        (before.full_name, before.bar_council_id) if before else (None, None)
     )
     lawyer = await repo.upsert_lawyer_for_user(
         user_id,
@@ -848,7 +848,7 @@ async def _save_listing(
     )
     if body.years_experience is not None:
         lawyer.practising_since = practising_since_for(body.years_experience)
-    _recheck_after_profile_edit(lawyer, old_name=old_name, old_bar_id=old_bar_id, old_state=old_state)
+    _recheck_after_profile_edit(lawyer, old_name=old_name, old_bar_id=old_bar_id)
     await session.commit()
     if _is_indexable(lawyer):
         asyncio.create_task(_generate_and_index(lawyer.id))
@@ -897,8 +897,9 @@ async def verify_my_enrollment(
     enrollment = body.enrollment_number.strip()
     if body.manual_review:
         return await _verify_enrollment(lawyer, enrollment, None, manual_review=True)
-    # The council is the one for the office's state (from the pincode), not the caller's choice.
-    return await _verify_enrollment(lawyer, enrollment, _office_council(lawyer))
+    # The council comes from the enrolment number itself (its prefix), independent of the
+    # office address. Numbers whose council we can't auto-check go to manual review.
+    return await _verify_enrollment(lawyer, enrollment, _detect_bar_council_state(enrollment) or "other")
 
 
 @lawyers_router.get("/{lawyer_id}", response_model=LawyerPublic)
@@ -2535,26 +2536,6 @@ async def admin_ops_events(
     )
 
 
-def _office_council(lawyer) -> str:
-    """The council that checks an advocate: the one for their office's state.
-    "other" (manual review) when that council can't be checked automatically."""
-    state = (getattr(lawyer, "location_state", None) or "").strip()
-    if not state:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "message": "Add your office pincode first — it tells us which Bar Council to check.",
-                "fields": {"pincode": "Enter your office pincode."},
-            },
-        )
-    errors = office_errors(lawyer.pincode, state)
-    if errors:
-        raise HTTPException(
-            status_code=422, detail={"message": "Check your office pincode and state.", "fields": errors}
-        )
-    return council_for_state(state) or "other"
-
-
 def _detect_bar_council_state(enrollment_number: str) -> str | None:
     en = (enrollment_number or "").upper().strip()
     if en.startswith("UP"):
@@ -2586,32 +2567,15 @@ def _record_admin_decision(lawyer, decision: str, admin_id: str, note: str | Non
     return data
 
 
-def _office_left_council(lawyer, old_state: str) -> bool:
-    """The office moved to a state the council that verified the enrolment doesn't cover."""
-    new_state = (getattr(lawyer, "location_state", None) or "").strip()
-    if not new_state or new_state == old_state.strip():
-        return False
-    data = lawyer.verification_data or {}
-    # Verified before the council was recorded: the council the number belongs to.
-    used = data["council"] if "council" in data else _detect_bar_council_state(lawyer.bar_council_id)
-    if not used and not council_for_state(new_state) and not data.get("office_state"):
-        return False  # confirmed by hand with no office on record — nothing to compare
-    return not same_council(used, new_state, used_state=data.get("office_state"))
-
-
-def _recheck_after_profile_edit(
-    lawyer, *, old_name: str | None, old_bar_id: str | None, old_state: str | None = None
-) -> None:
-    """A verified advocate who changes their enrolment number, moves their office to
-    a state another Bar Council covers, or renames the profile to a name the Bar
-    Council record doesn't support, is verified no more."""
+def _recheck_after_profile_edit(lawyer, *, old_name: str | None, old_bar_id: str | None) -> None:
+    """A verified advocate who changes their enrolment number, or renames the profile
+    to a name the Bar Council record doesn't support, is verified no more. The office
+    address no longer affects verification (the council comes from the number)."""
     if not lawyer.is_verified:
         return
     data = dict(lawyer.verification_data or {})
     record_name = data.get("record_name") or (data.get("data") or {}).get("name")
-    if (lawyer.bar_council_id or "") != (old_bar_id or "") or (
-        old_state is not None and _office_left_council(lawyer, old_state)
-    ):
+    if (lawyer.bar_council_id or "") != (old_bar_id or ""):
         data.update(outcome=None, review_reason=None)
         data.pop("review", None)
     elif lawyer.full_name != old_name and not names_match(lawyer.full_name, record_name):
@@ -2661,7 +2625,7 @@ def _request_manual_review(lawyer, enrollment_number: str, reason: str) -> Verif
             "outcome": "needs_review",
             "review_reason": reason,
             "record_name": None,
-            "council": council_for_state(office_state),
+            "council": _detect_bar_council_state(enrollment_number),
             "office_state": office_state,
             "checked_at": datetime.now(UTC).isoformat(),
         }
@@ -2791,7 +2755,7 @@ async def admin_verify_lawyer(
         raise HTTPException(status_code=404, detail="Lawyer not found")
     if not lawyer.bar_council_id:
         raise HTTPException(status_code=400, detail="No bar council ID on file for this advocate")
-    state = body.state or council_for_state(getattr(lawyer, "location_state", None))
+    state = body.state or _detect_bar_council_state(lawyer.bar_council_id)
     return await _verify_enrollment(lawyer, lawyer.bar_council_id, state)
 
 

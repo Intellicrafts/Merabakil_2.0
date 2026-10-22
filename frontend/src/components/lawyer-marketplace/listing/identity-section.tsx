@@ -4,7 +4,7 @@ import { AlertTriangle, BadgeCheck, Clock3, Landmark, XCircle } from "lucide-rea
 
 import { FIELD_ERROR_BORDER, FormField, fieldProps } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { barCouncilForState, barCouncilName } from "@/lib/bar-councils";
+import { barCouncilName, detectBarCouncil } from "@/lib/bar-councils";
 import { cn } from "@/lib/utils";
 
 import { titleCaseName, type SectionProps, type VerificationView } from "./listing-form";
@@ -27,7 +27,7 @@ export type VerificationControls = {
   onRequestReview: () => void;
 };
 
-/** Office location first (its state decides the Bar Council), then name and enrolment number. */
+/** Office address (pincode → city/state), then name and the Bar Council enrolment number. */
 export function IdentitySection({
   form,
   errors,
@@ -51,10 +51,6 @@ export function IdentitySection({
     <div className="space-y-4">
       <LocationFields form={form} errors={errors} onChange={onChange} disabled={disabled} onLookupFailed={onLookupFailed} />
 
-      {form.state.trim() && verification.view.state === "none" && (
-        <CouncilLine state={form.state.trim()} adminMode={adminMode} />
-      )}
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           id="listing-name"
@@ -77,17 +73,27 @@ export function IdentitySection({
           hint="As on your enrolment certificate, e.g. PH/1234/2020, D/105/2005 or UP1234/25."
           error={errors.enrolment}
         >
-          <Input
-            {...fieldProps("listing-enrolment", { error: errors.enrolment, hint: true })}
-            value={form.enrolment}
-            disabled={disabled}
-            autoCapitalize="characters"
-            spellCheck={false}
-            onChange={(e) => onChange("enrolment", e.target.value.toUpperCase())}
-            className={cn("h-11 rounded-xl font-mono tracking-wide", errors.enrolment && FIELD_ERROR_BORDER)}
-          />
+          <div className="relative">
+            <Landmark
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              {...fieldProps("listing-enrolment", { error: errors.enrolment, hint: true })}
+              value={form.enrolment}
+              disabled={disabled}
+              autoCapitalize="characters"
+              spellCheck={false}
+              onChange={(e) => onChange("enrolment", e.target.value.toUpperCase())}
+              className={cn("h-11 rounded-xl pl-10 font-mono tracking-wide", errors.enrolment && FIELD_ERROR_BORDER)}
+            />
+          </div>
         </FormField>
       </div>
+
+      {form.enrolment.trim() && verification.view.state === "none" && (
+        <CouncilLine enrolment={form.enrolment.trim()} adminMode={adminMode} />
+      )}
 
       {changeWarning && (
         <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
@@ -101,23 +107,22 @@ export function IdentitySection({
   );
 }
 
-/** Which Bar Council the office's state sends the enrolment to. */
-function CouncilLine({ state, adminMode }: { state: string; adminMode?: boolean }) {
-  const council = barCouncilForState(state);
+/** Which Bar Council the enrolment number belongs to (from its prefix) — independent of the office. */
+function CouncilLine({ enrolment, adminMode }: { enrolment: string; adminMode?: boolean }) {
+  const council = detectBarCouncil(enrolment);
   return (
     <p className="flex items-start gap-2 text-[12px] text-muted-foreground">
       <Landmark className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
       {council ? (
         <span>
-          {adminMode ? "The enrolment is checked with the " : "We'll check your enrolment with the "}
-          <span className="font-medium text-foreground">{barCouncilName(council)}</span>, from{" "}
-          {adminMode ? "the" : "your"} office&apos;s state.
+          {adminMode ? "The enrolment is checked with the " : "We'll check this with the "}
+          <span className="font-medium text-foreground">{barCouncilName(council)}</span>, from the enrolment number.
         </span>
       ) : (
         <span>
           {adminMode
-            ? `Enrolments in ${state} are verified by our team.`
-            : `We can't check enrolments in ${state} automatically yet — our team will verify yours.`}
+            ? "This enrolment is verified by our team."
+            : "We can't check this enrolment automatically yet — our team will verify it."}
         </span>
       )}
     </p>
