@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from app.api.models import VerificationRequest, VerificationResponse
 from app.services.roll_index.punjab_haryana import RollIndex
-from app.services.verification_service import VerificationService, supported_states
+from app.services.verification_service import COUNCIL_PREFIXES, VerificationService, supported_states
 import os
 
 from app.api.deps import get_current_user
@@ -17,6 +17,7 @@ def get_service_status():
         "service": "Satyapan - Lawyer Verification Engine",
         "status": "running",
         "supported_states": supported_states(),
+        "enrollment_prefixes": {council: list(prefixes) for council, prefixes in COUNCIL_PREFIXES.items()},
         "punjab_haryana_index": RollIndex().meta() or "not built",
         "timestamp": datetime.utcnow().isoformat()
     }
