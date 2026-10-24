@@ -40,7 +40,7 @@ import {
   adminVerifyLawyer,
   listUsers,
 } from "@/lib/api";
-import { BAR_COUNCILS, barCouncilForState, detectBarCouncil } from "@/lib/bar-councils";
+import { BAR_COUNCILS, detectBarCouncil } from "@/lib/bar-councils";
 import { describeMissing } from "@/lib/listing-status";
 import type { AuthUser, LawyerMatchResult, VerifyResult, WalletBalance } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -295,12 +295,12 @@ function UserDetailSheet({ user, open, onClose, onUserUpdated }: UserDetailSheet
     retry: false,
   });
 
-  // Pre-fill the council from the office's state (pincode), else from the enrolment number.
+  // Pre-fill the council from the enrolment number (admins can override for unusual formats).
   useEffect(() => {
     if (lawyer?.bar_council_id && !verifyState) {
-      setVerifyState(barCouncilForState(lawyer.location_state ?? "") || detectBarCouncil(lawyer.bar_council_id));
+      setVerifyState(detectBarCouncil(lawyer.bar_council_id));
     }
-  }, [lawyer?.bar_council_id, lawyer?.location_state]);
+  }, [lawyer?.bar_council_id]);
 
   const verifyMutation = useMutation({
     mutationFn: () => adminVerifyLawyer(lawyer!.id, verifyState || undefined),
